@@ -100,6 +100,29 @@ function jwtKeyProblem(value: string): string | undefined {
 }
 
 /**
+ * The sign-in proxy's limits an operator may set (SEC-02, clerkProxyMiddleware.ts), read by the start-up check and by
+ * the proxy with this one rule: the requests a minute one client network may send (VALOPAY_CLERK_PROXY_RATE, 60 to
+ * 6,000, default 240), its requests at once (VALOPAY_CLERK_PROXY_NETWORK_CONCURRENCY, 2 to 64, default 8) and the
+ * process's requests at once (VALOPAY_CLERK_PROXY_CONCURRENCY, up to 512), which always leave room for eight networks
+ * at their limit, so a handful of networks cannot take every slot: eight times the network's limit when unset, and
+ * refused below it. An empty value counts as unset; a problem names the setting, never its value.
+ */
+export function clerkProxyTuning(values: { rate?: string; networkConcurrency?: string; concurrency?: string }): { limits: { requestsPerMinute: number; networkConcurrency: number; concurrency: number }; problems: string[] } {
+  const problems: string[] = [];
+  const whole = (name: string, value: string | undefined, low: number, high: number, fallback: number, rule = `a whole number from ${low} to ${high}`) => {
+    if (value === undefined || value === "") return fallback;
+    if (/^[0-9]{1,6}$/.test(value) && Number(value) >= low && Number(value) <= high) return Number(value);
+    problems.push(`${name} must be ${rule}.`);
+    return fallback;
+  };
+  const requestsPerMinute = whole("VALOPAY_CLERK_PROXY_RATE", values.rate, 60, 6_000, 240);
+  const networkConcurrency = whole("VALOPAY_CLERK_PROXY_NETWORK_CONCURRENCY", values.networkConcurrency, 2, 64, 8);
+  const least = 8 * networkConcurrency;
+  const concurrency = whole("VALOPAY_CLERK_PROXY_CONCURRENCY", values.concurrency, least, 512, least, `a whole number from ${least} to 512, room for eight networks at VALOPAY_CLERK_PROXY_NETWORK_CONCURRENCY`);
+  return { limits: { requestsPerMinute, networkConcurrency, concurrency }, problems };
+}
+
+/**
  * Reads and checks the settings; throws InvalidConfiguration naming every
  * setting that breaks its rule. An empty value counts as unset.
  */
@@ -167,6 +190,8 @@ export function readStartupConfig(env: Record<string, string | undefined>, purpo
   if (!(given("VALOPAY_APP_ORIGINS") ?? "").split(",").map((value) => value.trim()).filter(Boolean).every(httpsOrigin)) {
     problems.push("VALOPAY_APP_ORIGINS must list HTTPS origins, separated by commas, such as https://valopay.example.");
   }
+  // The sign-in proxy's limits, read by the proxy with the same rule; the close pass has no proxy.
+  if (purpose === "server") problems.push(...clerkProxyTuning({ rate: given("VALOPAY_CLERK_PROXY_RATE"), networkConcurrency: given("VALOPAY_CLERK_PROXY_NETWORK_CONCURRENCY"), concurrency: given("VALOPAY_CLERK_PROXY_CONCURRENCY") }).problems);
   const payloadEncryption = oneOf("VALOPAY_PAYLOAD_ENCRYPTION", ["off", "kms"] as const, "off");
   if (payloadEncryption === "kms" && !KMS_KEY.test(given("VALOPAY_KMS_KEY") ?? "")) problems.push("VALOPAY_KMS_KEY must be a Cloud KMS CryptoKey name (projects/…/locations/…/keyRings/…/cryptoKeys/…) when VALOPAY_PAYLOAD_ENCRYPTION is kms.");
   if (!(given("VALOPAY_KMS_PREVIOUS_KEYS") ?? "").split(",").map((value) => value.trim()).filter(Boolean).every((key) => KMS_KEY.test(key))) {
