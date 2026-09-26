@@ -50,6 +50,7 @@ export const suites = [
   "artifacts/api-server/tests/export-jobs.integration.test.ts",
   "artifacts/api-server/tests/export-expiry.integration.test.ts",
   "artifacts/api-server/tests/workflow-performance.integration.test.ts",
+  "artifacts/api-server/tests/paystack-verification.integration.test.ts",
 ];
 
 /** Runs each suite whatever the ones before it did, and returns the ones that failed. */
