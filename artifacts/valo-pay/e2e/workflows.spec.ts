@@ -54,6 +54,8 @@ test("paged queue search, saved view, record return and browser history", async 
   ).toBeVisible();
   await page.getByRole("button", { name: "Next page of mandates" }).click();
   await expect(page.getByText("Page 2 of 3", { exact: true })).toBeVisible();
+  // The pager names page 2 at once but keeps page 1's rows until page 2 arrives: read a row only once it has.
+  await expect(page.getByRole("button", { name: "Next page of mandates" })).not.toHaveAttribute("aria-disabled", "true");
   const reference = await page
     .locator("tbody tr")
     .first()
