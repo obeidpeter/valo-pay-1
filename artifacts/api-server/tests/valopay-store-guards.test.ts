@@ -200,15 +200,36 @@ console.log("valopay repository pure guards passed");
 }
 {
   // The guard query in docs/database-migrations.md, run by the owner before publishing, is built from the catalogue
-  // readiness checks: one row for each guard, in its order, with its kind, name, table and definition as SQL text.
-  // integrity-guards.integration.test.ts runs it against PostgreSQL.
+  // readiness checks: one row for each guard, in its order, with its kind, name, table and definition as SQL text,
+  // and one for each superseded guard, with its table and definition. integrity-guards.integration.test.ts runs it
+  // against PostgreSQL.
   const { readFileSync } = await import("node:fs");
-  const { integrityGuards } = await import("../src/lib/valopay-store.js");
+  const { integrityGuards, supersededGuards } = await import("../src/lib/valopay-store.js");
   const literal = (text: string) => `'${text.replaceAll("'", "''")}'`;
   const rows = integrityGuards.map((guard) => `  (${[guard.type, guard.name, guard.table, guard.definition].map(literal).join(", ")})`).join(",\n");
+  const superseded = supersededGuards.map((guard) => `  (${[guard.table, guard.definition].map(literal).join(", ")})`).join(",\n");
   const documented = readFileSync(new URL("../../../docs/database-migrations.md", import.meta.url), "utf8");
   const query = [...documented.matchAll(/```sql\n([\s\S]*?)```/g)].map((match) => match[1]!);
   assert.equal(query.length, 1, "docs/database-migrations.md holds one SQL block, the guard query");
   assert.ok(query[0]!.includes(`FROM (VALUES\n${rows}\n) AS guard`), `The documented guard query must list exactly integrityGuards; its rows should read:\n${rows}`);
-  console.log(`Guard query rows passed: the query in docs/database-migrations.md lists the ${integrityGuards.length} integrity guards readiness checks, in order.`);
+  assert.ok(query[0]!.includes(`FROM (VALUES\n${superseded}\n) AS superseded`), `The documented guard query must list exactly supersededGuards; its rows should read:\n${superseded}`);
+  console.log(`Guard query rows passed: the query in docs/database-migrations.md lists the ${integrityGuards.length} integrity guards readiness checks, in order, and each superseded guard it refuses.`);
+}
+{
+  // Readiness names a missing guard with the migration that installs it (guardMigrations): the file that names the
+  // guard or creates its table. No file names or creates the four base tables' guards, which have none. Migration
+  // 009 drops exactly the superseded definition readiness refuses.
+  const { readFileSync, readdirSync } = await import("node:fs");
+  const { integrityGuards, guardMigrations, supersededGuards } = await import("../src/lib/valopay-store.js");
+  const directory = new URL("../../../lib/db/migrations/", import.meta.url);
+  const files = readdirSync(directory).filter((file) => file.endsWith(".sql")).sort();
+  const sql = Object.fromEntries(files.map((file) => [file, readFileSync(new URL(file, directory), "utf8")]));
+  const installs = (file: string, guard: (typeof integrityGuards)[number]) => new RegExp(`\\b${guard.name}\\b`).test(sql[file]!) || sql[file]!.includes(`CREATE TABLE IF NOT EXISTS ${guard.table} (`);
+  for (const guard of integrityGuards) {
+    const migration = guardMigrations[guard.name];
+    assert.deepEqual(files.filter((file) => installs(file, guard)), migration ? [migration] : [], `${guard.name} is named with the migration that installs it`);
+  }
+  const literal = (text: string) => `'${text.replaceAll("'", "''")}'`;
+  for (const guard of supersededGuards) assert.ok(sql[guard.migration]!.includes(`old_definition CONSTANT text := ${literal(guard.definition)};`), `${guard.migration} drops the definition readiness refuses`);
+  console.log(`Guard sources passed: each of the ${Object.keys(guardMigrations).length} guards a migration installs is named with that file, the base tables' guards with none, and 009 drops the superseded definition readiness refuses.`);
 }

@@ -8,9 +8,9 @@
 import type { SchemaCheckStatus } from './schemaCheckStatus';
 
 /**
- * Whether the database holds every table, column, unique index, check constraint and read index this build needs: ok, indexes_missing (ready, some reads slower), incomplete (not ready) or unchecked while the database does not answer. The server log, not the answer, names what is missing.
+ * Whether the database holds every table, column, unique index, check constraint and read index this build needs, and no guard it replaced: ok, indexes_missing (ready, some reads slower), incomplete (not ready) or unchecked while the database does not answer. The server log, not the answer, names what is missing or replaced.
  */
 export interface SchemaCheck {
-  /** ok: every table, column, unique index, check constraint and read index this build needs is present. indexes_missing: ready, but a read index a migration adds is missing, so some reads are slower until it is applied. incomplete: a table, column, unique index or check constraint is missing, so the instance is not ready. unchecked: the database did not answer. The server log names what is missing and where it comes from. */
+  /** ok: every table, column, unique index, check constraint and read index this build needs is present, and no guard it replaced remains. indexes_missing: ready, but a read index a migration adds is missing, so some reads are slower until it is applied. incomplete: a table, column, unique index or check constraint is missing, or a guard this build replaced is still in place, so the instance is not ready. unchecked: the database did not answer. The server log names what is missing and where it comes from, and a replaced guard and the schema to migrate. */
   status: SchemaCheckStatus;
 }

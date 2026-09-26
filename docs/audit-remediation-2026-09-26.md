@@ -19,7 +19,7 @@ This release addresses the twelve findings from the comprehensive audit of PR #6
 
 ## Existing data and rollout
 
-Apply migration 009 before publishing this application build, in every application and isolated runtime schema. See [database migrations](database-migrations.md) and the [identity preflight](record-identity-migration.md). Duplicate references or deliveries stop the transaction without deleting evidence. Review and correct genuine historical duplicates through an approved recorded process before retrying.
+Apply migration 009 before publishing this application build, in every application and isolated runtime schema. See [database migrations](database-migrations.md) and the [identity preflight](record-identity-migration.md). Duplicate references or deliveries stop the transaction without deleting evidence. Review and correct genuine historical duplicates through an approved recorded process before retrying. In a runtime schema, the 009 of this release dropped the older event guard only by its name and left the copy those tables hold under a generated name; the fixed file drops it under any name, so a host that applied this release's 009 applies the current file again in each runtime schema ("Review fixes for PRs #61 to #67" in [build status](BUILD_STATUS.md)).
 
 Unversioned reversal decisions receive a separate renewed-review exception on reconciliation. Finance or an administrator must inspect the retained evidence and choose the appropriate current outcome. Do not remove the hold by editing the original exception or releasing its instalment as an ordinary dispute.
 

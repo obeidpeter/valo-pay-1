@@ -396,7 +396,7 @@ try {
     const described = (guards: Array<{ table: string; type: string; definition: string }>) => guards.map(({ table, type, definition }) => `${table} ${type} ${definition}`).sort();
     assert.deepEqual(described([...integrityGuards]), described(held), "readiness requires every unique index and check constraint the pushed schema holds, and nothing else");
     const scratch = `valopay_readiness_test_${randomBytes(6).toString("hex")}`;
-    const guardSource = "restore it from the Drizzle schema in lib/db";
+    const guardSource = "restore it as docs/database-migrations.md describes";
     try {
       await pool.query(`CREATE SCHEMA "${scratch}"`);
       for (const table of tables) await pool.query(`CREATE TABLE "${scratch}".${table} (LIKE public.${table} INCLUDING ALL)`);
