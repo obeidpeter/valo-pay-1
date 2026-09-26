@@ -7,7 +7,7 @@ import type { Context, DomainState, TypedRecord, ValopayRecord } from "./types";
 import { addBusinessDays, watDate } from "./calendar";
 import { validateRecord } from "./validation";
 import { approvedPolicyFor, attemptTime, attemptsFor, countedAttempts, enrolEligibleFailures, evaluateRetry, recordRetryDecision } from "./policy-engine";
-import { dueNeedsReversalReview, latestEvidenceResolution, paymentNeedsReversalReview } from "./reversal-review";
+import { dueNeedsReversalReview, latestEvidenceResolution, paymentNeedsReversalReview, reversalHoldScope } from "./reversal-review";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** ING-05: a second Payment for the same payer and amount inside this window is held as a possible duplicate. */
@@ -1279,15 +1279,18 @@ export function derivedDueStatus(state: DomainState, due: TypedRecord<"due-items
  * Its status then follows its balance, as after any other change (paid,
  * part-paid, or scheduled or in collection by its attempts; the collections
  * queue reads overdue from the due date), and a paid one has its unsent
- * attempts cancelled. The release is recorded on the instalment with the
- * last counted attempt, whose disputed debit then does not freeze it again,
- * and each open dispute exception for it is closed as its condition cleared.
- * Returns those exceptions.
+ * attempts cancelled. Decision on a dispute a reversal review's hold made
+ * (statusHeldInDispute): its release returns the instalment to the status it
+ * had before the hold, never to collection by default. The release is
+ * recorded on the instalment with the last counted attempt, whose disputed
+ * debit then does not freeze it again, and each open dispute exception for it
+ * is closed as its condition cleared. Returns those exceptions.
  */
 export function releaseDispute(state: DomainState, ctx: Context, due: TypedRecord<"due-items">, release: { via: "not_upheld" | "finance_release"; reason: string; exceptionId?: string }): TypedRecord<"exceptions">[] {
   if (dueNeedsReversalReview(state, due)) throw Object.assign(new Error("Resolve the renewed reversal review and run reconciliation before releasing this instalment."), { status: 409 });
   if (due.status !== "in_dispute") throw Object.assign(new Error(`Instalment ${due.reference} is not in dispute, so there is nothing to release. Refresh it to see its current status.`), { status: 409 });
-  const status = balanceStatus(state, due);
+  const status = statusHeldInDispute(state, due) ?? balanceStatus(state, due);
+  delete due.data.legacyReversalReviewPause;
   due.status = status;
   if (status === "paid") cancelUnsentAttempts(state, due.id, ctx.now);
   due.data.disputeRelease = {
@@ -1714,6 +1717,9 @@ function financeDecision(state: DomainState, observation: TypedRecord<"observati
   return latest && decisionOf(latest, observation, payments);
 }
 
+/** What a renewed reversal review's hold does, as the review's notes say (an earlier build's open review gains it as a dated line). */
+const REVERSAL_HOLD_RULE = "Related payments cannot receive new allocations. An instalment still being collected is paused in dispute; a paid instalment, or one unpaid after its final attempt, keeps its status. Once this review is resolved, the next reconciliation returns each paused instalment to the status it had before the hold, unless a dispute was recorded for it meanwhile.";
+
 /** Quarantine ambiguous persisted decisions without rewriting either the decision or its previous disposition. */
 function reviewEarlierReversalDecisions(state: DomainState, ctx: Context): TypedRecord<"exceptions">[] {
   const payments = new CanonicalPaymentIndex(state);
@@ -1723,7 +1729,7 @@ function reviewEarlierReversalDecisions(state: DomainState, ctx: Context): Typed
     const condition = `${unseenReversalCondition(observation.id)}:review:${decision.exception.id}`;
     let review = recordsWhere(state, "exceptions", "data.linkedRecordId", observation.id).find((item) => item.data.condition === condition);
     if (review) continue;
-    const notes = `Earlier decision ${decision.exception.id} recorded ${decision.exception.data.resolutionCode} without a rule version. Releases used different meanings for that code, so Valo Pay cannot infer whether reversal ${observation.reference} should be adopted or set aside. Its earlier decision and evidence disposition are preserved. Finance must check the provider evidence and record a new explicit decision: provider state adopted applies the reversal to its payment; platform state confirmed sets unprocessed reversal evidence aside. Existing allocations and previously applied reversals are not changed until reviewed. Related payments cannot receive new allocations and related instalments are paused. After reconciliation, review any historical effects and release the instalments explicitly.`;
+    const notes = `Earlier decision ${decision.exception.id} recorded ${decision.exception.data.resolutionCode} without a rule version. Releases used different meanings for that code, so Valo Pay cannot infer whether reversal ${observation.reference} should be adopted or set aside. Its earlier decision and evidence disposition are preserved. Finance must check the provider evidence and record a new explicit decision: provider state adopted applies the reversal to its payment; platform state confirmed sets unprocessed reversal evidence aside. Existing allocations and previously applied reversals are not changed until reviewed. ${REVERSAL_HOLD_RULE} After that reconciliation, review any historical effects.`;
     // Do not let an old resolution without a condition suppress this new review.
     review = recordsWhere(state, "exceptions", "data.linkedRecordId", observation.id).find((item) => isOpenException(item.status) && resolveExceptionType(item.data.type) === "provider_status_mismatch")
       ?? makeRecord(state, "exceptions", { name: "Review earlier reversal decision", status: "open", customerId: observation.customerId, amountKobo: statedGross(observation).kobo, createdAt: ctx.now, data: { type: "provider_status_mismatch", owner: "Finance", severity: "high", slaBusinessDays: 1, dueBy: addBusinessDays(state, ctx.now, 1), linkedRecordId: observation.id, linkedKind: "observations", ...(currencyOf(observation) !== "NGN" ? { currency: currencyOf(observation) } : {}) } });
@@ -1746,45 +1752,145 @@ function reviewEarlierReversalDecisions(state: DomainState, ctx: Context): Typed
   return reviews;
 }
 
-/** A hold does not undo allocations. It prevents new applications/collections until the explicit review completes. */
-function holdEarlierReversalPayments(state: DomainState, ctx: Context, reviews: readonly TypedRecord<"exceptions">[]): void {
-  if (!reviews.length) return;
-  const active = reviews.filter((item) => isOpenException(item.status));
-  const byReference = new Map<string, string[]>();
-  for (const review of active) {
-    const observation = recordsWhere(state, "observations", "id", String(review.data.linkedRecordId))[0];
-    if (observation) byReference.set(observation.reference, [...(byReference.get(observation.reference) ?? []), review.id]);
+/** The instalment statuses a renewed reversal review's hold pauses: those still being collected. */
+const pausedStatuses: readonly string[] = ["scheduled", "in_collection", "partially_paid"];
+/** Where a reversal review's hold paused an instalment (legacyReversalReviewPause): the status it had and when; inferred when its records gave that status, as for one an earlier build's hold put in dispute. */
+interface ReversalPause { status: TypedRecord<"due-items">["status"]; pausedAt: string; inferred?: true }
+const pauseOf = (due: TypedRecord<"due-items">): ReversalPause | undefined => due.data.legacyReversalReviewPause as ReversalPause | undefined;
+
+/**
+ * Whether a dispute was recorded for an instalment at or after `since` and
+ * after its last release from dispute: a customer_dispute exception, or a
+ * reversal of money applied to it (an earlier build put such an instalment in
+ * dispute without an exception). The dispute workflow owns an instalment so
+ * disputed, whatever a reversal review's hold did.
+ */
+function disputeRecorded(state: DomainState, due: TypedRecord<"due-items">, since = ""): boolean {
+  const released = String((due.data.disputeRelease as { releasedAt?: unknown } | undefined)?.releasedAt ?? "");
+  const recorded = (at: unknown) => String(at) >= since && String(at) > released;
+  return recordsWhere(state, "exceptions", "data.linkedRecordId", due.id).some((item) => resolveExceptionType(item.data.type) === "customer_dispute" && recorded(item.createdAt))
+    || recordsWhere(state, "allocations", "data.dueItemId", due.id).some((item) => item.status === "superseded" && recorded(item.updatedAt) && recordsWhere(state, "payments", "id", String(item.data.paymentId))[0]?.data.reversalApplied === true);
+}
+
+/**
+ * The status an instalment an earlier build's reversal review hold put in
+ * dispute had before it, as its records establish it: paid with nothing
+ * outstanding; unpaid after its final attempt once the retry engine gave up on
+ * it (giveUpRule: the engine never evaluates an instalment in dispute, so it
+ * gave up before the hold); otherwise part-paid, or scheduled or in collection
+ * by its attempts (balanceStatus).
+ */
+function statusBeforeHold(state: DomainState, due: TypedRecord<"due-items">): TypedRecord<"due-items">["status"] {
+  if (outstanding(due) === 0) return "paid";
+  return due.data.giveUpRule ? "unpaid_final" : balanceStatus(state, due);
+}
+
+/**
+ * The instalments PR #61's build could hold for these renewed reviews, by its
+ * own rule, which followed a reversal's reference through any connection and
+ * any allocation: every instalment of a payment with the reference, the one its
+ * evidence named or it was proposed for, the one the reversal named, those of
+ * debits with the reference, and every instalment still carrying its hold.
+ */
+function earlierHoldReach(state: DomainState, reviews: readonly TypedRecord<"exceptions">[]): Set<string> {
+  const reach = new Set<string>(), references = new Set<string>();
+  const add = (id: unknown) => { if (typeof id === "string" && id) reach.add(id); };
+  for (const review of reviews) {
+    const reversal = recordsWhere(state, "observations", "id", String(review.data.linkedRecordId))[0];
+    if (!reversal?.reference) continue;
+    references.add(reversal.reference);
+    add(reversal.data.dueItemId);
+    for (const key of ["reference", "data.providerReference"] as const) for (const attempt of recordsWhere(state, "attempts", key, reversal.reference)) add(attempt.data.dueItemId);
   }
-  const dueHolds = new Map<string, Set<string>>();
-  for (const payment of recordsOf(state, "payments")) {
-    const ids = [...new Set([...(byReference.get(payment.reference) ?? []), ...(byReference.get(String(payment.data.providerReference)) ?? [])])].sort();
-    if (!isDeepStrictEqual(payment.data.legacyReversalReviewIds ?? [], ids)) {
-      if (ids.length) payment.data.legacyReversalReviewIds = ids; else delete payment.data.legacyReversalReviewIds;
-      touch(payment, ctx.now);
-    }
-    if (!ids.length) continue;
-    const dues = new Set(recordsWhere(state, "allocations", "data.paymentId", payment.id).map((item) => String(item.data.dueItemId)));
-    if (payment.data.dueItemId) dues.add(String(payment.data.dueItemId));
-    if (payment.data.proposedDueItemId) dues.add(String(payment.data.proposedDueItemId));
-    const intended = intendedDueItem(state, payment);
-    if (intended) dues.add(intended.due.id);
-    for (const id of dues) dueHolds.set(id, new Set([...(dueHolds.get(id) ?? []), ...ids]));
+  for (const reference of references) for (const key of ["reference", "data.providerReference"] as const) for (const payment of recordsWhere(state, "payments", key, reference)) {
+    for (const allocation of recordsWhere(state, "allocations", "data.paymentId", payment.id)) add(allocation.data.dueItemId);
+    add(payment.data.dueItemId); add(payment.data.proposedDueItemId); add(intendedDueItem(state, payment)?.due.id);
   }
-  // A reversal can name an instalment/attempt before its receipt arrives.
-  for (const review of active) {
-    const observation = recordsWhere(state, "observations", "id", String(review.data.linkedRecordId))[0];
-    if (!observation) continue;
-    const ids = [observation.data.dueItemId, ...recordsOf(state, "attempts").filter((item) => item.data.providerReference === observation.reference || item.reference === observation.reference).map((item) => item.data.dueItemId)];
-    for (const id of ids.filter((id): id is string => typeof id === "string" && !!id)) dueHolds.set(id, new Set([...(dueHolds.get(id) ?? []), review.id]));
+  for (const due of recordsOf(state, "due-items")) if (Array.isArray(due.data.legacyReversalReviewIds) && due.data.legacyReversalReviewIds.length) reach.add(due.id);
+  return reach;
+}
+
+/** The status a reversal review's hold took from an instalment in dispute (holdEarlierReversalPayments), which its release returns; undefined when a dispute was recorded for it, or no hold made its dispute. */
+function statusHeldInDispute(state: DomainState, due: TypedRecord<"due-items">): TypedRecord<"due-items">["status"] | undefined {
+  const pause = pauseOf(due);
+  if (pause) return disputeRecorded(state, due, pause.pausedAt) ? undefined : pause.status;
+  const reviews = recordsOf(state, "exceptions").filter((item) => item.data.legacyResolutionReview);
+  return reviews.length && earlierHoldReach(state, reviews).has(due.id) && !disputeRecorded(state, due) ? statusBeforeHold(state, due) : undefined;
+}
+
+/** An instalment a reversal review's hold gave its status back, and that status. */
+interface HoldRestored { due: TypedRecord<"due-items">; status: TypedRecord<"due-items">["status"] }
+
+/**
+ * FIN-02, decision on the renewed reversal review's holds. A hold undoes no
+ * allocation: while its review is open, the payments and instalments its
+ * reversal names through its own provider identity and live allocations
+ * (reversalHoldScope) carry the review (legacyReversalReviewIds), so no action
+ * applies money to them, releases them or plans their collection, and the
+ * review's notes say what the hold does (REVERSAL_HOLD_RULE). It never changes
+ * the status of a paid instalment or one unpaid after its final attempt. One
+ * still being collected is paused in dispute with the status it had
+ * (legacyReversalReviewPause), and once no open review holds it, that status
+ * comes back exactly, unless a dispute was recorded for it meanwhile
+ * (disputeRecorded), which the dispute workflow then owns. Decision on the holds
+ * PR #61's build wrote, which put every instalment they reached in dispute: one
+ * in its reach (earlierHoldReach) that is in dispute with no dispute recorded
+ * gets the status its records establish (statusBeforeHold), at once when that
+ * is paid or unpaid after its final attempt or no review holds it now, and
+ * otherwise stays paused with that status, marked inferred. Returns the
+ * instalments given a status back.
+ */
+function holdEarlierReversalPayments(state: DomainState, ctx: Context, reviews: readonly TypedRecord<"exceptions">[]): HoldRestored[] {
+  if (!reviews.length) return [];
+  const earlier = earlierHoldReach(state, reviews);
+  const paymentHolds = new Map<string, Set<string>>(), dueHolds = new Map<string, Set<string>>();
+  const hold = (holds: Map<string, Set<string>>, id: string, review: string) => holds.set(id, (holds.get(id) ?? new Set<string>()).add(review));
+  for (const review of reviews.filter((item) => isOpenException(item.status))) {
+    noteUpdate(review, ctx, REVERSAL_HOLD_RULE);
+    const reversal = recordsWhere(state, "observations", "id", String(review.data.linkedRecordId))[0];
+    if (!reversal) continue;
+    const scope = reversalHoldScope(state, reversal);
+    for (const payment of scope.payments) hold(paymentHolds, payment.id, review.id);
+    for (const id of scope.dueIds) hold(dueHolds, id, review.id);
   }
+  const record = (item: TypedRecord<"payments"> | TypedRecord<"due-items">, ids: string[]) => {
+    if (isDeepStrictEqual(item.data.legacyReversalReviewIds ?? [], ids)) return;
+    if (ids.length) item.data.legacyReversalReviewIds = ids; else delete item.data.legacyReversalReviewIds;
+    touch(item, ctx.now);
+  };
+  for (const payment of recordsOf(state, "payments")) record(payment, [...(paymentHolds.get(payment.id) ?? [])].sort());
+  const restored: HoldRestored[] = [];
+  const restore = (due: TypedRecord<"due-items">, status: TypedRecord<"due-items">["status"]) => {
+    due.status = status;
+    if (status === "paid") cancelUnsentAttempts(state, due.id, ctx.now);
+    touch(due, ctx.now);
+    restored.push({ due, status });
+  };
   for (const due of recordsOf(state, "due-items")) {
-    const ids = [...(dueHolds.get(due.id) ?? [])].sort();
-    if (!isDeepStrictEqual(due.data.legacyReversalReviewIds ?? [], ids)) {
-      if (ids.length) due.data.legacyReversalReviewIds = ids; else delete due.data.legacyReversalReviewIds;
+    const ids = [...(dueHolds.get(due.id) ?? [])].sort(), pause = pauseOf(due);
+    record(due, ids);
+    if (pause) {
+      if (ids.length) continue;
+      // The hold cleared: the status it paused comes back, unless a dispute was recorded meanwhile.
+      delete due.data.legacyReversalReviewPause;
       touch(due, ctx.now);
+      if (due.status === "in_dispute" && !disputeRecorded(state, due, pause.pausedAt)) restore(due, pause.status);
+      continue;
     }
-    if (ids.length && !["cancelled", "closed", "in_dispute"].includes(due.status)) { due.status = "in_dispute"; touch(due, ctx.now); }
+    if (ids.length && pausedStatuses.includes(due.status)) {
+      due.data.legacyReversalReviewPause = { status: due.status, pausedAt: ctx.now };
+      due.status = "in_dispute";
+      touch(due, ctx.now);
+      continue;
+    }
+    // An earlier build's hold put it in dispute.
+    if (due.status !== "in_dispute" || !earlier.has(due.id) || disputeRecorded(state, due)) continue;
+    const before = statusBeforeHold(state, due);
+    if (!ids.length || !pausedStatuses.includes(before)) { restore(due, before); continue; }
+    due.data.legacyReversalReviewPause = { status: before, pausedAt: ctx.now, inferred: true };
+    touch(due, ctx.now);
   }
+  return restored;
 }
 
 /**
@@ -2193,7 +2299,7 @@ function reconcileRecords(state: DomainState, ctx: Context): { message: string; 
   // import or close, is recorded first whatever order the evidence arrived in.
   const ordered = [...observations.filter((item) => !reportsReversal(item)), ...observations.filter(reportsReversal)];
   const resolved = ordered.map((item) => canonicalPayment(state, ctx, item, canonicalPayments, settlementLines)).filter(Boolean) as TypedRecord<"payments">[];
-  holdEarlierReversalPayments(state, ctx, legacyReviews);
+  const holdsRestored = holdEarlierReversalPayments(state, ctx, legacyReviews);
   recountEarlierLines(state, ctx);
   const statements = linkSettlementStatements(state, ctx);
   const batchVariances = evaluateSettlementBatches(state, ctx, statements.credits);
@@ -2273,10 +2379,19 @@ function reconcileRecords(state: DomainState, ctx: Context): { message: string; 
       ...(identities.held ? { settlementProviderIdentityHolds: identities.held } : {}),
       ...(identities.released.length ? { settlementProviderIdentityReleases: identities.released.length } : {}),
       ...(legacyReviews.some((item) => isOpenException(item.status)) ? { legacyReversalReviewsPending: legacyReviews.filter((item) => isOpenException(item.status)).length } : {}),
+      ...(holdsRestored.length ? { legacyReversalStatusesRestored: holdsRestored.length } : {}),
       ...(separated.length ? { settlementLinesSeparated: separated.length } : {}),
-      ...(cleared.length || legacyReviews.length || separated.length || identities.released.length ? { auditNote: [releasedBatchesNote(identities.released), separatedLinesNote(separated), clearedExceptionsNote(cleared), legacyReviews.some((item) => isOpenException(item.status)) ? "Earlier unversioned reversal decisions are held for renewed Finance review; historical decisions and financial activity were not reinterpreted." : undefined].filter(Boolean).join(" ") } : {}),
+      ...(cleared.length || legacyReviews.length || separated.length || identities.released.length ? { auditNote: [releasedBatchesNote(identities.released), separatedLinesNote(separated), clearedExceptionsNote(cleared), legacyReviews.some((item) => isOpenException(item.status)) ? "Earlier unversioned reversal decisions are held for renewed Finance review; historical decisions and financial activity were not reinterpreted." : undefined, restoredStatusesNote(holdsRestored)].filter(Boolean).join(" ") } : {}),
     },
   };
+}
+
+/** What the audit entry adds for instalments a reversal review's hold gave their status back: each instalment and that status. */
+function restoredStatusesNote(restored: readonly HoldRestored[]): string | undefined {
+  if (!restored.length) return undefined;
+  const named = restored.slice(0, 3).map(({ due, status }) => `${due.reference} to ${dueStatusText(status)}`);
+  const more = restored.length > 3 ? `; and ${counted(restored.length - 3, "more", "more")}` : "";
+  return `Returned ${counted(restored.length, "instalment")} a reversal review hold had put in dispute to the status ${restored.length === 1 ? "it" : "they"} had before: ${named.join("; ")}${more}.`;
 }
 
 /** What the audit entry adds for settlement batches released from an earlier build's provider identity hold: each batch, its connection and the lines it held meanwhile. */

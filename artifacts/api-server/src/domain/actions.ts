@@ -501,7 +501,7 @@ function runAction(state: DomainState, ctx: Context, input: ActionInput, audit?:
     if (confirmedCode !== undefined) item.data.confirmedFailureCode = normaliseFailureCode(confirmedCode);
     if (!type) item.data.legacyType = true;
     touch(item, now);
-    if (item.data.legacyResolutionReview) return result("Renewed reversal review recorded without changing the earlier decision or its history. Run reconciliation to apply this decision. Previously applied allocations or reversals are changed only by the normal reversal/correction workflow. Related instalments remain paused until Finance releases them from dispute after reviewing the result.", item);
+    if (item.data.legacyResolutionReview) return result("Renewed reversal review recorded without changing the earlier decision or its history. Run reconciliation to apply this decision. Previously applied allocations or reversals are changed only by the normal reversal/correction workflow. That reconciliation returns each instalment the review paused to the status it had before the hold, unless a dispute was recorded for it meanwhile; a paid instalment, or one unpaid after its final attempt, kept its status throughout.", item);
     if (checkout) {
       const settled = resolveUnknownCheckout(state, ctx, item, checkout, { reason: reason(input), evidenceReference });
       const receipt = settled === "confirmed" ? recordsOf(state, "payments").find((record) => record.id === checkout.data.paymentId) : undefined;

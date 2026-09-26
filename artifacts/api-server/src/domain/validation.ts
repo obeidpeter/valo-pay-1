@@ -170,7 +170,7 @@ export function validateRecord(
   for (const field of ['case', 'importIdentity']) {
     if (JSON.stringify(data[field]) !== JSON.stringify(existing?.data[field])) refuse(field, `Use the dedicated workflow to change ${field === 'case' ? 'case coordination' : 'import provenance'}.`);
   }
-  for (const field of ['legacyReversalReviewIds', 'legacyReversalReviewAppliedId', 'providerIdentityHeld']) {
+  for (const field of ['legacyReversalReviewIds', 'legacyReversalReviewAppliedId', 'legacyReversalReviewPause', 'providerIdentityHeld']) {
     if (!isDeepStrictEqual(data[field], existing?.data[field])) throw new Error('Reversal and provider identity review holds are recorded by reconciliation and cannot be changed here.');
   }
   if (kind === "exceptions") {

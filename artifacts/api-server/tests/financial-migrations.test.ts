@@ -2,7 +2,7 @@
 // These are offline domain/store-invariant tests: no database or provider calls.
 import assert from "node:assert/strict";
 import { addAttempt, addObservation, ctxAt, liveFixture, outstandingOf, wat } from "./helpers.js";
-import { allocatePayment, applyConfirmedAllocation, raiseException, reconcile, releaseDispute, reversePayment } from "../src/domain/reconciliation.js";
+import { allocatePayment, applyConfirmedAllocation, raiseException, reconcile, releaseDispute, reversePayment, supersedeAllocation } from "../src/domain/reconciliation.js";
 import { executeAction } from "../src/domain/actions.js";
 import { evaluateRetry } from "../src/domain/policy-engine.js";
 import { connectedRevision, runConnectedAction } from "../src/domain/connected.js";
@@ -18,7 +18,7 @@ function transaction<T>(state: DomainState, run: () => T): T {
 }
 const run = (state: DomainState) => transaction(state, () => reconcile(state, finance));
 const resolve = (state: DomainState, review: TypedRecord<"exceptions">, code: string) => transaction(state, () => executeAction(state, finance, { action: "resolve_exception", recordId: review.id, reason: "Provider evidence checked for the renewed review.", data: { resolutionCode: code } }));
-function legacyReversal(disposition: "waiting" | "aside" | "allocated" | "reversed", code = "provider_state_adopted") {
+function legacyReversal(disposition: "waiting" | "aside" | "allocated" | "reversed", code = "provider_state_adopted", history?: (fixture: { state: DomainState; due: TypedRecord<"due-items">; payment: TypedRecord<"payments"> }) => void) {
   const { state, due } = liveFixture({ withFailure: false, merchantId: `legacy-${disposition}-${code}` });
   addAttempt(state, due, { status: "succeeded", occurredAt: wat("2027-07-01T07:00:00"), providerReference: "OLD-REVERSAL" });
   const reversal = addObservation(state, { reference: "OLD-REVERSAL", amountKobo: due.amountKobo, source: "webhook", customerId: due.customerId, eventId: "old-reversal", reversed: true, occurredAt: wat("2027-07-01T08:00:00") });
@@ -35,6 +35,7 @@ function legacyReversal(disposition: "waiting" | "aside" | "allocated" | "revers
     Object.assign(reversal.data, { paymentId: payment.id, resolutionKey: "canonical_provider_reference" });
     delete reversal.data.resolvedTo;
   }
+  history?.({ state, due, payment });
   delete old.data.resolutionRuleVersion; // Actual earlier persisted shape, including PR59.
   return { state, due, reversal, old, payment };
 }
@@ -107,14 +108,10 @@ for (const disposition of ["aside", "allocated"] as const) {
     run(state); run(state);
     assert.deepEqual(old, oldSnapshot);
     assert.equal(payment.data.reversalStatus, decision === "provider_state_adopted" ? "reversed" : "none");
-    assert.equal(outstandingOf(due), decision === "platform_state_confirmed" && disposition === "allocated" ? 0 : due.amountKobo);
-    assert.equal(due.status, "in_dispute", "the earlier collection pause requires an explicit release after reviewing the result");
-    if (decision === "platform_state_confirmed") {
-      transaction(state, () => releaseDispute(state, finance, due, { via: "finance_release", reason: "Provider confirmed no reversal; historical allocations checked." }));
-      run(state);
-      assert.equal(payment.data.allocatedKobo, due.amountKobo);
-      assert.equal(outstandingOf(due), 0);
-    }
+    // The hold never changed the paid instalment and gives the paused one its status back, with no release: only an adopted
+    // reversal of money applied to it puts it in dispute, and a confirmed receipt then pays the one it collects.
+    const expected = decision === "provider_state_adopted" ? [disposition === "allocated" ? "in_dispute" : "scheduled", due.amountKobo, 0] : ["paid", 0, due.amountKobo];
+    assert.deepEqual([due.status, outstandingOf(due), payment.data.allocatedKobo, due.data.legacyReversalReviewPause, due.data.disputeRelease], [...expected, undefined, undefined], `${disposition}, ${decision}`);
   }
 }
 {
@@ -343,4 +340,93 @@ function heldLine(state: DomainState, batch: TypedRecord<"settlement-batches">, 
   }
   assert.deepEqual((mixed.batch.data.providerIdentityReview as { identities: string[] }).identities, [JSON.stringify(["other rail", "B-1"]), JSON.stringify(["sandbox rail settlements", "B-1"])], "the hold names the connections its evidence names, not the one copied from its payment");
 }
-console.log("Financial migration regressions passed: unversioned reversal authority, renewed Finance review, prior allocations/dispositions, replay, provider-scoped settlement and legacy quarantine.");
+
+// Review fix: the renewed reversal review's holds never change a paid instalment or one unpaid after its final attempt;
+// one still collectable is paused in dispute with the status it had, which it gets back exactly when the hold clears. A
+// hold reaches only what the reversal names through its own connection and live allocations.
+const reviewOf = (state: DomainState) => recordsOf(state, "exceptions").find((item) => item.data.legacyResolutionReview)!;
+const pauseOf = (due: TypedRecord<"due-items">) => due.data.legacyReversalReviewPause as { status?: string; inferred?: boolean } | undefined;
+const holdsOf = (record: TypedRecord<"payments"> | TypedRecord<"due-items">) => record.data.legacyReversalReviewIds as string[] | undefined;
+/** Another instalment of the fixture's customer, and a debit attempt of it with the reversal's reference when `debited`. */
+function instalment(state: DomainState, due: TypedRecord<"due-items">, reference: string, status: string, debited = false) {
+  const added = makeRecord(state, "due-items", { name: reference, reference, status, customerId: due.customerId, amountKobo: 1_500_000, data: { ...structuredClone(due.data), outstandingKobo: 1_500_000 } }) as TypedRecord<"due-items">;
+  if (debited) addAttempt(state, added, { status: status === "unpaid_final" ? "failed" : "sent", failureCode: status === "unpaid_final" ? "ACCOUNT_CLOSED" : undefined, occurredAt: wat("2027-06-30T07:00:00"), providerReference: "OLD-REVERSAL" });
+  if (status === "unpaid_final") added.data.giveUpRule = "never_retry";
+  return added;
+}
+/** Another customer's instalment, paid by a payment with the reversal's reference that came through another connection. */
+function paidElsewhere(state: DomainState) {
+  const other = recordsOf(state, "due-items").find((item) => item.reference === "DEMO-LOAN-1003")!;
+  const foreign = makeRecord(state, "payments", { name: "Other connection's receipt", status: "unallocated", reference: "OLD-REVERSAL", customerId: other.customerId, amountKobo: other.amountKobo, data: { providerReference: "OLD-REVERSAL", providerConnection: "Other Rail", currency: "NGN", channel: "direct_debit", collectionStatus: "succeeded", settlementStatus: "settled", reversalStatus: "none", refundStatus: "none", allocatedKobo: 0 } });
+  allocatePayment(state, finance, foreign, other, other.amountKobo, "R1", "certain", true);
+  return { other, foreign };
+}
+/** What PR #61's build wrote for a hold: every instalment it reached in dispute, whatever its status, and the review's id on each. */
+function holdAsPr61(review: TypedRecord<"exceptions">, dues: TypedRecord<"due-items">[], payments: TypedRecord<"payments">[]) {
+  for (const due of dues) { if (!["cancelled", "closed", "in_dispute"].includes(due.status)) due.status = "in_dispute"; due.data.legacyReversalReviewIds = [review.id]; delete due.data.legacyReversalReviewPause; }
+  for (const payment of payments) payment.data.legacyReversalReviewIds = [review.id];
+}
+{
+  // Paid, unpaid after its final attempt and still collectable, while the review is open and once it is resolved.
+  let final!: TypedRecord<"due-items">, collectable!: TypedRecord<"due-items">;
+  const held = legacyReversal("allocated", "provider_state_adopted", ({ state, due }) => { final = instalment(state, due, "LOAN-FINAL", "unpaid_final", true); collectable = instalment(state, due, "LOAN-OPEN", "in_collection", true); });
+  run(held.state); run(held.state);
+  assert.deepEqual([held.due.status, final.status, collectable.status, pauseOf(collectable)?.status], ["paid", "unpaid_final", "in_dispute", "in_collection"], "a paid or finally unpaid instalment keeps its status; a collectable one is paused with the status it had");
+  assert.deepEqual([held.due, final, collectable].map((due) => due.data.legacyReversalReviewIds), [[reviewOf(held.state).id], [reviewOf(held.state).id], [reviewOf(held.state).id]], "each is still held");
+  for (const due of [held.due, final, collectable]) assert.throws(() => releaseDispute(structuredClone(held.state), finance, structuredClone(due), { via: "finance_release", reason: "Bypass" }), /renewed reversal review/);
+  resolve(held.state, reviewOf(held.state), "provider_state_adopted");
+  const answer = run(held.state); run(held.state); run(held.state);
+  assert.deepEqual([collectable.status, pauseOf(collectable), collectable.data.legacyReversalReviewIds, collectable.data.disputeRelease], ["in_collection", undefined, undefined, undefined], "the collectable instalment gets exactly its status back, with no release");
+  assert.deepEqual([final.status, recordsOf(held.state, "exceptions").filter((item) => item.data.linkedRecordId === final.id).length], ["unpaid_final", 0], "the final one stays final, with no new final-attempt exception");
+  assert.deepEqual([held.payment.data.reversalStatus, held.due.status, outstandingOf(held.due), recordsOf(held.state, "exceptions").filter((item) => item.data.linkedRecordId === held.due.id && item.data.type === "customer_dispute").length], ["reversed", "in_dispute", held.due.amountKobo, 1], "the adopted reversal puts the paid instalment in dispute of its own accord");
+  assert.match(String(answer.data.auditNote), /Returned 1 instalment/);
+}
+{
+  // Not across connections, and not through an allocation no longer in use.
+  let foreign!: TypedRecord<"payments">, other!: TypedRecord<"due-items">, superseded!: TypedRecord<"due-items">;
+  const scoped = legacyReversal("waiting", "provider_state_adopted", ({ state, due, payment }) => {
+    ({ foreign, other } = paidElsewhere(state));
+    superseded = instalment(state, due, "LOAN-WRONG", "scheduled");
+    supersedeAllocation(state, finance, allocatePayment(state, finance, payment, superseded, superseded.amountKobo, "R5", "certain", true), "Precision audit marked this allocation wrong: another customer's debit.");
+  });
+  run(scoped.state);
+  assert.deepEqual([holdsOf(scoped.payment)?.length, holdsOf(scoped.due)?.length], [1, 1], "the reversal's own payment and debit's instalment are held");
+  assert.deepEqual([foreign.data.legacyReversalReviewIds, other.status, other.data.legacyReversalReviewIds, superseded.status, superseded.data.legacyReversalReviewIds], [undefined, "paid", undefined, "scheduled", undefined], "another connection's payment, its instalment and an instalment of a superseded allocation are not");
+}
+{
+  // What the deployed build already did while the review is open: the next reconciliation gives back the status the records
+  // establish, keeps a collectable instalment paused with it, and releases what it reached across connections, once.
+  let final!: TypedRecord<"due-items">, collectable!: TypedRecord<"due-items">, foreign!: TypedRecord<"payments">, other!: TypedRecord<"due-items">;
+  const earlier = legacyReversal("allocated", "provider_state_adopted", ({ state, due }) => {
+    final = instalment(state, due, "LOAN-FINAL", "unpaid_final", true); collectable = instalment(state, due, "LOAN-OPEN", "in_collection", true);
+    ({ foreign, other } = paidElsewhere(state));
+  });
+  run(earlier.state);
+  holdAsPr61(reviewOf(earlier.state), [earlier.due, final, collectable, other], [earlier.payment, foreign]);
+  const answer = run(earlier.state);
+  assert.deepEqual([earlier.due.status, final.status, collectable.status, other.status], ["paid", "unpaid_final", "in_dispute", "paid"], "paid, finally unpaid and another connection's instalment get their status back");
+  assert.deepEqual([pauseOf(collectable), holdsOf(collectable)?.length, holdsOf(other), holdsOf(foreign)], [{ status: "in_collection", pausedAt: now, inferred: true }, 1, undefined, undefined], "the collectable one stays paused with the status its records establish");
+  assert.match(String(answer.data.auditNote), /Returned 3 instalments/);
+  const saved = JSON.stringify(recordsOf(earlier.state, "due-items"));
+  run(earlier.state);
+  assert.equal(JSON.stringify(recordsOf(earlier.state, "due-items")), saved, "once");
+  resolve(earlier.state, reviewOf(earlier.state), "provider_state_adopted");
+  run(earlier.state);
+  assert.deepEqual([collectable.status, final.status, earlier.due.status], ["in_collection", "unpaid_final", "in_dispute"], "when the review is resolved the collectable one resumes, and the reversal disputes the instalment it paid");
+}
+{
+  // The deployed build cleared its hold when the review was resolved and left the instalments in dispute for an explicit
+  // release: releasing one returns it to the status it had before the hold, and the next reconciliation restores the rest.
+  let final!: TypedRecord<"due-items">;
+  const cleared = legacyReversal("waiting", "platform_state_confirmed", ({ state, due }) => { final = instalment(state, due, "LOAN-FINAL", "unpaid_final", true); });
+  run(cleared.state);
+  holdAsPr61(reviewOf(cleared.state), [cleared.due, final], [cleared.payment]);
+  resolve(cleared.state, reviewOf(cleared.state), "platform_state_confirmed");
+  for (const record of [cleared.due, final, cleared.payment]) delete record.data.legacyReversalReviewIds;
+  transaction(cleared.state, () => releaseDispute(cleared.state, finance, final, { via: "finance_release", reason: "Reviewed after the renewed decision." }));
+  assert.deepEqual([final.status, (final.data.disputeRelease as { status?: string }).status], ["unpaid_final", "unpaid_final"], "the release returns it to unpaid after its final attempt, not to collection");
+  const answer = run(cleared.state);
+  assert.deepEqual([cleared.due.data.disputeRelease, cleared.due.status, outstandingOf(cleared.due), cleared.payment.status], [undefined, "paid", 0, "allocated"], "the next reconciliation gives the other its status back, and its receipt then pays it");
+  assert.match(String(answer.data.auditNote), /Returned 1 instalment/);
+}
+console.log("Financial migration regressions passed: unversioned reversal authority, renewed Finance review, prior allocations/dispositions, replay, provider-scoped settlement and legacy quarantine, one fee schedule per settlement line, the quarantine kept to genuinely ambiguous batches and released otherwise, and reversal review holds that keep instalment statuses and reach only the reversal's own connection.");

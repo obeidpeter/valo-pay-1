@@ -1,6 +1,6 @@
-import { conditionClearedCode, heldEvidenceOf, isOpenException, resolveExceptionType, unseenReversalOf } from "@workspace/valopay-schema";
+import { conditionClearedCode, heldEvidenceOf, isOpenException, providerConnectionKey, resolveExceptionType, unseenReversalOf } from "@workspace/valopay-schema";
 import { indexedPass, recordsWhere } from "./record-index";
-import type { DomainState, TypedRecord } from "./types";
+import type { DomainState, TypedRecord, ValopayRecord } from "./types";
 
 /** The effective decision is shared by reconciliation and guards that run before its first migration pass. */
 export function latestEvidenceResolution(state: DomainState, observation: TypedRecord<"observations">): TypedRecord<"exceptions"> | undefined {
@@ -34,27 +34,78 @@ function observationNeedsReview(state: DomainState, observation: TypedRecord<"ob
   return !!latest && resolveExceptionType(latest.data.type) === "provider_status_mismatch" && latest.data.resolutionRuleVersion === undefined;
 }
 
-function referenceNeedsReview(state: DomainState, reference: unknown): boolean {
-  return typeof reference === "string" && !!reference && recordsWhere(state, "observations", "reference", reference).some((observation) => observationNeedsReview(state, observation));
+/** ING-03: the connection a record came through, its providerConnection, else its provider, else the lender's, compared without case or surrounding spaces. */
+const connectionKeyOf = (state: DomainState, record: ValopayRecord): string => providerConnectionKey(String(record.data.providerConnection || record.data.provider || state.merchant.provider));
+/** A payment's references: its own and its provider reference. */
+const referencesOf = (payment: TypedRecord<"payments">): string[] => [...new Set([payment.reference, payment.data.providerReference].filter((value): value is string => typeof value === "string" && !!value))];
+
+/** The connections reconciliation keys a payment under: its own, and those of the evidence resolved to it. */
+function paymentConnections(state: DomainState, payment: TypedRecord<"payments">): Set<string> {
+  const connections = new Set([connectionKeyOf(state, payment)]);
+  for (const reference of referencesOf(payment)) for (const evidence of recordsWhere(state, "observations", "reference", reference)) {
+    if (evidence.status === "resolved" && evidence.data.paymentId === payment.id) connections.add(connectionKeyOf(state, evidence));
+  }
+  return connections;
 }
+
+/** Whether a reversal names a payment through its own provider identity: resolved to it, or keyed, as the payment is, by its connection and reference. */
+function reversalNamesPayment(state: DomainState, reversal: TypedRecord<"observations">, payment: TypedRecord<"payments">): boolean {
+  return reversal.data.paymentId === payment.id || (referencesOf(payment).includes(reversal.reference) && paymentConnections(state, payment).has(connectionKeyOf(state, reversal)));
+}
+
+/** An allocation still in use: applied, or proposed. */
+const liveAllocation = (allocation: TypedRecord<"allocations">): boolean => allocation.status === "confirmed" || allocation.status === "proposed";
+
+/**
+ * FIN-02, decision on what a renewed reversal review holds: what its reversal
+ * evidence names through its own provider identity, never across connections
+ * or through an allocation no longer in use. The payments are the one it is
+ * resolved to and those keyed by its connection and reference; the instalments
+ * are the one it names, those its debit attempts with its reference through
+ * its connection collect, and those the held payments' evidence names or their
+ * live allocations (applied or proposed) are for.
+ */
+export function reversalHoldScope(state: DomainState, reversal: TypedRecord<"observations">): { payments: TypedRecord<"payments">[]; dueIds: Set<string> } {
+  const connection = connectionKeyOf(state, reversal), payments = new Map<string, TypedRecord<"payments">>(), dueIds = new Set<string>();
+  const add = (id: unknown) => { if (typeof id === "string" && id) dueIds.add(id); };
+  const named = typeof reversal.data.paymentId === "string" ? recordsWhere(state, "payments", "id", reversal.data.paymentId)[0] : undefined;
+  if (named) payments.set(named.id, named);
+  add(reversal.data.dueItemId);
+  for (const key of ["reference", "data.providerReference"] as const) {
+    if (!reversal.reference) break;
+    for (const payment of recordsWhere(state, "payments", key, reversal.reference)) if (reversalNamesPayment(state, reversal, payment)) payments.set(payment.id, payment);
+    for (const attempt of recordsWhere(state, "attempts", key, reversal.reference)) if (connectionKeyOf(state, attempt) === connection) add(attempt.data.dueItemId);
+  }
+  for (const payment of payments.values()) {
+    add(payment.data.dueItemId);
+    for (const allocation of recordsWhere(state, "allocations", "data.paymentId", payment.id)) if (liveAllocation(allocation)) add(allocation.data.dueItemId);
+  }
+  return { payments: [...payments.values()], dueIds };
+}
+
+/** Reversal evidence with this reference that needs a renewed review. */
+const reversalsNeedingReview = (state: DomainState, reference: unknown): TypedRecord<"observations">[] =>
+  typeof reference === "string" && reference ? recordsWhere(state, "observations", "reference", reference).filter((observation) => observationNeedsReview(state, observation)) : [];
 
 const storedHold = (record: TypedRecord<"payments"> | TypedRecord<"due-items">): boolean => Array.isArray(record.data.legacyReversalReviewIds) && record.data.legacyReversalReviewIds.length > 0;
 
-/** No action may apply ambiguous historical money while waiting for the first reconciliation to materialise its hold. */
+/** No action may apply ambiguous historical money while waiting for the first reconciliation to materialise its hold (reversalHoldScope). */
 export function paymentNeedsReversalReview(state: DomainState, payment: TypedRecord<"payments">): boolean {
-  return indexedPass(state, () => storedHold(payment) || referenceNeedsReview(state, payment.reference) || referenceNeedsReview(state, payment.data.providerReference));
+  return indexedPass(state, () => storedHold(payment) || referencesOf(payment).some((reference) => reversalsNeedingReview(state, reference).some((reversal) => reversalNamesPayment(state, reversal, payment))));
 }
 
-/** Follow evidence, provider references and recorded allocations; do not infer a hold from a customer's other obligations. */
+/** Follow the reversal's own evidence, debit and payments (reversalHoldScope); do not infer a hold from a customer's other obligations. */
 export function dueNeedsReversalReview(state: DomainState, due: TypedRecord<"due-items">): boolean {
   return indexedPass(state, () => {
     if (storedHold(due)) return true;
     if (recordsWhere(state, "observations", "data.dueItemId", due.id).some((observation) => observationNeedsReview(state, observation))) return true;
-    if (recordsWhere(state, "attempts", "data.dueItemId", due.id).some((attempt) => referenceNeedsReview(state, attempt.reference) || referenceNeedsReview(state, attempt.data.providerReference))) return true;
+    for (const attempt of recordsWhere(state, "attempts", "data.dueItemId", due.id)) {
+      const through = connectionKeyOf(state, attempt);
+      if ([attempt.reference, attempt.data.providerReference].some((reference) => reversalsNeedingReview(state, reference).some((reversal) => connectionKeyOf(state, reversal) === through))) return true;
+    }
     const payments = [
       ...recordsWhere(state, "payments", "data.dueItemId", due.id),
-      ...recordsWhere(state, "payments", "data.proposedDueItemId", due.id),
-      ...recordsWhere(state, "allocations", "data.dueItemId", due.id).flatMap((allocation) => recordsWhere(state, "payments", "id", allocation.data.paymentId)),
+      ...recordsWhere(state, "allocations", "data.dueItemId", due.id).filter(liveAllocation).flatMap((allocation) => recordsWhere(state, "payments", "id", allocation.data.paymentId)),
     ];
     return payments.some((payment) => paymentNeedsReversalReview(state, payment));
   });

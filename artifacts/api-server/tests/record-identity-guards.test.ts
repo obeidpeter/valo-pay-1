@@ -42,6 +42,8 @@ const refused = (run: () => unknown, pattern: RegExp) => { assert.throws(run, pa
  assert.doesNotThrow(() => assertFinalState(before, structuredClone(before), state.merchant.id, now)); checks++;
  const due = state.records.find(record => record.kind === 'due-items')!;
  refused(() => validateRecord(state, operations, 'due-items', { ...due, data: { ...due.data, legacyReversalReviewIds: ['review-a'] } }, true), /recorded by reconciliation/);
+ // The status a hold paused is what reconciliation gives back: an edit may not write it.
+ refused(() => validateRecord(state, operations, 'due-items', { ...due, data: { ...due.data, legacyReversalReviewPause: { status: 'paid', pausedAt: now } } }, true), /recorded by reconciliation/);
  const observation = state.records.find(record => record.kind === 'observations')!;
  refused(() => validateRecord(state, operations, 'observations', { ...observation, data: { ...observation.data, legacyReversalReviewAppliedId: 'review-a' } }), /recorded by reconciliation/);
 }
