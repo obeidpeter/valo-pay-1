@@ -1,4 +1,5 @@
 import { conditionClearedCode, heldEvidenceOf, isOpenException, providerConnectionKey, resolveExceptionType, unseenReversalOf } from "@workspace/valopay-schema";
+import { evidenceConflict } from "./evidence-agreement";
 import { indexedPass, recordsWhere } from "./record-index";
 import type { DomainState, TypedRecord, ValopayRecord } from "./types";
 
@@ -56,14 +57,38 @@ function reversalNamesPayment(state: DomainState, reversal: TypedRecord<"observa
 /** An allocation still in use: applied, or proposed. */
 const liveAllocation = (allocation: TypedRecord<"allocations">): boolean => allocation.status === "confirmed" || allocation.status === "proposed";
 
+/** The payers of the instalments a payment is tied to: the one its evidence names and the one it is proposed for. */
+const tiedPayers = (state: DomainState, payment: TypedRecord<"payments">): string[] => [payment.data.dueItemId, payment.data.proposedDueItemId]
+  .map((id) => (id ? recordsWhere(state, "due-items", "id", String(id))[0]?.customerId : undefined)).filter((customerId): customerId is string => !!customerId);
+
 /**
- * FIN-02, decision on what a renewed reversal review holds: what its reversal
- * evidence names through its own provider identity, never across connections
- * or through an allocation no longer in use. The payments are the one it is
- * resolved to and those keyed by its connection and reference; the instalments
- * are the one it names, those its debit attempts with its reference through
- * its connection collect, and those the held payments' evidence names or their
- * live allocations (applied or proposed) are for.
+ * The payment an adopted decision would reverse through another connection, as reconciliation applies one
+ * (canonicalPayment): when neither the reversal's paymentId nor its own connection and reference name a payment, the
+ * first payment made with its reference under any connection, provided it agrees with the reversal (evidenceConflict:
+ * the same payer, currency and amount). Undefined otherwise.
+ */
+function adoptedElsewhere(state: DomainState, reversal: TypedRecord<"observations">): TypedRecord<"payments"> | undefined {
+  if (!reversal.reference) return undefined;
+  if (typeof reversal.data.paymentId === "string" && recordsWhere(state, "payments", "id", reversal.data.paymentId)[0]) return undefined;
+  // First made first, as reconciliation's payment index orders them.
+  const withReference = [...new Set([...recordsWhere(state, "payments", "reference", reversal.reference), ...recordsWhere(state, "payments", "data.providerReference", reversal.reference)])]
+    .sort((a, b) => state.records.indexOf(a) - state.records.indexOf(b));
+  if (withReference.some((payment) => reversalNamesPayment(state, reversal, payment))) return undefined;
+  const first = withReference[0];
+  return first && !evidenceConflict(first, reversal, (payment) => tiedPayers(state, payment)) ? first : undefined;
+}
+
+/**
+ * FIN-02, decision on what a renewed reversal review holds: exactly the
+ * payments adopting the decision would reverse, and the instalments they and
+ * the reversal concern, never through an allocation no longer in use. The
+ * payments are the one it is resolved to and those keyed by its connection and
+ * reference; when none is, the one an adopted decision reverses through another
+ * connection (adoptedElsewhere), which is the only payment of another
+ * connection it holds. The instalments are the one it names, those its debit
+ * attempts with its reference through its connection collect, and those the
+ * held payments' evidence names or their live allocations (applied or
+ * proposed) are for.
  */
 export function reversalHoldScope(state: DomainState, reversal: TypedRecord<"observations">): { payments: TypedRecord<"payments">[]; dueIds: Set<string> } {
   const connection = connectionKeyOf(state, reversal), payments = new Map<string, TypedRecord<"payments">>(), dueIds = new Set<string>();
@@ -76,6 +101,8 @@ export function reversalHoldScope(state: DomainState, reversal: TypedRecord<"obs
     for (const payment of recordsWhere(state, "payments", key, reversal.reference)) if (reversalNamesPayment(state, reversal, payment)) payments.set(payment.id, payment);
     for (const attempt of recordsWhere(state, "attempts", key, reversal.reference)) if (connectionKeyOf(state, attempt) === connection) add(attempt.data.dueItemId);
   }
+  const elsewhere = payments.size ? undefined : adoptedElsewhere(state, reversal);
+  if (elsewhere) payments.set(elsewhere.id, elsewhere);
   for (const payment of payments.values()) {
     add(payment.data.dueItemId);
     for (const allocation of recordsWhere(state, "allocations", "data.paymentId", payment.id)) if (liveAllocation(allocation)) add(allocation.data.dueItemId);
@@ -91,7 +118,8 @@ const storedHold = (record: TypedRecord<"payments"> | TypedRecord<"due-items">):
 
 /** No action may apply ambiguous historical money while waiting for the first reconciliation to materialise its hold (reversalHoldScope). */
 export function paymentNeedsReversalReview(state: DomainState, payment: TypedRecord<"payments">): boolean {
-  return indexedPass(state, () => storedHold(payment) || referencesOf(payment).some((reference) => reversalsNeedingReview(state, reference).some((reversal) => reversalNamesPayment(state, reversal, payment))));
+  return indexedPass(state, () => storedHold(payment) || referencesOf(payment).some((reference) => reversalsNeedingReview(state, reference)
+    .some((reversal) => reversalNamesPayment(state, reversal, payment) || adoptedElsewhere(state, reversal)?.id === payment.id)));
 }
 
 /** Follow the reversal's own evidence, debit and payments (reversalHoldScope); do not infer a hold from a customer's other obligations. */

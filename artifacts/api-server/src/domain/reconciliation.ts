@@ -8,6 +8,7 @@ import { addBusinessDays, watDate } from "./calendar";
 import { validateRecord } from "./validation";
 import { approvedPolicyFor, attemptTime, attemptsFor, countedAttempts, enrolEligibleFailures, evaluateRetry, recordRetryDecision } from "./policy-engine";
 import { dueNeedsReversalReview, latestEvidenceResolution, paymentNeedsReversalReview, reversalHoldScope } from "./reversal-review";
+import { evidenceConflict as conflictOf, statedGross } from "./evidence-agreement";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** ING-05: a second Payment for the same payer and amount inside this window is held as a possible duplicate. */
@@ -148,11 +149,14 @@ export function raiseException(state: DomainState, ctx: Context, type: Exception
   const linkedRecordId = options.linkedRecordId || "";
   const linked = recordsWhere(state, "exceptions", "data.linkedRecordId", linkedRecordId);
   const sameType = (item: TypedRecord<"exceptions">) => resolveExceptionType(item.data.type) === type;
-  const existing = linked.find((item) => isOpenException(item.status) && sameType(item));
+  // A settlement batch's provider identity hold has exceptions of its own (keepHoldException): they carry no other report.
+  const existing = linked.find((item) => isOpenException(item.status) && sameType(item) && !(type === "settlement_variance" && providerIdentityOf(item.data.condition) !== undefined));
   if (existing) return existing;
   if (options.condition !== undefined) {
     // A resolution with no stored condition (an event-driven raise, or one recorded before conditions were stored) settles the record.
-    const settles = (item: TypedRecord<"exceptions">) => item.data.condition === undefined || item.data.condition === options.condition || (options.settledBy ?? []).includes(String(item.data.condition)) || carriedReports(item).includes(options.condition!);
+    // Confirming whose payout a held batch is settles no report its exception carried: the report is raised again on its own.
+    const settles = (item: TypedRecord<"exceptions">) => item.data.condition === undefined || item.data.condition === options.condition || (options.settledBy ?? []).includes(String(item.data.condition))
+      || (carriedReports(item).includes(options.condition!) && item.data.resolutionCode !== providerIdentityConfirmedCode);
     const settled = linked.find((item) => sameType(item) && item.data.resolutionCode !== conditionClearedCode && settles(item));
     if (settled) return settled;
   }
@@ -359,14 +363,17 @@ interface LineTotals { grossKobo: number; feeKobo: number; expectedFeeKobo: numb
  * The one fee schedule a settlement line is checked against, at its first count
  * (settlementBatch) and at every recount (completeLineGross, recountEarlierLines,
  * countDisplacedLines): the schedule of the provider it names (data.provider),
- * else of its payment's connection, else of the lender's provider, for money in
- * its currency (none outside naira). Every build before 26 September counted
- * lines this way, and a line records the expected fee it was counted with, so
- * counts already saved stay as they are. The batch the line counts in is still
- * found by its connection (settlementIdentity), which its provider does not change.
+ * else of the connection it names (data.providerConnection), else of the lender's
+ * provider, for money in its currency (none outside naira). The line alone
+ * decides it, never the payment it settles, whose connection is that of whichever
+ * evidence arrived first, so the same line gets the same schedule in every
+ * arrival order. A line records the expected fee it was counted with, so counts
+ * already saved stay as they are until a recount. The batch the line counts in is
+ * still found by its connection (settlementIdentity), which its provider does not
+ * change.
  */
-const lineSchedule = (state: DomainState, line: TypedRecord<"observations">, payment: TypedRecord<"payments">): ProviderFeeSchedule | undefined =>
-  feeScheduleIn(state, String(line.data.provider || payment.data.providerConnection || state.merchant.provider), currencyOf(line));
+const lineSchedule = (state: DomainState, line: TypedRecord<"observations">): ProviderFeeSchedule | undefined =>
+  feeScheduleIn(state, String(line.data.provider || line.data.providerConnection || state.merchant.provider), currencyOf(line));
 
 /**
  * ING-07: what a settlement line adds to its batch. A line whose gross is
@@ -429,7 +436,7 @@ function completeLineGross(state: DomainState, ctx: Context, payment: TypedRecor
   if (!batch || identityHeld(batch) || !Array.isArray(batch.data.lineObservationIds)) return;
   const line = batch.data.lineObservationIds.map((id) => recordsWhere(state, "observations", "id", String(id))[0]).find((item) => item?.data.paymentId === payment.id);
   if (!line) return;
-  const schedule = lineSchedule(state, line, payment);
+  const schedule = lineSchedule(state, line);
   const grossKobo = isKobo(line.data.countedGrossKobo) ? line.data.countedGrossKobo : previousKobo;
   const expectedFeeKobo = isKobo(line.data.expectedFeeKobo) ? line.data.expectedFeeKobo : schedule ? providerFeeKobo(grossKobo, schedule) : 0;
   const was = { grossKobo, expectedFeeKobo, feeKobo: isKobo(line.data.assumedFeeKobo) ? line.data.assumedFeeKobo : isKobo(line.data.feeKobo) ? line.data.feeKobo : grossKobo > line.amountKobo ? grossKobo - line.amountKobo : expectedFeeKobo };
@@ -488,7 +495,7 @@ function recountEarlierLines(state: DomainState, ctx: Context): void {
     if (!earlier.length || !totalsFromLines(batch, lines, paymentOf)) continue;
     for (const line of earlier) {
       const payment = paymentOf(line)!;
-      countLine(batch, line, lineTotals(line, payment, lineSchedule(state, line, payment)), { grossKobo: line.amountKobo, feeKobo: Number(line.data.assumedFeeKobo), expectedFeeKobo: isKobo(line.data.expectedFeeKobo) ? line.data.expectedFeeKobo : 0 });
+      countLine(batch, line, lineTotals(line, payment, lineSchedule(state, line)), { grossKobo: line.amountKobo, feeKobo: Number(line.data.assumedFeeKobo), expectedFeeKobo: isKobo(line.data.expectedFeeKobo) ? line.data.expectedFeeKobo : 0 });
       touch(line, ctx.now);
     }
     touch(batch, ctx.now);
@@ -614,7 +621,7 @@ function countDisplacedLines(state: DomainState, ctx: Context, from: TypedRecord
       line.data.countedInBatchId = counting.id;
       now = `is still not counted in this batch, as settlement batch ${counting.reference} now counts its collection`;
     } else {
-      const schedule = lineSchedule(state, line, payment);
+      const schedule = lineSchedule(state, line);
       if (!lineIds.length) takeLineCurrency(batch, currencyOf(line), schedule);
       delete line.data.duplicateSettlementLine;
       linePaymentIds.push(payment.id); lineIds.push(line.id);
@@ -643,16 +650,33 @@ interface IdentityRelease {
 const identityExceptionOf = (exception: TypedRecord<"exceptions">, batchId: string): boolean =>
   resolveExceptionType(exception.data.type) === "settlement_variance" && providerIdentityOf(exception.data.condition) === batchId;
 
+/** One entry of a settlement batch's provider identity history (providerIdentityHistory): a release, kept when the batch was held again, and when and for which identities it was. */
+interface IdentityHistoryEntry { release: Record<string, unknown>; heldAgainAt: string; identities: string[]; observationIds: string[] }
+/** A batch's provider identity history: every release a later hold ended, oldest first. Never shortened. */
+const identityHistory = (batch: ValopayRecord): IdentityHistoryEntry[] => Array.isArray(batch.data.providerIdentityHistory) ? batch.data.providerIdentityHistory as IdentityHistoryEntry[] : [];
+/** When a held batch's current hold began: its latest hold again (providerIdentityHistory), else its first (providerIdentityReview). */
+const latestHoldAt = (batch: ValopayRecord): string => identityHistory(batch).at(-1)?.heldAgainAt ?? String((batch.data.providerIdentityReview as { detectedAt?: unknown } | undefined)?.detectedAt ?? "");
+/** When an exception was decided: resolved, else last changed. */
+const decidedAt = (exception: TypedRecord<"exceptions">): string => String(exception.data.resolvedAt || exception.updatedAt);
+
 /**
  * The resolution confirming a held batch's identity (providerIdentityConfirmedCode), recorded on its hold's exception
- * or on a renewed review of it (providerIdentityOf), while it names one of the identities the batch was held for and,
- * for a batch that records its identity, that one (heldBatchToConfirm).
+ * or on a renewed review of it (providerIdentityOf) since its current hold began (latestHoldAt), while it names one of
+ * the identities the batch was held for and, for a batch that records its identity, that one (heldBatchToConfirm). A
+ * confirmation of an earlier hold does not decide a later one.
  */
 function identityConfirmation(state: DomainState, batch: TypedRecord<"settlement-batches">): TypedRecord<"exceptions"> | undefined {
-  const identities = (batch.data.providerIdentityReview as { identities?: string[] }).identities ?? [];
-  return recordsWhere(state, "exceptions", "data.linkedRecordId", batch.id).find((item) => identityExceptionOf(item, batch.id) && !isOpenException(item.status)
+  const identities = (batch.data.providerIdentityReview as { identities?: string[] }).identities ?? [], since = latestHoldAt(batch);
+  return recordsWhere(state, "exceptions", "data.linkedRecordId", batch.id).find((item) => identityExceptionOf(item, batch.id) && !isOpenException(item.status) && decidedAt(item) >= since
     && item.data.resolutionCode === providerIdentityConfirmedCode && identities.includes(String(item.data.confirmedProviderIdentity))
     && (!batch.data.providerIdentityKey || batch.data.providerIdentityKey === item.data.confirmedProviderIdentity));
+}
+
+/** Whether the settlement batch a provider identity exception names (providerIdentityOf) is still held for its provider identity. */
+export function identityExceptionHeld(state: DomainState, exception: TypedRecord<"exceptions">): boolean {
+  const batchId = providerIdentityOf(exception.data.condition);
+  const batch = batchId === undefined ? undefined : recordsWhere(state, "settlement-batches", "id", batchId)[0];
+  return !!batch && identityHeld(batch);
 }
 
 /**
@@ -673,8 +697,9 @@ export function heldBatchToConfirm(state: DomainState, exception: TypedRecord<"e
 /**
  * Decision on Finance's confirmation of a held batch's identity (identityConfirmation): the batch is released as that
  * identity, once. Its evidence of that connection, and evidence that names none, stays with it. Each settlement line of
- * another connection leaves its lines and, while its totals are the ones its lines added (totalsFromLines), its totals,
- * and is returned to be counted as a new line is, in its own connection's batch; each statement credit of another
+ * another connection leaves its lines and, while its totals are the ones its lines added (totalsFromLines), its gross,
+ * fee and net, and always its expected fee, which only reconciliation records, and is returned to be read as a new
+ * line is, in its own connection's batch; each statement credit of another
  * connection is unlinked, to link to its own connection's batch; and the lines it held meanwhile are returned too. The
  * release records the identity, who confirmed it and when, and what moved; the batch takes the confirmed connection as
  * its identity and its provider and providerConnection, keeping in the release (previous) those that named another.
@@ -692,19 +717,18 @@ function confirmIdentity(state: DomainState, ctx: Context, batch: TypedRecord<"s
   const lines = Array.isArray(batch.data.lineObservationIds) ? batch.data.lineObservationIds.map((id) => recordsWhere(state, "observations", "id", String(id))[0]) : [];
   const counted = detached.filter((line) => lines.includes(line)), fromLines = counted.length > 0 && totalsFromLines(batch, lines, paymentOf);
   for (const line of counted) {
+    const added = lineAdded(line, paymentOf);
     if (fromLines) {
-      const added = lineAdded(line, paymentOf);
       batch.data.grossKobo = sumMoney([Number(batch.data.grossKobo), -added.grossKobo]);
       batch.data.feeKobo = sumMoney([Number(batch.data.feeKobo), -added.feeKobo]);
-      if (batch.data.expectedFeeKobo !== undefined) batch.data.expectedFeeKobo = sumMoney([Number(batch.data.expectedFeeKobo), -added.expectedFeeKobo]);
     }
+    // The expected fee is reconciliation's alone (Finance cannot type it), so the moved line's always leaves it, typed totals or not.
+    if (batch.data.expectedFeeKobo !== undefined) batch.data.expectedFeeKobo = sumMoney([Number(batch.data.expectedFeeKobo), -added.expectedFeeKobo]);
     batch.data.lineObservationIds = (batch.data.lineObservationIds as string[]).filter((id) => id !== line.id);
     if (!lines.some((item) => item && !counted.includes(item) && item.data.paymentId === line.data.paymentId)) batch.data.linePaymentIds = ((batch.data.linePaymentIds ?? []) as string[]).filter((id) => id !== line.data.paymentId);
   }
-  if (fromLines) {
-    batch.data.netKobo = sumMoney([Number(batch.data.grossKobo), -Number(batch.data.feeKobo)]);
-    if (batch.data.expectedFeeKobo !== undefined) batch.data.feeVarianceKobo = sumMoney([Number(batch.data.feeKobo), -Number(batch.data.expectedFeeKobo)]);
-  }
+  if (fromLines) batch.data.netKobo = sumMoney([Number(batch.data.grossKobo), -Number(batch.data.feeKobo)]);
+  if (counted.length && batch.data.expectedFeeKobo !== undefined) batch.data.feeVarianceKobo = sumMoney([Number(batch.data.feeKobo), -Number(batch.data.expectedFeeKobo)]);
   if (Array.isArray(batch.data.otherCurrencyLineIds)) batch.data.otherCurrencyLineIds = batch.data.otherCurrencyLineIds.filter((id) => !detached.some((line) => line.id === id));
   for (const line of detached) {
     for (const field of ["settlementBatchId", "countedGrossKobo", "assumedFeeKobo", "expectedFeeKobo", "feeVarianceKobo", "duplicateSettlementLine", "countedInBatchId", "otherCurrencyLine"]) delete line.data[field];
@@ -736,35 +760,71 @@ function confirmIdentity(state: DomainState, ctx: Context, batch: TypedRecord<"s
 }
 
 /**
- * Closes, as their condition cleared, the open exceptions of a batch's provider identity hold (providerIdentityOf): its
- * hold's exception and a renewed review of it, whatever reports they carry, since their only code confirms a hold that
- * no longer exists. A report of a collection counted in two batches that one carried is raised again on its own, as
- * one whose exception closed as its condition cleared is (evaluateSettlementBatches, keepLinesCountedTwiceReported).
+ * Closes, as their condition cleared, the open exceptions of a released batch's provider identity hold
+ * (providerIdentityOf): its hold's exception and a renewed review of it. A hold exception concerns only the hold, but
+ * one an earlier build made carry a report of a collection counted in two batches, or of a line in another currency,
+ * stays open for Finance to settle that report, with a dated line saying so; once the batch is not held, it offers the
+ * ordinary settlement_variance codes (resolutionCodesForException). Returns those closed.
  */
 function closeIdentityExceptions(state: DomainState, ctx: Context, batch: TypedRecord<"settlement-batches">, reason: string): TypedRecord<"exceptions">[] {
   const open = recordsWhere(state, "exceptions", "data.linkedRecordId", batch.id).filter((item) => isOpenException(item.status) && identityExceptionOf(item, batch.id));
-  for (const exception of open) closeClearedException(exception, ctx, reason);
-  return open;
+  const closed: TypedRecord<"exceptions">[] = [];
+  for (const exception of open) {
+    if (carriedReports(exception).length) noteUpdate(exception, ctx, `${reason[0]!.toUpperCase()}${reason.slice(1)}.${stillReported(exception)}`);
+    else { closeClearedException(exception, ctx, reason); closed.push(exception); }
+  }
+  return closed;
+}
+
+/** The exception raised for a batch's provider identity hold: created directly, since it concerns only the hold and is never carried by, or carries, another. */
+function raiseHoldException(state: DomainState, ctx: Context, batch: TypedRecord<"settlement-batches">): TypedRecord<"exceptions"> {
+  const definition = exceptionCatalogue.settlement_variance, condition = providerIdentityCondition(batch.id);
+  const currency = moneyCurrency({ linkedRecordId: batch.id, condition }, moneyIn(state));
+  return makeRecord(state, "exceptions", {
+    name: definition.title, status: "open", customerId: "", amountKobo: 0, createdAt: ctx.now,
+    data: {
+      type: "settlement_variance", severity: definition.severity, owner: definition.owner, slaBusinessDays: definition.slaBusinessDays, dueBy: addBusinessDays(state, ctx.now, definition.slaBusinessDays),
+      notes: IDENTITY_HOLD_EXPLANATION, linkedRecordId: batch.id, condition, ...(currency !== "NGN" ? { currency } : {}),
+    },
+  });
+}
+
+/**
+ * Decision on the exception a batch held for its provider identity needs: every such batch has its own exception with
+ * the hold's condition, on which Finance or an administrator confirms whose payout it is. One is created directly when
+ * the batch has none for its current hold (latestHoldAt): open, or decided since the hold began other than as its
+ * condition cleared, whether it was held while another settlement_variance was open for it, an earlier build carried
+ * the hold on that one, or it is held again after a release. One an earlier build resolved or closed since the hold
+ * began without a confirmed identity it can apply gets a renewed review instead (reviewEarlierIdentityDecision).
+ * Returns the review raised now.
+ */
+function keepHoldException(state: DomainState, ctx: Context, batch: TypedRecord<"settlement-batches">): TypedRecord<"exceptions"> | undefined {
+  const since = latestHoldAt(batch);
+  const current = recordsWhere(state, "exceptions", "data.linkedRecordId", batch.id)
+    .filter((item) => identityExceptionOf(item, batch.id) && (isOpenException(item.status) || (item.data.resolutionCode !== conditionClearedCode && decidedAt(item) >= since)));
+  if (current.some((item) => isOpenException(item.status))) return undefined;
+  if (!current.length) { raiseHoldException(state, ctx, batch); return undefined; }
+  // Decided since the hold began, yet the batch is still held: an earlier build's other code, or a confirmation it cannot apply.
+  const earlier = current.filter((item) => providerIdentityReviewOf(item.data.condition) === undefined).sort((a, b) => decidedAt(b).localeCompare(decidedAt(a)))[0];
+  return earlier ? reviewEarlierIdentityDecision(state, ctx, batch, earlier) : undefined;
 }
 
 /**
  * Decision on a batch still held for its provider identity whose hold's exception an earlier build resolved, or
  * closed, without a confirmed identity: that build offered codes that closed the exception while the batch stayed
  * held with its evidence uncounted, and nothing was left to release it. The earlier resolution keeps its meaning, and
- * a renewed review is raised, once: a Finance-owned settlement_variance naming the exception that settles the hold's
- * condition (`earlier`), with the condition providerIdentityReviewCondition and legacyIdentityReview, whose only code
- * is provider_identity_confirmed and which only Admin or Finance resolves. None is raised while a review of the batch
- * is open or once one is resolved: a resolved review confirmed the batch's identity, which every later hold follows
- * (identityConfirmation). One the platform closed when the batch was released settles nothing, as any exception closed
- * because its condition cleared, so a batch held again gets a new review. Returns the review raised now.
+ * a renewed review is raised, once: a Finance-owned settlement_variance naming that decision (`earlier`), with the
+ * condition providerIdentityReviewCondition and legacyIdentityReview, whose only code, while the batch is held, is
+ * provider_identity_confirmed and which only Admin or Finance resolves. No second review of the same decision is
+ * raised, open or resolved; a later hold has an exception of its own (keepHoldException). Returns the review raised now.
  */
 function reviewEarlierIdentityDecision(state: DomainState, ctx: Context, batch: TypedRecord<"settlement-batches">, earlier: TypedRecord<"exceptions">): TypedRecord<"exceptions"> | undefined {
-  const reviewed = (item: TypedRecord<"exceptions">) => identityExceptionOf(item, batch.id) && providerIdentityReviewOf(item.data.condition) !== undefined;
-  if (recordsWhere(state, "exceptions", "data.linkedRecordId", batch.id).some((item) => reviewed(item) && (isOpenException(item.status) || item.data.resolutionCode !== conditionClearedCode))) return undefined;
+  const condition = providerIdentityReviewCondition(batch.id, earlier.id);
+  if (recordsWhere(state, "exceptions", "data.linkedRecordId", batch.id).some((item) => item.data.condition === condition)) return undefined;
   const code = earlier.data.resolutionCode ? String(earlier.data.resolutionCode) : undefined;
   const at = Date.parse(String(earlier.data.resolvedAt ?? ""));
   const decided = `${code ? `resolved as ${code}` : "closed"}${earlier.data.resolvedBy ? ` by ${earlier.data.resolvedBy}` : ""}${Number.isFinite(at) ? ` on ${watDate(at)} (WAT)` : ""}`;
-  const condition = providerIdentityReviewCondition(batch.id, earlier.id), definition = exceptionCatalogue.settlement_variance;
+  const definition = exceptionCatalogue.settlement_variance;
   const notes = `Settlement batch ${batch.reference} is held for its provider identity: its evidence names more than one provider connection, or another batch claims its identity, so none of its evidence is counted and it cannot reconcile. Exception ${earlier.reference || earlier.id} was ${decided} without confirming whose payout the batch is. That resolution keeps its meaning, but the batch stays held until Finance or an administrator confirms whose payout it is. Once the providers have confirmed it, resolve this review as provider identity confirmed, naming that connection: the next reconciliation releases the batch as its payout and moves the evidence of other connections to their own batches. If the providers cannot attribute the payout to one connection, leave this review open until the data owner repairs the evidence; the next reconciliation then releases the batch and closes this review.`;
   const currency = moneyCurrency({ linkedRecordId: batch.id, condition }, moneyIn(state));
   return makeRecord(state, "exceptions", {
@@ -834,8 +894,10 @@ function holdEarlierSettlementIdentities(state: DomainState, ctx: Context): { he
       const named = namedConnection(item);
       if (named !== undefined) claims.set(JSON.stringify([connectionKey(named), String(item.data.batchReference || batch.reference)]), named.trim());
     }
-    const recorded = batch.data.providerIdentityKey ? String(batch.data.providerIdentityKey) : !Array.isArray(batch.data.lineObservationIds) || batch.data.enteredTotals ? settlementIdentity(state, batch) : undefined;
-    if (recorded !== undefined && !claims.has(recorded)) claims.set(recorded, connectionOf(state, batch).trim());
+    // Its recorded identity, and for a batch Finance entered by hand the provider it records, when it records one.
+    const entered = !Array.isArray(batch.data.lineObservationIds) || !!batch.data.enteredTotals ? namedConnection(batch) : undefined;
+    const recorded = batch.data.providerIdentityKey ? String(batch.data.providerIdentityKey) : entered !== undefined ? JSON.stringify([connectionKey(entered), batch.reference]) : undefined;
+    if (recorded !== undefined && !claims.has(recorded)) claims.set(recorded, (entered ?? connectionOf(state, batch)).trim());
     const [identity, connection] = claims.size === 1 ? [...claims][0]! : [JSON.stringify([connectionKey(String(state.merchant.provider)), batch.reference]), String(state.merchant.provider)];
     return { batch, linked, own, claims, identity, connection };
   });
@@ -856,7 +918,13 @@ function holdEarlierSettlementIdentities(state: DomainState, ctx: Context): { he
           previous: { status: batch.status, grossKobo: batch.data.grossKobo, feeKobo: batch.data.feeKobo, netKobo: batch.data.netKobo, currency: currencyOf(batch), statementObservationId: batch.data.statementObservationId ?? null, statementNetKobo: batch.data.statementNetKobo ?? null },
         };
         touch(batch, ctx.now);
-      } else if (batch.data.providerIdentityRelease) { delete batch.data.providerIdentityRelease; touch(batch, ctx.now); }
+      } else if (batch.data.providerIdentityRelease) {
+        // Held again: the release it had stays in its history, which marks when this hold began (latestHoldAt).
+        const entry: IdentityHistoryEntry = { release: batch.data.providerIdentityRelease as Record<string, unknown>, heldAgainAt: ctx.now, identities: (claims.size > 1 ? [...claims.keys()] : [identity]).sort(), observationIds: own.map((item) => item.id).sort() };
+        batch.data.providerIdentityHistory = [...identityHistory(batch), entry];
+        delete batch.data.providerIdentityRelease;
+        touch(batch, ctx.now);
+      }
       held += 1;
       continue;
     }
@@ -894,7 +962,7 @@ function settlementBatch(state: DomainState, ctx: Context, observation: TypedRec
   const batchReference = String(observation.data.batchReference || "");
   if (!batchReference) return;
   const provider = connectionOf(state, observation);
-  const currency = currencyOf(observation), schedule = lineSchedule(state, observation, payment);
+  const currency = currencyOf(observation), schedule = lineSchedule(state, observation);
   const identity = settlementIdentity(state, observation, batchReference);
   let batch = recordsWhere(state, "settlement-batches", "reference", batchReference).find((item) => batchIdentity(state, item) === identity || (identityHeld(item) && !!(item.data.providerIdentityReview as { identities?: string[] }).identities?.includes(identity)));
   if (!batch) {
@@ -1001,7 +1069,8 @@ function keepLinesCountedTwiceReported(state: DomainState, ctx: Context): void {
     const listed = reports.some((item) => item.data.condition === condition || countedTwiceReports(item).includes(condition));
     const carrier = listed ? undefined : reports.find((item) => isOpenException(item.status) && String(item.data.notes ?? "").includes(`(WAT): Settlement line ${line.reference} (`));
     if (carrier) { carrier.data.countedTwice = [...countedTwiceReports(carrier), condition]; touch(carrier, ctx.now); }
-    if (!reports.length || reports.some((item) => isOpenException(item.status) || item.data.resolutionCode !== conditionClearedCode)) continue;
+    // A report settles when Finance resolves it; closed as its condition cleared, or by confirming a held batch's identity, it does not.
+    if (!reports.length || reports.some((item) => isOpenException(item.status) || ![conditionClearedCode, providerIdentityConfirmedCode].includes(String(item.data.resolutionCode)))) continue;
     const batch = recordsWhere(state, "settlement-batches", "id", batchId)[0], counted = recordsWhere(state, "settlement-batches", "id", countedIn)[0];
     const payment = recordsWhere(state, "payments", "id", String(line.data.paymentId ?? ""))[0];
     if (batch && counted && payment) reportLineCountedTwice(state, ctx, batch, line, counted, payment);
@@ -1063,9 +1132,9 @@ function stillReported(exception: TypedRecord<"exceptions">): string {
  * A collection is counted in its first batch (SettlementLines): a later batch
  * that lists it too, as an earlier build could leave it, counts it twice, and
  * raises a settlement_variance exception that names both batches, once per
- * collection counted again. A batch still held for its provider identity whose
- * hold's exception an earlier build closed without a confirmed identity gets a
- * renewed review, once (reviewEarlierIdentityDecision), added to `reviews`.
+ * collection counted again. A batch held for its provider identity has an
+ * exception of its own for the hold, or a renewed review of an earlier build's
+ * decision on it (keepHoldException), added to `reviews` when raised now.
  * Returns the number of batches in variance. `credits` is how many statement
  * credits each batch's linked total sums.
  */
@@ -1096,10 +1165,11 @@ function evaluateSettlementBatches(state: DomainState, ctx: Context, credits: Re
       touch(open, ctx.now);
     }
     if (next.status === "variance") {
-      const raised = raiseException(state, ctx, "settlement_variance", { linkedRecordId: batch.id, notes: next.explanation!, condition: next.condition, settledBy: next.settledBy });
-      // A closed exception settles a hold that is still here: an earlier build's resolution, which a renewed review follows once.
-      const review = identityHeld(batch) && !isOpenException(raised.status) ? reviewEarlierIdentityDecision(state, ctx, batch, raised) : undefined;
-      if (review) reviews.push(review);
+      // A hold has an exception of its own (keepHoldException); any other variance follows the one-open-exception rule.
+      if (identityHeld(batch)) {
+        const review = keepHoldException(state, ctx, batch);
+        if (review) reviews.push(review);
+      } else raiseException(state, ctx, "settlement_variance", { linkedRecordId: batch.id, notes: next.explanation!, condition: next.condition, settledBy: next.settledBy });
       variances += 1;
     }
     for (const paymentId of Array.isArray(batch.data.linePaymentIds) ? batch.data.linePaymentIds.map(String) : []) {
@@ -1685,31 +1755,9 @@ export function reversePayment(state: DomainState, ctx: Context, payment: TypedR
   settlePaymentStatus(state, ctx, payment, reason);
 }
 
-/** The gross evidence states: its stated gross, else its amount. A settlement line that states only what it paid out gives the least the gross can be. */
-function statedGross(observation: TypedRecord<"observations">): { kobo: number; atLeast: boolean } {
-  const stated = observation.data.grossAmountKobo;
-  return stated !== undefined ? { kobo: Number(stated), atLeast: false } : { kobo: observation.amountKobo, atLeast: observation.data.source === "settlement" };
-}
-
-/**
- * ING-03 and ING-05: why evidence under a payment's key is someone else's
- * money rather than more evidence of that payment: it names another payer (or
- * the payment is already tied to another payer's instalment), it is in another
- * currency, or it states another gross amount. Undefined when it agrees. A
- * settlement line that states only what it paid out agrees with any gross at
- * least that large, and a gross completes a payment made from such a line,
- * whatever of it is applied, unless its money went back (a refund or a
- * reversal).
- */
-function evidenceConflict(payment: TypedRecord<"payments">, observation: TypedRecord<"observations">, index: CanonicalPaymentIndex): string | undefined {
-  const payer = observation.customerId;
-  if (payer && payment.customerId && payer !== payment.customerId) return "it names another payer";
-  if (payer && !payment.customerId && index.tiedPayers(payment).some((customerId) => customerId !== payer)) return "it names another payer than the instalment the payment is tied to";
-  if (currencyOf(observation) !== currencyOf(payment)) return `it is in ${currencyOf(observation)} and the payment is in ${currencyOf(payment)}`;
-  const { kobo, atLeast } = statedGross(observation);
-  const agrees = atLeast ? kobo <= payment.amountKobo : kobo === payment.amountKobo || (payment.data.grossUnstated === true && kobo > payment.amountKobo && !paymentRefunded(payment) && !paymentReversed(payment));
-  return agrees ? undefined : `it states ${moneyText(kobo, currencyOf(payment))}${atLeast ? " paid out" : ""} and the payment is ${moneyText(payment.amountKobo, currencyOf(payment))}`;
-}
+/** ING-03 and ING-05: why evidence under a payment's key is someone else's money (evidence-agreement), with the payers this pass ties the payment to. */
+const evidenceConflict = (payment: TypedRecord<"payments">, observation: TypedRecord<"observations">, index: CanonicalPaymentIndex): string | undefined =>
+  conflictOf(payment, observation, (item) => index.tiedPayers(item));
 
 /** Evidence that reports a reversal of the payment it names. */
 export const reportsReversal = (observation: TypedRecord<"observations">): boolean => observation.data.reversed === true || observation.data.reversalStatus === "reversed";
@@ -2560,12 +2608,12 @@ function restoredStatusesNote(restored: readonly HoldRestored[]): string | undef
 function releasedBatchesNote(released: readonly IdentityRelease[]): string | undefined {
   const automatic = released.filter((item) => item.confirmedBy === undefined);
   const notes = released.filter((item) => item.confirmedBy !== undefined).map(confirmedReleaseNote);
-  const lines = ({ held }: IdentityRelease) => held.length ? `; ${counted(held.length, "settlement line")} it held meanwhile ${held.length === 1 ? "was" : "were"} counted again` : "";
-  if (automatic.length === 1) notes.push(`Released settlement batch ${automatic[0]!.batch.reference} from the provider identity hold an earlier build placed on it, as its evidence names one provider connection, ${automatic[0]!.connection}${lines(automatic[0]!)}.`);
+  const lines = ({ held }: IdentityRelease) => held.length ? `; ${counted(held.length, "settlement line")} it held meanwhile, never counted, ${held.length === 1 ? "was" : "were"} read as new lines are` : "";
+  if (automatic.length === 1) notes.push(`Released settlement batch ${automatic[0]!.batch.reference} from its provider identity hold, as its evidence names one provider connection, ${automatic[0]!.connection}, which no other batch claims${lines(automatic[0]!)}.`);
   else if (automatic.length) {
     const named = automatic.slice(0, 3).map((item) => `${item.batch.reference} (${item.connection}${lines(item)})`);
     const more = automatic.length > 3 ? `; and ${counted(automatic.length - 3, "more", "more")}` : "";
-    notes.push(`Released ${counted(automatic.length, "settlement batch", "settlement batches")} from the provider identity hold an earlier build placed on them, as each one's evidence names one provider connection: ${named.join("; ")}${more}.`);
+    notes.push(`Released ${counted(automatic.length, "settlement batch", "settlement batches")} from their provider identity hold, as each one's evidence names one provider connection, which no other batch claims: ${named.join("; ")}${more}.`);
   }
   return notes.join(" ") || undefined;
 }
@@ -2588,12 +2636,12 @@ function confirmedReleaseNote(release: IdentityRelease): string {
   const was = (items: readonly unknown[]) => (items.length === 1 ? "was" : "were");
   const { detached = [], credits = [], held } = release;
   const moved = [
-    detached.length ? `${counted(detached.length, "settlement line")} of another connection (${references(detached)}) ${was(detached)} counted again in its own connection's batch` : "",
+    detached.length ? `${counted(detached.length, "settlement line")} of another connection (${references(detached)}) ${was(detached)} moved out, to be read as new lines are in its own connection's batch` : "",
     credits.length ? `${counted(credits.length, "statement credit")} of another connection (${references(credits)}) ${was(credits)} left to link to its own` : "",
-    held.length ? `${counted(held.length, "settlement line")} it held meanwhile ${was(held)} counted again` : "",
+    held.length ? `${counted(held.length, "settlement line")} it held meanwhile, never counted, ${was(held)} read as new lines are` : "",
   ].filter(Boolean);
   const confirmedAt = Date.parse(String(release.confirmedAt));
-  return `Released settlement batch ${release.batch.reference} as the payout of ${release.connection}, which ${release.confirmedBy} confirmed${Number.isFinite(confirmedAt) ? ` on ${watDate(confirmedAt)} (WAT)` : ""}${moved.length ? `: ${moved.join(", and ")}` : ""}.${release.totalsKept ? " Its totals were typed by hand, so they were left as they are: check that they leave out the lines that moved." : ""}`;
+  return `Released settlement batch ${release.batch.reference} as the payout of ${release.connection}, which ${release.confirmedBy} confirmed${Number.isFinite(confirmedAt) ? ` on ${watDate(confirmedAt)} (WAT)` : ""}${moved.length ? `: ${moved.join(", and ")}` : ""}.${release.totalsKept ? " Its gross, fee and net were typed by hand, so they were left as typed and only the expected fee of the lines that moved was taken out: check that the typed totals leave those lines out too." : ""}`;
 }
 
 /** What the audit entry adds for settlement lines an earlier build counted in a batch of another currency: each line, its batch, both currencies and the batch that now counts its collection instead. */

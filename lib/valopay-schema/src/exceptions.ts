@@ -180,14 +180,16 @@ export const resolutionRuleVersion = 1;
  * has seen offers only the two codes that decide it (unseenReversalCodes). A
  * settlement_variance raised for a batch held for its provider identity, or a
  * renewed review of one (providerIdentityOf), offers only
- * provider_identity_confirmed, the one code that decides it, and no other
- * settlement_variance offers that code.
+ * provider_identity_confirmed, the one code that decides it, while the batch is
+ * held; once it is not (`identityHeld` false), such an exception stays open only
+ * for the reports an earlier build made it carry, and offers the other
+ * settlement_variance codes. No other settlement_variance offers that code.
  */
-export function resolutionCodesForException(exception: { data?: { type?: unknown; condition?: unknown } | null } | null | undefined): readonly string[] {
+export function resolutionCodesForException(exception: { data?: { type?: unknown; condition?: unknown } | null } | null | undefined, { identityHeld = true }: { identityHeld?: boolean } = {}): readonly string[] {
   const codes = resolutionCodesFor(exception?.data?.type);
   const type = resolveExceptionType(exception?.data?.type);
   if (type === "provider_status_mismatch" && unseenReversalOf(exception?.data?.condition)) return codes.filter((code) => code === unseenReversalCodes.adopted || code === unseenReversalCodes.setAside);
-  if (type === "settlement_variance") return codes.filter((code) => (code === providerIdentityConfirmedCode) === (providerIdentityOf(exception?.data?.condition) !== undefined));
+  if (type === "settlement_variance") return codes.filter((code) => (code === providerIdentityConfirmedCode) === (identityHeld && providerIdentityOf(exception?.data?.condition) !== undefined));
   if (type !== "suspected_duplicate") return codes;
   const held = heldEvidenceOf(exception?.data?.condition);
   return codes.filter((code) => code === heldEvidenceCodes.samePayment ? held?.connectionOnly === true : code === heldEvidenceCodes.notMoney ? held !== undefined : true);

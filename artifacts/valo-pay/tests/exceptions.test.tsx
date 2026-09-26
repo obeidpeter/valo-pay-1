@@ -380,6 +380,32 @@ describe("exceptions", () => {
     expect(api.state().records.find(record => record.id === review.id)!.data.confirmedProviderIdentity).toBe(identities[0]);
   });
 
+  // Review fix: a batch released while its hold's exception, from an earlier build, still carries a report of a collection
+  // counted in two batches: the exception stays open for that report and offers the codes that mean something for it.
+  it('offers the settlement codes, not the confirmation, on a released batch\'s hold exception that still carries a report', async () => {
+    const user = userEvent.setup();
+    const hold = api.mutate((state, ctx) => {
+      const batch = makeRecord(state, 'settlement-batches', { name: 'Settlement batch SHARED', status: 'reconciled', reference: 'SHARED', data: { batchReference: 'SHARED', provider: 'connection-a', providerConnection: 'connection-a', providerIdentityKey: identities[0], currency: 'NGN', lineObservationIds: [], linePaymentIds: [], grossKobo: 0, feeKobo: 0, netKobo: 0, providerIdentityReview: { detectedAt: api.now, identities, observationIds: [], previous: { status: 'reconciled', grossKobo: 0, feeKobo: 0, netKobo: 0, currency: 'NGN', statementObservationId: null, statementNetKobo: null } }, providerIdentityRelease: { releasedAt: api.now, identity: identities[0], heldLineIds: [] } } });
+      const exception = raiseException(state, ctx, 'settlement_variance', { linkedRecordId: batch.id, notes: 'Historical settlement evidence mixes or conflicts with provider connections.', condition: `settlement_variance:${batch.id}:provider_identity` });
+      exception.data.countedTwice = [`settlement_variance:${batch.id}:line:line-1`];
+      return exception;
+    });
+    renderApp(`/exceptions?record=${hold.id}`);
+    await user.click(await screen.findByRole('button', { name: 'Resolve' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Resolve exception' });
+    const code = within(dialog).getByLabelText(/How was this resolved/);
+    await waitFor(() => expect(within(code).getAllByRole('option').map(option => option.textContent)).toEqual(['Choose an option', 'Fee schedule updated', 'Provider corrected', 'Accepted variance']));
+    expect(within(dialog).queryByLabelText(/Connection whose payout this batch is/)).toBeNull();
+    const outcome = within(dialog).getByText('Record an outcome after reviewing the evidence.').parentElement!.textContent!;
+    expect(outcome).not.toContain('Once the providers have confirmed whose payout');
+    expect(outcome).toContain('This exception also carries the provider\'s report of a collection counted in two settlement batches.');
+    await user.selectOptions(code, 'accepted_variance');
+    await user.type(within(dialog).getByLabelText(/^Reason/), 'Both payouts checked with the provider.');
+    await user.click(within(dialog).getByRole('button', { name: 'Resolve exception' }));
+    await screen.findByRole('status', { name: 'Resolution recorded' });
+    expect(api.state().records.find(record => record.id === hold.id)!.data.resolutionCode).toBe('accepted_variance');
+  });
+
   for (const review of [false, true]) {
     it(`does not let Operations resolve ${review ? 'a renewed review of a held batch' : 'a held batch\'s exception'}, which the service refuses from that role`, async () => {
       api.role = 'Operations';
@@ -387,7 +413,7 @@ describe("exceptions", () => {
       renderApp(`/exceptions?record=${exception.id}`);
       const resolve = await screen.findByRole('button', { name: 'Resolve' });
       expect(resolve.getAttribute('aria-disabled')).toBe('true');
-      expect(screen.getByText('Requires Admin or Finance: a settlement batch held for its provider identity is released by Finance’s confirmation of whose payout it is.')).toBeTruthy();
+      expect(screen.getByText('Requires Admin or Finance: the exceptions of a settlement batch’s provider identity hold are Finance’s to resolve, by confirming whose payout the batch is.')).toBeTruthy();
       await userEvent.setup().click(resolve);
       expect(screen.queryByRole('dialog', { name: 'Resolve exception' })).toBeNull();
       expect(api.calls.some(call => call.method === 'GET' && call.path.includes('/v1/records/settlement-batches'))).toBe(false);

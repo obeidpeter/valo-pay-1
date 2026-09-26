@@ -67,7 +67,7 @@ export function permissionReason(workspace: ActingWorkspace, { action, kind, rec
   const refusal = action === 'manual_allocate' ? allocationRefusal(record ?? null) : null;
   if (refusal) return refusal;
   // A settlement batch held for its provider identity, or a renewed review of its hold, is resolved only by confirming whose payout it is (FIN-03).
-  if (action === 'resolve_exception' && providerIdentityOf(record?.data?.condition) && !['Admin', 'Finance'].includes(workspace.role)) return 'Requires Admin or Finance: a settlement batch held for its provider identity is released by Finance’s confirmation of whose payout it is.';
+  if (action === 'resolve_exception' && providerIdentityOf(record?.data?.condition) && !['Admin', 'Finance'].includes(workspace.role)) return 'Requires Admin or Finance: the exceptions of a settlement batch’s provider identity hold are Finance’s to resolve, by confirming whose payout the batch is.';
   // Confirming a pay-by-bank payment whose outcome stayed unknown records a receipt, so Finance records it.
   if (action === 'resolve_exception' && record?.data?.linkedKind === 'connected-intents' && !['Admin', 'Finance'].includes(workspace.role)) return 'Requires Admin or Finance: the outcome of a pay-by-bank payment is Finance’s to record.';
   if (!action && ['templates', 'policies'].includes(kind || '') && record && !['draft', 'rejected'].includes(record.status || '')) {

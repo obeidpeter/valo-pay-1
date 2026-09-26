@@ -16,9 +16,13 @@ const identityHold = (exception: ValopayRecord | null | undefined) =>
 /** Whether a role may confirm a held batch's identity: the service accepts it from Admin and Finance only (403 otherwise). */
 const confirmsIdentity = (role: string | undefined) => role === 'Admin' || role === 'Finance';
 
-/** The codes one exception offers a person in this role: its codes (resolutionCodesForException), less provider_identity_confirmed for a role that may not record it. */
-export function resolutionChoices(exception: ValopayRecord | null | undefined, role: string | undefined): readonly string[] {
-  return resolutionCodesForException(exception).filter(code => code !== providerIdentityConfirmedCode || confirmsIdentity(role));
+/**
+ * The codes one exception offers a person in this role: its codes (resolutionCodesForException), which for a batch's
+ * provider identity hold follow whether the batch is still held (`held`, unknown while it loads, when only the
+ * confirmation is offered), less provider_identity_confirmed for a role that may not record it.
+ */
+export function resolutionChoices(exception: ValopayRecord | null | undefined, role: string | undefined, held?: boolean): readonly string[] {
+  return resolutionCodesForException(exception, { identityHeld: held !== false }).filter(code => code !== providerIdentityConfirmedCode || confirmsIdentity(role));
 }
 
 /** A settlement batch identity in words: its connection, as the service compares it, and its batch reference. */
@@ -28,20 +32,23 @@ export function providerIdentityLabel(identity: unknown): string {
 }
 
 /**
- * The identities a batch held for its provider identity may be confirmed as, read from the batch its exception names:
- * those it was held for, or the one it already records. None while it loads, for any other exception, and for a role
- * that may not confirm one.
+ * The batch a provider identity exception names, as the resolve dialog needs it: whether it is still held for its
+ * provider identity (`held`; undefined while it loads, for any other exception, and for a role that may not resolve
+ * one), and while it is, the identities it may be confirmed as: those it was held for, or the one it already records.
  */
-export function useHeldBatchIdentities(exception: ValopayRecord | null | undefined, enabled: boolean, role: string | undefined): { label: string; value: string }[] {
+export function useHeldBatchIdentities(exception: ValopayRecord | null | undefined, enabled: boolean, role: string | undefined): { held?: boolean; identities: { label: string; value: string }[] } {
   const { merchantId } = useWorkspace();
   const batchId = identityHold(exception) ? providerIdentityOf(exception?.data?.condition) : undefined;
   const params = { merchantId: merchantId || '', id: batchId || '' };
   const found = useListRecords('settlement-batches', params, { query: { enabled: enabled && confirmsIdentity(role) && !!merchantId && !!batchId, queryKey: getListRecordsQueryKey('settlement-batches', params) } });
   const batch = enabled && confirmsIdentity(role) ? found.data?.items?.find(item => item.id === batchId) : undefined;
-  const review = batch?.data?.providerIdentityReview as { identities?: unknown } | undefined;
-  const identities = Array.isArray(review?.identities) ? review.identities.map(String) : [];
-  const recorded = batch?.data?.providerIdentityKey;
-  return (recorded ? identities.filter(identity => identity === recorded) : identities).map(identity => ({ label: providerIdentityLabel(identity), value: identity }));
+  if (!batch) return { identities: [] };
+  const review = batch.data?.providerIdentityReview as { identities?: unknown } | undefined;
+  // Released (providerIdentityRelease), the batch is no longer held: its hold's exception stays open only for the reports it carries.
+  if (!review || batch.data?.providerIdentityRelease) return { held: false, identities: [] };
+  const identities = Array.isArray(review.identities) ? review.identities.map(String) : [];
+  const recorded = batch.data?.providerIdentityKey;
+  return { held: true, identities: (recorded ? identities.filter(identity => identity === recorded) : identities).map(identity => ({ label: providerIdentityLabel(identity), value: identity })) };
 }
 
 /** What the resolve dialog refuses before sending for a held batch: a confirmation with no identity, or an identity with another outcome. */
@@ -68,9 +75,9 @@ export function resolutionLabel(exception: ValopayRecord | null | undefined, cod
  * looks for any payment, and a settlement batch held for its provider identity, which a confirmation of its connection
  * releases. Undefined where resolving records the outcome and reason alone.
  */
-export function resolutionEffect(exception: ValopayRecord, code: unknown): string | undefined {
+export function resolutionEffect(exception: ValopayRecord, code: unknown, held?: boolean): string | undefined {
   const type = resolveExceptionType(exception.data?.type), chosen = String(code || '');
-  if (identityHold(exception)) {
+  if (identityHold(exception) && held !== false) {
     // Its only outcome confirms whose payout the batch is: any other would close it while the batch stays held.
     const review = providerIdentityReviewOf(exception.data?.condition) !== undefined, it = review ? 'this review' : 'this exception';
     if (!chosen) return `${review ? 'An earlier resolution of this batch\'s hold keeps its meaning, but the batch stays held, with its evidence uncounted, until Finance or an administrator confirms whose payout it is. ' : ''}Once the providers have confirmed whose payout this settlement batch is, choose Provider identity confirmed and that connection. If they cannot attribute it to one connection, leave ${it} open: once the data owner has repaired the evidence, the next reconciliation releases the batch and closes ${it}.`;
@@ -122,6 +129,9 @@ export function otherCurrencyLinesEffect(exception: ValopayRecord): string | und
 
 export function ExceptionContext({ exception, customer, resolutionCode, resolving }: { exception: ValopayRecord; customer?: ValopayRecord; resolutionCode?: unknown; resolving: boolean }) {
   const type = resolveExceptionType(exception.data?.type);
+  // A batch's provider identity hold: what resolving does follows whether the batch is still held (one request with the dialog's).
+  const { workspace } = useWorkspace();
+  const { held } = useHeldBatchIdentities(exception, resolving, workspace?.role);
   const lender = new URLSearchParams({ lender: exception.merchantId });
   const linkedId = String(exception.data?.linkedRecordId || '');
   const customerParams = new URLSearchParams(lender);
@@ -139,7 +149,7 @@ export function ExceptionContext({ exception, customer, resolutionCode, resolvin
     ? 'Confirmed successful records the pay-by-bank payment as received, with your evidence reference, and applies it to its instalment; Confirmed failed, or Provider confirmed no debit, records the checkout as failed. Either way the checkout no longer holds its instalment, so a new checkout or retry may follow. No money moves.'
     : type === 'customer_dispute'
       ? 'Not upheld takes the instalment out of dispute: its status then follows its balance, and collection and allocation resume. Upheld or mandate cancelled keeps it in dispute until Finance releases it from dispute on the Collections page. No money moves.'
-      : resolutionEffect(exception, resolutionCode) ?? 'Resolving this exception records your outcome and reason. It does not allocate a payment, issue a refund, reissue a mandate or move money. Complete any required action in its workflow and include its evidence reference in your reason.';
+      : resolutionEffect(exception, resolutionCode, held) ?? 'Resolving this exception records your outcome and reason. It does not allocate a payment, issue a refund, reissue a mandate or move money. Complete any required action in its workflow and include its evidence reference in your reason.';
   const carried = [countedTwiceEffect(exception), otherCurrencyLinesEffect(exception)].filter(Boolean).join(' ') || undefined;
   return <section aria-label="Exception context" className="space-y-3 rounded-lg border bg-secondary/10 p-4 text-sm">
     <div><h3 className="font-semibold">{readableLabel(exception.data?.type)}</h3><p className="mt-1 font-mono text-xs">{exception.reference || exception.id}</p></div>

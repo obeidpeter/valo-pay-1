@@ -115,4 +115,17 @@ const refused = (run: () => unknown, pattern: RegExp) => { assert.throws(run, pa
  assert.equal(providerConnectionKey(' Provider A '), 'provider a'); checks++;
  assert.equal(providerConnectionKey('İ'), 'İ', 'normalisation is independent of PostgreSQL locale'); checks++;
 }
+{
+ // Reconciliation alone links payment evidence to a settlement batch, or marks where a line is counted: the record API and
+ // an import refuse these links, as they refuse a payment or a resolution.
+ const state = seedMerchant('evidence-links');
+ const evidence = { name: 'Settlement line', status: 'unresolved', reference: 'PSK-LINK', amountKobo: 1_000_000, customerId: '', data: { source: 'settlement', eventId: 'link-1', batchReference: 'B-1', provider: 'Provider A' } };
+ for (const [field, value] of Object.entries({ settlementBatchId: 'batch-a', resolvedTo: 'batch:batch-a', countedInBatchId: 'batch-a', duplicateSettlementLine: true, otherCurrencyLine: true })) {
+   refused(() => validateRecord(state, operations, 'observations', { ...structuredClone(evidence), data: { ...evidence.data, [field]: value } }), /Valo Pay links payment evidence to its settlement batch/);
+ }
+ assert.doesNotThrow(() => validateRecord(state, operations, 'observations', structuredClone(evidence))); checks++;
+ const imported = importCsv(state, operations, { kind: 'observations', csv: 'row_id,reference,amountKobo,source,eventId,settlementBatchId\nl1,PSK-LINK-2,1000000,settlement,link-2,batch-a', syntheticOnly: true, commit: true, identityColumn: 'row_id', amountUnit: 'kobo' });
+ assert.equal(imported.imported, 0); checks++;
+ assert.match(JSON.stringify(imported.rows[0]), /links payment evidence to its settlement batch/); checks++;
+}
 console.log(`Record identity and decision guards passed (${checks} checks).`);
