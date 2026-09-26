@@ -314,6 +314,38 @@ describe("Cash Desk", () => {
     expect(await screen.findByText(/sample-1/)).toBeTruthy();
   });
 
+  it("lists a saved forecast and VAT schedule made under replaced permissions without their figures", async () => {
+    setUp();
+    api.mutate((state) => {
+      action(state, "cash.forecast");
+      action(state, "cash.vat.export", "Finance");
+      // The permissions are granted again: they are no longer the grants the saved work was made under.
+      for (const grant of state.records.filter((r) => r.kind === "connected-consents"))
+        grant.data.version = 2;
+    });
+    api.role = "Finance";
+    const user = userEvent.setup();
+    renderApp("/cash-desk");
+    expect(
+      await screen.findByText(/forecast saved .* are withheld: .* Save a new forecast version under the current permission\./),
+    ).toBeTruthy();
+    expect(screen.queryByRole("img", { name: /Cash forecast comparison/ })).toBeNull();
+    expect(screen.queryByText("Day 7")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "VAT evidence" }));
+    expect(screen.getByText(/Saved by Sandbox Finance/)).toBeTruthy();
+    expect(
+      screen.getByText(/^Its figures are withheld: .* Save the schedule again under the current permission\.$/),
+    ).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Download saved review" })).toBeNull();
+    // A schedule saved under the current permissions can be downloaded.
+    await user.click(screen.getByRole("button", { name: /Save review schedule/ }));
+    await confirm(user);
+    expect(
+      await screen.findByRole("button", { name: "Download saved review" }),
+    ).toBeTruthy();
+    expect(screen.getAllByText(/Saved by Sandbox Finance/)).toHaveLength(2);
+  });
+
   it("lets a different Finance reviewer approve and export an accounting draft without claiming ERP posting", async () => {
     setUp();
     api.mutate((state) => action(state, "cash.erp.prepare"));

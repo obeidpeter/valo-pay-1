@@ -94,6 +94,12 @@ type CashView = {
     scenarios: Array<{ name: string; points: Point[] }>;
     warnings: string[];
   };
+  /** The latest saved forecast; to be prepared again (its figures withheld) once its permission or source changed. */
+  savedForecast: null | {
+    id: string;
+    createdAt: string;
+    state: "current" | "prepare_again";
+  };
   erpDrafts: Array<{
     id: string;
     name: string;
@@ -138,11 +144,13 @@ type CashView = {
       evidenceComplete: boolean;
     }>;
   };
+  /** Saved schedules; one to be prepared again is listed without its schedule. */
   vatExports: Array<{
     id: string;
     createdAt: string;
-    schedule: unknown;
+    schedule?: unknown;
     reviewer: string;
+    state: "current" | "prepare_again";
   }>;
   payrollPlans: Array<{
     id: string;
@@ -697,6 +705,14 @@ export default function CashDeskPage() {
                     . The buffer does not change your bank balance.
                   </p>
                 </>
+              ) : cash.savedForecast?.state === "prepare_again" ? (
+                <p className="text-sm text-muted-foreground">
+                  The figures of the forecast saved{" "}
+                  {formatDate(cash.savedForecast.createdAt)} are withheld: the
+                  permission it was saved under, or the balances and commitments
+                  it was made from, have changed or cannot be confirmed. Save a
+                  new forecast version under the current permission.
+                </p>
               ) : (
                 <p className="text-sm text-muted-foreground">
                   Restore business-account permission to create a new forecast.
@@ -1263,19 +1279,28 @@ export default function CashDeskPage() {
                     Saved by {exported.reviewer} ·{" "}
                     {formatDate(exported.createdAt)}
                   </p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() =>
-                      saveJson(
-                        "valo-vat-reviewed-schedule.json",
-                        exported.schedule,
-                      )
-                    }
-                  >
-                    <Download />
-                    Download saved review
-                  </Button>
+                  {exported.schedule ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        saveJson(
+                          "valo-vat-reviewed-schedule.json",
+                          exported.schedule,
+                        )
+                      }
+                    >
+                      <Download />
+                      Download saved review
+                    </Button>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      Its figures are withheld: the permission it was saved
+                      under, or its evidence, has changed or cannot be
+                      confirmed. Save the schedule again under the current
+                      permission.
+                    </p>
+                  )}
                 </div>
               ))}
             </>

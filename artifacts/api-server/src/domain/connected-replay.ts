@@ -1,7 +1,6 @@
 import { isDeepStrictEqual } from "node:util";
 import type { ConnectedActionResult } from "@workspace/valopay-schema";
-import { cashView } from "./connected-cash-service";
-import { cashEvidenceHash } from "./connected-cash";
+import { boundWhenSaved, cashView, savedCashDisclosable } from "./connected-cash-service";
 import { creditView } from "./connected-credit-service";
 import type { Context, DomainState, ValopayRecord } from "./types";
 
@@ -14,44 +13,20 @@ const sameRecord = (state: DomainState, saved: ValopayRecord): ValopayRecord => 
   return current;
 };
 
-const receiptPurposes = (kind: string): string[] | undefined =>
-  kind === "connected-cash-vat" ? ["merchant_account_read", "erp_draft"] :
-  ["connected-cash-workspace", "connected-cash-forecasts"].includes(kind) ? ["merchant_account_read"] : undefined;
-function currentReceiptAuthority(state: DomainState, ctx: Context, purposes: string[]) {
-  const at = Date.parse(ctx.now);
-  if (!Number.isFinite(at)) return undefined;
-  const snapshots = [];
-  for (const purpose of purposes) {
-    const grants = state.records.filter((r) => r.kind === "connected-consents" && r.merchantId === state.merchant.id &&
-      r.status === "active" && r.data.purpose === purpose && r.data.subjectId === "sme" &&
-      r.data.entityId === `${state.merchant.id}:sme` && Number.isSafeInteger(r.data.version) && r.data.version > 0 &&
-      Date.parse(String(r.data.validFrom ?? r.createdAt)) <= at && Date.parse(String(r.data.expiresAt)) > at);
-    if (grants.length !== 1) return undefined;
-    const grant = grants[0]!;
-    snapshots.push({ purpose, id: grant.id, version: grant.data.version,
-      hash: cashEvidenceHash({ merchantId: grant.merchantId, createdAt: grant.createdAt, data: grant.data }) });
-  }
-  return snapshots;
-}
-/** Record the authority at creation, not at first replay. ERP and payroll
- * already retain their preparation/checker snapshots in their domain service. */
-export function bindConnectedReplayAuthority(state: DomainState, ctx: Context, action: string, result: unknown): void {
-  if (!action.startsWith("cash.")) return;
-  const record = (result as { record?: ValopayRecord }).record;
-  const purposes = record && receiptPurposes(record.kind);
-  if (!record || !purposes) return;
-  const authority = currentReceiptAuthority(state, ctx, purposes);
-  if (!authority) throw Object.assign(new Error("Current scoped permission is required before saving this response."), { status: 403 });
-  record.data.replayAuthority = authority;
-}
-
 /** An idempotency receipt proves an earlier outcome; it does not grant future
  * access to a score or reusable bank/ERP file. Check a locked current snapshot
  * without executing the command, changing its receipt, or replacing its outcome.
- * Ordinary consent/payment receipts remain historical status evidence. */
+ * Ordinary consent/payment receipts remain historical status evidence.
+ *
+ * The person who sent the request retries it, a sandbox visitor or a signed-in
+ * staff member alike: its key is theirs alone, since the journal entry that
+ * holds its answer is the sender's (its owner, actor and role must match) and
+ * the route's fingerprint names the actor, so a colleague's key never reaches
+ * this check. What is checked here is the lender, a synthetic sandbox, and the
+ * sender's current role, grants and review. */
 export function assertConnectedReplayAllowed(state: DomainState, ctx: Context, action: string, saved: ConnectedActionResult): void {
   if (!action.startsWith("credit.") && !action.startsWith("cash.")) return;
-  if (state.settings.environment !== "sandbox" || !ctx.actor.startsWith("Sandbox ")) refuse(403, "This response is restricted to synthetic sandbox access.");
+  if (state.settings.environment !== "sandbox") refuse(403, "This response is restricted to synthetic sandbox lenders.");
   if (action.startsWith("credit.")) {
     const record = sameRecord(state, saved.record as ValopayRecord);
     const view = creditView(state, ctx);
@@ -80,12 +55,9 @@ export function assertConnectedReplayAllowed(state: DomainState, ctx: Context, a
   const outcome = saved.record as { record?: ValopayRecord; data: Record<string, unknown> };
   if (!outcome.record) return; // cash.initialize can already be initialised.
   const record = sameRecord(state, outcome.record);
-  const purposes = receiptPurposes(record.kind);
-  if (purposes) {
-    const authority = currentReceiptAuthority(state, ctx, purposes);
-    if (!Array.isArray(record.data.replayAuthority) || !authority || !isDeepStrictEqual(record.data.replayAuthority, authority))
-      refuse(409, "The original permission changed or cannot be established. Prepare a current view or export.");
-  }
+  // The rule the desk discloses a saved view, forecast or VAT schedule by.
+  if (boundWhenSaved(record.kind) && !savedCashDisclosable(state, ctx.now)(record))
+    refuse(409, "The original permission or evidence changed or cannot be established. Prepare a current view or export.");
   if (record.kind === "connected-cash-erp") {
     const current = view.erpDrafts.find((draft) => draft.id === record.id);
     if (!current || current.status === "review_required") refuse(409, "The ERP permission or approval changed. Refresh its review.");

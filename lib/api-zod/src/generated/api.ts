@@ -1787,7 +1787,12 @@ export const GetConnectedWorkspaceResponse = zod.object({
   "includedCommitmentIds": zod.array(zod.string()),
   "excludedCommitmentIds": zod.array(zod.string()),
   "warnings": zod.array(zod.string())
-}).describe('Base and downside cash forecasts from approved commitments: a planning estimate, not an available balance.'),zod.null()]),
+}).describe('Base and downside cash forecasts from approved commitments: a planning estimate, not an available balance.'),zod.null()]).describe('The latest saved forecast while it may be shown, a preview when none is saved, or null: without business-account read permission, or while the latest saved forecast must be prepared again.'),
+  "savedForecast": zod.object({
+  "id": zod.string(),
+  "createdAt": zod.string(),
+  "state": zod.enum(['current', 'prepare_again'])
+}).nullable().describe('The latest saved forecast, named with business-account read permission: current while the grants it was saved under are the current ones and the desk\'s opening balance and commitments are those it was made from, prepare_again otherwise, when its figures are withheld (forecast is null). Null when none is saved.'),
   "erpDrafts": zod.array(zod.object({
   "id": zod.string(),
   "status": zod.string(),
@@ -1924,6 +1929,8 @@ export const GetConnectedWorkspaceResponse = zod.object({
   "vatExports": zod.array(zod.object({
   "id": zod.string(),
   "createdAt": zod.string(),
+  "reviewer": zod.string(),
+  "state": zod.enum(['current', 'prepare_again']),
   "schedule": zod.object({
   "tenantId": zod.string(),
   "legalEntityId": zod.string(),
@@ -1951,9 +1958,8 @@ export const GetConnectedWorkspaceResponse = zod.object({
   "missingEvidence": zod.array(zod.string()),
   "excludedBankCreditsMinor": zod.number().int(),
   "evidenceHash": zod.string()
-}).describe('A VAT evidence review schedule reconciled to the ledger control: never a filed return or a payment.'),
-  "reviewer": zod.string()
-})),
+}).optional().describe('A VAT evidence review schedule reconciled to the ledger control: never a filed return or a payment.')
+})).describe('The saved VAT review schedules, listed with business-account read and accounting preparation permissions: each current, with its schedule, while the grants it was saved under are the current ones and the desk holds the invoices, bank allocations and ledger control it was made from; prepare_again otherwise, without its schedule.'),
   "payrollPlans": zod.array(zod.object({
   "id": zod.string(),
   "status": zod.string(),

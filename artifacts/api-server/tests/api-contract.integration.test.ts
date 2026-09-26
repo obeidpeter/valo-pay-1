@@ -379,9 +379,9 @@ try {
   assert.equal(Number((await pool.query("SELECT count(*)::int AS n FROM valopay_records WHERE merchant_id=$1 AND kind='customers'", [lender])).rows[0].n), before, "the record written before the invalid answer was rolled back");
 
   // A stored record the connected view cannot describe fails the read instead of reaching the console.
-  const otherState = await store.inWorkspace(sandboxRequest(), response, async (ctx) => { const state = await store.loadState(ctx, other); makeRecord(state, "connected-cash-forecasts", { name: "Malformed forecast", status: "planning_estimate", createdAt: ctx.now, data: { entityId: `${other}:sme`, forecast: { scenarios: "not a list" } } }); store.appendAudit(state, ctx, "test.contract.malformed", other, "Stored a malformed synthetic forecast."); await store.saveState(ctx, state); return state.merchant.id; });
+  const otherState = await store.inWorkspace(sandboxRequest(), response, async (ctx) => { const state = await store.loadState(ctx, other); makeRecord(state, "connected-credit-assessments", { name: "Malformed assessment", status: "blocked", createdAt: ctx.now, data: { result: { evidence: { grantVersions: [], issues: [] }, policy: {}, score: "not a score" }, scenario: "ready", createdBy: "Sandbox Operations" } }); store.appendAudit(state, ctx, "test.contract.malformed", other, "Stored a malformed synthetic forecast."); await store.saveState(ctx, state); return state.merchant.id; });
   const malformed = await call(q("/v1/connected", otherState));
-  assert.equal(malformed.status, 500, "a malformed stored forecast fails the read");
+  assert.equal(malformed.status, 500, "a malformed stored assessment fails the read");
   assert.deepEqual([malformed.data.error, malformed.data.committed], ["The service could not prepare this answer. Try again, and quote this reference if it happens again.", undefined], "in a read's words: a read saves nothing either way");
 
   // ---- New sandboxes from one address are limited, and the refusal says when to retry (429, Retry-After an hour) ----

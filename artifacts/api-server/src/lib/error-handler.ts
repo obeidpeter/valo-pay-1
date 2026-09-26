@@ -1,6 +1,6 @@
 import type { ErrorRequestHandler } from "express";
 import { ZodError } from "zod";
-import { ERROR_DETAIL_LIMIT, MoneyArithmeticError } from "@workspace/valopay-schema";
+import { ERROR_DETAIL_LIMIT, MONEY_REFUSAL_MESSAGE, MoneyArithmeticError } from "@workspace/valopay-schema";
 import { PilotAccessError } from './pilot-access';
 import { closeRefusedOperation, operationStateOf, requestKey, type OperationState } from './refused-operations';
 import { wasRolledBack } from './transaction-outcome';
@@ -28,7 +28,12 @@ import { ResponseContractError } from './contract';
  * anything that is not an Error at all is answered as a 500 in general words:
  * its message describes the code, not the request, and belongs in the log, not
  * in the response (security review). An invalid answer is never a validation
- * 400: the request was not at fault.
+ * 400: the request was not at fault. A money calculation that cannot be done
+ * exactly within the supported amount and rate limits (MoneyArithmeticError,
+ * whatever the route: billing, reconciliation, a close, a report, the Cash
+ * Desk) is a 422 naming its code, logged as `money.calculation_refused` with
+ * the code alone, never an amount: the same request would be refused again,
+ * so it is a definitive refusal (definitiveRefusalStatuses).
  *
  * When the store rolled back the request's transaction before committing, a
  * 5xx answer says `committed: false`: nothing was saved, so the console need
@@ -140,7 +145,7 @@ function describe(error: unknown, req: Parameters<ErrorRequestHandler>[1]): Answ
   // a programming failure, even if someone attaches a matching code to it.
   if (error instanceof MoneyArithmeticError) {
     req.log.warn({ event: "money.calculation_refused", code: error.code }, "An amount or calculation exceeded the supported financial limits");
-    return { status: 422, body: { error: "This calculation cannot be completed within the supported amount or rate limits. Review the amounts and billing settings before trying again.", code: error.code, requestId } };
+    return { status: 422, body: { error: MONEY_REFUSAL_MESSAGE, code: error.code, requestId } };
   }
   if (error instanceof ZodError) {
     req.log.info({ event: "request.rejected", status: 400, issues: error.issues.length }, "Validation failed");

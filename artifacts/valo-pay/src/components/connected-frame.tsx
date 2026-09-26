@@ -10,7 +10,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { DiscardOriginalRequest } from "@/components/discard-original-request";
 import { RefreshProblem, type RefreshableQuery } from "@/components/load-problem";
-import { requestClosed } from "@/lib/safe-mutations";
+import { requestClosed, savedAnswerWithheld } from "@/lib/safe-mutations";
 import { errorWords } from "@/lib/notify";
 import "@/connected.css";
 /** The connected workspace's held request and, for a failed refresh, its query. */
@@ -34,7 +34,7 @@ export function ConnectedFrame({
   children: ReactNode;
   recovery?: Recovery;
   onRecovered?: () => void;
-  /** The held request was let go without a result: discarded, or refused as cancelled. */
+  /** The held request was let go without a result: discarded, refused as cancelled, or saved earlier with its answer withheld. */
   onReleased?: () => void;
 }) {
   return (
@@ -167,6 +167,12 @@ export function ConnectedRecovery({
                     onReleased?.();
                     setRecoveryError(
                       `The original request was not saved. ${errorWords(error, "")}`,
+                    );
+                  } else if (savedAnswerWithheld(error)) {
+                    // Saved earlier, with its answer withheld now: the service says why, and the page is free again.
+                    onReleased?.();
+                    setRecoveryError(
+                      errorWords(error, "The original request was saved earlier, but its result is no longer available."),
                     );
                   } else setRecoveryError(errorWords(error, "The service did not confirm the result."));
                 }
