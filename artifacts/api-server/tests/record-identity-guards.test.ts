@@ -77,6 +77,9 @@ const refused = (run: () => unknown, pattern: RegExp) => { assert.throws(run, pa
  }
  const renamed = { ...batch, reference: 'OTHER-BATCH' };
  refused(() => validateRecord(state, admin, 'settlement-batches', renamed, true), /reference cannot be changed/);
+ // Only reconciliation releases a held batch: an edit that wrote the release would lift a genuine hold.
+ const released = { ...batch, data: mergeData(batch.data, { providerIdentityRelease: { releasedAt: now, identity: '["provider a","BATCH-A"]', heldLineIds: [] } }) };
+ refused(() => validateRecord(state, admin, 'settlement-batches', released, true), /providerIdentityRelease is recorded by reconciliation/);
 }
 {
  const state = seedMerchant('customer-guards'), customers = state.records.filter(record => record.kind === 'customers');
