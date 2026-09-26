@@ -2,6 +2,8 @@
 import assert from 'node:assert/strict';
 import { createServer, request as httpRequest, type Server, type ServerResponse } from 'node:http';
 import { once } from 'node:events';
+import v8 from 'node:v8';
+import { runInNewContext } from 'node:vm';
 import express from 'express';
 import { createBoundedClerkProxy, clerkProxyLimits, CLERK_PROXY_LIMITS, CLERK_PROXY_PATH } from '../src/middlewares/clerkProxyMiddleware';
 
@@ -14,7 +16,9 @@ const trickle = (res: ServerResponse, total: number, size: number, everyMs: numb
   const timer = setInterval(() => { const next = Math.min(size, total - sent); res.write('x'.repeat(next)); sent += next; if (sent >= total) { clearInterval(timer); res.end(); } }, everyMs);
   res.once('close', () => clearInterval(timer));
 };
-const BULK = 24 * 1024 * 1024, BUNDLE = 64 * 1024;
+const MiB = 1024 * 1024, BULK = 24 * MiB, BUNDLE = 64 * 1024, HELD = 16 * MiB;
+/** A body Clerk sends without its length, so the proxy buffers it: one allocation, whatever asks for it. */
+const heldBody = Buffer.alloc(HELD, 121);
 const upstream = createServer((req, res) => {
   received++;
   assert.equal(req.headers['clerk-secret-key'], 'synthetic-offline-key');
@@ -28,6 +32,7 @@ const upstream = createServer((req, res) => {
   // A sign-in bundle over a poor connection: 4 KiB every 2 s, 32 s in all.
   if (req.url === '/bundle') { res.writeHead(200, { 'content-length': String(BUNDLE) }); trickle(res, BUNDLE, 4096, 2000); return; }
   if (req.url === '/bundle-unknown') { res.writeHead(200); trickle(res, BUNDLE, 4096, 2000); return; }
+  if (req.url === '/held') { res.writeHead(200); res.end(heldBody); return; }
   if (req.url === '/large') { res.writeHead(200); res.write('x'.repeat(65)); res.end(); return; }
   if (req.url === '/large-known') { res.writeHead(200, { 'content-length': '129' }); res.end('x'.repeat(129)); return; }
   if (req.url === '/reset') { res.writeHead(200); res.write('x'); setImmediate(() => res.destroy()); return; }
@@ -61,6 +66,25 @@ const download = async (address: string) => {
     return { status: reply.status, length: body.length, ms: Date.now() - started, contentLength: reply.headers.get('content-length') };
   } catch { return { status: 0, length: 0, ms: Date.now() - started, contentLength: null }; }
 };
+// The memory buffers hold, once the garbage collector has run: gc() without a command-line flag.
+v8.setFlagsFromString('--expose-gc');
+const gc = runInNewContext('gc') as () => void;
+const retained = async () => { await new Promise((resolve) => setTimeout(resolve, 300)); gc(); gc(); return process.memoryUsage().arrayBuffers; };
+/** A client that takes the answer's headers, then only as many bytes as it is told to: a slow client that stops. */
+const heldClient = (address: string) => new Promise<{ length: string | undefined; take(bytes: number): Promise<void>; finish(): Promise<number> }>((resolve, reject) => {
+  httpRequest(address, { headers }, (res) => {
+    res.pause();
+    let got = 0, wanted = 0, reached = () => {};
+    res.on('data', (chunk: Buffer) => { got += chunk.length; if (got >= wanted) { res.pause(); reached(); } });
+    res.on('error', () => {});
+    const closed = new Promise<number>((done) => res.on('close', () => done(res.complete ? got : -got)));
+    resolve({
+      length: res.headers['content-length'],
+      take: (bytes) => new Promise<void>((done) => { wanted = got + bytes; reached = done; res.resume(); }),
+      finish: () => { wanted = Infinity; res.resume(); return closed; },
+    });
+  }).on('error', reject).end();
+});
 /** Takes /bulk as a client on a slow link does, pausing `pauseMs` after each MiB. */
 const takeBulk = (base: string, pauseMs: number) => new Promise<{ bytes: number; complete: boolean; ms: number }>((resolve) => {
   const started = Date.now();
@@ -76,8 +100,8 @@ const takeBulk = (base: string, pauseMs: number) => new Promise<{ bytes: number;
 });
 try {
   // The defaults (the review of PRs #61 to #67, finding L): until the response headers arrive the absolute deadline
-  // stays 30 s; after them the body is cut off only once it has sent nothing for 30 s, within a generous overall cap;
-  // and the process has room for eight client networks at their own limit.
+  // stays 30 s; after them the body is cut off once the proxy has moved none of it for 30 s, within a generous overall
+  // cap; and the process has room for eight client networks at their own limit.
   assert.deepEqual([CLERK_PROXY_LIMITS.headerDeadlineMs, CLERK_PROXY_LIMITS.bodyIdleMs, CLERK_PROXY_LIMITS.networkConcurrency, CLERK_PROXY_LIMITS.concurrency], [30_000, 30_000, 8, 64]);
   assert.ok(CLERK_PROXY_LIMITS.totalMs >= 5 * 60_000, 'the overall cap is generous');
   // A download that keeps progressing past 30 s finishes with the defaults. Started first and awaited last, it runs
@@ -129,8 +153,22 @@ try {
   const tooLong = await download(`${capped}/slow-known`);
   assert.ok(tooLong.length < 2048, 'the overall cap ends a download that goes on too long');
 
+  // A body sent without its length is held once, for its length, and each chunk is let go as it is sent: a flight holds
+  // no more than the body it buffered, and less as its client takes it (the review of the fix for finding L).
+  const holding = await serve({limits:{bufferedBytes:HELD,bodyIdleMs:60_000}});
+  const baseline = await retained();
+  const holders = await Promise.all([0, 1, 2].map(() => heldClient(`${holding}/held`)));
+  assert.ok(holders.every((holder) => holder.length === String(HELD)), 'each is sent with its length');
+  const bodyHeld = (await retained() - baseline) / holders.length;
+  assert.ok(bodyHeld <= HELD * 1.15, `a flight sending ${HELD / MiB} MiB it buffered holds it once (${(bodyHeld / MiB).toFixed(1)} MiB)`);
+  await Promise.all(holders.map((holder) => holder.take(HELD / 2)));
+  // Taking half the body frees about as much of what the flight held (the kernel's buffers had already taken some).
+  const halfway = (await retained() - baseline) / holders.length;
+  assert.ok(halfway <= Math.max(0, bodyHeld - HELD / 2) + HELD * 0.2, `and lets go of what its client took (${(halfway / MiB).toFixed(1)} MiB of ${(bodyHeld / MiB).toFixed(1)} held once half of it was taken)`);
+  assert.deepEqual(await Promise.all(holders.map((holder) => holder.finish())), holders.map(() => HELD), 'every client gets the whole body');
+
   // A client that takes a large body slowly but steadily gets it whole; one that stops taking it holds its network's
-  // one slot only until nothing has reached it for the idle time.
+  // one slot only until the proxy has handed it nothing for the idle time.
   const bulk = await serve({limits:{headerDeadlineMs:250,bodyIdleMs:1_000,networkConcurrency:1}});
   const steady = await takeBulk(bulk, 20);
   assert.deepEqual([steady.bytes, steady.complete], [BULK, true], 'a client taking 24 MiB in paced steps gets all of it');
@@ -199,7 +237,7 @@ try {
   assert.deepEqual([streamed.status, streamed.length], [200, BUNDLE], `a streamed download that keeps progressing for ${streamed.ms} ms finishes with the default limits`);
   assert.deepEqual([buffered.status, buffered.length], [200, BUNDLE], `so does one buffered for its length (${buffered.ms} ms)`);
   assert.ok(Math.min(streamed.ms, buffered.ms) > CLERK_PROXY_LIMITS.headerDeadlineMs, 'both outlasted the 30 s the headers are allowed');
-  console.log('Clerk proxy budgets passed: faithful bodies/headers, bounded streaming and buffering, request caps, the headers\' deadline, slow but progressing downloads finishing past it (past 30 s with the defaults) while a stalled body or client is cut off within an overall cap, disconnect cancellation, quota release, eight networks at their limit at once, operator-set limits and IPv6 network rates.');
+  console.log('Clerk proxy budgets passed: faithful bodies/headers, bounded streaming and buffering (a buffered body held once and let go as it is sent), request caps, the headers\' deadline, slow but progressing downloads finishing past it (past 30 s with the defaults) while a stalled body or client is cut off within an overall cap, disconnect cancellation, quota release, eight networks at their limit at once, operator-set limits and IPv6 network rates.');
 } finally {
   await Promise.all([...servers,upstream].map(server=>new Promise<void>(resolve=>{server.closeAllConnections();server.close(()=>resolve());})));
 }

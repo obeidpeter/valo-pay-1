@@ -39,10 +39,15 @@ const CLERK_FAPI = 'https://frontend-api.clerk.dev';
 export const CLERK_PROXY_PATH = '/api/__clerk';
 /**
  * SEC-02's budgets. A request has headerDeadlineMs until its response headers
- * arrive (504 after); from then on its body is cut off only once no byte has
- * passed to the client for bodyIdleMs, and no request outlives totalMs, so a
- * slow download that keeps progressing finishes while a stalled one frees its
- * slot. The byte limits bound what one request sends, streams and buffers.
+ * arrive (504 after), and no request outlives totalMs. In between, its body is
+ * cut off once the proxy has moved none of it for bodyIdleMs: while it
+ * collects a body Clerk sent without a length, none arrived from Clerk;
+ * otherwise, none was handed to the client's connection, which takes more
+ * only as the client acknowledges earlier bytes. The timer cannot see bytes
+ * reach the client: the kernel's buffers sit between, so a client slower than
+ * a few KiB a second may be cut off while bytes still reach it. A stalled
+ * download frees its slot. The byte limits bound what one request sends,
+ * streams and buffers; a buffered body is held once, and let go as it is sent.
  * The rate and concurrency count per client network (an IPv4 address or an
  * IPv6 /64) and per process, which has room for eight networks at their
  * limit; an operator may set those three (clerkProxyLimits).
@@ -52,7 +57,7 @@ export const CLERK_PROXY_LIMITS = {
   requestBytes: 16 * 1024 * 1024, bufferedBytes: 4 * 1024 * 1024, responseBytes: 32 * 1024 * 1024,
   ...clerkProxyTuning({}).limits,
 };
-/** A buffered body goes to the client a slice at a time, as the client takes it. */
+/** A buffered body goes to the client's connection a slice of at most this size at a time. */
 const SLICE_BYTES = 16 * 1024;
 
 /**
@@ -105,9 +110,15 @@ export function clerkProxyMiddleware(): RequestHandler {
   return createBoundedClerkProxy(secretKey, { limits: clerkProxyLimits() });
 }
 
-/** The body in slices, for a stream that hands them to the client as it takes them. */
-function* slices(body: Buffer): Generator<Buffer> {
-  for (let at = 0; at < body.length; at += SLICE_BYTES) yield body.subarray(at, at + SLICE_BYTES);
+/**
+ * A buffered body sent from its chunk list itself, a slice of at most
+ * SLICE_BYTES at a time, each chunk taken off the list as it goes: the flight
+ * holds one copy of the body at most, and only what is still to be sent.
+ */
+function* sendOnce(chunks: Buffer[]): Generator<Buffer> {
+  for (let chunk = chunks.shift(); chunk; chunk = chunks.shift()) {
+    for (let at = 0; at < chunk.length; at += SLICE_BYTES) yield chunk.subarray(at, at + SLICE_BYTES);
+  }
 }
 
 /** Options are injection points for offline tests, never request or environment input. */
@@ -116,8 +127,11 @@ export function createBoundedClerkProxy(secretKey: string, options: { target?: s
   const windows = createWindowCounter({ limit: limits.requestsPerMinute, windowMs: 60_000, maxKeys: 5_000 });
   let active = 0;
   const networks = new Map<string, number>();
-  /** One request in flight: `progress` marks a byte reaching the client (the first call, the response's headers). */
-  type Flight = { closed: boolean; upstream?: ClientRequest; response?: IncomingMessage; fail(status: number): void; progress(): void };
+  /**
+   * One request in flight: `progress` marks the body moving (the first call, the response's headers), and `buffered`
+   * holds a body Clerk sent without its length until it is sent, or the flight ends.
+   */
+  type Flight = { closed: boolean; upstream?: ClientRequest; response?: IncomingMessage; buffered?: Buffer[]; fail(status: number): void; progress(): void };
   const flights = new WeakMap<IncomingMessage, Flight>();
 
   const proxy = createProxyMiddleware<Request>({
@@ -201,29 +215,29 @@ export function createBoundedClerkProxy(secretKey: string, options: { target?: s
           res.writeHead(status, headers);
           // Headers are already sent, so abort the response if the upstream
           // stream errors mid-pipe (e.g. ECONNRESET) rather than leaving an
-          // unhandled 'error' or a hung client. The pipe reads a chunk only as
-          // the client takes the last, so each one is progress.
+          // unhandled 'error' or a hung client. The pipe reads a chunk only once
+          // the client's connection has taken the last, so each one is progress.
           proxyRes.pipe(res);
           proxyRes.on('data', flight.progress);
           return;
         }
 
-        const chunks: Buffer[] = [];
+        const chunks: Buffer[] = flight.buffered = [];
         let bytes = 0;
         proxyRes.on('data', (chunk: Buffer) => {
           if (flight.closed) return;
           flight.progress();
           bytes += chunk.length;
-          if (bytes > limits.bufferedBytes) { chunks.length = 0; flight.fail(502); return; }
+          if (bytes > limits.bufferedBytes) { flight.fail(502); return; }
           chunks.push(chunk);
         });
         proxyRes.on('end', () => {
           if (flight.closed) return;
-          const body = Buffer.concat(chunks);
-          headers['content-length'] = String(body.length);
+          headers['content-length'] = String(bytes);
           res.writeHead(status, headers);
-          // A slice at a time, as the client takes it, so a slow client's progress is seen and it is not cut off.
-          const replay = Readable.from(slices(body), { objectMode: false });
+          // Sent from the list itself, never joined into a second copy; the pipe takes each slice as the connection
+          // takes the last, so each one is progress.
+          const replay = Readable.from(sendOnce(chunks), { objectMode: false });
           replay.pipe(res);
           replay.on('data', flight.progress);
         });
@@ -261,13 +275,16 @@ export function createBoundedClerkProxy(secretKey: string, options: { target?: s
     const cleanup = () => {
       if (flight.closed) return;
       flight.closed = true; clearTimeout(timer); clearTimeout(cap);
+      // What a buffered body had still to send is let go at once.
+      if (flight.buffered) flight.buffered.length = 0;
       active--; const count = (networks.get(network) ?? 1) - 1;
       if (count) networks.set(network, count); else networks.delete(network);
       req.unpipe(flight.upstream); flight.upstream?.destroy(); flight.response?.destroy();
       req.off('aborted', cleanup);
     };
-    // One absolute deadline until the response headers arrive, then the body's idle time, renewed by each byte that
-    // reaches the client; the overall cap holds throughout. After the headers were sent a timeout ends the connection.
+    // One absolute deadline until the response headers arrive, then the body's idle time, renewed each time the body
+    // moves (see CLERK_PROXY_LIMITS); the overall cap holds throughout. After the headers were sent a timeout ends the
+    // connection.
     let timer = setTimeout(() => flight.fail(504), limits.headerDeadlineMs), streaming = false;
     const cap = setTimeout(() => flight.fail(504), limits.totalMs);
     timer.unref(); cap.unref();
