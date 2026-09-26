@@ -1360,6 +1360,24 @@ export type CashDeskCommitmentsItem = {
   version: string;
 };
 
+export type CashDeskSavedForecastState = typeof CashDeskSavedForecastState[keyof typeof CashDeskSavedForecastState];
+
+
+export const CashDeskSavedForecastState = {
+  current: 'current',
+  prepare_again: 'prepare_again',
+} as const;
+
+/**
+ * The latest saved forecast, named with business-account read permission: current while the grants it was saved under are the current ones and the desk's opening balance and commitments are those it was made from, prepare_again otherwise, when its figures are withheld (forecast is null). Null when none is saved.
+ * @nullable
+ */
+export type CashDeskSavedForecast = {
+  id: string;
+  createdAt: string;
+  state: CashDeskSavedForecastState;
+} | null;
+
 export type CashDeskErpDraftsItemDraftInputScope = {
   tenantId: string;
   legalEntityId: string;
@@ -1487,11 +1505,20 @@ export type CashDeskErpDraftsItem = {
   manifest?: ErpManifest;
 };
 
+export type CashDeskVatExportsItemState = typeof CashDeskVatExportsItemState[keyof typeof CashDeskVatExportsItemState];
+
+
+export const CashDeskVatExportsItemState = {
+  current: 'current',
+  prepare_again: 'prepare_again',
+} as const;
+
 export type CashDeskVatExportsItem = {
   id: string;
   createdAt: string;
-  schedule: VatSchedule;
   reviewer: string;
+  state: CashDeskVatExportsItemState;
+  schedule?: VatSchedule;
 };
 
 export type CashDeskPayrollPlansItemSummaryCounts = {
@@ -1582,9 +1609,16 @@ export interface CashDesk {
   accounts: CashDeskAccountsItem[];
   positions: CashDeskPositionsItem[];
   commitments: CashDeskCommitmentsItem[];
+  /** The latest saved forecast while it may be shown, a preview when none is saved, or null: without business-account read permission, or while the latest saved forecast must be prepared again. */
   forecast: CashForecast | null;
+  /**
+     * The latest saved forecast, named with business-account read permission: current while the grants it was saved under are the current ones and the desk's opening balance and commitments are those it was made from, prepare_again otherwise, when its figures are withheld (forecast is null). Null when none is saved.
+     * @nullable
+     */
+  savedForecast: CashDeskSavedForecast;
   erpDrafts: CashDeskErpDraftsItem[];
   vat: VatSchedule | null;
+  /** The saved VAT review schedules, listed with business-account read and accounting preparation permissions: each current, with its schedule, while the grants it was saved under are the current ones and the desk holds the invoices, bank allocations and ledger control it was made from; prepare_again otherwise, without its schedule. */
   vatExports: CashDeskVatExportsItem[];
   payrollPlans: CashDeskPayrollPlansItem[];
   payrollReconciliation: CashDeskPayrollReconciliationItem[];

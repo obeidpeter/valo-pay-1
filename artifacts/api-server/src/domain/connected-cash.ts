@@ -789,6 +789,14 @@ export interface VatControlInput {
   remittancesMinor: number;
   authorisedRemittanceEvidence: boolean;
 }
+/** The evidence a VAT schedule is made from, as its digest (the schedule's evidenceHash): a saved schedule is
+ * disclosed only while the desk holds the same evidence. */
+export const vatEvidenceHash = (
+  scope: CurrencyScope,
+  invoices: VatInvoiceEvidence[],
+  bankAllocations: VatBankAllocation[],
+  control: VatControlInput,
+): string => cashEvidenceHash({ scope, invoices, bankAllocations, control });
 /** TAX-REC: report the approved invoice tax amounts, including unpaid invoices. Cash receipts never
  * create tax evidence or input-tax entitlement; this is a review schedule, not a filed return. */
 export function reconcileVatEvidence(
@@ -928,12 +936,7 @@ export function reconcileVatEvidence(
         .filter((a) => a.category !== "invoice_payment")
         .map((a) => a.amountMinor),
     ),
-    evidenceHash: cashEvidenceHash({
-      scope,
-      invoices,
-      bankAllocations,
-      control,
-    }),
+    evidenceHash: vatEvidenceHash(scope, invoices, bankAllocations, control),
   };
 }
 

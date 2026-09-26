@@ -17941,7 +17941,36 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "The latest saved forecast while it may be shown, a preview when none is saved, or null: without business-account read permission, or while the latest saved forecast must be prepared again."
+          },
+          "savedForecast": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "createdAt": {
+                "type": "string"
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "current",
+                  "prepare_again"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "createdAt",
+              "state"
+            ],
+            "additionalProperties": false,
+            "description": "The latest saved forecast, named with business-account read permission: current while the grants it was saved under are the current ones and the desk's opening balance and commitments are those it was made from, prepare_again otherwise, when its figures are withheld (forecast is null). Null when none is saved."
           },
           "erpDrafts": {
             "type": "array",
@@ -18330,21 +18359,29 @@
                 "createdAt": {
                   "type": "string"
                 },
-                "schedule": {
-                  "$ref": "#/components/schemas/VatSchedule"
-                },
                 "reviewer": {
                   "type": "string"
+                },
+                "state": {
+                  "type": "string",
+                  "enum": [
+                    "current",
+                    "prepare_again"
+                  ]
+                },
+                "schedule": {
+                  "$ref": "#/components/schemas/VatSchedule"
                 }
               },
               "required": [
                 "id",
                 "createdAt",
-                "schedule",
-                "reviewer"
+                "reviewer",
+                "state"
               ],
               "additionalProperties": false
-            }
+            },
+            "description": "The saved VAT review schedules, listed with business-account read and accounting preparation permissions: each current, with its schedule, while the grants it was saved under are the current ones and the desk holds the invoices, bank allocations and ledger control it was made from; prepare_again otherwise, without its schedule."
           },
           "payrollPlans": {
             "type": "array",
@@ -18542,6 +18579,7 @@
           "positions",
           "commitments",
           "forecast",
+          "savedForecast",
           "erpDrafts",
           "vat",
           "vatExports",
