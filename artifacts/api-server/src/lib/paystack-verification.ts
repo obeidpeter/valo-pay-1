@@ -49,7 +49,7 @@ export async function verifyStoredPaystackTestEvent(
     : undefined;
   if (!connection)
     refuseVerification("The test connection is not configured.", 404, "connection_not_mapped");
-  const { appendAudit, inMerchantAsSystem, loadState, saveState, systemWorkspaceMatches } =
+  const { appendAudit, inMerchantAsSystem, loadState, merchantInWorkspace, saveState, systemWorkspaceMatches } =
     await loadStore();
   const transact: PaystackVerificationTransaction = async (
     id,
@@ -100,12 +100,21 @@ export async function verifyStoredPaystackTestEvent(
         return result;
       },
     );
-    if (result === undefined)
+    if (result === undefined) {
+      // No row was locked: the lender is busy, or the mapping names a lender that is not in its workspace, which no
+      // retry mends. The ingress tells them apart the same way (paystack-connection.ts).
+      if (!(await merchantInWorkspace(connection.merchantId, connection.workspaceId)))
+        refuseVerification(
+          "The lender mapped to this Paystack test connection was not found in its workspace. Correct the connection mapping; checking the same event again will not help.",
+          404,
+          "lender_not_found",
+        );
       refuseVerification(
-        "The mapped test lender is unavailable or busy. Check the same event later.",
+        "The mapped test lender is busy with another change. Check the same event later.",
         503,
         "lender_unavailable",
       );
+    }
     return result;
   };
   return verifyQueuedPaystackEvent({
@@ -128,21 +137,36 @@ export type PaystackVerificationReport = {
 };
 /** Nothing to put right: check the same event again later. Any other outcome but verified needs the operator. */
 const later: readonly PaystackVerificationOutcome[] = ["pending", "reference_not_found", "provider_unavailable", "invalid_response", "lender_unavailable", "database_unavailable"];
-const named: readonly PaystackVerificationOutcome[] = [...later, "verified", "credentials_refused", "live_mode", "mismatch", "usage", "not_configured", "connection_not_mapped", "connection_unavailable", "configuration_changed", "lender_not_eligible", "event_not_found", "not_a_test_payment", "held_for_review", "check_limit_reached", "expectation_mismatch", "evidence_changed", "duplicate_observation", "observation_missing"];
+const named: readonly PaystackVerificationOutcome[] = [...later, "verified", "credentials_refused", "live_mode", "mismatch", "usage", "not_configured", "connection_not_mapped", "connection_unavailable", "configuration_changed", "lender_not_found", "lender_not_eligible", "event_not_found", "not_a_test_payment", "held_for_review", "check_limit_reached", "expectation_mismatch", "evidence_changed", "duplicate_observation", "observation_missing"];
+/**
+ * Whether the database refused the command's own settings, by the SQLSTATE of the failure or its cause: a
+ * database that does not exist (3D000), a login it refuses (class 28) or a right it lacks (42501). Those are
+ * put right, not waited for; a connection refused, lost or timed out is checked again later.
+ */
+function settingsRefused(error: unknown): boolean {
+  for (let cause = error, depth = 0; cause instanceof Error && depth < 4; cause = cause.cause, depth++) {
+    const code = String((cause as { code?: unknown }).code ?? "");
+    if (code === "3D000" || code === "42501" || /^28[0-9A-Z]{3}$/.test(code)) return true;
+  }
+  return false;
+}
 
 /**
  * A check's result, or why it did not reach one, as its report: exit 0
  * verified; 2 not verified yet with nothing to put right (check the same event
  * later); 1 a problem the operator must fix or review first. An error that
- * names no outcome is `failed` (`database_unavailable` at a database limit),
- * and its own words, which may quote a setting, are never repeated.
+ * names no outcome is `not_configured` when the database refused the settings,
+ * `database_unavailable` at another database limit and otherwise `failed`, and
+ * its own words, which may quote a setting, are never repeated.
  */
 export function paystackVerificationReport(value: unknown): PaystackVerificationReport {
   const given = value && typeof value === "object" ? (value as { outcome?: unknown; message?: unknown; status?: unknown; observationCreated?: unknown }) : {};
   const outcome = named.find((item) => item === given.outcome);
-  const result = outcome ?? (databaseLimitOf(value) ? "database_unavailable" : "failed");
+  const refused = !outcome && settingsRefused(value);
+  const result = outcome ?? (refused ? "not_configured" : databaseLimitOf(value) ? "database_unavailable" : "failed");
   const message = outcome && typeof given.message === "string" ? given.message
-    : result === "database_unavailable" ? "The database was unavailable or busy. Check the same event again later; a completed check is never repeated."
+    : refused ? "The database refused the command's settings: the database named does not exist, or it refused the login or its rights. Correct the API's database settings, then run the command again. Nothing was recorded."
+    : result === "database_unavailable" ? "The database could not be reached, timed out or was busy. Check the same event again later; a completed check is never repeated."
     : "The check could not be completed. Check the same event again; a completed check is never repeated and no instruction was sent.";
   // A result, unlike a refusal, says what became of the event.
   const recorded = !(value instanceof Error) && typeof given.status === "string";
