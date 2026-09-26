@@ -9,6 +9,18 @@ function refuse(message: string, status = 400): never { throw Object.assign(new 
 // The parser builds each event with a fixed key order; stored payload digests are of that text.
 const digest = (input: unknown) => createHash("sha256").update(JSON.stringify(input)).digest("hex");
 export type PaystackEventContext = { connectionId: string; mode: "fixture" | "test" };
+/** An entry the saved-event verification recorded after asking Paystack; a replay's entry has no kind. */
+const verificationCheck = (entry: unknown) => ["independent_transaction_check", "independent_transaction_verification"].includes(String((entry as { kind?: unknown } | undefined)?.kind));
+/** Adapter outcomes that say nothing about the payment: a refused key, an unreadable or live-mode answer, a transport failure. */
+const inconclusiveReasons = ["authentication", "invalid_response", "live_mode", "timeout", "unavailable", "rate_limited", "not_found"];
+/**
+ * An event an earlier build quarantined only because its last verification check was inconclusive, as its
+ * history shows. Nothing disagreed with the signed evidence, so it may be verified again (never replayed).
+ */
+export function quarantinedWithoutDisagreement(record: ValopayRecord): boolean {
+  const last = record.data.replayHistory?.at(-1);
+  return record.status === "quarantined" && last?.kind === "independent_transaction_check" && last.result === "quarantined" && last.outcome?.outcome === "unknown" && inconclusiveReasons.includes(last.outcome.reason);
+}
 /** Repository guard: delivery/replay bookkeeping can grow without rewriting the authenticated evidence. */
 export function assertProviderEventChange(before: ValopayRecord, after: ValopayRecord) {
   const stable = (record: ValopayRecord) => {
@@ -24,7 +36,8 @@ export function assertProviderEventChange(before: ValopayRecord, after: ValopayR
   if (!Array.isArray(nextHistory) || nextHistory.length < previousHistory.length || nextHistory.length > previousHistory.length + 1 || !sameJson(nextHistory.slice(0, previousHistory.length), previousHistory)) reject();
   const replayed = nextHistory.length > previousHistory.length;
   if (!replayed && (before.status !== after.status || before.data.message !== after.data.message)) reject();
-  if (replayed && (["quarantined", "rejected_fixture"].includes(before.status) || nextHistory.at(-1)?.result !== after.status)) reject();
+  const held = ["quarantined", "rejected_fixture"].includes(before.status) && !(quarantinedWithoutDisagreement(before) && verificationCheck(nextHistory.at(-1)));
+  if (replayed && (held || nextHistory.at(-1)?.result !== after.status)) reject();
   if (before.data.lastReceivedAt !== after.data.lastReceivedAt && (nextCount === previousCount || !Number.isFinite(Date.parse(after.data.lastReceivedAt)) || Date.parse(after.data.lastReceivedAt) < Date.parse(before.data.lastReceivedAt))) reject();
 }
 const decisionFor = (state: DomainState, event: PaystackWebhook, connection: PaystackEventContext, excluding?: string) => {
@@ -104,8 +117,8 @@ export function runPaystackFixture(state: DomainState, ctx: Context, scenario: "
   return first;
 }
 
-/** Remove connection routing and normalized provider payload from browser lists. */
+/** Remove connection routing and normalized provider payload from browser lists. Replays are rechecks; verification checks are not counted. */
 export function providerEventView(record: ValopayRecord) {
   return { id: record.id, name: record.name, status: record.status, reference: record.reference, amountKobo: record.amountKobo, createdAt: record.createdAt, updatedAt: record.updatedAt,
-    mode: record.data.mode, message: record.data.message, deliveryCount: record.data.deliveryCount, replayCount: record.data.replayHistory?.length || 0, financialRecordsCreated: 0 as const };
+    mode: record.data.mode, message: record.data.message, deliveryCount: record.data.deliveryCount, replayCount: (record.data.replayHistory || []).filter((entry: unknown) => !verificationCheck(entry)).length, financialRecordsCreated: 0 as const };
 }

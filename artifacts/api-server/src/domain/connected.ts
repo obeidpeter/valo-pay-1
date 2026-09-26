@@ -705,6 +705,22 @@ export function connectedView(state: DomainState, ctx: Context) {
       (a.kind === "attempts" && ["sent", "unknown"].includes(a.status))
     )
       held.add(a.data.dueItemId);
+  // The instalments offered or named by a checkout that reconciliation holds for a renewed reversal review
+  // (data.legacyReversalReviewIds), which payment.create and payment.authorise refuse. A hold derived before the
+  // first reconciliation is not recorded yet, so it is not listed; the refusal still says so.
+  const checkedOut = new Set(
+    state.records
+      .filter((r) => r.kind === "connected-intents")
+      .map((r) => r.data.dueItemId),
+  );
+  const heldForReversalReview = recordsOf(state, "due-items")
+    .filter(
+      (r) =>
+        (payable(r) || checkedOut.has(r.id)) &&
+        Array.isArray(r.data.legacyReversalReviewIds) &&
+        r.data.legacyReversalReviewIds.length > 0,
+    )
+    .map((r) => r.id);
   return {
     mode: "synthetic" as const,
     revision: connectedRevision(state),
@@ -749,6 +765,7 @@ export function connectedView(state: DomainState, ctx: Context) {
           outstandingKobo: Number(r.data.outstandingKobo ?? r.amountKobo),
           blocked: held.has(r.id),
         })),
+      heldForReversalReview,
     },
     credit: creditView(state, ctx),
     cash: cashView(state, ctx),

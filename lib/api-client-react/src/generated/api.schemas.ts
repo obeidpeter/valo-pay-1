@@ -1665,10 +1665,11 @@ export type ConnectedWorkspacePaymentsDuesItem = {
 export type ConnectedWorkspacePayments = {
   intents: ValopayRecord[];
   dues: ConnectedWorkspacePaymentsDuesItem[];
+  heldForReversalReview: string[];
 };
 
 /**
- * Synthetic connected workspace: granular consents with their effective state, bound sample payment intents, the Credit and Cash Desks and the live gates, every one closed. No read creates sample records.
+ * Synthetic connected workspace: granular consents with their effective state, bound sample payment intents, the Credit and Cash Desks and the live gates, every one closed. payments.heldForReversalReview names the instalments offered or named by a checkout that reconciliation holds for a renewed review of an earlier reversal decision: creating or authorising a checkout for one is refused (409) until that review is resolved and reconciliation runs. No read creates sample records.
  */
 export interface ConnectedWorkspace {
   mode: 'synthetic';
@@ -3419,7 +3420,7 @@ export const ProviderEventMode = {
 } as const;
 
 /**
- * A stored provider event: fixture or test mode, how often it was delivered and replayed, and the guarantee that it created no financial record.
+ * A stored provider event: fixture or test mode, how often it was delivered and replayed (replayCount counts rechecks, not the operator's verification checks), and the guarantee that it created no financial record.
  */
 export interface ProviderEvent {
   id: string;

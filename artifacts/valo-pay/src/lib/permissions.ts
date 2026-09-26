@@ -2,7 +2,8 @@ import { nairaText, normaliseRefundStatus, normaliseReversalStatus, paymentMoney
 
 type ActingWorkspace = { role: string; actor: string } | undefined;
 type PermissionRecord = { status?: string; reference?: string; amountKobo?: number; data?: Record<string, unknown> } | null;
-export type PermissionRequest = { action?: string; kind?: string; record?: PermissionRecord };
+/** An action on a record; a proposed match's decision also names the payment and instalment it applies. */
+export type PermissionRequest = { action?: string; kind?: string; record?: PermissionRecord; payment?: PermissionRecord; instalment?: PermissionRecord };
 
 const operators = ['Admin', 'Operations', 'Finance'];
 const recordRoles: Record<string, string[]> = {
@@ -44,8 +45,28 @@ export function allocationRefusal(payment: PermissionRecord): string | null {
   return null;
 }
 
+/**
+ * The service's words when a hold for a renewed review of an earlier reversal decision refuses an action
+ * (reconciliation.ts and connected.ts in the API). Reconciliation records the hold on the payments and
+ * instalments it concerns (heldForReversalReview); one the service derives before its first reconciliation is
+ * not recorded yet, so the console cannot see it, and the service's refusal says so then.
+ */
+export const reversalReviewRefusals = {
+  payment: 'This payment is held for renewed Finance review of an earlier reversal decision. Resolve that review and run reconciliation before allocating it.',
+  instalment: 'This instalment is held for renewed Finance review of an earlier reversal decision. Resolve that review and run reconciliation before allocating a payment.',
+  release: 'Resolve the renewed reversal review and run reconciliation before releasing this instalment.',
+  checkout: 'This instalment is held for renewed Finance review of an earlier reversal decision. Resolve that review and run reconciliation before creating a checkout.',
+  authorise: 'This instalment is held for renewed Finance review of an earlier reversal decision. Resolve that review and run reconciliation before authorising a checkout.',
+} as const;
+
+/** Whether reconciliation holds this payment or instalment for a renewed reversal review (data.legacyReversalReviewIds). */
+export function heldForReversalReview(record: PermissionRecord | undefined): boolean {
+  const ids = record?.data?.legacyReversalReviewIds;
+  return Array.isArray(ids) && ids.length > 0;
+}
+
 /** Presentation guard only. The server remains authoritative for every write. */
-export function permissionReason(workspace: ActingWorkspace, { action, kind, record }: PermissionRequest): string | null {
+export function permissionReason(workspace: ActingWorkspace, { action, kind, record, payment, instalment }: PermissionRequest): string | null {
   if (!action && !kind) return null;
   if (!workspace) return 'Wait for your workspace permissions to load.';
   const allowed = action ? actionRoles[action] : recordRoles[kind!];
@@ -63,11 +84,18 @@ export function permissionReason(workspace: ActingWorkspace, { action, kind, rec
   // One refund is recorded per payment, even one that returned only part of it, and reversed money already went back.
   if (action === 'record_refund' && normaliseReversalStatus(record?.data?.reversalStatus) === 'reversed') return 'The provider reversed this payment, so its money already went back.';
   if (action === 'record_refund' && normaliseRefundStatus(record?.data?.refundStatus) === 'refunded') return 'A refund is already recorded for this payment.';
+  // A held payment or instalment takes no allocation, confirmation or release. A proposed match links its payment to its
+  // instalment, so the service, which checks the instalment first, finds the instalment held when either is.
+  if (action === 'manual_allocate' && heldForReversalReview(record)) return reversalReviewRefusals.payment;
+  if (action === 'confirm_allocation' && (heldForReversalReview(instalment) || heldForReversalReview(payment))) return reversalReviewRefusals.instalment;
+  if (action === 'release_dispute' && heldForReversalReview(record)) return reversalReviewRefusals.release;
   // A payment in another currency, or whose money went back, takes no allocation: its Allocate says why, as the service would.
   const refusal = action === 'manual_allocate' ? allocationRefusal(record ?? null) : null;
   if (refusal) return refusal;
   // Confirming a pay-by-bank payment whose outcome stayed unknown records a receipt, so Finance records it.
   if (action === 'resolve_exception' && record?.data?.linkedKind === 'connected-intents' && !['Admin', 'Finance'].includes(workspace.role)) return 'Requires Admin or Finance: the outcome of a pay-by-bank payment is Finance’s to record.';
+  // Reconciliation raises a renewed review of an earlier reversal decision for Finance, and only Finance or an administrator resolves it.
+  if (action === 'resolve_exception' && record?.data?.legacyResolutionReview && !['Admin', 'Finance'].includes(workspace.role)) return 'Requires Admin or Finance: a renewed review of an earlier reversal decision is Finance’s to record.';
   if (!action && ['templates', 'policies'].includes(kind || '') && record && !['draft', 'rejected'].includes(record.status || '')) {
     return 'This submitted or approved version cannot be edited. Create a draft version to make changes.';
   }

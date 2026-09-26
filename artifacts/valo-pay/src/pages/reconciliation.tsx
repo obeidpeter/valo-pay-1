@@ -26,6 +26,7 @@ import { LoadProblem } from '@/components/load-problem';
 import { KEPT_IN_OPERATIONS, OpenOperations } from '@/components/pilot-ui';
 import { hasFeeSchedule, paymentUnappliedKobo } from '@workspace/valopay-schema';
 import { formatRecordMoney as moneyOf } from '@/lib/currencies';
+import { heldForReversalReview, permissionReason, reversalReviewRefusals } from '@/lib/permissions';
 
 const paymentAvailable = (record: any): number => paymentUnappliedKobo(record);
 const instalmentOutstanding = (record: any): number => Math.max(0, Number(record?.data?.outstandingKobo ?? record?.amountKobo ?? 0));
@@ -72,7 +73,7 @@ function MatchEvidence({ allocation, payment, instalment, customer, decision }: 
 }
 
 export default function ReconciliationPage() {
-  const { merchantId } = useWorkspace();
+  const { merchantId, workspace } = useWorkspace();
   const [selectedRecord, setSelectedRecord] = useState<any>(null);
   const [actionKind, setActionKind] = useState<string>('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -270,7 +271,7 @@ export default function ReconciliationPage() {
                         <Button 
                           size="sm" 
                           className="text-xs bg-success hover:bg-success/90 text-success-foreground"
-                          action="confirm_allocation" record={prop} onClick={() => handleAction(prop, 'confirm_allocation')}
+                          action="confirm_allocation" record={prop} payment={paymentById.get(String(prop.data?.paymentId))} instalment={dueItemById.get(String(prop.data?.dueItemId))} onClick={() => handleAction(prop, 'confirm_allocation')}
                         >Confirm</Button>
                       </div></td>
                     </tr>
@@ -538,10 +539,14 @@ export default function ReconciliationPage() {
         } : actionKind === 'record_refund' && selectedRecord ? <p className="text-sm">This records a refund of <strong>{moneyOf(selectedRecord, paymentAvailable(selectedRecord))}</strong>, the money this payment has not applied. Valo Pay does not move money.</p> : undefined}
         validate={(values): Record<string, string> => {
           if ((isProposalDecision || isAllocationReview) && (!selectedPayment || !selectedInstalment)) return { reason: 'Payment or instalment details are unavailable. Close this dialog and reload before deciding.' };
+          // A hold reconciliation recorded while the dialog was open refuses the decision, in the service's words.
+          const held = actionKind === 'confirm_allocation' ? permissionReason(workspace, { action: actionKind, record: selectedRecord, payment: selectedPayment, instalment: selectedInstalment }) : null;
+          if (held) return { reason: held };
           if (actionKind === 'confirm_allocation' && (selectedRecord.amountKobo > paymentAvailable(selectedPayment) || selectedRecord.amountKobo > instalmentOutstanding(selectedInstalment))) return { reason: 'The proposed amount exceeds the payment available or instalment outstanding. Close this dialog, refresh the queue and review the changed balances.' };
           if (actionKind !== 'manual_allocate') return {};
           const due = dueItemById.get(String(values.dueItemId));
           if (!due) return { dueItemId: 'Choose an instalment from the current lender.' };
+          if (heldForReversalReview(due)) return { dueItemId: reversalReviewRefusals.instalment };
           const amount = nairaToKobo(String(values.amountKobo));
           if (amount <= 0) return { amountKobo: 'Enter an amount greater than ₦0.00.' };
           if (amount > paymentAvailable(selectedRecord)) return { amountKobo: `Enter ${formatKobo(paymentAvailable(selectedRecord))} or less. This is the payment available to allocate.` };

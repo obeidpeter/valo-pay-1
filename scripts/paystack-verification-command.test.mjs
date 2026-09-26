@@ -1,76 +1,83 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 const root = path.resolve(import.meta.dirname, "..");
 const command = path.join(root, "scripts/src/verify-paystack-event.ts");
 const tsx = path.join(root, "scripts/node_modules/tsx/dist/cli.mjs");
 const clean = Object.fromEntries(
   Object.entries(process.env).filter(
-    ([name]) => !/^(?:VALOPAY_|PAYSTACK_|DATABASE_URL$)/.test(name),
+    ([name]) => !/^(?:VALOPAY_|PAYSTACK_|DATABASE_URL$|LOG_)/.test(name),
   ),
 );
+const logs = mkdtempSync(path.join(tmpdir(), "valopay-paystack-command-"));
 const id = "a".repeat(64),
-  eventId = "synthetic-event-do-not-echo";
+  eventId = "synthetic-event-do-not-echo",
+  secret = "synthetic-secret-do-not-echo";
 const args = ["--", "--connection-id", id, "--event-id", eventId];
-let checks = 0;
+const testKey = ["sk", "test", "OFFLINE", "0".repeat(30)].join("_");
+const mapped = {
+  VALOPAY_PAYSTACK_INGRESS: "test",
+  PAYSTACK_TEST_SECRET_KEY: testKey,
+  VALOPAY_PAYSTACK_CONNECTIONS: JSON.stringify({
+    [id]: { workspaceId: "synthetic-workspace", merchantId: "synthetic-lender" },
+  }),
+};
+let checks = 0,
+  runs = 0;
 function run(args, extra = {}) {
+  const logFile = path.join(logs, `run-${++runs}.log`);
   const result = spawnSync(process.execPath, [tsx, command, ...args], {
     cwd: root,
-    env: { ...clean, ...extra },
+    env: { ...clean, ...extra, LOG_FILE: logFile },
     encoding: "utf8",
     timeout: 20_000,
   });
   assert.ifError(result.error);
   checks++;
-  return result;
+  let log = "";
+  try {
+    log = readFileSync(logFile, "utf8");
+  } catch {
+    // --help writes no line.
+  }
+  return { ...result, log };
 }
+// The report is the JSON the command prints; a runtime warning may precede it.
+const reportOf = (text) => JSON.parse(text.slice(text.indexOf("{\n")));
 assert.match(run(["--help"]).stdout, /^Use: verify-paystack-event/);
-for (const input of [
-  [],
-  ["--key", "synthetic-secret-do-not-echo"],
-  ["--connection-id", "not-valid", "--event-id", eventId],
+// Each refusal names its own outcome, exits 1 when the operator must put something right
+// and 2 when the same event can simply be checked again later, and writes one log line
+// naming it. Neither ever repeats the key or an identifier.
+for (const [input, extra, outcome, exitCode] of [
+  [[], {}, "usage", 1],
+  [["--key", secret], {}, "usage", 1],
+  [["--connection-id", "not-valid", "--event-id", eventId], {}, "usage", 1],
+  [args, {}, "not_configured", 1],
+  [args, { VALOPAY_PAYSTACK_INGRESS: "test", PAYSTACK_TEST_SECRET_KEY: ["sk", "live", "0".repeat(30)].join("_") }, "not_configured", 1],
+  [args, { VALOPAY_PAYSTACK_INGRESS: "test", PAYSTACK_TEST_SECRET_KEY: testKey }, "connection_not_mapped", 1],
+  // Even a complete test mapping cannot call a provider without the database, which is read first.
+  [args, mapped, "not_configured", 1],
+  [args, { ...mapped, DATABASE_URL: "postgres://unused:unused@127.0.0.1:1/unused" }, "database_unavailable", 2],
 ]) {
-  const result = run(input);
-  assert.equal(result.status, 1);
-  assert.equal(JSON.parse(result.stderr).result, "not_verified");
-  assert.ok(!result.stderr.includes("synthetic-secret-do-not-echo"));
-  assert.ok(!result.stderr.includes(eventId));
+  const result = run(input, extra);
+  assert.equal(result.status, exitCode, `${outcome} exits ${exitCode}`);
+  const report = reportOf(result.stderr);
+  assert.equal(report.result, outcome);
+  assert.equal(report.exitCode, exitCode);
+  assert.equal(report.instructions, "disabled");
+  const lines = result.log.trim().split("\n").map((line) => JSON.parse(line)).filter((line) => line.event === "paystack.test_verification");
+  assert.equal(lines.length, 1, "one log line per run");
+  assert.equal(lines[0].outcome, outcome);
+  assert.equal(lines[0].exitCode, exitCode);
+  for (const text of [result.stdout, result.stderr, result.log]) {
+    for (const hidden of [eventId, id, secret, testKey, extra.PAYSTACK_TEST_SECRET_KEY ?? "never-present"])
+      assert.ok(!text.includes(hidden), `${outcome} never repeats a key or an identifier`);
+  }
+  checks += 3;
 }
-for (const extra of [
-  {},
-  {
-    VALOPAY_PAYSTACK_INGRESS: "test",
-    PAYSTACK_TEST_SECRET_KEY: ["sk", "live", "0".repeat(30)].join("_"),
-  },
-  {
-    VALOPAY_PAYSTACK_INGRESS: "test",
-    PAYSTACK_TEST_SECRET_KEY: ["sk", "test", "OFFLINE", "0".repeat(30)].join(
-      "_",
-    ),
-  },
-  // Even complete test mapping cannot call a provider without the local DB configuration.
-  {
-    VALOPAY_PAYSTACK_INGRESS: "test",
-    PAYSTACK_TEST_SECRET_KEY: ["sk", "test", "OFFLINE", "0".repeat(30)].join(
-      "_",
-    ),
-    VALOPAY_PAYSTACK_CONNECTIONS: JSON.stringify({
-      [id]: {
-        workspaceId: "synthetic-workspace",
-        merchantId: "synthetic-lender",
-      },
-    }),
-  },
-]) {
-  const result = run(args, extra);
-  assert.equal(result.status, 1);
-  assert.equal(JSON.parse(result.stderr).result, "not_verified");
-  assert.ok(!result.stderr.includes(eventId));
-  assert.ok(!result.stderr.includes(id));
-  assert.ok(
-    !result.stderr.includes(extra.PAYSTACK_TEST_SECRET_KEY ?? "never-present"),
-  );
-}
+rmSync(logs, { recursive: true, force: true });
 console.log(
-  `Paystack verification command: ${checks} offline help, argument, credential and pre-network refusal checks passed.`,
+  `Paystack verification command: ${checks} offline help, argument, credential, database and outcome checks passed, each run logging its outcome without a key or an identifier.`,
 );
