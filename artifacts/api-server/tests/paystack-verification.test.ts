@@ -350,6 +350,143 @@ await check(async () => {
     "an incomplete restore must not silently recreate evidence",
   );
 });
+// Only a real disagreement quarantines a test event. A refused key, an unreadable or
+// live-mode answer, a timeout or another transport failure leaves it awaiting
+// verification, with a history entry naming the outcome, so a later check verifies it.
+const eventOf = (f: ReturnType<typeof fixture>) =>
+  f.state().records.find((r) => r.id === f.eventId)!;
+const observationsOf = (f: ReturnType<typeof fixture>) =>
+  f
+    .state()
+    .records.filter(
+      (r) => r.kind === "observations" && r.data.providerEventId === f.eventId,
+    ).length;
+const json = (value: unknown, status = 200) =>
+  new Response(JSON.stringify(value), { status });
+const answering = (
+  reply: () => Response | Promise<Response>,
+  timeoutMs?: number,
+) =>
+  createPaystackTestAdapter({
+    secretKey: key,
+    ...(timeoutMs ? { timeoutMs } : {}),
+    fetch: async () => reply(),
+  });
+for (const [name, reply, outcome] of [
+  ["A 401", () => json({ status: false, message: `Invalid key ${key}` }, 401), "credentials_refused"],
+  ["An unreadable body", () => new Response("<html>Gateway page</html>"), "invalid_response"],
+  ["A live-mode answer", (payment) => json({ status: true, data: { ...payment, domain: "live" } }), "live_mode"],
+  ["A timeout", () => new Promise<Response>(() => {}), "provider_unavailable"],
+] as Array<[string, (payment: Record<string, unknown>) => Response | Promise<Response>, string]>)
+  await check(async () => {
+    const f = fixture(),
+      before = structuredClone(eventOf(f));
+    const result = await verifyQueuedPaystackEvent({
+      connectionId,
+      eventId: f.eventId,
+      transact: f.transact,
+      adapter: answering(() => reply(f.payment), name === "A timeout" ? 5 : undefined),
+    });
+    assert.equal(result.status, "awaiting_verification", `${name} leaves the event awaiting verification`);
+    assert.equal(result.outcome, outcome, `${name} is named ${outcome}`);
+    assert.equal(result.observationCreated, false);
+    const event = eventOf(f);
+    assertProviderEventChange(before, event);
+    assert.equal(event.status, "awaiting_verification");
+    assert.equal(event.data.replayHistory.at(-1).check, outcome);
+    assert.equal(event.data.replayHistory.at(-1).result, "awaiting_verification");
+    assert.ok(!JSON.stringify(event).includes(key), "the key is never recorded");
+    assert.equal(observationsOf(f), 0);
+    // Once the key or the provider is put right, the same event verifies.
+    assert.equal((await f.run()).status, "verified");
+    assert.equal(observationsOf(f), 1);
+  });
+for (const [name, change] of [
+  ["amount", {}],
+  ["currency", { currency: "USD" }],
+  ["channel", { channel: "card" }],
+  ["identity", { id: "9990002" }],
+  ["failure", { status: "failed" }],
+  ["reversal", { status: "reversed" }],
+] as Array<[string, Record<string, unknown>]>)
+  await check(async () => {
+    const f = fixture();
+    const payment = { ...f.payment, ...change, ...(name === "amount" ? { amount: f.payment.amount + 1 } : {}) };
+    const result = await verifyQueuedPaystackEvent({
+      connectionId,
+      eventId: f.eventId,
+      transact: f.transact,
+      adapter: answering(() => json({ status: true, data: payment })),
+    });
+    assert.equal(result.status, "quarantined", `a conflicting ${name} quarantines the event`);
+    assert.equal(result.outcome, "mismatch");
+    assert.equal(eventOf(f).data.replayHistory.at(-1).check, "mismatch");
+    assert.equal(observationsOf(f), 0);
+    await assert.rejects(f.run, (error: any) => error.outcome === "held_for_review");
+    assert.equal(f.calls(), 0, "a real disagreement is not checked again");
+  });
+// An earlier build quarantined events after a refused key or an unreadable or live-mode
+// answer. Their history shows it, so they can be verified again; a disagreement stays held.
+for (const reason of ["authentication", "invalid_response", "live_mode", "mismatch"])
+  await check(async () => {
+    const f = fixture(),
+      event = eventOf(f);
+    event.status = "quarantined";
+    event.data.message = "Independent verification could not validate this evidence. The recorded reason requires operator review; no observation was created.";
+    event.data.replayHistory = [{ at: ctx.now, actor: ctx.actor, reason: "Explicit operator read-only test verification", result: "quarantined", kind: "independent_transaction_check", outcome: { outcome: "unknown", reason, nextAction: "manual_review", reissue: false } }];
+    const before = structuredClone(event);
+    if (reason === "mismatch") {
+      await assert.rejects(f.run, (error: any) => error.outcome === "held_for_review");
+      assert.equal(f.calls(), 0);
+      return;
+    }
+    const result = await f.run();
+    assert.equal(result.status, "verified", `an event quarantined only for ${reason} verifies again`);
+    assertProviderEventChange(before, eventOf(f));
+    assert.equal(eventOf(f).data.replayHistory.length, 2, "the earlier check stays in its history");
+    assert.equal(observationsOf(f), 1);
+  });
+// Each refusal names its own outcome.
+for (const [change, outcome] of [
+  ["fixture", "not_a_test_payment"],
+  ["live", "lender_not_eligible"],
+  ["stop_released", "lender_not_eligible"],
+  ["wrong_amount", "expectation_mismatch"],
+  ["missing_event", "event_not_found"],
+] as const)
+  await check(async () => {
+    const f = fixture(change === "fixture" ? "fixture" : "test");
+    if (change === "live") f.state().settings.environment = "production";
+    if (change === "stop_released") f.state().merchant.killSwitch = false;
+    if (change === "wrong_amount") f.state().records.find((r) => r.id === f.attemptId)!.amountKobo++;
+    const eventId = change === "missing_event" ? "missing-event" : f.eventId;
+    await assert.rejects(verifyQueuedPaystackEvent({ connectionId, eventId, transact: f.transact, adapter: f.adapter }), (error: any) => error.outcome === outcome);
+    assert.equal(f.calls(), 0);
+  });
+await check(async () => {
+  const f = fixture();
+  f.onReply(() => { f.state().records.find((r) => r.id === f.attemptId)!.data.version = 2; });
+  await assert.rejects(f.run, (error: any) => error.outcome === "evidence_changed");
+});
+// The command's report: one named outcome, its exit status and a fixed message without secrets.
+await check(async () => {
+  const { paystackVerificationReport } = await import("../src/lib/paystack-verification");
+  const exits = {
+    verified: 0, pending: 2, reference_not_found: 2, provider_unavailable: 2, invalid_response: 2, lender_unavailable: 2, database_unavailable: 2,
+    credentials_refused: 1, live_mode: 1, mismatch: 1, evidence_changed: 1, held_for_review: 1, not_configured: 1, usage: 1, failed: 1,
+  } as const;
+  for (const [outcome, exitCode] of Object.entries(exits)) {
+    const report = paystackVerificationReport(Object.assign(new Error("Refused."), { outcome }));
+    assert.equal(report.result, outcome);
+    assert.equal(report.exitCode, exitCode, `${outcome} exits ${exitCode}`);
+    assert.ok(report.message);
+  }
+  const unexpected = paystackVerificationReport(new Error(`postgres://user:${key}@db.invalid/valopay`));
+  assert.deepEqual([unexpected.result, unexpected.exitCode], ["failed", 1]);
+  assert.ok(!unexpected.message.includes(key), "an unexpected error's own words are never printed");
+  const awaiting = paystackVerificationReport({ status: "awaiting_verification", outcome: "credentials_refused", message: "Kept.", observationCreated: false, financialRecordsCreated: 0, instructions: "disabled" });
+  assert.deepEqual([awaiting.result, awaiting.exitCode, awaiting.eventStatus], ["credentials_refused", 1, "awaiting_verification"]);
+});
 console.log(
   `Paystack verification: ${checks} offline fixed-origin, current-authority, immutable-evidence, rollback and reconciliation checks passed.`,
 );

@@ -63,7 +63,9 @@ for (const input of [
   assert.equal(local.calls.length, 0); checks += 2;
 }
 for (const [changed, code] of [
-  [{ amount: 100030 }, 'mismatch'], [{ reference: 'OTHER-REFERENCE' }, 'mismatch'], [{ currency: 'USD' }, 'invalid_response'],
+  // A test transaction in another currency disagrees; a currency that is not a code is unreadable.
+  [{ amount: 100030 }, 'mismatch'], [{ reference: 'OTHER-REFERENCE' }, 'mismatch'], [{ currency: 'USD' }, 'mismatch'],
+  [{ currency: 'usd' }, 'invalid_response'], [{ currency: 566 }, 'invalid_response'], [{ currency: 'USD', domain: 'live' }, 'live_mode'],
   [{ amount: '100029' }, 'invalid_response'], [{ amount: 100029.1 }, 'invalid_response'], [{ amount: Number.MAX_SAFE_INTEGER + 1 }, 'invalid_response'],
   [{ channel: 'card' }, 'mismatch'], [{ domain: 'live' }, 'live_mode'], [{ domain: undefined }, 'live_mode'],
   [{ status: 'unknown_new_provider_status' }, 'invalid_response'], [{ id: Number.MAX_SAFE_INTEGER + 1 }, 'invalid_response'],
@@ -164,7 +166,18 @@ for (const [status, code] of [[401, 'authentication'], [403, 'authentication'], 
   assert.equal(outcome.outcome, 'unknown');
   assert.equal(outcome.reissue, false);
   if (outcome.outcome === 'unknown') assert.equal(outcome.reason, code);
-  assert.ok(!JSON.stringify(outcome).includes(key)); checks += 4;
+  // A refused key or a transport failure says nothing about the payment: put it right and verify the same reference.
+  assert.equal(outcome.nextAction, 'verify_same_reference');
+  assert.ok(!JSON.stringify(outcome).includes(key)); checks += 5;
+}
+// Only a disagreement needs review; an unreadable or live-mode answer is checked again.
+for (const [payload, code, nextAction] of [
+  [{ status: true, data: { ...fixture, amount: 100030 } }, 'mismatch', 'manual_review'],
+  [{ status: true, data: { ...fixture, domain: 'live' } }, 'live_mode', 'verify_same_reference'],
+  [{ status: false }, 'invalid_response', 'verify_same_reference'],
+] as const) {
+  const outcome = await harness(payload).adapter.recoverUnknown(expected);
+  assert.deepEqual(outcome, { outcome: 'unknown', reason: code, nextAction, reissue: false }); checks++;
 }
 const leaked = createPaystackTestAdapter({ secretKey: key, fetch: async () => { throw new Error(`Transport included ${key} and private@example.test`); } });
 await assert.rejects(leaked.verifyTransaction(expected), error => error instanceof PaystackError && !error.message.includes(key) && !error.message.includes('private@example') && !('cause' in error)); checks++;
