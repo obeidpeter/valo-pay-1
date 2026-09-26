@@ -15,7 +15,7 @@ import { verifyToken } from "@clerk/express";
 import { once } from "node:events";
 import { createServer } from "node:net";
 import path from "node:path";
-import { InvalidConfiguration, invalidConfigurationLine, readStartupConfig } from "../src/lib/startup-config";
+import { InvalidConfiguration, clerkProxyTuning, invalidConfigurationLine, readStartupConfig } from "../src/lib/startup-config";
 import { financialProjectionSchema } from "../src/lib/financial-projection";
 
 let checks = 0;
@@ -96,6 +96,32 @@ for (const [change, problem] of rules) {
   assert.ok(!found.join(" ").includes("synthetic-secret"), "a value is never repeated: it may be a credential");
   checks += 2;
 }
+// The sign-in proxy's limits an operator may set (the review of PRs #61 to #67, finding L), which the proxy reads with
+// the same rule (clerkProxyTuning): the process always has room for eight networks at their limit, eight times the
+// network's limit when unset. The close pass has no proxy, so it leaves them alone.
+const proxyRules: Array<[Record<string, string>, string]> = [
+  [{ VALOPAY_CLERK_PROXY_RATE: "59" }, "VALOPAY_CLERK_PROXY_RATE must be a whole number from 60 to 6000."],
+  [{ VALOPAY_CLERK_PROXY_RATE: "6001" }, "VALOPAY_CLERK_PROXY_RATE must be a whole number from 60 to 6000."],
+  [{ VALOPAY_CLERK_PROXY_RATE: "synthetic-secret" }, "VALOPAY_CLERK_PROXY_RATE must be a whole number from 60 to 6000."],
+  [{ VALOPAY_CLERK_PROXY_NETWORK_CONCURRENCY: "1" }, "VALOPAY_CLERK_PROXY_NETWORK_CONCURRENCY must be a whole number from 2 to 64."],
+  [{ VALOPAY_CLERK_PROXY_NETWORK_CONCURRENCY: "8.5" }, "VALOPAY_CLERK_PROXY_NETWORK_CONCURRENCY must be a whole number from 2 to 64."],
+  [{ VALOPAY_CLERK_PROXY_CONCURRENCY: "32" }, "VALOPAY_CLERK_PROXY_CONCURRENCY must be a whole number from 64 to 512, room for eight networks at VALOPAY_CLERK_PROXY_NETWORK_CONCURRENCY."],
+  [{ VALOPAY_CLERK_PROXY_CONCURRENCY: "513" }, "VALOPAY_CLERK_PROXY_CONCURRENCY must be a whole number from 64 to 512, room for eight networks at VALOPAY_CLERK_PROXY_NETWORK_CONCURRENCY."],
+  [{ VALOPAY_CLERK_PROXY_NETWORK_CONCURRENCY: "16", VALOPAY_CLERK_PROXY_CONCURRENCY: "100" }, "VALOPAY_CLERK_PROXY_CONCURRENCY must be a whole number from 128 to 512, room for eight networks at VALOPAY_CLERK_PROXY_NETWORK_CONCURRENCY."],
+];
+for (const [change, problem] of proxyRules) {
+  const found = problems({ ...base, ...change });
+  assert.deepEqual(found, [problem], JSON.stringify(change));
+  assert.ok(!found.join(" ").includes("synthetic-secret"), "a value is never repeated");
+  assert.deepEqual(clerkProxyTuning({ rate: change.VALOPAY_CLERK_PROXY_RATE, networkConcurrency: change.VALOPAY_CLERK_PROXY_NETWORK_CONCURRENCY, concurrency: change.VALOPAY_CLERK_PROXY_CONCURRENCY }).problems, [problem], "the proxy reads it with the same rule");
+  assert.deepEqual(problems({ DATABASE_URL: database, ...change }, "close-pass"), [], "the close pass has no proxy");
+  checks += 4;
+}
+assert.deepEqual(clerkProxyTuning({}).limits, { requestsPerMinute: 240, networkConcurrency: 8, concurrency: 64 });
+assert.deepEqual(clerkProxyTuning({ networkConcurrency: "16" }).limits, { requestsPerMinute: 240, networkConcurrency: 16, concurrency: 128 }, "unset, the process's limit is eight networks' worth");
+assert.deepEqual(problems({ ...base, VALOPAY_CLERK_PROXY_RATE: "1200", VALOPAY_CLERK_PROXY_NETWORK_CONCURRENCY: "4", VALOPAY_CLERK_PROXY_CONCURRENCY: "32" }), []);
+assert.deepEqual(readStartupConfig({ ...base, VALOPAY_CLERK_PROXY_RATE: "", VALOPAY_CLERK_PROXY_CONCURRENCY: "" }, "server"), defaults, "an empty value counts as unset");
+checks += 4;
 // lib/db reads the pool size again when it loads: the check accepts exactly what it does (up to three digits, 2 to
 // 100), so a value the check passes never ends the process with lib/db's bare stack instead of the fatal line.
 const databaseModule = new URL("../../../lib/db/src/index.ts", import.meta.url).href;
@@ -336,4 +362,4 @@ assert.equal(logged[0]!.retryInMs, 20);
 assert.equal(logged[1]!.failures, failedLooks);
 checks += 5;
 
-console.log(`Startup configuration checks passed (${checks}): every setting checked once with one fatal line that names it and never its value, the close scheduler's switch in any case and refusing anything but on, off or external, Clerk's JWT key checked as Clerk reads it and required on a staff host, off and external starting the thread without the scheduled close, and an export queue outage slowing the worker's looks and logged once when it starts and once when it ends.`);
+console.log(`Startup configuration checks passed (${checks}): every setting checked once with one fatal line that names it and never its value, the close scheduler's switch in any case and refusing anything but on, off or external, Clerk's JWT key checked as Clerk reads it and required on a staff host, the sign-in proxy's limits read as the proxy reads them with room for eight networks at their limit, off and external starting the thread without the scheduled close, and an export queue outage slowing the worker's looks and logged once when it starts and once when it ends.`);

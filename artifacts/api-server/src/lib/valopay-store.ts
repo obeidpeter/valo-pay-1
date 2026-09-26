@@ -2570,6 +2570,35 @@ export async function dueScheduledCloses(limit: number, options: { exclude?: rea
 }
 
 /**
+ * What the scheduled close still owes, counted without naming a lender: the
+ * lenders whose automatic close is on and whose pending close is more than
+ * `lateAfterMinutes` past its time (missed, as the close_missed alert reads
+ * it), and those with a failed scheduled attempt recorded at their pending
+ * time (settings.closeRetry, as closeRetryOf reads it), which only a close of
+ * that lender, or a change to its schedule, ends.  Durable facts on the
+ * database clock, so no other lender's close clears them and a restarted
+ * process reads them again.  `only` limits the count to the lenders named
+ * (tests and operator tooling).  A plain read with the system limits, as
+ * dueScheduledCloses is.
+ */
+export async function scheduledCloseBacklog(lateAfterMinutes: number, options: { only?: readonly string[] } = {}): Promise<{ overdue: number; failing: number }> {
+  return runtimeServiceRead(async client => {
+    const row = (await client.query<{ overdue: number; failing: number }>(
+      `SELECT count(*) FILTER (WHERE floor(extract(epoch FROM now() - due_at) / 60) > $2)::int AS overdue,
+              count(*) FILTER (WHERE failing)::int AS failing
+       FROM (SELECT
+         CASE WHEN m.settings->>'nextCloseAt' ~ $1 THEN (m.settings->>'nextCloseAt')::timestamptz END AS due_at,
+         m.settings->>'nextCloseAt' ~ $1 AND m.settings->'closeRetry'->>'cursor' = m.settings->>'nextCloseAt'
+           AND m.settings->'closeRetry'->>'failures' ~ '^[1-9][0-9]{0,5}$' AND m.settings->'closeRetry'->>'retryAt' ~ $1 AS failing
+         FROM valopay_merchants m
+         WHERE COALESCE(m.settings->>'scheduledCloseEnabled','true') <> 'false' AND ($3::text[] IS NULL OR m.id = ANY($3::text[]))) lenders`,
+      [ISO_INSTANT_PATTERN, lateAfterMinutes, options.only ? [...options.only] : null],
+    )).rows[0];
+    return { overdue: row?.overdue ?? 0, failing: row?.failing ?? 0 };
+  });
+}
+
+/**
  * Records a failed scheduled attempt on the lender (settings.closeRetry): one
  * more failure at its pending close time and when to try again, from the
  * database clock.  Its own small service transaction, after the failed close

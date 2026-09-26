@@ -85,7 +85,8 @@ const limited: RequestHandler = (req, res, next) => {
 /**
  * Two questions a host or a person can ask without a sandbox or a sign-in.
  * Liveness (/healthz): the process answers, and says which build it is, how
- * long it has been up and what its scheduler is doing. It never touches the
+ * long it has been up and what its scheduler is doing, with the lenders still
+ * owed a close as its latest pass counted them. It never touches the
  * database, so a database outage does not read as a dead process. Readiness
  * (/readyz): one bounded round trip to the database on its own connection, so
  * a busy request pool does not read as an unreachable database, which also
