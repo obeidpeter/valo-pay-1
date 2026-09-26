@@ -26,7 +26,7 @@ import { LoadProblem } from '@/components/load-problem';
 import { KEPT_IN_OPERATIONS, OpenOperations } from '@/components/pilot-ui';
 import { hasFeeSchedule, paymentUnappliedKobo } from '@workspace/valopay-schema';
 import { formatRecordMoney as moneyOf } from '@/lib/currencies';
-import { heldForReversalReview, permissionReason, reversalReviewRefusals } from '@/lib/permissions';
+import { permissionReason } from '@/lib/permissions';
 
 const paymentAvailable = (record: any): number => paymentUnappliedKobo(record);
 const instalmentOutstanding = (record: any): number => Math.max(0, Number(record?.data?.outstandingKobo ?? record?.amountKobo ?? 0));
@@ -521,7 +521,7 @@ export default function ReconciliationPage() {
           try { amount = nairaToKobo(String(values.amountKobo ?? '')); } catch { /* The field reports incomplete or invalid input on submit. */ }
           return <section aria-label="Allocation preview" className="space-y-2 rounded-lg border bg-secondary/20 p-3 text-sm">
             <label className="grid gap-1 text-xs">Find an instalment<input type="search" value={allocationSearch} onKeyDown={searchWithoutSubmitting} onChange={event=>{setAllocationSearch(event.target.value);choicePage.resetPage();}} placeholder="Name or reference" className="min-h-10 rounded-md border bg-background px-3" /></label>
-            <p className="text-xs text-muted-foreground">Instalments that are paid, cancelled, closed or in dispute cannot take a payment and are not listed.</p>
+            <p className="text-xs text-muted-foreground">Instalments that are paid, cancelled, closed, in dispute or held for a renewed reversal review cannot take a payment and are not listed.</p>
             {choicesQuery.error ? <LoadProblem what="instalment choices" pager="instalment choices" error={choicesQuery.error} retry={()=>{void choicesQuery.refetch();}} /> : <>
               {(choicesQuery.isFetching || allocationSearchPending) && <p role="status">Loading instalment choices…</p>}
               {!allocationSearchPending && choicesQuery.data && (choicesQuery.data.total === 0 ? !choicesQuery.isFetching && <p role="status">{allocationTerm ? 'No instalment that can take a payment matches this search.' : selectedRecord?.customerId ? 'This payer has no instalment that can take a payment.' : namedInstalment ? `${namedCustomer?.name ? `${namedCustomer.name}, whose instalment its evidence names,` : `The customer of instalment ${namedInstalment.reference}, which its evidence names,`} has no instalment that can take a payment.` : 'No instalment can take a payment.'}</p> : <RecordPagination pagination={choicePage} total={choicesQuery.data.total} busy={choicesQuery.isFetching} label="instalment choices" />)}
@@ -546,7 +546,6 @@ export default function ReconciliationPage() {
           if (actionKind !== 'manual_allocate') return {};
           const due = dueItemById.get(String(values.dueItemId));
           if (!due) return { dueItemId: 'Choose an instalment from the current lender.' };
-          if (heldForReversalReview(due)) return { dueItemId: reversalReviewRefusals.instalment };
           const amount = nairaToKobo(String(values.amountKobo));
           if (amount <= 0) return { amountKobo: 'Enter an amount greater than ₦0.00.' };
           if (amount > paymentAvailable(selectedRecord)) return { amountKobo: `Enter ${formatKobo(paymentAvailable(selectedRecord))} or less. This is the payment available to allocate.` };

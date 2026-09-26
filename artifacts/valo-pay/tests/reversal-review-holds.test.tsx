@@ -9,8 +9,8 @@ import type { Context, DomainState, ValopayRecord } from '../../api-server/src/d
 // The console offers only what the service allows. Reconciliation records a hold for a renewed review of an
 // earlier reversal decision on the payments and instalments it concerns (data.legacyReversalReviewIds); the
 // service then refuses to allocate, confirm, release or check out, and only Finance or an administrator may
-// resolve the review. Each reason the console gives is the service's own. A hold keeps a paid instalment's
-// status, and one unpaid after its final attempt, and pauses one still being collected in dispute
+// resolve the review. Each reason the console gives is the service's own. A hold may keep an instalment's status
+// (paid, or unpaid after its final attempt) or pause one still being collected in dispute
 // (legacyReversalReviewPause), so the console reads the hold from the field, never from the status.
 let api: FakeApi;
 beforeEach(() => { api = installFakeApi({ now: '2026-09-21T10:00:00.000Z' }); });
@@ -62,14 +62,14 @@ describe('renewed reversal reviews', () => {
 });
 
 describe('held payments and instalments', () => {
-  it('does not offer Allocate for a held payment, and refuses a held instalment in the allocation dialog, in the service\'s words', async () => {
+  it('does not offer Allocate for a held payment, in the service\'s words, nor a held instalment in the allocation picker', async () => {
     const user = userEvent.setup();
     const payment = api.mutate(state => {
       const payer = state.records.find(record => record.kind === 'due-items' && record.reference === 'DEMO-LOAN-1006')!;
       return makeRecord(state, 'payments', { name: 'Held receipt', status: 'unallocated', reference: 'SBX-HELD-PAY', customerId: payer.customerId, amountKobo: 100_000, data: { providerReference: 'SBX-HELD-PAY', currency: 'NGN', channel: 'direct_debit', collectionStatus: 'succeeded', settlementStatus: 'unsettled', reversalStatus: 'none', refundStatus: 'none', allocatedKobo: 0 } });
     });
     holdFor([['payments', 'SBX-HELD-PAY'], ['due-items', 'DEMO-LOAN-1005']]);
-    // Unpaid after its final attempt, the held instalment keeps that status and stays among the choices.
+    // A hold may leave the instalment unpaid after its final attempt, a status that could otherwise take a payment.
     heldStatus('DEMO-LOAN-1005', 'unpaid_final');
     const open = byReference('DEMO-LOAN-1006', 'due-items'), held = byReference('DEMO-LOAN-1005', 'due-items');
     const allocate = (paymentId: string, due: ValopayRecord) => serviceSays('Finance', (state, ctx) => executeAction(state, ctx, { action: 'manual_allocate', recordId: paymentId, reason: 'Checking what the service says', data: { dueItemId: due.id, amountKobo: 100 } }));
@@ -81,20 +81,16 @@ describe('held payments and instalments', () => {
     expect(button.getAttribute('aria-disabled')).toBe('true');
     expect(reasonFor(button)).toBe(allocate(payment.id, open));
     expect(reasonFor(button)).toBe('This payment is held for renewed Finance review of an earlier reversal decision. Resolve that review and run reconciliation before allocating it.');
-    // The unidentified receipt may take any customer's instalment, but not a held one.
+    // The unidentified receipt may take any customer's instalment, but the service refuses a held one, so the picker
+    // does not offer it, whatever its status, and counts only the choices the service accepts.
     const unidentified = byReference('SBX-UNIDENTIFIED-001', 'payments');
+    expect(allocate(unidentified.id, held)).toBe('This instalment is held for renewed Finance review of an earlier reversal decision. Resolve that review and run reconciliation before allocating a payment.');
     const other = within(payments).getByText('SBX-UNIDENTIFIED-001').closest('tr')!;
     await user.click(within(other).getByRole('button', { name: 'Allocate' }));
     const dialog = await screen.findByRole('dialog', { name: 'Allocate payment' });
-    await waitFor(() => expect(within(dialog).getByRole('option', { name: /DEMO-LOAN-1005/ })).toBeTruthy());
-    await user.selectOptions(within(dialog).getByLabelText(/^Instalment/), held.id);
-    await user.type(within(dialog).getByLabelText(/^Reason/), 'Payer identified from the bank narration.');
-    const posts = api.calls.filter(call => call.method === 'POST').length;
-    await user.click(within(dialog).getByRole('button', { name: 'Allocate payment' }));
-    const refusal = allocate(unidentified.id, held);
-    expect(refusal).toBe('This instalment is held for renewed Finance review of an earlier reversal decision. Resolve that review and run reconciliation before allocating a payment.');
-    expect(await within(dialog).findByText(refusal)).toBeTruthy();
-    expect(api.calls.filter(call => call.method === 'POST')).toHaveLength(posts);
+    await waitFor(() => expect(within(dialog).getByRole('option', { name: /DEMO-LOAN-1006/ })).toBeTruthy());
+    expect(within(dialog).queryByRole('option', { name: /DEMO-LOAN-1005/ })).toBeNull();
+    expect(within(dialog).getByText(/held for a renewed reversal review cannot take a payment and are not listed/)).toBeTruthy();
   });
 
   it.each([
@@ -136,7 +132,7 @@ describe('held payments and instalments', () => {
     const due = byReference('DEMO-LOAN-1005', 'due-items');
     const intent = api.mutate(state => makeRecord(state, 'connected-intents', { name: `Pay ${due.name}`, status: 'created', amountKobo: due.amountKobo, customerId: due.customerId, data: { dueItemId: due.id, currency: 'NGN', beneficiary: state.merchant.name, beneficiaryId: state.merchant.id, rail: 'simulated_bank_authorised_a2a', expiresAt: '2026-09-21T10:15:00.000Z', createdBy: 'Sandbox Finance', events: [{ at: api.now, status: 'created', detail: 'Earlier checkout' }] } }));
     holdFor([['due-items', 'DEMO-LOAN-1005']]);
-    // Unpaid after its final attempt, the held instalment keeps that status, so pay-by-bank still lists it.
+    // A hold may leave the instalment unpaid after its final attempt, a status pay-by-bank lists, so the page marks it as held.
     heldStatus('DEMO-LOAN-1005', 'unpaid_final');
     const connected = (action: string, recordId: string, data: Record<string, unknown>) => serviceSays('Finance', (state, ctx) => runConnectedAction(state, ctx, { action, reason: 'Checking what the service says', recordId, data, expectedRevision: connectedRevision(state) } as never));
     const create = connected('payment.create', '', { dueItemId: due.id, amountKobo: 1000 }), authorise = connected('payment.authorise', intent.id, {});

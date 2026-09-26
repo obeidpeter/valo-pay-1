@@ -255,7 +255,7 @@ describe('allocation picker counts', () => {
     await waitFor(() => expect(within(dialog).queryByText('Loading instalment choices…')).toBeNull());
     expect(offered()).toHaveLength(0);
     expect(within(dialog).getByText('No instalment that can take a payment matches this search.')).toBeTruthy();
-    expect(within(dialog).getByText('Instalments that are paid, cancelled, closed or in dispute cannot take a payment and are not listed.')).toBeTruthy();
+    expect(within(dialog).getByText('Instalments that are paid, cancelled, closed, in dispute or held for a renewed reversal review cannot take a payment and are not listed.')).toBeTruthy();
     expect(within(dialog).queryByRole('navigation', { name: 'instalment choices pagination' })).toBeNull();
   });
 });

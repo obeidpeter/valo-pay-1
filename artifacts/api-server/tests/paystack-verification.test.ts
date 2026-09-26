@@ -10,6 +10,7 @@ import {
 import {
   receivePaystackEvent,
   assertProviderEventChange,
+  quarantinedWithoutDisagreement,
   replayProviderEvent,
 } from "../src/providers/paystack-inbox";
 import {
@@ -425,27 +426,56 @@ for (const [name, change] of [
     await assert.rejects(f.run, (error: any) => error.outcome === "held_for_review");
     assert.equal(f.calls(), 0, "a real disagreement is not checked again");
   });
-// An earlier build quarantined events after a refused key or an unreadable or live-mode
-// answer. Their history shows it, so they can be verified again; a disagreement stays held.
-for (const reason of ["authentication", "invalid_response", "live_mode", "mismatch"])
+// An earlier build quarantined events after a refused key or an unreadable or live-mode answer,
+// and reported a test transaction in another currency as unreadable too, so an earlier
+// invalid_response may be a real disagreement. Such an event can be checked again, but only a
+// conclusive answer changes it: an inconclusive check is recorded and leaves it quarantined, still
+// checkable, while a matching answer verifies it, a pending one awaits and another currency
+// quarantines it for good. An event quarantined for a disagreement stays held.
+const quarantineEarlier = (f: ReturnType<typeof fixture>, reason: string) => {
+  const event = eventOf(f);
+  event.status = "quarantined";
+  event.data.message = "Independent verification could not validate this evidence. The recorded reason requires operator review; no observation was created.";
+  event.data.replayHistory = [{ at: ctx.now, actor: ctx.actor, reason: "Explicit operator read-only test verification", result: "quarantined", kind: "independent_transaction_check", outcome: { outcome: "unknown", reason, nextAction: "manual_review", reissue: false } }];
+};
+for (const [reason, answer] of [
+  ["authentication", "matching"],
+  ["invalid_response", "matching"],
+  ["invalid_response", "another currency"],
+  ["live_mode", "matching"],
+  ["authentication", "pending"],
+] as const)
   await check(async () => {
-    const f = fixture(),
-      event = eventOf(f);
-    event.status = "quarantined";
-    event.data.message = "Independent verification could not validate this evidence. The recorded reason requires operator review; no observation was created.";
-    event.data.replayHistory = [{ at: ctx.now, actor: ctx.actor, reason: "Explicit operator read-only test verification", result: "quarantined", kind: "independent_transaction_check", outcome: { outcome: "unknown", reason, nextAction: "manual_review", reissue: false } }];
-    const before = structuredClone(event);
-    if (reason === "mismatch") {
-      await assert.rejects(f.run, (error: any) => error.outcome === "held_for_review");
-      assert.equal(f.calls(), 0);
-      return;
+    const f = fixture();
+    quarantineEarlier(f, reason);
+    for (const [reply, timeoutMs, outcome] of [
+      [() => json({ status: false, message: `Invalid key ${key}` }, 401), undefined, "credentials_refused"],
+      [() => new Promise<Response>(() => {}), 5, "provider_unavailable"],
+    ] as Array<[() => Response | Promise<Response>, number | undefined, string]>) {
+      const before = structuredClone(eventOf(f));
+      const result = await verifyQueuedPaystackEvent({ connectionId, eventId: f.eventId, transact: f.transact, adapter: answering(reply, timeoutMs) });
+      assert.deepEqual([result.status, result.outcome], ["quarantined", outcome], `an inconclusive check leaves an earlier ${reason} quarantine held`);
+      const event = eventOf(f);
+      assertProviderEventChange(before, event);
+      assert.equal(event.data.replayHistory.at(-1).check, outcome);
+      assert.equal(quarantinedWithoutDisagreement(event), true, "and it can still be checked again");
+      assert.throws(() => replayProviderEvent(structuredClone(f.state()), { ...ctx, role: "Finance" }, event.id, event.updatedAt, "Recheck the held receipt"), /cannot be replayed/);
     }
-    const result = await f.run();
-    assert.equal(result.status, "verified", `an event quarantined only for ${reason} verifies again`);
-    assertProviderEventChange(before, eventOf(f));
-    assert.equal(eventOf(f).data.replayHistory.length, 2, "the earlier check stays in its history");
-    assert.equal(observationsOf(f), 1);
+    const payment = answer === "another currency" ? { ...f.payment, currency: "USD" } : answer === "pending" ? { ...f.payment, status: "ongoing" } : f.payment;
+    const result = await verifyQueuedPaystackEvent({ connectionId, eventId: f.eventId, transact: f.transact, adapter: answering(() => json({ status: true, data: payment })) });
+    const expected = { matching: ["verified", "verified"], pending: ["awaiting_verification", "pending"], "another currency": ["quarantined", "mismatch"] }[answer];
+    assert.deepEqual([result.status, result.outcome], expected, `${answer} decides an earlier ${reason} quarantine`);
+    assert.equal(eventOf(f).data.replayHistory.length, 4, "every check stays in its history");
+    assert.equal(observationsOf(f), answer === "matching" ? 1 : 0);
+    if (answer === "another currency") await assert.rejects(f.run, (error: any) => error.outcome === "held_for_review");
+    assert.equal(f.calls(), 0, "a disagreement is not looked up again");
   });
+await check(async () => {
+  const f = fixture();
+  quarantineEarlier(f, "mismatch");
+  await assert.rejects(f.run, (error: any) => error.outcome === "held_for_review");
+  assert.equal(f.calls(), 0);
+});
 // Each refusal names its own outcome.
 for (const [change, outcome] of [
   ["fixture", "not_a_test_payment"],
@@ -486,6 +516,26 @@ await check(async () => {
   assert.ok(!unexpected.message.includes(key), "an unexpected error's own words are never printed");
   const awaiting = paystackVerificationReport({ status: "awaiting_verification", outcome: "credentials_refused", message: "Kept.", observationCreated: false, financialRecordsCreated: 0, instructions: "disabled" });
   assert.deepEqual([awaiting.result, awaiting.exitCode, awaiting.eventStatus], ["credentials_refused", 1, "awaiting_verification"]);
+  // A database the settings name wrongly is put right, not waited for: a database that does not exist, or a login
+  // or a right it refuses, exits 1; a connection refused, lost or timed out, or a busy lender, is checked again later.
+  const { DatabaseLimitError } = await import("../src/lib/database-limits");
+  const connect = (code: string) => new DatabaseLimitError("database_unavailable", { write: true, cause: Object.assign(new Error(`connect failed for ${key}`), { code }) });
+  for (const [error, outcome, exitCode] of [
+    [connect("3D000"), "not_configured", 1],
+    [connect("28P01"), "not_configured", 1],
+    [connect("28000"), "not_configured", 1],
+    [connect("42501"), "not_configured", 1],
+    [Object.assign(new Error("permission denied"), { code: "42501" }), "not_configured", 1],
+    [connect("ECONNREFUSED"), "database_unavailable", 2],
+    [connect("57P03"), "database_unavailable", 2],
+    [new DatabaseLimitError("pool_timeout", { write: true }), "database_unavailable", 2],
+    [Object.assign(new Error("Refused."), { outcome: "lender_not_found" }), "lender_not_found", 1],
+    [Object.assign(new Error("Refused."), { outcome: "lender_unavailable" }), "lender_unavailable", 2],
+  ] as Array<[Error, string, number]>) {
+    const report = paystackVerificationReport(error);
+    assert.deepEqual([report.result, report.exitCode], [outcome, exitCode], `${(error.cause as { code?: string } | undefined)?.code ?? error.message} is ${outcome}`);
+    assert.ok(!report.message.includes(key));
+  }
 });
 console.log(
   `Paystack verification: ${checks} offline fixed-origin, current-authority, immutable-evidence, rollback and reconciliation checks passed.`,

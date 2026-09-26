@@ -2,7 +2,9 @@
 // and the audit trail, with Paystack's answers faked in this process as the offline tests fake them. No
 // request leaves the process, and nothing but synthetic records is written.
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { createHmac, randomBytes } from "node:crypto";
+import path from "node:path";
 if (process.env.VALOPAY_RUN_INTEGRATION !== "1") {
   console.log("Set VALOPAY_RUN_INTEGRATION=1 to run the Paystack verification against a disposable PostgreSQL database.");
   process.exit(0);
@@ -82,22 +84,28 @@ try {
   report = await run(refused!);
   assert.deepEqual([report.result, report.exitCode, report.observationCreated], ["verified", 0, false], "a verified event is not checked again");
 
-  // An earlier build quarantined an event after a refused key. The store keeps that write; the event can be verified again.
+  // An earlier build quarantined an event after an answer it could not read, which may have been a transaction in another
+  // currency. The store keeps that write; the event can be checked again, and only a conclusive answer moves it.
   await inMerchantAsSystem(lender, `${SYSTEM_ACTOR_PREFIX}Paystack verification rehearsal`, async (ctx) => {
     const state = await loadState(ctx, lender, "update");
     const record = state.records.find((item) => item.id === earlier)!;
     record.status = "quarantined";
     record.data.message = "Independent verification could not validate this evidence. The recorded reason requires operator review; no observation was created.";
-    record.data.replayHistory = [...record.data.replayHistory, { at: ctx.now, actor: ctx.actor, reason: "Explicit operator read-only test verification", result: "quarantined", kind: "independent_transaction_check", outcome: { outcome: "unknown", reason: "authentication", nextAction: "manual_review", reissue: false } }];
+    record.data.replayHistory = [...record.data.replayHistory, { at: ctx.now, actor: ctx.actor, reason: "Explicit operator read-only test verification", result: "quarantined", kind: "independent_transaction_check", outcome: { outcome: "unknown", reason: "invalid_response", nextAction: "manual_review", reissue: false } }];
     touch(record, ctx.now);
     appendAudit(state, ctx, "paystack.test_verification", earlier!, "An earlier build's check.");
     await saveState(ctx, state);
   });
+  reply = () => json({ status: false, message: `Invalid key ${key}` }, 401);
+  report = await run(earlier!);
+  assert.deepEqual([report.result, report.exitCode, report.eventStatus], ["credentials_refused", 1, "quarantined"], "an inconclusive check leaves an earlier quarantine held");
+  assert.equal((await stored(earlier!)).status, "quarantined");
+  reply = (payment) => json({ status: true, data: payment });
   report = await run(earlier!);
   assert.deepEqual([report.result, report.exitCode, report.observationCreated], ["verified", 0, true]);
   event = await stored(earlier!);
   assert.equal(event.status, "verified");
-  assert.equal(event.data.replayHistory.length, 2, "the earlier check stays in the history");
+  assert.equal(event.data.replayHistory.length, 3, "the earlier checks stay in the history");
   // A real disagreement quarantines an event for good.
   reply = (payment) => json({ status: true, data: { ...payment, amount: Number(payment.amount) + 1 } });
   report = await run(disagreeing!);
@@ -108,7 +116,32 @@ try {
   assert.deepEqual([report.result, report.exitCode], ["held_for_review", 1]);
   assert.equal(lookups, before, "an event held for a disagreement is not looked up again");
   assert.ok(!JSON.stringify(await pool.query("SELECT data FROM valopay_records WHERE merchant_id=$1", [lender]).then((result) => result.rows)).includes(key), "the key is never stored");
-  console.log("Paystack verification PostgreSQL checks passed: a refused key leaves the event awaiting verification with its outcome in its history and audit trail, the same event then verifies once, an earlier build's quarantine after a refused key verifies again, and a real disagreement stays held without another lookup.");
+
+  // A mapping to a lender that is not in its workspace is put right, not waited for, as the ingress tells it;
+  // a busy lender is checked again later.
+  const mapped = process.env.VALOPAY_PAYSTACK_CONNECTIONS;
+  process.env.VALOPAY_PAYSTACK_CONNECTIONS = JSON.stringify({ [connectionId]: { workspaceId, merchantId: `gone-${randomBytes(8).toString("hex")}` } });
+  report = await run(earlier!);
+  assert.deepEqual([report.result, report.exitCode], ["lender_not_found", 1], "a mapping to a lender that does not exist is corrected, not retried");
+  process.env.VALOPAY_PAYSTACK_CONNECTIONS = mapped;
+  const holder = await pool.connect();
+  try {
+    await holder.query("BEGIN");
+    await holder.query("SELECT 1 FROM valopay_merchants WHERE id=$1 FOR UPDATE", [lender]);
+    report = await run(earlier!);
+    assert.deepEqual([report.result, report.exitCode], ["lender_unavailable", 2], "a busy lender is checked again later");
+  } finally {
+    await holder.query("ROLLBACK");
+    holder.release();
+  }
+  // The real command line, with settings that name a database that does not exist: corrected, not waited for.
+  const missing = new URL(process.env.DATABASE_URL!);
+  missing.pathname = `${missing.pathname}_no_such_database`;
+  const root = path.resolve(import.meta.dirname, "../../..");
+  const command = spawnSync(process.execPath, [path.join(root, "scripts/node_modules/tsx/dist/cli.mjs"), path.join(root, "scripts/src/verify-paystack-event.ts"), "--connection-id", connectionId, "--event-id", earlier!], { cwd: root, encoding: "utf8", timeout: 60_000, env: { ...process.env, DATABASE_URL: missing.href, LOG_FILE: "" } });
+  const printed = JSON.parse(command.stderr.slice(command.stderr.indexOf("{\n")));
+  assert.deepEqual([command.status, printed.result], [1, "not_configured"], "a database that does not exist is a setting to correct");
+  console.log("Paystack verification PostgreSQL checks passed: a refused key leaves the event awaiting verification with its outcome in its history and audit trail, the same event then verifies once, an earlier build's quarantine stays held through an inconclusive check and verifies on a matching answer, a real disagreement stays held without another lookup, a mapping to a missing lender and a database that does not exist exit 1 while a busy lender exits 2.");
 } finally {
   globalThis.fetch = realFetch;
   for (const name of names) { const value = previous[name]; if (value === undefined) delete process.env[name]; else process.env[name] = value; }

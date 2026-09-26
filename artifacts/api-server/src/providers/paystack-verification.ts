@@ -17,8 +17,8 @@ export type PaystackVerificationAdapter = {
  * What one check found, or why it was refused, as the command prints and logs
  * it. Only `mismatch` quarantines the event and `verified` records its
  * observation; any other finding a check records leaves the event awaiting
- * verification, named in its history (`check`). The rest are refusals, which
- * record nothing.
+ * verification, or an event an earlier build quarantined still quarantined,
+ * named in its history (`check`). The rest are refusals, which record nothing.
  */
 export type PaystackVerificationOutcome =
   | "verified"
@@ -35,6 +35,7 @@ export type PaystackVerificationOutcome =
   | "connection_unavailable"
   | "configuration_changed"
   | "lender_unavailable"
+  | "lender_not_found"
   | "database_unavailable"
   | "lender_not_eligible"
   | "event_not_found"
@@ -60,14 +61,22 @@ const hash = (value: unknown) =>
 export const paystackTestConnectionIdentity = (connectionId: string) =>
   `paystack:test:${connectionId}`;
 
-/** Why an adapter outcome that is not a verified payment leaves the event awaiting verification, and what to do next. */
-const inconclusive: Partial<Record<PaystackErrorCode, [PaystackVerificationOutcome, string]>> = {
-  authentication: ["credentials_refused", "Paystack refused the test credentials. The event still awaits verification: correct the test key, then check the same event again. Do not issue another payment."],
-  live_mode: ["live_mode", "Paystack answered with live-mode data, which is never accepted. The event still awaits verification: check that the configured key belongs to the test account, then check the same event again."],
-  invalid_response: ["invalid_response", "Paystack's answer could not be read as a test transaction. The event still awaits verification: check the same event later, and investigate if this repeats. Do not issue another payment."],
-  not_found: ["reference_not_found", "Paystack has not returned this test reference. Its outcome stays unknown: check the same event later and do not issue another payment."],
+/** An adapter outcome that is not a verified payment: what it says about the check, and what to do next. */
+const inconclusive: Partial<Record<PaystackErrorCode, [PaystackVerificationOutcome, string, string]>> = {
+  authentication: ["credentials_refused", "Paystack refused the test credentials.", "correct the test key, then check the same event again"],
+  live_mode: ["live_mode", "Paystack answered with live-mode data, which is never accepted and says nothing about this test payment.", "check the configured test key, then check the same event again, and report it to Paystack if it repeats"],
+  invalid_response: ["invalid_response", "Paystack's answer could not be read as a test transaction.", "check the same event later, and investigate if this repeats"],
+  not_found: ["reference_not_found", "Paystack has not returned this test reference.", "check the same event later"],
 };
-const unavailable: [PaystackVerificationOutcome, string] = ["provider_unavailable", "Paystack did not complete the check: it timed out, could not be reached, limited the rate or failed. The event still awaits verification: check the same event later and do not issue another payment."];
+const unavailable: [PaystackVerificationOutcome, string, string] = ["provider_unavailable", "Paystack did not complete the check: it timed out, could not be reached, limited the rate or failed.", "check the same event later"];
+/**
+ * What an inconclusive check leaves: an event awaiting verification, or one an earlier build quarantined
+ * still quarantined, since that build also reported a test transaction in another currency as unreadable.
+ */
+const inconclusiveMessage = (what: string, next: string, quarantined: boolean) =>
+  quarantined
+    ? `${what} An earlier build quarantined this event after a check that may have found a disagreement, such as a transaction in another currency, so it stays quarantined until Paystack answers conclusively: ${next}. Do not issue another payment.`
+    : `${what} The event still awaits verification: ${next}. Do not issue another payment.`;
 const disagreement = "Paystack's answer conflicts with the signed event: another transaction, amount, currency or channel, or a failed or reversed payment. Both are retained for review; no observation was created.";
 
 function eligible(state: DomainState) {
@@ -278,14 +287,18 @@ export async function verifyQueuedPaystackEvent(input: {
         "evidence_changed",
       );
     // Only a real disagreement quarantines the event. A refused key, an unreadable or live-mode
-    // answer or a transport failure leaves it awaiting verification, with its finding named.
-    let [named, message]: [PaystackVerificationOutcome, string] =
-      outcome.outcome === "verified"
-        ? ["pending", "Paystack reports this test payment as still pending. Check the same event later; do not issue another payment."]
-        : outcome.reason === "mismatch"
-          ? ["mismatch", disagreement]
-          : (inconclusive[outcome.reason] ?? unavailable);
-    let status = named === "mismatch" ? "quarantined" : "awaiting_verification";
+    // answer or a transport failure leaves it awaiting verification, with its finding named, but
+    // leaves an event an earlier build quarantined as it is: only a conclusive answer moves that.
+    const quarantinedEarlier = event.status === "quarantined";
+    let named: PaystackVerificationOutcome, message: string;
+    if (outcome.outcome === "verified")
+      [named, message] = ["pending", "Paystack reports this test payment as still pending. Check the same event later; do not issue another payment."];
+    else if (outcome.reason === "mismatch") [named, message] = ["mismatch", disagreement];
+    else {
+      const [found, what, next] = inconclusive[outcome.reason] ?? unavailable;
+      [named, message] = [found, inconclusiveMessage(what, next, quarantinedEarlier)];
+    }
+    let status = named === "mismatch" || (quarantinedEarlier && outcome.outcome === "unknown") ? "quarantined" : "awaiting_verification";
     let observationId: string | undefined;
     if (outcome.outcome === "verified") {
       const payment = outcome.payment,

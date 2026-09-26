@@ -164,13 +164,16 @@ export function instalmentOutstandingKobo(due: { amountKobo: number; data?: { ou
   return Number.isInteger(outstanding) ? Number(outstanding) : due.amountKobo;
 }
 /**
- * An instalment that can take an allocation now: it still owes something and
- * is not cancelled, closed or in dispute. A manual allocation is refused for
- * any other, and the allocation picker lists only these (the record list's
- * `allocatable`), so its count is the count of choices.
+ * An instalment that can take an allocation now: it still owes something, is
+ * not cancelled, closed or in dispute, and reconciliation does not hold it for
+ * a renewed review of an earlier reversal decision (legacyReversalReviewIds),
+ * whatever its status. A manual allocation is refused for any other, the hold
+ * with its own reason, and the allocation picker lists only these (the record
+ * list's `allocatable`), so its count is the count of choices.
  */
-export function canTakeAllocation(due: { status: string; amountKobo: number; data?: { outstandingKobo?: unknown } | null }): boolean {
-  return instalmentOutstandingKobo(due) > 0 && !(allocationClosedStatuses as readonly string[]).includes(due.status);
+export function canTakeAllocation(due: { status: string; amountKobo: number; data?: { outstandingKobo?: unknown; legacyReversalReviewIds?: unknown } | null }): boolean {
+  const held = due.data?.legacyReversalReviewIds;
+  return instalmentOutstandingKobo(due) > 0 && !(allocationClosedStatuses as readonly string[]).includes(due.status) && !(Array.isArray(held) && held.length > 0);
 }
 
 /** Why a customer message was sent. */
