@@ -1602,11 +1602,13 @@ export async function listRecords(context: StoreContext, merchantId: string, kin
   }
   if (query.customerId) filter("r.customer_id", query.customerId);
   if (query.id) filter("r.id", query.id);
-  // canTakeAllocation in SQL: something still owed (the outstanding balance when it is a whole number, else the amount) and a status that takes one.
-  // CASE tries its conditions in order, so a balance is read as a number only once it is known to be one.
+  // canTakeAllocation in SQL: something still owed (the outstanding balance when it is a whole number, else the amount), a status that takes one,
+  // and no hold for a renewed reversal review (a non-empty legacyReversalReviewIds list). CASE tries its conditions in order, so a balance is read as
+  // a number only once it is known to be one, and a list's length is read only once it is known to be a list.
   if (allocatableOnly(kind, query)) {
     params.push([...allocationClosedStatuses]);
-    where += ` AND r.status <> ALL($${params.length}::text[]) AND (CASE WHEN jsonb_typeof(r.data->'outstandingKobo') IS DISTINCT FROM 'number' THEN r.amount_kobo WHEN (r.data->>'outstandingKobo')::numeric % 1 <> 0 THEN r.amount_kobo ELSE (r.data->>'outstandingKobo')::numeric END) > 0`;
+    where += ` AND r.status <> ALL($${params.length}::text[]) AND (CASE WHEN jsonb_typeof(r.data->'outstandingKobo') IS DISTINCT FROM 'number' THEN r.amount_kobo WHEN (r.data->>'outstandingKobo')::numeric % 1 <> 0 THEN r.amount_kobo ELSE (r.data->>'outstandingKobo')::numeric END) > 0`
+      + ` AND (CASE WHEN jsonb_typeof(r.data->'legacyReversalReviewIds') = 'array' THEN jsonb_array_length(r.data->'legacyReversalReviewIds') = 0 ELSE true END)`;
     // One payment's choices: the payer rule of its manual allocation (allocationPayer) becomes a customer filter.
     if (query.paymentId !== undefined) {
       const scope = [merchantId, session.workspace.id, session.principal];

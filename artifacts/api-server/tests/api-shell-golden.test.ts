@@ -39,6 +39,12 @@ const records = Array.from({ length: 1200 }, (_, i) => record(i, i % 3 ? "open" 
   assert.deepEqual([open.total, open.items.map((item) => item.id), open.nextOffset], [5, ["r009", "r008"], 2], "owed and not cancelled, closed or in dispute; an outstanding balance that is not whole reads as the amount");
   assert.deepEqual(pageRecords(dues, { allocatable: "true" }).items.map((item) => item.id), ["r009", "r008", "r007", "r003", "r001"]);
   assert.equal(pageRecords(dues, { allocatable: "false" }).total, 10, "false, like leaving it out, lists every instalment");
+  // A renewed reversal review's hold may leave an instalment's status as it was, and the service refuses to allocate to a
+  // held instalment, so the picker leaves every held one out, whatever its status; an empty list of reviews holds nothing.
+  const held = (i: number, status: string, ids: unknown): ValopayRecord => ({ ...due(i, status, 5000, 5000), data: { outstandingKobo: 5000, legacyReversalReviewIds: ids } });
+  const holds = [held(11, "unpaid_final", ["review-1"]), held(12, "scheduled", ["review-1", "review-2"]), held(13, "unpaid_final", []), held(14, "in_collection", "not a list")];
+  assert.deepEqual(pageRecords([...dues, ...holds], { allocatable: "true" }).items.map((item) => item.id), ["r014", "r013", "r009", "r008", "r007", "r003", "r001"], "a held instalment is not a choice, whatever its status");
+  assert.equal(pageRecords([...dues, ...holds], { allocatable: "false" }).total, 14, "and every instalment is still listed without allocatable");
   assert.equal(allocatableOnly("due-items", { allocatable: "true" }), true);
   assert.equal(allocatableOnly("payments", { allocatable: "false" }), false);
   assert.throws(() => allocatableOnly("payments", { allocatable: "true" }), (error: any) => error.status === 400 && /instalments only/.test(error.message), "asked of another kind, it is refused");
@@ -48,7 +54,7 @@ const records = Array.from({ length: 1200 }, (_, i) => record(i, i % 3 ? "open" 
   const query = { allocatable: "true" as const, paymentId: "p1" };
   assert.deepEqual([allocationChoices(query, { customerId: "c1" }), allocationChoices(query, {}), allocationChoices(query, null), allocationChoices({ ...query, customerId: "c2" }, { customerId: "c1" }), allocationChoices({ ...query, customerId: "c1" }, { customerId: "c1" })],
     [{ ...query, customerId: "c1" }, query, undefined, undefined, { ...query, customerId: "c1" }], "its payer's instalments, any customer's, none, none for another customer's list, and the payer's list as asked");
-  checks += 8;
+  checks += 10;
 }
 
 {
