@@ -194,6 +194,8 @@ export const connectedViewSchema = z.object({
   payments: z.object({
     intents: z.array(valopayRecordSchema),
     dues: z.array(z.object({ id: z.string(), name: z.string(), reference: z.string(), customerId: z.string(), customerName: z.string(), outstandingKobo: int, blocked: z.boolean() }).strict()),
+    // The instalments offered or named by a checkout that reconciliation holds for a renewed reversal review: checkouts for them are refused.
+    heldForReversalReview: z.array(z.string()),
   }).strict(),
   credit: creditViewSchema,
   cash: cashViewSchema,

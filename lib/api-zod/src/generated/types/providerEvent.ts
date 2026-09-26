@@ -8,7 +8,7 @@
 import type { ProviderEventMode } from './providerEventMode';
 
 /**
- * A stored provider event: fixture or test mode, how often it was delivered and replayed, and the guarantee that it created no financial record.
+ * A stored provider event: fixture or test mode, how often it was delivered and replayed (replayCount counts rechecks, not the operator's verification checks), and the guarantee that it created no financial record.
  */
 export interface ProviderEvent {
   id: string;

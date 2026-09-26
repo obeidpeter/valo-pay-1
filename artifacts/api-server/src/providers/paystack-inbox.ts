@@ -117,8 +117,8 @@ export function runPaystackFixture(state: DomainState, ctx: Context, scenario: "
   return first;
 }
 
-/** Remove connection routing and normalized provider payload from browser lists. */
+/** Remove connection routing and normalized provider payload from browser lists. Replays are rechecks; verification checks are not counted. */
 export function providerEventView(record: ValopayRecord) {
   return { id: record.id, name: record.name, status: record.status, reference: record.reference, amountKobo: record.amountKobo, createdAt: record.createdAt, updatedAt: record.updatedAt,
-    mode: record.data.mode, message: record.data.message, deliveryCount: record.data.deliveryCount, replayCount: record.data.replayHistory?.length || 0, financialRecordsCreated: 0 as const };
+    mode: record.data.mode, message: record.data.message, deliveryCount: record.data.deliveryCount, replayCount: (record.data.replayHistory || []).filter((entry: unknown) => !verificationCheck(entry)).length, financialRecordsCreated: 0 as const };
 }

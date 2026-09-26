@@ -1537,7 +1537,8 @@ export const GetConnectedWorkspaceResponse = zod.object({
   "customerName": zod.string(),
   "outstandingKobo": zod.number().int(),
   "blocked": zod.boolean()
-}))
+})),
+  "heldForReversalReview": zod.array(zod.string())
 }),
   "credit": zod.object({
   "mode": zod.literal("synthetic"),
@@ -2048,7 +2049,7 @@ export const GetConnectedWorkspaceResponse = zod.object({
 }),
   "limitations": zod.array(zod.string())
 }).describe('The Cash Desk: a separate sample SME\'s accounts, positions, commitments, forecast, accounting drafts, VAT schedules and payroll plans, as its permissions allow.')
-}).describe('Synthetic connected workspace: granular consents with their effective state, bound sample payment intents, the Credit and Cash Desks and the live gates, every one closed. No read creates sample records.')
+}).describe('Synthetic connected workspace: granular consents with their effective state, bound sample payment intents, the Credit and Cash Desks and the live gates, every one closed. payments.heldForReversalReview names the instalments offered or named by a checkout that reconciliation holds for a renewed review of an earlier reversal decision: creating or authorising a checkout for one is refused (409) until that review is resolved and reconciliation runs. No read creates sample records.')
 
 
 /**
@@ -4051,7 +4052,7 @@ export const GetSourcesResponse = zod.object({
   "deliveryCount": zod.number().int().min(getSourcesResponsePaystackEventsItemDeliveryCountMin).max(getSourcesResponsePaystackEventsItemDeliveryCountMax),
   "replayCount": zod.number().int().min(getSourcesResponsePaystackEventsItemReplayCountMin).max(getSourcesResponsePaystackEventsItemReplayCountMax),
   "financialRecordsCreated": zod.literal(0)
-}).describe('A stored provider event: fixture or test mode, how often it was delivered and replayed, and the guarantee that it created no financial record.')).max(getSourcesResponsePaystackEventsMax),
+}).describe('A stored provider event: fixture or test mode, how often it was delivered and replayed (replayCount counts rechecks, not the operator\'s verification checks), and the guarantee that it created no financial record.')).max(getSourcesResponsePaystackEventsMax),
   "total": zod.number().int().min(getSourcesResponsePaystackTotalMin).max(getSourcesResponsePaystackTotalMax),
   "quarantined": zod.number().int().min(getSourcesResponsePaystackQuarantinedMin).max(getSourcesResponsePaystackQuarantinedMax),
   "duplicates": zod.number().int().min(getSourcesResponsePaystackDuplicatesMin).max(getSourcesResponsePaystackDuplicatesMax)
@@ -4352,7 +4353,7 @@ export const RunPaystackFixtureResponse = zod.object({
   "deliveryCount": zod.number().int().min(runPaystackFixtureResponseEventDeliveryCountMin).max(runPaystackFixtureResponseEventDeliveryCountMax),
   "replayCount": zod.number().int().min(runPaystackFixtureResponseEventReplayCountMin).max(runPaystackFixtureResponseEventReplayCountMax),
   "financialRecordsCreated": zod.literal(0)
-}).describe('A stored provider event: fixture or test mode, how often it was delivered and replayed, and the guarantee that it created no financial record.')
+}).describe('A stored provider event: fixture or test mode, how often it was delivered and replayed (replayCount counts rechecks, not the operator\'s verification checks), and the guarantee that it created no financial record.')
 }).describe('Whether the fixture was accepted or recognised as a duplicate, and the stored event.')
 
 
@@ -4419,7 +4420,7 @@ export const ReplayProviderEventResponse = zod.object({
   "deliveryCount": zod.number().int().min(replayProviderEventResponseDeliveryCountMin).max(replayProviderEventResponseDeliveryCountMax),
   "replayCount": zod.number().int().min(replayProviderEventResponseReplayCountMin).max(replayProviderEventResponseReplayCountMax),
   "financialRecordsCreated": zod.literal(0)
-}).describe('A stored provider event: fixture or test mode, how often it was delivered and replayed, and the guarantee that it created no financial record.')
+}).describe('A stored provider event: fixture or test mode, how often it was delivered and replayed (replayCount counts rechecks, not the operator\'s verification checks), and the guarantee that it created no financial record.')
 
 
 /**

@@ -15,7 +15,7 @@ import type { ConnectedWorkspacePurposesItem } from './connectedWorkspacePurpose
 import type { CreditDesk } from './creditDesk';
 
 /**
- * Synthetic connected workspace: granular consents with their effective state, bound sample payment intents, the Credit and Cash Desks and the live gates, every one closed. No read creates sample records.
+ * Synthetic connected workspace: granular consents with their effective state, bound sample payment intents, the Credit and Cash Desks and the live gates, every one closed. payments.heldForReversalReview names the instalments offered or named by a checkout that reconciliation holds for a renewed review of an earlier reversal decision: creating or authorising a checkout for one is refused (409) until that review is resolved and reconciliation runs. No read creates sample records.
  */
 export interface ConnectedWorkspace {
   mode: 'synthetic';
