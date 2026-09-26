@@ -13,11 +13,11 @@ import { PermissionButton as Button } from '@/components/permission-button';
 import { formatDate, formatNumber } from '@/lib/formatters';
 import { formatRecordMoney } from '@/lib/currencies';
 import { RecordDialog } from '@/components/record-dialog';
-import { exceptionSeverities, failureCodeList, resolutionCodesForException, resolveExceptionType } from '@workspace/valopay-schema';
+import { exceptionSeverities, failureCodeList, resolveExceptionType } from '@workspace/valopay-schema';
 import { readableLabel, RecordLabel, StatusBadge } from '@/components/record-label';
 import { isDueToday, isOverdue, useQueueFilters } from '@/lib/queue-filters';
 import { RecordPagination, usePageProblemFocus } from '@/components/record-pagination';
-import { ExceptionContext, resolutionLabel } from '@/components/exception-context';
+import { ExceptionContext, providerIdentityErrors, resolutionChoices, resolutionLabel, useHeldBatchIdentities } from '@/components/exception-context';
 import { useHashTarget } from '@/lib/use-hash-target';
 import { useFocusWhenLost } from '@/lib/focus';
 import { permissionReason } from '@/lib/permissions';
@@ -73,6 +73,9 @@ export default function ExceptionsPage() {
 
   // An unknown outcome of a pay-by-bank checkout is resolved with the evidence that the payment arrived, not a debit failure code.
   const checkoutOutcome = actionKind === 'resolve' && selectedEx?.data?.linkedKind === 'connected-intents';
+  // A settlement batch held for its provider identity is confirmed as one of the identities it was held for (Admin and Finance).
+  // Until they load there is no field to check, and the service's refusal names them.
+  const heldBatch = useHeldBatchIdentities(selectedEx, isDialogOpen && actionKind === 'resolve', workspace?.role), heldIdentities = heldBatch.identities;
   const now = data?.asOf ? Date.parse(data.asOf) : Date.now();
   const isOpen = (status: string) => !['resolved', 'closed'].includes(status);
   const items = data?.items || [];
@@ -232,13 +235,17 @@ export default function ExceptionsPage() {
         answer={() => resolvedRef.current}
         onDone={response => { if (actionKind === 'resolve' && selectedEx) setResolved({ what: `${readableLabel(selectedEx.data?.type || 'exception')}${selectedEx.reference ? ` ${selectedEx.reference}` : ''}`, message: String(response?.message || 'Exception resolution recorded.') }); }}
         context={selectedEx ? values => <ExceptionContext exception={selectedEx} customer={customerById.get(String(selectedEx.customerId))} resolving={actionKind === 'resolve'} resolutionCode={values.resolutionCode} /> : undefined}
-        validate={actionKind === 'resolve' ? (values): Record<string, string> => checkoutOutcome
+        validate={actionKind === 'resolve' ? (values): Record<string, string> => ({ ...(heldIdentities.length ? providerIdentityErrors(values) : {}), ...(checkoutOutcome
           ? values.resolutionCode === 'resolved_succeeded' && !String(values.evidenceReference || '').trim() ? { evidenceReference: 'Enter the masked reference of the evidence that the payment arrived.' }
             : values.resolutionCode !== 'resolved_succeeded' && String(values.evidenceReference || '').trim() ? { evidenceReference: 'Enter an evidence reference only when the payment is confirmed as received.' } : {}
-          : values.confirmedFailureCode && values.resolutionCode !== 'resolved_failed' ? { confirmedFailureCode: 'Choose a failure code only when the provider confirmed that the debit failed.' } : {} : undefined}
+          : values.confirmedFailureCode && values.resolutionCode !== 'resolved_failed' ? { confirmedFailureCode: 'Choose a failure code only when the provider confirmed that the debit failed.' } : {}) }) : undefined}
         fields={
           actionKind === 'resolve' ? [
-            { name: 'resolutionCode', label: `How was this resolved? (${readableLabel(selectedEx?.data?.type || 'exception').toLowerCase()})`, type: 'select', isData: true, required: true, options: resolutionCodesForException(selectedEx).map(code => ({ label: resolutionLabel(selectedEx, code), value: code })) },
+            { name: 'resolutionCode', label: `How was this resolved? (${readableLabel(selectedEx?.data?.type || 'exception').toLowerCase()})`, type: 'select', isData: true, required: true, options: resolutionChoices(selectedEx, workspace?.role, heldBatch.held).map(code => ({ label: resolutionLabel(selectedEx, code), value: code })) },
+            ...(heldIdentities.length ? [{
+              name: 'confirmedProviderIdentity', label: 'Connection whose payout this batch is', type: 'select' as const, isData: true, options: heldIdentities,
+              help: 'Only with Provider identity confirmed: the connection the providers confirmed. Its evidence stays with the batch; the evidence of the others moves to their own batches.',
+            }] : []),
             ...(checkoutOutcome ? [{
               name: 'evidenceReference', label: 'Evidence reference', type: 'text' as const, isData: true,
               help: 'Only when the payment is confirmed as received: the masked reference of the evidence that the money arrived, such as a bank statement line (STMT-***4411).',

@@ -22,7 +22,7 @@ const refused = (run: () => unknown, pattern: RegExp) => { assert.throws(run, pa
  const open = { ...exception, data: { ...exception.data, notes: 'Contact the provider for supporting evidence.' } };
  assert.doesNotThrow(() => validateRecord(state, operations, 'exceptions', open, true)); checks++;
  refused(() => validateRecord(state, compliance, 'exceptions', open, true), /not permitted/);
- for (const field of ['resolutionCode', 'resolvedBy', 'resolvedAt', 'resolutionRuleVersion', 'conditionCleared', 'confirmedFailureCode', 'legacyResolutionReview']) {
+ for (const field of ['resolutionCode', 'resolvedBy', 'resolvedAt', 'resolutionRuleVersion', 'conditionCleared', 'confirmedFailureCode', 'confirmedProviderIdentity', 'legacyResolutionReview', 'legacyIdentityReview']) {
    const values: Record<string, unknown> = { resolvedAt: now, resolutionRuleVersion: 1, conditionCleared: { at: now, by: operations.actor, reason: 'Recorded' }, legacyResolutionReview: { priorExceptionId: 'prior' } };
    const candidate = { ...exception, data: { ...exception.data, [field]: values[field] ?? 'recorded' } };
    refused(() => validateRecord(state, operations, 'exceptions', candidate, true), /dedicated resolution workflow/);
@@ -42,6 +42,8 @@ const refused = (run: () => unknown, pattern: RegExp) => { assert.throws(run, pa
  assert.doesNotThrow(() => assertFinalState(before, structuredClone(before), state.merchant.id, now)); checks++;
  const due = state.records.find(record => record.kind === 'due-items')!;
  refused(() => validateRecord(state, operations, 'due-items', { ...due, data: { ...due.data, legacyReversalReviewIds: ['review-a'] } }, true), /recorded by reconciliation/);
+ // The status a hold paused is what reconciliation gives back: an edit may not write it.
+ refused(() => validateRecord(state, operations, 'due-items', { ...due, data: { ...due.data, legacyReversalReviewPause: { status: 'paid', pausedAt: now } } }, true), /recorded by reconciliation/);
  const observation = state.records.find(record => record.kind === 'observations')!;
  refused(() => validateRecord(state, operations, 'observations', { ...observation, data: { ...observation.data, legacyReversalReviewAppliedId: 'review-a' } }), /recorded by reconciliation/);
 }
@@ -77,6 +79,9 @@ const refused = (run: () => unknown, pattern: RegExp) => { assert.throws(run, pa
  }
  const renamed = { ...batch, reference: 'OTHER-BATCH' };
  refused(() => validateRecord(state, admin, 'settlement-batches', renamed, true), /reference cannot be changed/);
+ // Only reconciliation releases a held batch: an edit that wrote the release would lift a genuine hold.
+ const released = { ...batch, data: mergeData(batch.data, { providerIdentityRelease: { releasedAt: now, identity: '["provider a","BATCH-A"]', heldLineIds: [] } }) };
+ refused(() => validateRecord(state, admin, 'settlement-batches', released, true), /providerIdentityRelease is recorded by reconciliation/);
 }
 {
  const state = seedMerchant('customer-guards'), customers = state.records.filter(record => record.kind === 'customers');
@@ -109,5 +114,18 @@ const refused = (run: () => unknown, pattern: RegExp) => { assert.throws(run, pa
  assert.doesNotThrow(() => assertFinalState(state, structuredClone(state), state.merchant.id, now)); checks++;
  assert.equal(providerConnectionKey(' Provider A '), 'provider a'); checks++;
  assert.equal(providerConnectionKey('İ'), 'İ', 'normalisation is independent of PostgreSQL locale'); checks++;
+}
+{
+ // Reconciliation alone links payment evidence to a settlement batch, or marks where a line is counted: the record API and
+ // an import refuse these links, as they refuse a payment or a resolution.
+ const state = seedMerchant('evidence-links');
+ const evidence = { name: 'Settlement line', status: 'unresolved', reference: 'PSK-LINK', amountKobo: 1_000_000, customerId: '', data: { source: 'settlement', eventId: 'link-1', batchReference: 'B-1', provider: 'Provider A' } };
+ for (const [field, value] of Object.entries({ settlementBatchId: 'batch-a', resolvedTo: 'batch:batch-a', countedInBatchId: 'batch-a', duplicateSettlementLine: true, otherCurrencyLine: true })) {
+   refused(() => validateRecord(state, operations, 'observations', { ...structuredClone(evidence), data: { ...evidence.data, [field]: value } }), /Valo Pay links payment evidence to its settlement batch/);
+ }
+ assert.doesNotThrow(() => validateRecord(state, operations, 'observations', structuredClone(evidence))); checks++;
+ const imported = importCsv(state, operations, { kind: 'observations', csv: 'row_id,reference,amountKobo,source,eventId,settlementBatchId\nl1,PSK-LINK-2,1000000,settlement,link-2,batch-a', syntheticOnly: true, commit: true, identityColumn: 'row_id', amountUnit: 'kobo' });
+ assert.equal(imported.imported, 0); checks++;
+ assert.match(JSON.stringify(imported.rows[0]), /links payment evidence to its settlement batch/); checks++;
 }
 console.log(`Record identity and decision guards passed (${checks} checks).`);

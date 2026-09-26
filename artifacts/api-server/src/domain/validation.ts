@@ -170,7 +170,7 @@ export function validateRecord(
   for (const field of ['case', 'importIdentity']) {
     if (JSON.stringify(data[field]) !== JSON.stringify(existing?.data[field])) refuse(field, `Use the dedicated workflow to change ${field === 'case' ? 'case coordination' : 'import provenance'}.`);
   }
-  for (const field of ['legacyReversalReviewIds', 'legacyReversalReviewAppliedId', 'providerIdentityHeld']) {
+  for (const field of ['legacyReversalReviewIds', 'legacyReversalReviewAppliedId', 'legacyReversalReviewPause', 'providerIdentityHeld']) {
     if (!isDeepStrictEqual(data[field], existing?.data[field])) throw new Error('Reversal and provider identity review holds are recorded by reconciliation and cannot be changed here.');
   }
   if (kind === "exceptions") {
@@ -314,6 +314,10 @@ export function validateRecord(
     if (data.paymentId !== undefined || data.resolutionKey !== undefined || input.status === "resolved") {
       refuse(undefined, "Valo Pay determines how payment evidence is matched. Do not set its resolution when creating it.");
     }
+    // Reconciliation alone links evidence to a settlement batch, or marks where a line is counted: evidence naming a batch
+    // by these could make a batch Finance confirmed ambiguous again, or claim another batch's count.
+    const linked = ["settlementBatchId", "resolvedTo", "countedInBatchId", "duplicateSettlementLine", "otherCurrencyLine"].filter((field) => data[field] !== undefined);
+    if (linked.length) refuse(linked[0], "Valo Pay links payment evidence to its settlement batch and records where a settlement line is counted. Do not set these links when creating it.");
     if (data.dueItemId) {
       const due = link("dueItemId", data.dueItemId, "due-items", "observation dueItemId");
       if (due && due.customerId !== input.customerId) refuse("dueItemId", "The payment evidence and linked instalment must belong to the same customer.");
@@ -411,7 +415,7 @@ export function validateRecord(
     }
     // Reconciliation copies these from the provider's lines, the fee schedule and the linked statement credit, and derives the status from them.
     // Compared by value: jsonb returns enteredTotals' keys in its own order.
-    for (const key of ["statementObservationId", "statementNetKobo", "statementOtherCurrencies", "lineObservationIds", "linePaymentIds", "otherCurrencyLineIds", "expectedFeeKobo", "feeVarianceKobo", "enteredTotals", "providerIdentityReview", "providerIdentityKey"]) {
+    for (const key of ["statementObservationId", "statementNetKobo", "statementOtherCurrencies", "lineObservationIds", "linePaymentIds", "otherCurrencyLineIds", "expectedFeeKobo", "feeVarianceKobo", "enteredTotals", "providerIdentityReview", "providerIdentityKey", "providerIdentityRelease", "providerIdentityHistory"]) {
       if (!isDeepStrictEqual(data[key], existing?.data[key])) throw new Error(`Settlement batch ${key} is recorded by reconciliation and cannot be changed here.`);
     }
     if (existing?.data.providerIdentityKey !== undefined && (input.reference !== existing.reference || data.batchReference !== existing.data.batchReference)) throw new Error('A settlement batch identity is recorded by reconciliation and its reference cannot be changed here.');
