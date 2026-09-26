@@ -15,14 +15,17 @@ The [CI run for the reviewed source](https://github.com/obeidpeter/valo-pay/acti
 
 At deployment, financial staging remained disabled and the scheduler reported **off**. An external scheduler, outbound alert delivery, a hosted restore rehearsal with independently verified object/key custody and an independent human operator session remain uncommissioned. Paystack still has no configured account or test key. No provider call, alert delivery, staging migration or live financial activation was performed by this release. The [migration catalogue](database-migrations.md) separates required application changes from these optional rehearsals.
 
-## Draft changes awaiting release · 26 September 2026
+## Merged changes awaiting deployment · 26 September 2026
 
-The current documentation review includes two later source branches. Neither is part of the deployed PR #64 record above:
+These changes are merged into `main` after the deployed PR #64 record above. None of them is deployed yet; record the deployed revision and fresh verification separately when they are.
 
-- [PR #65](https://github.com/obeidpeter/valo-pay/pull/65), at `a9106bff032b946577485cc16e3c721e2b14e7c6`, improves loading, error and empty states, invitation recovery, role-specific guidance and the migration/release documentation. Its [CI run](https://github.com/obeidpeter/valo-pay/actions/runs/36250247528) passed all eight jobs, including 684 UI tests.
-- [PR #66](https://github.com/obeidpeter/valo-pay/pull/66), at `859fc923779ed7bc2964fc2c3ec46a0caddfe4d4`, builds on PR #65. It protects close-review and case follow-up drafts, restores dialog focus and corrects monitor classification of schema-readiness failures. Its [CI run](https://github.com/obeidpeter/valo-pay/actions/runs/36253528763) passed all eight jobs, including 698 UI tests in 92 files.
+- [PR #65](https://github.com/obeidpeter/valo-pay/pull/65), merged as `253eb90dc747d0e35b9b18d3a5502f7bd6b71a07`, improves loading, error and empty states, invitation recovery, role-specific guidance and the migration/release documentation. Its [CI run](https://github.com/obeidpeter/valo-pay/actions/runs/36250247528) passed all eight jobs, including 684 UI tests.
+- [PR #66](https://github.com/obeidpeter/valo-pay/pull/66), merged as `99eac2525869ddf5e9329b07e60adf1da5122171`, protects close-review and case follow-up drafts, restores dialog focus and corrects monitor classification of schema-readiness failures. Its [CI run](https://github.com/obeidpeter/valo-pay/actions/runs/36253528763) passed all eight jobs, including 698 UI tests in 92 files.
+- [PR #67](https://github.com/obeidpeter/valo-pay/pull/67), merged as `0b556f5854f90ae0a687bc2918894936c0ce20cb`, refreshes the document baselines and adds the [document register](document-register.md), which tracks the accompanying Word documents. These document updates do not commission live services or change production gates.
 
-The documentation refresh is based on PR #66. Review and merge these stacked changes in dependency order before any later deployment, then record the deployed revision and fresh verification separately. The [document register](document-register.md) tracks the accompanying Word documents. These checks and document updates do not commission live services or change production gates.
+### Review fixes for PRs #61 to #67
+
+A review of the seven pull requests merged on 26 September found the defects below. Each was reproduced with a failing test before it was fixed:
 
 ## Earlier release notes
 
