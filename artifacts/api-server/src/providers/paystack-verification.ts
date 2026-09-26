@@ -15,9 +15,10 @@ export type PaystackVerificationAdapter = {
 };
 /**
  * What one check found, or why it was refused, as the command prints and logs
- * it. Only `mismatch` quarantines the event: every other finding leaves it as
- * it was, and a check that reached Paystack records its finding in the
- * event's history.
+ * it. Only `mismatch` quarantines the event and `verified` records its
+ * observation; any other finding a check records leaves the event awaiting
+ * verification, named in its history (`check`). The rest are refusals, which
+ * record nothing.
  */
 export type PaystackVerificationOutcome =
   | "verified"
