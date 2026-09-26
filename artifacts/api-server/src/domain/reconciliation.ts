@@ -351,7 +351,16 @@ function cancelUnsentAttempts(state: DomainState, dueItemId: string, now: string
 /** What a settlement line adds to its batch's totals. */
 interface LineTotals { grossKobo: number; feeKobo: number; expectedFeeKobo: number }
 
-/** The fee schedule a settlement line is checked against: its provider's, else its payment's connection's, for money in its currency (none outside naira). */
+/**
+ * The one fee schedule a settlement line is checked against, at its first count
+ * (settlementBatch) and at every recount (completeLineGross, recountEarlierLines,
+ * countDisplacedLines): the schedule of the provider it names (data.provider),
+ * else of its payment's connection, else of the lender's provider, for money in
+ * its currency (none outside naira). Every build before 26 September counted
+ * lines this way, and a line records the expected fee it was counted with, so
+ * counts already saved stay as they are. The batch the line counts in is still
+ * found by its connection (settlementIdentity), which its provider does not change.
+ */
 const lineSchedule = (state: DomainState, line: TypedRecord<"observations">, payment: TypedRecord<"payments">): ProviderFeeSchedule | undefined =>
   feeScheduleIn(state, String(line.data.provider || payment.data.providerConnection || state.merchant.provider), currencyOf(line));
 
@@ -671,7 +680,7 @@ function settlementBatch(state: DomainState, ctx: Context, observation: TypedRec
   const batchReference = String(observation.data.batchReference || "");
   if (!batchReference) return;
   const provider = connectionOf(state, observation);
-  const currency = currencyOf(observation), schedule = feeScheduleIn(state, provider, currency);
+  const currency = currencyOf(observation), schedule = lineSchedule(state, observation, payment);
   const identity = settlementIdentity(state, observation, batchReference);
   let batch = recordsWhere(state, "settlement-batches", "reference", batchReference).find((item) => batchIdentity(state, item) === identity || (item.data.providerIdentityReview as { identities?: string[] } | undefined)?.identities?.includes(identity));
   if (!batch) {

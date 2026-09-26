@@ -216,4 +216,36 @@ for (const order of [["connection-a", "connection-b"], ["connection-b", "connect
   assert.ok(batch.data.providerIdentityReview);
   assert.equal(foreign.data.resolvedTo, `batch:${batch.id}`);
 }
+
+// Review fix: a settlement line naming a provider and another connection is checked against one fee schedule, its
+// provider's, at its first count and when its debit's gross completes it later, in either arrival order.
+{
+  const GROSS = 2_500_000, FEE = 25_000; // Provider P charges 1%; connection C's schedule would charge 2%.
+  const settle = (order: "line first" | "debit first") => {
+    const { state, due } = liveFixture({ withFailure: false, merchantId: `line-schedule-${order.split(" ")[0]}` });
+    state.settings.providerFeeSchedule = { ...state.settings.providerFeeSchedule, "Provider P": { bps: 100 }, "Connection C": { bps: 200 } };
+    addAttempt(state, due, { status: "succeeded", occurredAt: wat("2027-07-01T06:00:00"), providerReference: "PSK-FEE-1" });
+    const through = { provider: "Provider P", providerConnection: "Connection C" };
+    const debit = () => addObservation(state, { reference: "PSK-FEE-1", amountKobo: GROSS, source: "webhook", customerId: due.customerId, eventId: "fee-debit", occurredAt: wat("2027-07-01T06:30:00"), ...through } as any);
+    // A net line: it states what it paid out and its fee, not its gross.
+    const line = () => addObservation(state, { reference: "PSK-FEE-1", amountKobo: GROSS - FEE, feeKobo: FEE, batchReference: "B-FEE", source: "settlement", customerId: due.customerId, eventId: "fee-line", occurredAt: wat("2027-07-01T08:00:00"), ...through } as any);
+    const first = order === "line first" ? line() : debit();
+    run(state);
+    const second = order === "line first" ? debit() : line();
+    const counted = order === "line first" ? first : second;
+    const batch = () => recordsOf(state, "settlement-batches").find((item) => item.reference === "B-FEE")!;
+    const atFirstCount = order === "line first" ? [batch().status, counted.data.expectedFeeKobo] : undefined;
+    run(state);
+    addObservation(state, { reference: "STMT-FEE", amountKobo: GROSS - FEE, batchReference: "B-FEE", source: "statement", eventId: "fee-credit", occurredAt: wat("2027-07-01T09:00:00"), ...through } as any);
+    run(state); run(state);
+    const payments = recordsOf(state, "payments").filter((item) => item.reference === "PSK-FEE-1");
+    return { atFirstCount, payments: payments.map((item) => [item.amountKobo, item.data.grossUnstated ?? false]), line: [counted.data.countedGrossKobo, counted.data.assumedFeeKobo, counted.data.expectedFeeKobo, counted.data.feeVarianceKobo], batch: [batch().status, batch().data.grossKobo, batch().data.feeKobo, batch().data.expectedFeeKobo, batch().data.feeVarianceKobo, (batch().data.feeSchedule as { bps?: number } | undefined)?.bps] };
+  };
+  const lineFirst = settle("line first"), debitFirst = settle("debit first");
+  assert.deepEqual(lineFirst.atFirstCount, ["pending", FEE], "the first count checks the net line's fee against its provider's schedule, so it is not a variance");
+  assert.deepEqual(lineFirst.payments, [[GROSS, false]], "the debit's gross completes the payment the net line made");
+  assert.deepEqual(lineFirst.line, [GROSS, FEE, FEE, undefined], "completing the gross keeps the expected fee the line was counted with");
+  assert.deepEqual(lineFirst.batch, ["reconciled", GROSS, FEE, FEE, 0, 100], "the batch reconciles with its provider's schedule");
+  assert.deepEqual([debitFirst.line, debitFirst.batch], [lineFirst.line, lineFirst.batch], "the order the line and its debit arrive in changes nothing");
+}
 console.log("Financial migration regressions passed: unversioned reversal authority, renewed Finance review, prior allocations/dispositions, replay, provider-scoped settlement and legacy quarantine.");
