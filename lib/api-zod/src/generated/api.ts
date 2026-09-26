@@ -1787,7 +1787,7 @@ export const GetConnectedWorkspaceResponse = zod.object({
   "includedCommitmentIds": zod.array(zod.string()),
   "excludedCommitmentIds": zod.array(zod.string()),
   "warnings": zod.array(zod.string())
-}).describe('Base and downside cash forecasts from approved commitments: a planning estimate, not an available balance.'),zod.null()]).describe('The latest saved forecast while it may be shown, a preview when none is saved, or null: without business-account read permission, or while the latest saved forecast must be prepared again.'),
+}).describe('Base and downside cash forecasts from approved commitments: a planning estimate, not an available balance.'),zod.null()]).describe('The latest saved forecast while it may be shown, null while it must be prepared again, or a sample preview when none is saved. Once the desk is set up it is null without business-account read permission; before that the preview is shown whatever the permissions, so a forecast here is not proof of that permission.'),
   "savedForecast": zod.object({
   "id": zod.string(),
   "createdAt": zod.string(),

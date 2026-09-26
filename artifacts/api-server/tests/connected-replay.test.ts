@@ -182,13 +182,17 @@ for (const action of ["cash.initialize", "cash.forecast", "cash.vat.export"]) {
   denied(() => assertConnectedReplayAllowed(f.state, operations, "cash.forecast", fresh), 409);
   denied(() => assertConnectedReplayAllowed(f.state, finance, "cash.vat.export", freshVat), 409);
   checks += 2;
-  // Refreshing the sample's timestamps changes no figure a forecast was made from.
+  // Refreshing the sample's timestamps later changes no figure a forecast was made from.
   workspace.commitments[0].amountMinor -= 100;
   workspace.vatInvoices[0].vatMinor -= 100;
-  f.cash("cash.refresh_sample");
-  assert.equal(view().savedForecast?.state, "current");
-  assertConnectedReplayAllowed(f.state, operations, "cash.forecast", fresh);
-  checks += 1;
+  const [refreshedAt, readAt] = ["2026-09-26T11:30:00.000Z", "2026-09-26T11:45:00.000Z"];
+  f.cash("cash.refresh_sample", { ...operations, now: refreshedAt });
+  const accounts = f.state.records.find((record) => record.kind === "connected-cash-workspace")!.data.workspace.accounts as { balanceAsOf: string; fetchedAt: string }[];
+  assert.ok(accounts.length > 0 && accounts.every((account) => account.balanceAsOf === refreshedAt && account.fetchedAt === refreshedAt), "the refresh moved the sample's balance timestamps");
+  const afterRefresh = cashView(f.state, { ...finance, now: readAt });
+  assert.deepEqual([afterRefresh.savedForecast?.state, afterRefresh.forecast], ["current", (fresh.record as any).record.data.forecast]);
+  assertConnectedReplayAllowed(f.state, { ...operations, now: readAt }, "cash.forecast", fresh);
+  checks += 2;
   // Saved before its authority, or its source, was bound: it cannot show what it was made under, so it is withheld.
   delete f.state.records.find((record) => record.id === freshVatId)!.data.replayAuthority;
   assert.deepEqual(listed().at(-1), [freshVatId, "prepare_again", "withheld"]);
