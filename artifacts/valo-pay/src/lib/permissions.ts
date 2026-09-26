@@ -1,4 +1,4 @@
-import { nairaText, normaliseRefundStatus, normaliseReversalStatus, paymentMoneyReturned, paymentRefundedKobo, paymentUnappliedKobo } from '@workspace/valopay-schema';
+import { nairaText, normaliseRefundStatus, normaliseReversalStatus, paymentMoneyReturned, paymentRefundedKobo, paymentUnappliedKobo, providerIdentityOf } from '@workspace/valopay-schema';
 
 type ActingWorkspace = { role: string; actor: string } | undefined;
 type PermissionRecord = { status?: string; reference?: string; amountKobo?: number; data?: Record<string, unknown> } | null;
@@ -66,6 +66,8 @@ export function permissionReason(workspace: ActingWorkspace, { action, kind, rec
   // A payment in another currency, or whose money went back, takes no allocation: its Allocate says why, as the service would.
   const refusal = action === 'manual_allocate' ? allocationRefusal(record ?? null) : null;
   if (refusal) return refusal;
+  // A settlement batch held for its provider identity, or a renewed review of its hold, is resolved only by confirming whose payout it is (FIN-03).
+  if (action === 'resolve_exception' && providerIdentityOf(record?.data?.condition) && !['Admin', 'Finance'].includes(workspace.role)) return 'Requires Admin or Finance: a settlement batch held for its provider identity is released by Finance’s confirmation of whose payout it is.';
   // Confirming a pay-by-bank payment whose outcome stayed unknown records a receipt, so Finance records it.
   if (action === 'resolve_exception' && record?.data?.linkedKind === 'connected-intents' && !['Admin', 'Finance'].includes(workspace.role)) return 'Requires Admin or Finance: the outcome of a pay-by-bank payment is Finance’s to record.';
   if (!action && ['templates', 'policies'].includes(kind || '') && record && !['draft', 'rejected'].includes(record.status || '')) {

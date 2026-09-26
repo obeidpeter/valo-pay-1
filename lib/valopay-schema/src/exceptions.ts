@@ -122,19 +122,43 @@ export function providerIdentityCondition(batchId: string): string {
   return `settlement_variance:${batchId}:provider_identity`;
 }
 
-/** The batch a provider identity condition (providerIdentityCondition) names; undefined for any other condition. */
+/**
+ * The condition of a renewed review of an earlier decision on a batch's provider
+ * identity hold: reconciliation raises one, once, for a batch still held whose
+ * hold's exception an earlier build resolved or closed without a confirmed
+ * identity, naming that exception.
+ */
+export function providerIdentityReviewCondition(batchId: string, earlierExceptionId: string): string {
+  return `${providerIdentityCondition(batchId)}:review:${earlierExceptionId}`;
+}
+
+/**
+ * The batch a provider identity condition names: the hold's own
+ * (providerIdentityCondition) or a renewed review's
+ * (providerIdentityReviewCondition); undefined for any other condition.
+ */
 export function providerIdentityOf(condition: unknown): string | undefined {
   const parts = String(condition ?? "").split(":");
-  return parts.length === 3 && parts[0] === "settlement_variance" && parts[1] && parts[2] === "provider_identity" ? parts[1] : undefined;
+  const hold = parts[0] === "settlement_variance" && !!parts[1] && parts[2] === "provider_identity";
+  return hold && (parts.length === 3 || (parts.length === 5 && parts[3] === "review" && !!parts[4])) ? parts[1] : undefined;
+}
+
+/** The earlier exception a renewed review of a provider identity hold names (providerIdentityReviewCondition); undefined for any other condition. */
+export function providerIdentityReviewOf(condition: unknown): string | undefined {
+  const parts = String(condition ?? "").split(":");
+  return parts.length === 5 && providerIdentityOf(condition) !== undefined ? parts[4] : undefined;
 }
 
 /**
  * Finance's release of a settlement batch held for its provider identity, once
- * the providers have confirmed whose payout it is. Only Admin or Finance records
- * it, with the identity it confirms (data.confirmedProviderIdentity, one of the
- * identities the batch was held for, providerIdentityReview.identities): the next
- * reconciliation keeps that connection's evidence in the batch and moves the
- * evidence of the others to their own batches.
+ * the providers have confirmed whose payout it is: the only code its hold's
+ * exception, or a renewed review of it, offers and accepts. Only Admin or Finance
+ * records it, with the identity it confirms (data.confirmedProviderIdentity, one
+ * of the identities the batch was held for, providerIdentityReview.identities):
+ * the next reconciliation keeps that connection's evidence in the batch and moves
+ * the evidence of the others to their own batches. Where the providers cannot
+ * attribute the payout to one connection, the exception stays open until the
+ * data owner repairs the evidence.
  */
 export const providerIdentityConfirmedCode = "provider_identity_confirmed";
 
@@ -154,14 +178,16 @@ export const resolutionRuleVersion = 1;
  * not_money only for held payment evidence, never for a held payment. The
  * provider_status_mismatch of a reversal waiting for a payment no connection
  * has seen offers only the two codes that decide it (unseenReversalCodes). A
- * settlement_variance offers provider_identity_confirmed only for a batch held
- * for its provider identity (providerIdentityCondition).
+ * settlement_variance raised for a batch held for its provider identity, or a
+ * renewed review of one (providerIdentityOf), offers only
+ * provider_identity_confirmed, the one code that decides it, and no other
+ * settlement_variance offers that code.
  */
 export function resolutionCodesForException(exception: { data?: { type?: unknown; condition?: unknown } | null } | null | undefined): readonly string[] {
   const codes = resolutionCodesFor(exception?.data?.type);
   const type = resolveExceptionType(exception?.data?.type);
   if (type === "provider_status_mismatch" && unseenReversalOf(exception?.data?.condition)) return codes.filter((code) => code === unseenReversalCodes.adopted || code === unseenReversalCodes.setAside);
-  if (type === "settlement_variance") return providerIdentityOf(exception?.data?.condition) ? codes : codes.filter((code) => code !== providerIdentityConfirmedCode);
+  if (type === "settlement_variance") return codes.filter((code) => (code === providerIdentityConfirmedCode) === (providerIdentityOf(exception?.data?.condition) !== undefined));
   if (type !== "suspected_duplicate") return codes;
   const held = heldEvidenceOf(exception?.data?.condition);
   return codes.filter((code) => code === heldEvidenceCodes.samePayment ? held?.connectionOnly === true : code === heldEvidenceCodes.notMoney ? held !== undefined : true);

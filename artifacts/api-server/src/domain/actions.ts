@@ -1,7 +1,7 @@
 import {
   allocationDecisionDataSchema, counted, businessDateSchema,
   DEFAULT_ACTIVATION_WINDOW_DAYS, PLATFORM_OWNER, activationReminderCaps, closeRules, failureCodeList, handBackFallbackOwner, isKnownFailureCode,
-  heldEvidenceCodes, heldEvidenceOf, moneyText, nairaText, nextCloseInstant, normaliseFailureCode, otherCurrenciesText, passRuleText, paymentUnappliedKobo, providerIdentityConfirmedCode, providerIdentityParts, resolutionCodesForException, resolutionRuleVersion, resolveExceptionType, unseenReversalCodes, unseenReversalOf, withinQuietHours, templateTextProblems,
+  heldEvidenceCodes, heldEvidenceOf, moneyText, nairaText, nextCloseInstant, normaliseFailureCode, otherCurrenciesText, passRuleText, paymentUnappliedKobo, providerIdentityConfirmedCode, providerIdentityOf, providerIdentityParts, resolutionCodesForException, resolutionRuleVersion, resolveExceptionType, unseenReversalCodes, unseenReversalOf, withinQuietHours, templateTextProblems,
   type CloseTrigger,
 } from "@workspace/valopay-schema";
 import { findRecord, makeRecord, recordsOf, touch } from "./records";
@@ -473,11 +473,16 @@ function runAction(state: DomainState, ctx: Context, input: ActionInput, audit?:
     assertActionRole(ctx, ["Admin", "Finance", "Operations"]);
     const item = findRecord(state, String(input.recordId), "exceptions");
     if (item.data.legacyResolutionReview) assertActionRole(ctx, ["Admin", "Finance"]);
+    // FIN-03: a batch held for its provider identity is released only by Finance's, or an administrator's, confirmation of whose payout it is.
+    const identityHold = resolveExceptionType(item.data.type) === "settlement_variance" && providerIdentityOf(item.data.condition) !== undefined;
+    if (identityHold && !["Admin", "Finance"].includes(ctx.role)) throw Object.assign(new Error("Only Finance, or an administrator, resolves a settlement batch's provider identity hold, by confirming whose payout the batch is."), { status: 403 });
     if (item.data.case?.assignee && item.data.case.assignee !== ctx.actor && ctx.role !== 'Admin') throw Object.assign(new Error('Ask the case assignee or an administrator to record the resolution. Financial review remains a separate action.'), { status: 409 });
     if (["resolved", "closed"].includes(item.status)) throw new Error("This exception is already resolved.");
     // Codes that apply to this exception as it stands now: held evidence is re-derived first, so joining it to its payment is
     // accepted only while it is held for its connection alone, whatever condition an earlier state or build recorded.
     if (resolveExceptionType(item.data.type) === "suspected_duplicate") refreshHeldEvidence(state, ctx, item);
+    // Any other code would close the exception while the batch stays held with its evidence uncounted, with no way out.
+    if (identityHold && data.resolutionCode !== providerIdentityConfirmedCode) throw new Error(`Resolution code must be ${providerIdentityConfirmedCode}: a settlement batch held for its provider identity is released only when Finance or an administrator confirms whose payout it is. If the providers cannot attribute the payout to one connection, leave this exception open until the data owner repairs the evidence; the next reconciliation then releases the batch and closes the exception.`);
     const allowed = resolutionCodesForException(item);
     if (!allowed.includes(String(data.resolutionCode))) throw new Error(`Resolution code must be one of: ${allowed.join(", ")}.`);
     const type = resolveExceptionType(item.data.type);
@@ -493,8 +498,7 @@ function runAction(state: DomainState, ctx: Context, input: ActionInput, audit?:
     } else if (evidenceReference) throw new Error("An evidence reference is recorded only when a pay-by-bank payment whose outcome stayed unknown is confirmed as received.");
     // FIN-03: only Finance, or an administrator, confirms whose payout a batch held for its provider identity is, naming one of the identities it was held for.
     const identity = typeof data.confirmedProviderIdentity === "string" && data.confirmedProviderIdentity.trim() ? data.confirmedProviderIdentity : undefined;
-    if (data.resolutionCode === providerIdentityConfirmedCode) assertActionRole(ctx, ["Admin", "Finance"]);
-    else if (identity !== undefined) throw new Error("A provider identity is confirmed only when a settlement batch held for its provider identity is resolved as provider identity confirmed.");
+    if (data.resolutionCode !== providerIdentityConfirmedCode && identity !== undefined) throw new Error("A provider identity is confirmed only when a settlement batch held for its provider identity is resolved as provider identity confirmed.");
     const heldBatch = data.resolutionCode === providerIdentityConfirmedCode ? heldBatchToConfirm(state, item, identity) : undefined;
     const confirmedCode = data.confirmedFailureCode === undefined || data.confirmedFailureCode === null || data.confirmedFailureCode === "" ? undefined : data.confirmedFailureCode;
     if (confirmedCode !== undefined) {

@@ -1,6 +1,6 @@
 import { Link, useSearch } from 'wouter';
 import { getListRecordsQueryKey, useListRecords, type ValopayRecord } from '@workspace/api-client-react';
-import { heldEvidenceCodes, heldEvidenceOf, providerIdentityConfirmedCode, providerIdentityOf, providerIdentityParts, resolutionCodesForException, resolveExceptionType, unseenReversalCodes, unseenReversalOf } from '@workspace/valopay-schema';
+import { heldEvidenceCodes, heldEvidenceOf, providerIdentityConfirmedCode, providerIdentityOf, providerIdentityParts, providerIdentityReviewOf, resolutionCodesForException, resolveExceptionType, unseenReversalCodes, unseenReversalOf } from '@workspace/valopay-schema';
 import { formatDate, formatNumber } from '@/lib/formatters';
 import { formatRecordMoney } from '@/lib/currencies';
 import { readableLabel } from '@/components/record-label';
@@ -10,7 +10,7 @@ import { useWorkspace } from '@/lib/workspace-context';
 const waitingReversal = (exception: ValopayRecord | null | undefined) =>
   resolveExceptionType(exception?.data?.type) === 'provider_status_mismatch' && unseenReversalOf(exception?.data?.condition) !== undefined;
 
-/** A settlement batch held for its provider identity (FIN-03): a settlement_variance whose condition names the batch. */
+/** A settlement batch held for its provider identity (FIN-03): a settlement_variance whose condition names the batch, its hold's own or a renewed review's. */
 const identityHold = (exception: ValopayRecord | null | undefined) =>
   resolveExceptionType(exception?.data?.type) === 'settlement_variance' && providerIdentityOf(exception?.data?.condition) !== undefined;
 /** Whether a role may confirm a held batch's identity: the service accepts it from Admin and Finance only (403 otherwise). */
@@ -71,10 +71,10 @@ export function resolutionLabel(exception: ValopayRecord | null | undefined, cod
 export function resolutionEffect(exception: ValopayRecord, code: unknown): string | undefined {
   const type = resolveExceptionType(exception.data?.type), chosen = String(code || '');
   if (identityHold(exception)) {
-    if (!chosen) return 'Once the providers have confirmed whose payout this settlement batch is, choose Provider identity confirmed and that connection. Any other outcome records your decision and reason, and the batch stays held, with no exception left to confirm its connection later.';
-    return chosen === providerIdentityConfirmedCode
-      ? 'The next reconciliation releases this settlement batch as the payout of the connection you choose. Its settlement lines and statement credits of that connection stay with it, and so does evidence that names no connection. Each settlement line of another connection moves to that connection\'s own batch, and each statement credit of another connection is left to link to its own; the batch\'s totals leave out the lines that move, unless they were typed by hand. No money moves.'
-      : 'Resolving it this way records your decision and reason, and the batch stays held for its provider identity: nothing reconciles it, and no exception is left to confirm its connection later. No money moves.';
+    // Its only outcome confirms whose payout the batch is: any other would close it while the batch stays held.
+    const review = providerIdentityReviewOf(exception.data?.condition) !== undefined, it = review ? 'this review' : 'this exception';
+    if (!chosen) return `${review ? 'An earlier resolution of this batch\'s hold keeps its meaning, but the batch stays held, with its evidence uncounted, until Finance or an administrator confirms whose payout it is. ' : ''}Once the providers have confirmed whose payout this settlement batch is, choose Provider identity confirmed and that connection. If they cannot attribute it to one connection, leave ${it} open: once the data owner has repaired the evidence, the next reconciliation releases the batch and closes ${it}.`;
+    if (chosen === providerIdentityConfirmedCode) return 'The next reconciliation releases this settlement batch as the payout of the connection you choose. Its settlement lines and statement credits of that connection stay with it, and so does evidence that names no connection. Each settlement line of another connection moves to that connection\'s own batch, and each statement credit of another connection is left to link to its own; the batch\'s totals leave out the lines that move, unless they were typed by hand. No money moves.';
   }
   if (waitingReversal(exception)) {
     // No code keeps it open for Finance to check (escalated_to_provider is not offered), so the box says to leave it open.

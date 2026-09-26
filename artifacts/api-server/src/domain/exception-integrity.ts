@@ -4,7 +4,7 @@ import type { ValopayRecord } from './types';
 /** Only the dedicated resolution/condition-clearing workflow may record these fields. */
 export const exceptionActionFields = [
   'resolutionCode', 'resolvedBy', 'resolvedAt', 'resolutionRuleVersion', 'conditionCleared',
-  'confirmedFailureCode', 'confirmedProviderIdentity', 'legacyType', 'legacyResolutionReview',
+  'confirmedFailureCode', 'confirmedProviderIdentity', 'legacyType', 'legacyResolutionReview', 'legacyIdentityReview',
 ] as const;
 
 /** A review of recorded historical evidence cannot be redirected to a different case while still open. */

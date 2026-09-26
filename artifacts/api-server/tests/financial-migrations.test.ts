@@ -364,22 +364,113 @@ function mixedBatch(merchantId: string) {
 const identityOf = (connection: string) => JSON.stringify([connection, "SHARED"]);
 const confirm = (state: DomainState, exception: TypedRecord<"exceptions">, role: string, data: Record<string, unknown>) =>
   transaction(state, () => executeAction(state, ctxAt(now, role), { action: "resolve_exception", recordId: exception.id, reason: "Both providers confirmed whose payout this batch is.", data: { resolutionCode: "provider_identity_confirmed", ...data } }));
+/** Whether a resolution is refused, and with what status and message. */
+function refusal(state: DomainState, exception: TypedRecord<"exceptions">, role: string, data: Record<string, unknown>): [number, string] {
+  try { confirm(structuredClone(state), structuredClone(exception), role, data); } catch (error) { return [(error as { status?: number }).status ?? 400, (error as Error).message]; }
+  return [200, ""];
+}
+const onlyConfirmation = /^Resolution code must be provider_identity_confirmed: a settlement batch held for its provider identity is released only when Finance or an administrator confirms whose payout it is\. If the providers cannot attribute the payout to one connection, leave this exception open until the data owner repairs the evidence/;
 {
+  // Decision: the hold's exception offers and accepts only provider_identity_confirmed, the one code that decides it. The
+  // settlement codes would close it while the batch stays held with its evidence uncounted, with no way out.
   const { state, batch, hold } = mixedBatch("confirm-refusals");
   assert.deepEqual([batch.status, (batch.data.providerIdentityReview as { identities: string[] }).identities, hold.status], ["variance", [identityOf("connection-a"), identityOf("connection-b")], "open"], "the mixed batch is held with its exception");
-  const refused = (role: string, data: Record<string, unknown>) => { try { confirm(structuredClone(state), structuredClone(hold), role, data); } catch (error) { return [(error as { status?: number }).status ?? 400, (error as Error).message]; } return [200, ""]; };
-  assert.equal(refused("Operations", { confirmedProviderIdentity: identityOf("connection-a") })[0], 403, "only Admin or Finance confirms a batch's identity");
-  assert.deepEqual(refused("Finance", { confirmedProviderIdentity: identityOf("connection-c") }).map(String), ["400", `Choose one of the identities settlement batch SHARED was held for: ${identityOf("connection-a")}, ${identityOf("connection-b")}.`], "an identity the batch was not held for is refused");
-  assert.equal(refused("Finance", {})[0], 400, "the identity is required");
-  // Any other code on that condition keeps today's behaviour: the decision is recorded and the batch stays held.
-  const other = structuredClone(state), otherHold = recordsOf(other, "exceptions").find((item) => item.id === hold.id)!;
-  assert.throws(() => transaction(other, () => executeAction(other, ctxAt(now, "Finance"), { action: "resolve_exception", recordId: otherHold.id, reason: "Accepted.", data: { resolutionCode: "accepted_variance", confirmedProviderIdentity: identityOf("connection-a") } })), /A provider identity is confirmed only/);
-  transaction(other, () => executeAction(other, ctxAt(now, "Operations"), { action: "resolve_exception", recordId: otherHold.id, reason: "Accepted.", data: { resolutionCode: "accepted_variance" } }));
-  run(other); run(other);
-  const stays = recordsOf(other, "settlement-batches").find((item) => item.id === batch.id)!;
-  assert.deepEqual([stays.status, stays.data.providerIdentityRelease, otherHold.status], ["variance", undefined, "resolved"]);
-  // The code is offered only for a batch held for its provider identity.
-  assert.deepEqual([resolutionCodesForException(hold).includes("provider_identity_confirmed"), resolutionCodesForException({ data: { type: "settlement_variance", condition: `settlement_variance:${batch.id}:statement:1:2:3` } }).includes("provider_identity_confirmed")], [true, false]);
+  assert.deepEqual(resolutionCodesForException(hold), ["provider_identity_confirmed"], "the hold's exception offers only the confirmation");
+  assert.deepEqual(resolutionCodesForException({ data: { type: "settlement_variance", condition: `settlement_variance:${batch.id}:statement:1:2:3` } }), ["fee_schedule_updated", "provider_corrected", "accepted_variance"], "no other settlement variance offers it");
+  for (const code of ["fee_schedule_updated", "provider_corrected", "accepted_variance"]) {
+    const [status, message] = refusal(state, hold, "Finance", { resolutionCode: code });
+    assert.equal(status, 400, `${code} is refused`);
+    assert.match(message, onlyConfirmation, `${code}: the refusal names the one code allowed`);
+  }
+  for (const data of [{ confirmedProviderIdentity: identityOf("connection-a") }, { resolutionCode: "accepted_variance" }]) assert.equal(refusal(state, hold, "Operations", data)[0], 403, "only Admin or Finance resolves the hold");
+  assert.deepEqual(refusal(state, hold, "Finance", { confirmedProviderIdentity: identityOf("connection-c") }), [400, `Choose one of the identities settlement batch SHARED was held for: ${identityOf("connection-a")}, ${identityOf("connection-b")}.`], "an identity the batch was not held for is refused");
+  assert.equal(refusal(state, hold, "Finance", {})[0], 400, "the identity is required");
+  assert.equal(refusal(state, hold, "Admin", { confirmedProviderIdentity: identityOf("connection-a") })[0], 200, "an administrator may confirm it");
+}
+{
+  // Where the providers cannot attribute the payout to one connection, the hold's exception stays open until the data owner
+  // repairs the evidence; the next reconciliation then releases the batch and closes the exception as its condition cleared.
+  const { state, batch, aLine, bLine, aCredit, bCredit, hold } = mixedBatch("owner-repair");
+  // The hold's exception carries a report of a collection counted in two batches, as an open exception of a batch does.
+  const counting = makeRecord(state, "settlement-batches", { name: "Settlement batch EARLIER", status: "pending", reference: "EARLIER", data: { batchReference: "EARLIER", provider: "connection-a", providerConnection: "connection-a", providerIdentityKey: JSON.stringify(["connection-a", "EARLIER"]), currency: "NGN", lineObservationIds: [], linePaymentIds: [], grossKobo: 0, feeKobo: 0, netKobo: 0 } });
+  const again = line(state, "connection-a", "NGN", "PAY-connection-a-again");
+  Object.assign(again, { status: "resolved" }); Object.assign(again.data, { paymentId: aLine.data.paymentId, settlementBatchId: batch.id, countedInBatchId: counting.id, duplicateSettlementLine: true });
+  hold.data.countedTwice = [`settlement_variance:${batch.id}:line:${again.id}`];
+  run(state); run(state);
+  assert.deepEqual([hold.status, batch.status, batch.data.providerIdentityRelease], ["open", "variance", undefined], "nothing releases the batch while its evidence names two connections");
+  assert.deepEqual(recordsOf(state, "exceptions").filter((item) => item.data.linkedRecordId === batch.id).map((item) => item.id), [hold.id], "and no review is raised while the hold's exception is open");
+  // The data owner's repair: connection-b's line and credit are its own payout, recorded in its own batch.
+  const own = makeRecord(state, "settlement-batches", { name: "Settlement batch SHARED", status: "pending", reference: "SHARED", data: { batchReference: "SHARED", provider: "connection-b", providerConnection: "connection-b", providerIdentityKey: identityOf("connection-b"), currency: "NGN", lineObservationIds: [bLine.id], linePaymentIds: [String(bLine.data.paymentId)], grossKobo: 100_000, feeKobo: 500, expectedFeeKobo: 500, feeVarianceKobo: 0, netKobo: 99_500 } });
+  bLine.data.settlementBatchId = own.id; bCredit.data.resolvedTo = `batch:${own.id}`;
+  Object.assign(batch.data, { lineObservationIds: [aLine.id], linePaymentIds: [aLine.data.paymentId], grossKobo: 100_000, feeKobo: 500, expectedFeeKobo: 500, feeVarianceKobo: 0, netKobo: 99_500, statementObservationId: aCredit.id, statementNetKobo: 99_500 });
+  const answer = run(state);
+  const release = batch.data.providerIdentityRelease as Record<string, unknown>;
+  assert.deepEqual([release.identity, release.confirmedBy, batch.data.providerIdentityKey, batch.status, own.status], [identityOf("connection-a"), undefined, identityOf("connection-a"), "reconciled", "reconciled"], "the repaired batch is released as the one connection its evidence names, and both payouts reconcile");
+  assert.deepEqual([hold.status, hold.data.resolutionCode, answer.data.settlementProviderIdentityReleases], ["closed", "condition_cleared", 1], "the hold's exception closes as its condition cleared");
+  assert.match(String((hold.data.conditionCleared as { reason: string }).reason), /names one provider connection, connection-a, which no other batch claims/);
+  const report = recordsOf(state, "exceptions").find((item) => item.data.condition === `settlement_variance:${batch.id}:line:${again.id}`);
+  assert.equal(report?.status, "open", "the report it carried is raised again on its own, for Finance to resolve");
+  const saved = JSON.stringify(state.records.filter((item) => ["settlement-batches", "observations", "exceptions"].includes(item.kind)));
+  run(state);
+  assert.equal(JSON.stringify(state.records.filter((item) => ["settlement-batches", "observations", "exceptions"].includes(item.kind))), saved, "reconciling again changes nothing");
+}
+{
+  // Decision on batches still held whose hold's exception an earlier build closed with another code, or in any way without a
+  // confirmed identity: the earlier resolution keeps its meaning, and a renewed review is raised once, whose only code is the
+  // confirmation. Confirming it releases the batch; reconciling again changes nothing.
+  const earlierDecisions: Record<string, (hold: TypedRecord<"exceptions">, state: DomainState, batch: TypedRecord<"settlement-batches">) => TypedRecord<"exceptions">> = {
+    resolved: (hold) => { Object.assign(hold, { status: "resolved" }); Object.assign(hold.data, { resolutionCode: "accepted_variance", resolvedBy: "Earlier Finance", resolvedAt: wat("2027-07-02T12:00:00"), notes: "Accepted the provider's figures." }); return hold; },
+    closed: (hold) => { Object.assign(hold, { status: "closed" }); Object.assign(hold.data, { resolutionCode: "provider_corrected", resolvedBy: "Earlier Finance", resolvedAt: wat("2027-07-02T12:00:00"), notes: "The provider corrected its file." }); return hold; },
+    // An older resolution with no condition settles the hold's, so its exception was never raised.
+    unconditioned: (hold, state, batch) => {
+      state.records = state.records.filter((item) => item.id !== hold.id);
+      return makeRecord(state, "exceptions", { name: "Settlement variance", status: "resolved", createdAt: wat("2027-06-30T12:00:00"), data: { type: "settlement_variance", owner: "Finance", severity: "medium", linkedRecordId: batch.id, resolutionCode: "fee_schedule_updated", resolvedBy: "Earlier Finance", resolvedAt: wat("2027-06-30T12:00:00"), notes: "Fee schedule updated." } });
+    },
+  };
+  for (const [shape, decide] of Object.entries(earlierDecisions)) {
+    const { state, batch, hold } = mixedBatch(`identity-review-${shape}`);
+    const earlier = decide(hold, state, batch), decided = structuredClone(earlier);
+    const reviewsOf = () => recordsOf(state, "exceptions").filter((item) => item.data.linkedRecordId === batch.id && item.id !== earlier.id);
+    const answer = run(state);
+    assert.equal(reviewsOf().length, 1, `${shape}: one renewed review is raised`);
+    const [review] = reviewsOf();
+    assert.deepEqual([review!.status, review!.name, review!.data.type, review!.data.owner, review!.data.condition], ["open", "Review earlier settlement identity decision", "settlement_variance", "Finance", `settlement_variance:${batch.id}:provider_identity:review:${earlier.id}`], `${shape}: a Finance-owned settlement variance names the earlier exception`);
+    assert.deepEqual(review!.data.legacyIdentityReview, { priorExceptionId: earlier.id, priorStatus: earlier.status, priorResolutionCode: earlier.data.resolutionCode, priorResolvedBy: "Earlier Finance", priorResolvedAt: earlier.data.resolvedAt }, `${shape}: it records the earlier decision`);
+    assert.match(String(review!.data.notes), /That resolution keeps its meaning, but the batch stays held until Finance or an administrator confirms whose payout it is\./, `${shape}: its notes say what the earlier resolution means now`);
+    assert.deepEqual([resolutionCodesForException(review), answer.data.settlementProviderIdentityReviews], [["provider_identity_confirmed"], 1], `${shape}: its only code is the confirmation`);
+    assert.match(String(answer.data.auditNote), /Raised a renewed Finance review for 1 settlement batch still held for its provider identity/);
+    assert.deepEqual(earlier, decided, `${shape}: the earlier resolution is kept as it was recorded`);
+    run(state); run(state);
+    assert.equal(reviewsOf().length, 1, `${shape}: no second review while one is open`);
+    assert.equal(refusal(state, review!, "Operations", { confirmedProviderIdentity: identityOf("connection-b") })[0], 403, `${shape}: only Admin or Finance resolves the review`);
+    assert.match(refusal(state, review!, "Finance", { resolutionCode: "accepted_variance" })[1], onlyConfirmation, `${shape}: another code is refused`);
+    const confirmed = confirm(state, review!, "Finance", { confirmedProviderIdentity: identityOf("connection-b") });
+    assert.match(confirmed.message, /The next reconciliation releases settlement batch SHARED as the payout of connection-b/);
+    const released = run(state);
+    const release = batch.data.providerIdentityRelease as Record<string, unknown>;
+    assert.deepEqual([release.identity, release.confirmedBy, release.exceptionId, batch.data.providerIdentityKey, batch.status, released.data.settlementProviderIdentityReleases], [identityOf("connection-b"), "Sandbox Finance", review!.id, identityOf("connection-b"), "reconciled", 1], `${shape}: the confirmation on the review releases the batch`);
+    assert.deepEqual([earlier, reviewsOf().length], [decided, 1], `${shape}: the earlier resolution is unchanged, and no other review is raised`);
+    const saved = JSON.stringify(state.records.filter((item) => ["settlement-batches", "observations", "exceptions"].includes(item.kind)));
+    run(state);
+    assert.equal(JSON.stringify(state.records.filter((item) => ["settlement-batches", "observations", "exceptions"].includes(item.kind))), saved, `${shape}: reconciling again changes nothing`);
+  }
+}
+{
+  // A review the platform closed when a repair released the batch settles nothing: held again, the batch gets a new one.
+  const { state, batch, hold, aLine, bLine, aCredit, bCredit } = mixedBatch("identity-review-again");
+  Object.assign(hold, { status: "resolved" }); Object.assign(hold.data, { resolutionCode: "accepted_variance", resolvedBy: "Earlier Finance", resolvedAt: wat("2027-07-02T12:00:00") });
+  run(state);
+  const reviewsOf = () => recordsOf(state, "exceptions").filter((item) => String(item.data.condition).startsWith(`settlement_variance:${batch.id}:provider_identity:review:`));
+  const [first] = reviewsOf();
+  const own = makeRecord(state, "settlement-batches", { name: "Settlement batch SHARED", status: "pending", reference: "SHARED", data: { batchReference: "SHARED", provider: "connection-b", providerConnection: "connection-b", providerIdentityKey: identityOf("connection-b"), currency: "NGN", lineObservationIds: [bLine.id], linePaymentIds: [String(bLine.data.paymentId)], grossKobo: 100_000, feeKobo: 500, expectedFeeKobo: 500, feeVarianceKobo: 0, netKobo: 99_500 } });
+  bLine.data.settlementBatchId = own.id; bCredit.data.resolvedTo = `batch:${own.id}`;
+  Object.assign(batch.data, { lineObservationIds: [aLine.id], linePaymentIds: [aLine.data.paymentId], grossKobo: 100_000, feeKobo: 500, expectedFeeKobo: 500, feeVarianceKobo: 0, netKobo: 99_500, statementObservationId: aCredit.id, statementNetKobo: 99_500 });
+  run(state);
+  assert.deepEqual([first!.status, first!.data.resolutionCode, batch.status], ["closed", "condition_cleared", "reconciled"], "the repair releases the batch and closes its review as its condition cleared");
+  bCredit.data.resolvedTo = `batch:${batch.id}`; // A later edit links connection-b's credit to it again.
+  run(state); run(state);
+  const reviews = reviewsOf();
+  assert.deepEqual([batch.status, reviews.length, reviews[1]?.status, reviews[1]?.data.condition], ["variance", 2, "open", first!.data.condition], "held again, it gets one new review of the same earlier decision");
 }
 for (const kept of ["connection-a", "connection-b"]) {
   const moved = kept === "connection-a" ? "connection-b" : "connection-a";
@@ -490,4 +581,4 @@ function holdAsPr61(review: TypedRecord<"exceptions">, dues: TypedRecord<"due-it
   assert.deepEqual([cleared.due.data.disputeRelease, cleared.due.status, outstandingOf(cleared.due), cleared.payment.status], [undefined, "paid", 0, "allocated"], "the next reconciliation gives the other its status back, and its receipt then pays it");
   assert.match(String(answer.data.auditNote), /Returned 1 instalment/);
 }
-console.log("Financial migration regressions passed: unversioned reversal authority, renewed Finance review, prior allocations/dispositions, replay, provider-scoped settlement and legacy quarantine, one fee schedule per settlement line, the quarantine kept to genuinely ambiguous batches and released otherwise, and reversal review holds that keep instalment statuses and reach only the reversal's own connection.");
+console.log("Financial migration regressions passed: unversioned reversal authority, renewed Finance review, prior allocations/dispositions, replay, provider-scoped settlement and legacy quarantine, one fee schedule per settlement line, the quarantine kept to genuinely ambiguous batches and released otherwise, Finance's confirmation of a held batch's connection as its only resolution, with a data owner's repair releasing it and one renewed review of an earlier decision, and reversal review holds that keep instalment statuses and reach only the reversal's own connection.");

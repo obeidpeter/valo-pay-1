@@ -411,6 +411,11 @@ export const recordDataSchemas = {
     confirmedFailureCode: z.string().optional(),
     /** For a settlement batch held for its provider identity, resolved as provider_identity_confirmed: the identity Finance confirmed, one the batch was held for. */
     confirmedProviderIdentity: z.string().optional(),
+    /**
+     * On a renewed review of an earlier decision on a settlement batch's provider identity hold, which reconciliation
+     * raises: the earlier exception that closed the hold without a confirmed identity, its status, code, and who resolved it and when.
+     */
+    legacyIdentityReview: z.object({ priorExceptionId: z.string(), priorStatus: z.string(), priorResolutionCode: z.string().nullable(), priorResolvedBy: z.string().nullable(), priorResolvedAt: z.string().nullable() }).optional(),
     /** The kind of the linked record when it is not the kind the type usually names: connected-intents for a pay-by-bank checkout. */
     linkedKind: z.string().optional(),
     /** Set when the platform closed the exception because its condition cleared (resolutionCode condition_cleared): when, in whose action and why. */
