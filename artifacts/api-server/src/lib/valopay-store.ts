@@ -2575,10 +2575,11 @@ export async function dueScheduledCloses(limit: number, options: { exclude?: rea
  * `lateAfterMinutes` past its time (missed, as the close_missed alert reads
  * it), and those with a failed scheduled attempt recorded at their pending
  * time (settings.closeRetry, as closeRetryOf reads it), which only a close of
- * that lender ends.  Durable facts on the database clock, so no other
- * lender's close clears them and a restarted process reads them again.
- * `only` limits the count to the lenders named (tests and operator tooling).
- * A plain read with the system limits, as dueScheduledCloses is.
+ * that lender, or a change to its schedule, ends.  Durable facts on the
+ * database clock, so no other lender's close clears them and a restarted
+ * process reads them again.  `only` limits the count to the lenders named
+ * (tests and operator tooling).  A plain read with the system limits, as
+ * dueScheduledCloses is.
  */
 export async function scheduledCloseBacklog(lateAfterMinutes: number, options: { only?: readonly string[] } = {}): Promise<{ overdue: number; failing: number }> {
   return runtimeServiceRead(async client => {

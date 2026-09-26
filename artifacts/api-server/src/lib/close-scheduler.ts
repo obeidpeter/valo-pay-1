@@ -57,7 +57,7 @@ export interface CloseBacklog {
   checkedAt: string;
   /** Lenders whose automatic close is on and whose pending close is more than lateAfterMinutes past its time: missed. */
   overdue: number;
-  /** Lenders with a failed scheduled attempt recorded at their pending close time (settings.closeRetry), which only their close ends. */
+  /** Lenders with a failed scheduled attempt recorded at their pending close time (settings.closeRetry), which only their close, or a change to their schedule, ends. */
   failing: number;
   /** How long after its time a close counts as overdue (closeRules.lateAfterMinutes). */
   lateAfterMinutes: number;
