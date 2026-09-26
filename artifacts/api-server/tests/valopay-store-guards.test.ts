@@ -216,20 +216,21 @@ console.log("valopay repository pure guards passed");
   console.log(`Guard query rows passed: the query in docs/database-migrations.md lists the ${integrityGuards.length} integrity guards readiness checks, in order, and each superseded guard it refuses.`);
 }
 {
-  // Readiness names a missing guard with the migration that installs it (guardMigrations): the file that names the
-  // guard or creates its table. No file names or creates the four base tables' guards, which have none. Migration
-  // 009 drops exactly the superseded definition readiness refuses.
+  // Readiness names a missing guard with a migration (guardMigrations) only when applying that file again builds it:
+  // the file creates the guard with a statement of its own. A guard created inside CREATE TABLE IF NOT EXISTS, as 003
+  // and 004 create most of theirs, is not built again once the table exists, so it is named with the manual restore,
+  // as the base tables' guards are. Migration 009 drops exactly the superseded definition readiness refuses.
   const { readFileSync, readdirSync } = await import("node:fs");
   const { integrityGuards, guardMigrations, supersededGuards } = await import("../src/lib/valopay-store.js");
   const directory = new URL("../../../lib/db/migrations/", import.meta.url);
   const files = readdirSync(directory).filter((file) => file.endsWith(".sql")).sort();
   const sql = Object.fromEntries(files.map((file) => [file, readFileSync(new URL(file, directory), "utf8")]));
-  const installs = (file: string, guard: (typeof integrityGuards)[number]) => new RegExp(`\\b${guard.name}\\b`).test(sql[file]!) || sql[file]!.includes(`CREATE TABLE IF NOT EXISTS ${guard.table} (`);
+  const buildsAgain = (file: string, guard: (typeof integrityGuards)[number]) => new RegExp(`^CREATE UNIQUE INDEX IF NOT EXISTS ${guard.name} ON `, "m").test(sql[file]!);
   for (const guard of integrityGuards) {
     const migration = guardMigrations[guard.name];
-    assert.deepEqual(files.filter((file) => installs(file, guard)), migration ? [migration] : [], `${guard.name} is named with the migration that installs it`);
+    assert.deepEqual(files.filter((file) => buildsAgain(file, guard)), migration ? [migration] : [], `${guard.name} is named with a migration exactly when applying that file again builds it`);
   }
   const literal = (text: string) => `'${text.replaceAll("'", "''")}'`;
   for (const guard of supersededGuards) assert.ok(sql[guard.migration]!.includes(`old_definition CONSTANT text := ${literal(guard.definition)};`), `${guard.migration} drops the definition readiness refuses`);
-  console.log(`Guard sources passed: each of the ${Object.keys(guardMigrations).length} guards a migration installs is named with that file, the base tables' guards with none, and 009 drops the superseded definition readiness refuses.`);
+  console.log(`Guard sources passed: each of the ${Object.keys(guardMigrations).length} guards a migration builds again when applied is named with that file, every other guard with the manual restore, and 009 drops the superseded definition readiness refuses.`);
 }
