@@ -2709,17 +2709,15 @@ export const integrityGuards = [
   { type: "unique index", name: "valopay_staff_lender_access_membership_id_merchant_id_pk", table: "valopay_staff_lender_access", definition: "USING btree (membership_id, merchant_id)" },
 ] as const;
 /**
- * The migration in lib/db/migrations that installs each integrity guard: 003
- * and 004 with their tables, 009 on the record table. The guards of the four
- * base tables come with those tables, and no file installs them.
+ * The migration in lib/db/migrations that builds an integrity guard again
+ * when applied: 009 its two, and 003 the membership index it creates on its
+ * own. Every other guard comes with its table, from the Drizzle schema or
+ * inside the CREATE TABLE IF NOT EXISTS of 003 or 004, which leaves a table
+ * that exists as it is, so it is restored by hand (docs/database-migrations.md).
  */
 export const guardMigrations: Partial<Record<(typeof integrityGuards)[number]["name"], string>> = {
   valopay_unique_customer_reference: "009_record_identity_guards.sql", valopay_unique_provider_event: "009_record_identity_guards.sql",
-  valopay_operations_pkey: "003_pilot_workflow.sql", valopay_operation_status: "003_pilot_workflow.sql", valopay_teams_pkey: "003_pilot_workflow.sql",
-  valopay_teams_organization_id_unique: "003_pilot_workflow.sql", valopay_staff_memberships_pkey: "003_pilot_workflow.sql", valopay_staff_workspace_user: "003_pilot_workflow.sql",
-  valopay_staff_status: "003_pilot_workflow.sql", valopay_staff_role: "003_pilot_workflow.sql", valopay_staff_invitations_pkey: "003_pilot_workflow.sql",
-  valopay_staff_invitations_token_hash_unique: "003_pilot_workflow.sql", valopay_invitation_status: "003_pilot_workflow.sql", valopay_staff_events_pkey: "003_pilot_workflow.sql",
-  valopay_staff_lender_access_membership_id_merchant_id_pk: "004_staff_lender_access.sql",
+  valopay_staff_workspace_user: "003_pilot_workflow.sql",
 };
 const guardSource = (name: (typeof integrityGuards)[number]["name"]) => guardMigrations[name] ? `apply lib/db/migrations/${guardMigrations[name]}` : "restore it as docs/database-migrations.md describes";
 /**
@@ -2750,23 +2748,27 @@ const requiredIndexes = [
 ] as const;
 type SchemaCatalogue = {
   columns: Array<{ table: string; column: string }>;
-  indexes: Array<{ table: string; schema: string; name: string; unique: boolean; definition: string }>;
+  indexes: Array<{ table: string; schema: string; name: string; unique: boolean; valid: boolean; definition: string }>;
   checks: Array<{ table: string; definition: string }>;
 };
 /**
- * The columns, valid indexes and validated check constraints of the
+ * The columns, ready indexes and validated check constraints of the
  * application's tables, in one catalogue read: in the schema named, or else the
  * tables the connection's unqualified queries reach along its search path
  * (pg_table_is_visible), which is not always the first schema on it. A check
- * added NOT VALID is left out: it has not checked the rows already stored.
+ * added NOT VALID is left out: it has not checked the rows already stored. An
+ * index that is ready but not valid, as an interrupted concurrent build or drop
+ * leaves it, is kept on every write, so a unique one still refuses duplicates,
+ * but it may not cover every row: it counts as a guard or read index only once
+ * valid, and as a superseded guard while ready.
  */
 const schemaCatalogue = `SELECT
   (SELECT coalesce(json_agg(json_build_object('table',c.relname,'column',a.attname)),'[]') FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
     JOIN pg_attribute a ON a.attrelid=c.oid AND a.attnum>0 AND NOT a.attisdropped
     WHERE CASE WHEN $1::text IS NULL THEN pg_table_is_visible(c.oid) ELSE n.nspname=$1::text END AND c.relname=ANY($2::text[]) AND c.relkind IN ('r','p')) AS columns,
-  (SELECT coalesce(json_agg(json_build_object('table',t.relname,'schema',n.nspname,'name',x.relname,'unique',i.indisunique,'definition',regexp_replace(pg_get_indexdef(i.indexrelid),'^CREATE (UNIQUE )?INDEX \\S+ ON (ONLY )?\\S+ ',''))),'[]')
+  (SELECT coalesce(json_agg(json_build_object('table',t.relname,'schema',n.nspname,'name',x.relname,'unique',i.indisunique,'valid',i.indisvalid,'definition',regexp_replace(pg_get_indexdef(i.indexrelid),'^CREATE (UNIQUE )?INDEX \\S+ ON (ONLY )?\\S+ ',''))),'[]')
     FROM pg_index i JOIN pg_class x ON x.oid=i.indexrelid JOIN pg_class t ON t.oid=i.indrelid JOIN pg_namespace n ON n.oid=t.relnamespace
-    WHERE CASE WHEN $1::text IS NULL THEN pg_table_is_visible(t.oid) ELSE n.nspname=$1::text END AND t.relname=ANY($2::text[]) AND i.indisvalid AND i.indisready) AS indexes,
+    WHERE CASE WHEN $1::text IS NULL THEN pg_table_is_visible(t.oid) ELSE n.nspname=$1::text END AND t.relname=ANY($2::text[]) AND i.indisready) AS indexes,
   (SELECT coalesce(json_agg(json_build_object('table',t.relname,'definition',pg_get_constraintdef(k.oid))),'[]')
     FROM pg_constraint k JOIN pg_class t ON t.oid=k.conrelid JOIN pg_namespace n ON n.oid=t.relnamespace
     WHERE CASE WHEN $1::text IS NULL THEN pg_table_is_visible(t.oid) ELSE n.nspname=$1::text END AND t.relname=ANY($2::text[]) AND k.contype='c' AND k.convalidated) AS checks`;
@@ -2784,12 +2786,14 @@ function schemaGaps(catalogue: SchemaCatalogue): { required: string[]; indexes: 
     if (!columns) { required.push(`table ${table.name}: ${schemaSource(table.name)}`); continue; }
     for (const column of table.columns) if (!columns.has(column)) required.push(`column ${table.name}.${column}: ${schemaSource(table.name)}`);
   }
-  const defined = new Set(catalogue.indexes.map((index) => `${index.table} ${index.definition}`));
-  const guarded = new Set([...catalogue.indexes.filter((index) => index.unique).map((index) => `${index.table} unique index ${index.definition}`), ...catalogue.checks.map((check) => `${check.table} check ${check.definition}`)]);
+  const valid = catalogue.indexes.filter((index) => index.valid);
+  const defined = new Set(valid.map((index) => `${index.table} ${index.definition}`));
+  const guarded = new Set([...valid.filter((index) => index.unique).map((index) => `${index.table} unique index ${index.definition}`), ...catalogue.checks.map((check) => `${check.table} check ${check.definition}`)]);
   // A missing table is named above; its guards and indexes are not listed again.
   for (const guard of integrityGuards) if (present.has(guard.table) && !guarded.has(`${guard.table} ${guard.type} ${guard.definition}`)) required.push(`${guard.type} ${guard.name}: ${guardSource(guard.name)}`);
+  // One that is not valid is still enforced; the migration refuses it, so it is dropped by hand first.
   for (const guard of supersededGuards) for (const index of catalogue.indexes.filter((index) => index.unique && index.table === guard.table && index.definition === guard.definition).sort((a, b) => a.name.localeCompare(b.name)))
-    required.push(`superseded unique index ${index.name}: ${guard.description}; apply lib/db/migrations/${guard.migration} with ${index.schema} first on the search path`);
+    required.push(`superseded unique index ${index.name}: ${guard.description}${index.valid ? ";" : ", left not valid but still enforced on writes; drop it by hand once reviewed, as the migration refuses it, then"} apply lib/db/migrations/${guard.migration} with ${index.schema} first on the search path`);
   for (const index of requiredIndexes) if (present.has(index.table) && !defined.has(`${index.table} ${index.definition}`)) indexes.push(`index ${index.name}: apply lib/db/migrations/${index.migration}`);
   const capped = (list: string[]) => list.length > 20 ? [...list.slice(0, 20), `and ${list.length - 20} more`] : list;
   return { required: capped(required), indexes: capped(indexes) };
