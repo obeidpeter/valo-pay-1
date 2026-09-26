@@ -84,6 +84,7 @@ router.post("/v1/connected/actions", async (req, res) => {
         } catch (error) {
           if (error instanceof CreditDomainError)
             fail(error.message, error.status);
+          // A money refusal (MoneyArithmeticError) is not the Cash Desk's own refusal: it answers 422 with its code.
           if (error instanceof ConnectedCashError) fail(error.message, 400);
           throw error;
         }

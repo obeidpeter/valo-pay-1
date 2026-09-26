@@ -1,4 +1,4 @@
-import { counted, sumMoney, MoneyArithmeticError } from "@workspace/valopay-schema";
+import { counted, sumMoney } from "@workspace/valopay-schema";
 import { canonicalDigest } from "../lib/digests";
 
 /** Synthetic/import planning domain. These functions never connect to a bank, post to an ERP,
@@ -31,13 +31,9 @@ function money(value: number, label: string, signed = false): number {
     fail("invalid_amount", `${label} must be a safe integer in minor units.`);
   return value;
 }
-function total(values: number[]): number {
-  try { return sumMoney(values); }
-  catch (error) {
-    if (error instanceof MoneyArithmeticError) fail("invalid_amount", error.message);
-    throw error;
-  }
-}
+/** An exact sum. A total beyond the supported range is the money refusal every calculation gives
+ * (MoneyArithmeticError, answered 422 with its code), not a refusal of the input. */
+const total = (values: number[]): number => sumMoney(values);
 function instant(value: string, label: string): number {
   const parsed = Date.parse(value);
   if (!Number.isFinite(parsed))

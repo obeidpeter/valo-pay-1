@@ -7,7 +7,7 @@
  */
 
 /**
- * Present when staff access was refused: why.
+ * Present when staff access was refused (why), or with a 422 when a money calculation the request needs was refused: INVALID_MONEY_AMOUNT (an amount that is not a safe whole number of minor units), INVALID_MONEY_RATE (a rate outside its bounds) or MONEY_OUT_OF_RANGE (a result beyond the safe-integer minor-unit range).
  */
 export type ErrorBodyCode = typeof ErrorBodyCode[keyof typeof ErrorBodyCode];
 
@@ -22,4 +22,7 @@ export const ErrorBodyCode = {
   role_not_permitted: 'role_not_permitted',
   mfa_required: 'mfa_required',
   reverification_required: 'reverification_required',
+  INVALID_MONEY_AMOUNT: 'INVALID_MONEY_AMOUNT',
+  INVALID_MONEY_RATE: 'INVALID_MONEY_RATE',
+  MONEY_OUT_OF_RANGE: 'MONEY_OUT_OF_RANGE',
 } as const;

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { render, cleanup, renderHook, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { useSafePerformAction, useSafeImportRecords, useSafeCreateRecord, useSafeUpdateRecord, useSafeUpdateSettings, useSafeCreateExport, useSafeRetryExportJob, outcomeIsUnconfirmed, requestClosed } from '@/lib/safe-mutations';
+import { useSafePerformAction, useSafeImportRecords, useSafeCreateRecord, useSafeUpdateRecord, useSafeUpdateSettings, useSafeCreateExport, useSafeRetryExportJob, definitiveRefusal, outcomeIsUnconfirmed, requestClosed } from '@/lib/safe-mutations';
 import { installFakeApi, type FakeApi } from './fake-api';
 import { screen, userEvent, waitFor } from './harness';
 
@@ -274,6 +274,12 @@ describe('safe mutation intentions', () => {
     expect(requestClosed({status:200,data:{error:'x',operation:'cancelled'}})).toBe(false);
     expect(requestClosed({status:409,data:{operation:'cancelled'}})).toBe(false);
     expect(outcomeIsUnconfirmed({status:503,data:{error:'Busy',operation:'cancelled'}})).toBe(false);
+  });
+
+  it('treats a money refusal as final for its key',()=>{
+    for(const data of [{error:'This calculation cannot be completed.',code:'MONEY_OUT_OF_RANGE',operation:'cancelled'},{error:'This calculation cannot be completed.',code:'INVALID_MONEY_RATE'}])
+      expect(definitiveRefusal({status:422,data})).toBe(true);
+    expect(outcomeIsUnconfirmed({status:422,data:{error:'This calculation cannot be completed.'}})).toBe(false);
   });
 
   it.each(['null','empty','invalid JSON'])('does not treat a %s successful body as a confirmed action',async body=>{

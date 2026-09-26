@@ -498,7 +498,7 @@ derived("AllocationDecisionData", shared.allocationDecisionDataSchema, "The data
 
 // The error body every refusal and failure carries.
 derived("ErrorDetail", shared.errorDetailSchema, "One field a request got wrong: its dotted path (a query value or header by its name) and what is wrong with it.");
-derived("ErrorBody", shared.errorBodySchema, "The body of every refusal and failure: what happened in plain words and the request's reference, with the fields validation refused (at most 20, and how many there were), the staff-access refusal code, whether nothing was saved (committed false) and the state of the request's journal entry (operation).");
+derived("ErrorBody", shared.errorBodySchema, "The body of every refusal and failure: what happened in plain words and the request's reference, with the fields validation refused (at most 20, and how many there were), the staff-access or money refusal code, whether nothing was saved (committed false) and the state of the request's journal entry (operation).");
 
 // Connected workspace: the Credit Desk and Cash Desk documents, the workspace and its actions.
 derived("CreditAssessmentResult", shared.creditAssessmentResultSchema, "An illustrative synthetic credit assessment: evidence, features, rule score, affordability and policy recommendation. Never a probability of default or a lending decision; features, score and affordability are null when the evidence or authority does not allow them.");
@@ -682,6 +682,9 @@ operation("/v1/lifecycle/runs/{id}/approve", "post", "approveLifecycleRun", "Lif
 operation("/v1/lifecycle/runs/{id}/execute", "post", "executeLifecycleRun", "LifecycleRunView", "LifecycleExecuteInput", [pathParam("id"), merchant, requiredKey], "Execute an approved run", "Administrators only. Removes as many of the run's sources as fit in a two-second budget under the lender lock, each checked again just before it is deleted and given a receipt. A blocked source, or a deletion that cannot be confirmed, stops the run with its reason (status attention) and the sources after it wait; nothing is skipped silently. Send it again to continue until the status is completed: sources not yet attempted go first.");
 
 // ---- The refusals and failures each operation can answer ----
+/** A money calculation the request needs cannot be done exactly (lib/error-handler.ts): the operations that compute money. */
+const moneyRefusal = "Refused: a money calculation this request needs cannot be done exactly within the supported limits, and code says why: INVALID_MONEY_AMOUNT (an amount that is not a safe whole number of minor units), INVALID_MONEY_RATE (a rate outside its bounds) or MONEY_OUT_OF_RANGE (a result beyond the safe-integer minor-unit range). The same request would be refused again.";
+const computesMoney = new Set(["GET /v1/overview", "GET /v1/reports", "GET /v1/customers/{id}/timeline", "GET /v1/customers/{id}/history", "GET /v1/connected", "POST /v1/actions", "POST /v1/connected/actions", "POST /v1/operations/{id}/retry"]);
 // Listed from what its route does: the /api/v1 middleware (the origin rule and the request
 // limits), the body parser, the workspace transaction and its database limits, the lender
 // scope, the journal and the route's own refusals. Every one carries ErrorBody (lib/error-handler.ts
@@ -695,6 +698,7 @@ const failures = {
   410: "Gone: a request with this Idempotency-Key already completed, and the lender's retention policy has since removed its stored result, so it cannot run again. Its entry in Operations remains.",
   413: "The body is larger than 2 MB, or holds more than 10,000 values (every object, list, text, number, true, false and null in it), counted from its bytes before it is parsed.",
   415: "The body is not JSON (a form or text body is refused), its character set is not UTF-8, or it is compressed (any Content-Encoding but identity, refused before it is read, with Accept-Encoding: identity); send uncompressed UTF-8 JSON as application/json.",
+  422: `${moneyRefusal} Nothing was saved, and a request with an Idempotency-Key is refused for good: its journal entry is closed, and the same key cannot run again.`,
   429: "Too many requests: more than 300 a minute for this client (a signed-in person, a sandbox this server has served, or otherwise the client's network: an IPv4 address or an IPv6 /64), more than 1,200 a minute from its network, or too many new sandboxes from its network or on this server (try again in an hour).",
   500: "The service failed. With committed false nothing was saved (for a request with an Idempotency-Key, nothing sent with the key); with operation completed a request with the key was saved; otherwise the outcome is unconfirmed: check Operations, or repeat the same request with its Idempotency-Key.",
   502: "Private storage answered with an error; nothing was sent.",
@@ -750,8 +754,9 @@ function listErrorAnswers(path, method, op) {
   if (params.some((item) => item.name === "Idempotency-Key")) include(400, 403, 409); // the key and the journal
   if (params.some((item) => journaled.has(item))) include(410); // a repeat whose stored result retention removed
   if (method !== "get" && !outsideWorkspace.has(name)) include(400, 403, 409); // a write: its rules, role and version
+  if (computesMoney.has(name)) include(422); // a calculation of money: billing, reconciliation, a close, a report, a customer's position, the Cash Desk
   for (const status of [...statuses].sort((a, b) => a - b)) {
-    const read = method === "get" && status === 500 ? "The service could not prepare this answer; a read changes nothing, so it can be tried again." : undefined;
+    const read = method === "get" && status === 500 ? "The service could not prepare this answer; a read changes nothing, so it can be tried again." : method === "get" && status === 422 ? `${moneyRefusal} A read saves nothing either way.` : undefined;
     const answer = (op.responses[status] ??= { description: ownDescriptions[name]?.[status] ?? read ?? failures[status] });
     if (name === "GET /readyz" && status === 503) continue; // readiness answers its own body
     answer.content = { "application/json": { schema: name === "POST /v1/team/verify" && status === 403 ? { anyOf: [ref("ErrorBody"), ref("ReverificationRequired")] } : ref("ErrorBody") } };

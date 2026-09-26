@@ -306,6 +306,16 @@
               }
             }
           },
+          "422": {
+            "description": "Refused: a money calculation this request needs cannot be done exactly within the supported limits, and code says why: INVALID_MONEY_AMOUNT (an amount that is not a safe whole number of minor units), INVALID_MONEY_RATE (a rate outside its bounds) or MONEY_OUT_OF_RANGE (a result beyond the safe-integer minor-unit range). The same request would be refused again. A read saves nothing either way.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
           "429": {
             "description": "Too many requests: more than 300 a minute for this client (a signed-in person, a sandbox this server has served, or otherwise the client's network: an IPv4 address or an IPv6 /64), more than 1,200 a minute from its network, or too many new sandboxes from its network or on this server (try again in an hour).",
             "content": {
@@ -1282,6 +1292,21 @@
               }
             }
           },
+          "422": {
+            "description": "Refused: a money calculation this request needs cannot be done exactly within the supported limits, and code says why: INVALID_MONEY_AMOUNT (an amount that is not a safe whole number of minor units), INVALID_MONEY_RATE (a rate outside its bounds) or MONEY_OUT_OF_RANGE (a result beyond the safe-integer minor-unit range). The same request would be refused again. Nothing was saved, and a request with an Idempotency-Key is refused for good: its journal entry is closed, and the same key cannot run again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "headers": {
+              "X-Valopay-Operation": {
+                "$ref": "#/components/headers/X-Valopay-Operation"
+              }
+            }
+          },
           "429": {
             "description": "Too many requests: more than 300 a minute for this client (a signed-in person, a sandbox this server has served, or otherwise the client's network: an IPv4 address or an IPv6 /64), more than 1,200 a minute from its network, or too many new sandboxes from its network or on this server (try again in an hour).",
             "content": {
@@ -1696,6 +1721,16 @@
               }
             }
           },
+          "422": {
+            "description": "Refused: a money calculation this request needs cannot be done exactly within the supported limits, and code says why: INVALID_MONEY_AMOUNT (an amount that is not a safe whole number of minor units), INVALID_MONEY_RATE (a rate outside its bounds) or MONEY_OUT_OF_RANGE (a result beyond the safe-integer minor-unit range). The same request would be refused again. A read saves nothing either way.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
           "429": {
             "description": "Too many requests: more than 300 a minute for this client (a signed-in person, a sandbox this server has served, or otherwise the client's network: an IPv4 address or an IPv6 /64), more than 1,200 a minute from its network, or too many new sandboxes from its network or on this server (try again in an hour).",
             "content": {
@@ -1833,6 +1868,16 @@
           },
           "409": {
             "description": "Conflict: what the request names changed since it was read, its Idempotency-Key belongs to another request or its journal entry is cancelled, or the change conflicts with saved records. Nothing was saved.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Refused: a money calculation this request needs cannot be done exactly within the supported limits, and code says why: INVALID_MONEY_AMOUNT (an amount that is not a safe whole number of minor units), INVALID_MONEY_RATE (a rate outside its bounds) or MONEY_OUT_OF_RANGE (a result beyond the safe-integer minor-unit range). The same request would be refused again. A read saves nothing either way.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4301,6 +4346,16 @@
               }
             }
           },
+          "422": {
+            "description": "Refused: a money calculation this request needs cannot be done exactly within the supported limits, and code says why: INVALID_MONEY_AMOUNT (an amount that is not a safe whole number of minor units), INVALID_MONEY_RATE (a rate outside its bounds) or MONEY_OUT_OF_RANGE (a result beyond the safe-integer minor-unit range). The same request would be refused again. A read saves nothing either way.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
           "429": {
             "description": "Too many requests: more than 300 a minute for this client (a signed-in person, a sandbox this server has served, or otherwise the client's network: an IPv4 address or an IPv6 /64), more than 1,200 a minute from its network, or too many new sandboxes from its network or on this server (try again in an hour).",
             "content": {
@@ -4426,6 +4481,16 @@
           },
           "409": {
             "description": "Conflict: what the request names changed since it was read, its Idempotency-Key belongs to another request or its journal entry is cancelled, or the change conflicts with saved records. Nothing was saved.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Refused: a money calculation this request needs cannot be done exactly within the supported limits, and code says why: INVALID_MONEY_AMOUNT (an amount that is not a safe whole number of minor units), INVALID_MONEY_RATE (a rate outside its bounds) or MONEY_OUT_OF_RANGE (a result beyond the safe-integer minor-unit range). The same request would be refused again. A read saves nothing either way.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4657,6 +4722,21 @@
                   ]
                 }
               },
+              "X-Valopay-Operation": {
+                "$ref": "#/components/headers/X-Valopay-Operation"
+              }
+            }
+          },
+          "422": {
+            "description": "Refused: a money calculation this request needs cannot be done exactly within the supported limits, and code says why: INVALID_MONEY_AMOUNT (an amount that is not a safe whole number of minor units), INVALID_MONEY_RATE (a rate outside its bounds) or MONEY_OUT_OF_RANGE (a result beyond the safe-integer minor-unit range). The same request would be refused again. Nothing was saved, and a request with an Idempotency-Key is refused for good: its journal entry is closed, and the same key cannot run again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "headers": {
               "X-Valopay-Operation": {
                 "$ref": "#/components/headers/X-Valopay-Operation"
               }
@@ -5182,6 +5262,21 @@
                   ]
                 }
               },
+              "X-Valopay-Operation": {
+                "$ref": "#/components/headers/X-Valopay-Operation"
+              }
+            }
+          },
+          "422": {
+            "description": "Refused: a money calculation this request needs cannot be done exactly within the supported limits, and code says why: INVALID_MONEY_AMOUNT (an amount that is not a safe whole number of minor units), INVALID_MONEY_RATE (a rate outside its bounds) or MONEY_OUT_OF_RANGE (a result beyond the safe-integer minor-unit range). The same request would be refused again. Nothing was saved, and a request with an Idempotency-Key is refused for good: its journal entry is closed, and the same key cannot run again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "headers": {
               "X-Valopay-Operation": {
                 "$ref": "#/components/headers/X-Valopay-Operation"
               }
@@ -16067,9 +16162,12 @@
               "membership_inactive",
               "role_not_permitted",
               "mfa_required",
-              "reverification_required"
+              "reverification_required",
+              "INVALID_MONEY_AMOUNT",
+              "INVALID_MONEY_RATE",
+              "MONEY_OUT_OF_RANGE"
             ],
-            "description": "Present when staff access was refused: why."
+            "description": "Present when staff access was refused (why), or with a 422 when a money calculation the request needs was refused: INVALID_MONEY_AMOUNT (an amount that is not a safe whole number of minor units), INVALID_MONEY_RATE (a rate outside its bounds) or MONEY_OUT_OF_RANGE (a result beyond the safe-integer minor-unit range)."
           },
           "committed": {
             "type": "boolean",
@@ -16092,7 +16190,7 @@
           "requestId"
         ],
         "additionalProperties": false,
-        "description": "The body of every refusal and failure: what happened in plain words and the request's reference, with the fields validation refused (at most 20, and how many there were), the staff-access refusal code, whether nothing was saved (committed false) and the state of the request's journal entry (operation)."
+        "description": "The body of every refusal and failure: what happened in plain words and the request's reference, with the fields validation refused (at most 20, and how many there were), the staff-access or money refusal code, whether nothing was saved (committed false) and the state of the request's journal entry (operation)."
       },
       "CreditAssessmentResult": {
         "type": "object",

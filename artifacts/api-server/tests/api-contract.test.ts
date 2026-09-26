@@ -108,6 +108,21 @@ await section("410 on repeated keys", () => {
   }
 });
 
+// ---- 1c. A money refusal: the operations that compute money list 422, naming its code in the error body ----
+await section("money refusals", () => {
+  const computesMoney = ["GET /v1/overview", "GET /v1/customers/{id}/timeline", "GET /v1/reports", "GET /v1/customers/{id}/history", "GET /v1/connected", "POST /v1/connected/actions", "POST /v1/actions", "POST /v1/operations/{id}/retry"];
+  for (const entry of operations) {
+    const refusal = entry.operation.responses["422"];
+    assert.equal(Boolean(refusal), computesMoney.includes(label(entry)), `${label(entry)} ${computesMoney.includes(label(entry)) ? "computes money, so it lists" : "computes no money, so it never lists"} 422`);
+    if (refusal) assert.match(refusal.description, /INVALID_MONEY_AMOUNT.*INVALID_MONEY_RATE.*MONEY_OUT_OF_RANGE/, `${label(entry)} 422 names the codes`);
+    checks += 1;
+  }
+  assert.deepEqual(schemas.ErrorBody.properties.code.enum.filter((code: string) => /MONEY/.test(code)), ["INVALID_MONEY_AMOUNT", "INVALID_MONEY_RATE", "MONEY_OUT_OF_RANGE"], "the error body's code names a money refusal");
+  assert.match(spec.paths["/v1/connected"].get.responses["422"].description, /A read saves nothing either way/);
+  assert.match(spec.paths["/v1/actions"].post.responses["422"].description, /journal entry is closed/);
+  checks += 3;
+});
+
 // ---- 2. Every write says exactly what its route does with an Idempotency-Key ----
 await section("keys in the contract", () => {
   for (const entry of operations) {
@@ -267,5 +282,5 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log(`API contract checks passed (${checks} checks): the error body and statuses, the Idempotency-Key each write takes and the 410 of a repeat after retention, a missing merchantId, unreadable bodies on writes without one, offset date-times, the versions edits require and the documented refusals.`);
+console.log(`API contract checks passed (${checks} checks): the error body and statuses, the 422 of an operation that computes money, the Idempotency-Key each write takes and the 410 of a repeat after retention, a missing merchantId, unreadable bodies on writes without one, offset date-times, the versions edits require and the documented refusals.`);
 process.exit(0);

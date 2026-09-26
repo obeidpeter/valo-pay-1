@@ -677,7 +677,7 @@ export interface ErrorDetail {
 }
 
 /**
- * Present when staff access was refused: why.
+ * Present when staff access was refused (why), or with a 422 when a money calculation the request needs was refused: INVALID_MONEY_AMOUNT (an amount that is not a safe whole number of minor units), INVALID_MONEY_RATE (a rate outside its bounds) or MONEY_OUT_OF_RANGE (a result beyond the safe-integer minor-unit range).
  */
 export type ErrorBodyCode = typeof ErrorBodyCode[keyof typeof ErrorBodyCode];
 
@@ -692,6 +692,9 @@ export const ErrorBodyCode = {
   role_not_permitted: 'role_not_permitted',
   mfa_required: 'mfa_required',
   reverification_required: 'reverification_required',
+  INVALID_MONEY_AMOUNT: 'INVALID_MONEY_AMOUNT',
+  INVALID_MONEY_RATE: 'INVALID_MONEY_RATE',
+  MONEY_OUT_OF_RANGE: 'MONEY_OUT_OF_RANGE',
 } as const;
 
 /**
@@ -708,7 +711,7 @@ export const ErrorBodyOperation = {
 } as const;
 
 /**
- * The body of every refusal and failure: what happened in plain words and the request's reference, with the fields validation refused (at most 20, and how many there were), the staff-access refusal code, whether nothing was saved (committed false) and the state of the request's journal entry (operation).
+ * The body of every refusal and failure: what happened in plain words and the request's reference, with the fields validation refused (at most 20, and how many there were), the staff-access or money refusal code, whether nothing was saved (committed false) and the state of the request's journal entry (operation).
  */
 export interface ErrorBody {
   /** What happened, in plain words: a refusal in its rule's own wording, a failure in general words. */
@@ -725,7 +728,7 @@ export interface ErrorBody {
      * @minimum 0
      */
   detailCount?: number;
-  /** Present when staff access was refused: why. */
+  /** Present when staff access was refused (why), or with a 422 when a money calculation the request needs was refused: INVALID_MONEY_AMOUNT (an amount that is not a safe whole number of minor units), INVALID_MONEY_RATE (a rate outside its bounds) or MONEY_OUT_OF_RANGE (a result beyond the safe-integer minor-unit range). */
   code?: ErrorBodyCode;
   /** Present on a failure that saved nothing: the transaction was rolled back, so the request may be sent again as new. For a request with an Idempotency-Key it is decided for the key: present only when nothing sent with the key was or can be saved (its journal entry is cancelled, or nothing was saved under it before this request failed), never while a request with the key was saved or is still running. A read's 500 never carries it. */
   committed?: false;

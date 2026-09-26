@@ -125,9 +125,26 @@ const account = (id: string, balance: number): CashAccount => ({
   balanceAsOf: now, fetchedAt: now, coverageComplete: true,
 });
 assert.equal(consolidateCashPositions(scope, [account("a", MAX), account("b", 2), account("c", -2)], [], now)[0]!.bookedMinor, MAX);
-assert.throws(() => consolidateCashPositions(scope, [account("a", MAX), account("b", 1)], [], now), (e: unknown) => e instanceof ConnectedCashError && e.code === "invalid_amount");
-assert.throws(() => forecastCash({ ...scope, currency: "NGN" }, -MAX, [], { asOf: now, version: "synthetic-v1", bufferMinor: 1, openingQualified: true }), ConnectedCashError);
+// A Cash Desk total beyond the range is the money refusal every calculation gives (a 422 naming its code), not a
+// refusal of the input (400) or, on a read, a failure (500). An amount that is not whole money is still the input's.
+outOfRange(() => consolidateCashPositions(scope, [account("a", MAX), account("b", 1)], [], now));
+outOfRange(() => forecastCash({ ...scope, currency: "NGN" }, -MAX, [], { asOf: now, version: "synthetic-v1", bufferMinor: 1, openingQualified: true }));
+assert.throws(() => consolidateCashPositions(scope, [account("a", 1.5)], [], now), (e: unknown) => e instanceof ConnectedCashError && e.code === "invalid_amount");
+checks += 1;
+
+// Rounding up, for a figure that must not be understated (the Credit Desk's observed monthly spending).
+assert.deepEqual([7, 8, 9, -7, -8, 0].map((value) => multiplyDivideMoney(value, 1, 4, "ceil")), [2, 2, 3, -1, -2, 0]);
+assert.equal(multiplyDivideMoney(MAX, 1, 2, "ceil"), Number((BigInt(MAX) + 1n) / 2n));
+assert.equal(multiplyDivideMoney(MAX, 1, 1, "ceil"), MAX);
+outOfRange(() => multiplyDivideMoney(MAX, 2, 1, "ceil"));
 checks += 3;
+for (let i = 0; i < 1_000; i++) {
+  const amount = Number(next() % BigInt(MAX + 1)) * (i % 2 ? -1 : 1), divisor = Number(next() % 1_000n) + 1;
+  const quotient = BigInt(amount) / BigInt(divisor), inexact = BigInt(amount) % BigInt(divisor) !== 0n;
+  assert.equal(multiplyDivideMoney(amount, 1, divisor, "ceil"), Number(quotient + (inexact && amount > 0 ? 1n : 0n)));
+  assert.equal(multiplyDivideMoney(amount, 1, divisor), Number(quotient - (inexact && amount < 0 ? 1n : 0n)));
+  checks += 2;
+}
 
 {
   const state = billingFixture(0);
@@ -140,4 +157,4 @@ checks += 3;
   assert.equal(inNaira([high, make("usd", MAX, "USD")], (record) => record.amountKobo).kobo, MAX, "separate currencies never share an aggregate");
   checks++;
 }
-console.log(`Exact money: ${checks} checks passed (5,000 deterministic oracle cases; billing, close and connected cash integration).`);
+console.log(`Exact money: ${checks} checks passed (6,000 deterministic oracle cases; billing, close and connected cash integration).`);

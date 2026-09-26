@@ -46,7 +46,7 @@ export function requestOpen(error: unknown): boolean {
   return operation === 'completed' || operation === 'running' || operation === 'pending';
 }
 
-/** A structured refusal the service treats as final for its key (400, 403, 404, 409, 410, 413, 415): the same
+/** A structured refusal the service treats as final for its key (400, 403, 404, 409, 410, 413, 415, 422): the same
  * request would be refused again, and its key cannot run again. A 401 or 429 keeps the key, as does a refusal that
  * says a request with the key was saved or is still open (requestOpen). */
 export function definitiveRefusal(error: unknown): boolean {
