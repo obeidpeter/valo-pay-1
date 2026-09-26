@@ -409,6 +409,8 @@ export const recordDataSchemas = {
     condition: z.string().optional(),
     /** For an unknown outcome resolved as failed: the failure code the provider confirmed. */
     confirmedFailureCode: z.string().optional(),
+    /** For a settlement batch held for its provider identity, resolved as provider_identity_confirmed: the identity Finance confirmed, one the batch was held for. */
+    confirmedProviderIdentity: z.string().optional(),
     /** The kind of the linked record when it is not the kind the type usually names: connected-intents for a pay-by-bank checkout. */
     linkedKind: z.string().optional(),
     /** Set when the platform closed the exception because its condition cleared (resolutionCode condition_cleared): when, in whose action and why. */

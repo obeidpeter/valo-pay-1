@@ -22,7 +22,7 @@ const refused = (run: () => unknown, pattern: RegExp) => { assert.throws(run, pa
  const open = { ...exception, data: { ...exception.data, notes: 'Contact the provider for supporting evidence.' } };
  assert.doesNotThrow(() => validateRecord(state, operations, 'exceptions', open, true)); checks++;
  refused(() => validateRecord(state, compliance, 'exceptions', open, true), /not permitted/);
- for (const field of ['resolutionCode', 'resolvedBy', 'resolvedAt', 'resolutionRuleVersion', 'conditionCleared', 'confirmedFailureCode', 'legacyResolutionReview']) {
+ for (const field of ['resolutionCode', 'resolvedBy', 'resolvedAt', 'resolutionRuleVersion', 'conditionCleared', 'confirmedFailureCode', 'confirmedProviderIdentity', 'legacyResolutionReview']) {
    const values: Record<string, unknown> = { resolvedAt: now, resolutionRuleVersion: 1, conditionCleared: { at: now, by: operations.actor, reason: 'Recorded' }, legacyResolutionReview: { priorExceptionId: 'prior' } };
    const candidate = { ...exception, data: { ...exception.data, [field]: values[field] ?? 'recorded' } };
    refused(() => validateRecord(state, operations, 'exceptions', candidate, true), /dedicated resolution workflow/);

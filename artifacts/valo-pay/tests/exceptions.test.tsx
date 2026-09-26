@@ -315,4 +315,54 @@ describe("exceptions", () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(api.state().records.find((record) => record.id === exception.id)!.data.severity).toBe('medium');
   });
+
+  // Review fix to FIN-03: a settlement batch held for its provider identity had no way out in the application. Finance or
+  // an administrator now resolves its exception as provider identity confirmed, choosing one of the identities it was held for.
+  const identities = [JSON.stringify(['connection-a', 'SHARED']), JSON.stringify(['connection-b', 'SHARED'])];
+  const heldBatch = () => api.mutate((state, ctx) => {
+    const batch = makeRecord(state, 'settlement-batches', { name: 'Settlement batch SHARED', status: 'variance', reference: 'SHARED', data: { batchReference: 'SHARED', provider: 'connection-a', providerConnection: 'connection-a', currency: 'NGN', lineObservationIds: [], linePaymentIds: [], grossKobo: 0, feeKobo: 0, netKobo: 0, providerIdentityReview: { detectedAt: api.now, identities, observationIds: [], previous: { status: 'reconciled', grossKobo: 0, feeKobo: 0, netKobo: 0, currency: 'NGN', statementObservationId: null, statementNetKobo: null } } } });
+    return raiseException(state, ctx, 'settlement_variance', { linkedRecordId: batch.id, notes: 'Historical settlement evidence mixes or conflicts with provider connections.', condition: `settlement_variance:${batch.id}:provider_identity` });
+  });
+
+  it('confirms whose payout a held settlement batch is, choosing one of the identities it was held for', async () => {
+    const user = userEvent.setup();
+    const hold = heldBatch();
+    renderApp(`/exceptions?record=${hold.id}`);
+    await user.click(await screen.findByRole('button', { name: 'Resolve' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Resolve exception' });
+    const code = within(dialog).getByLabelText(/How was this resolved/);
+    expect(within(code).getAllByRole('option').map(option => option.textContent)).toEqual(['Choose an option', 'Fee schedule updated', 'Provider corrected', 'Accepted variance', 'Provider identity confirmed']);
+    const identity = await within(dialog).findByLabelText(/Connection whose payout this batch is/);
+    await waitFor(() => expect(within(identity).getAllByRole('option').map(option => option.textContent)).toEqual(['Choose an option', 'connection-a (batch SHARED)', 'connection-b (batch SHARED)']));
+    const outcome = () => within(dialog).getByText(/^Record outcome:|^Record an outcome/).parentElement!.textContent!;
+    expect(outcome()).toContain('Once the providers have confirmed whose payout this settlement batch is, choose Provider identity confirmed and that connection.');
+    await user.selectOptions(code, 'accepted_variance');
+    expect(outcome()).toContain('the batch stays held for its provider identity: nothing reconciles it, and no exception is left to confirm its connection later.');
+    await user.selectOptions(code, 'provider_identity_confirmed');
+    expect(outcome()).toContain('The next reconciliation releases this settlement batch as the payout of the connection you choose.');
+    expect(outcome()).toContain('Each settlement line of another connection moves to that connection\'s own batch, and each statement credit of another connection is left to link to its own');
+    await user.type(within(dialog).getByLabelText(/^Reason/), 'Both providers confirmed whose payout this is.');
+    await user.click(within(dialog).getByRole('button', { name: 'Resolve exception' }));
+    expect(await within(dialog).findByText('Choose the connection the providers confirmed this batch pays out.')).toBeTruthy();
+    expect(api.calls.some(call => call.method === 'POST')).toBe(false);
+    await user.selectOptions(identity, identities[1]!);
+    await user.click(within(dialog).getByRole('button', { name: 'Resolve exception' }));
+    const answer = await screen.findByRole('status', { name: 'Resolution recorded' });
+    expect(answer.textContent).toContain('The next reconciliation releases settlement batch SHARED as the payout of connection-b');
+    const stored = api.state().records.find(record => record.id === hold.id)!;
+    expect([stored.status, stored.data.resolutionCode, stored.data.confirmedProviderIdentity]).toEqual(['resolved', 'provider_identity_confirmed', identities[1]]);
+  });
+
+  it('does not offer Operations the confirmation of a held batch\'s connection, which the service refuses from that role', async () => {
+    const user = userEvent.setup();
+    api.role = 'Operations';
+    const hold = heldBatch();
+    renderApp(`/exceptions?record=${hold.id}`);
+    await user.click(await screen.findByRole('button', { name: 'Resolve' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Resolve exception' });
+    const codes = within(within(dialog).getByLabelText(/How was this resolved/)).getAllByRole('option').map(option => option.textContent);
+    expect(codes).toEqual(['Choose an option', 'Fee schedule updated', 'Provider corrected', 'Accepted variance']);
+    expect(within(dialog).queryByLabelText(/Connection whose payout this batch is/)).toBeNull();
+    expect(api.calls.some(call => call.method === 'GET' && call.path.includes('/v1/records/settlement-batches'))).toBe(false);
+  });
 });

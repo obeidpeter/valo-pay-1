@@ -1,5 +1,5 @@
 import { isDeepStrictEqual } from "node:util";
-import { providerConnectionKey, sumMoney, nonnegativeMoney, validMoneyBps } from "@workspace/valopay-schema";
+import { providerConnectionKey, providerIdentityCondition, providerIdentityConfirmedCode, providerIdentityOf, providerIdentityParts, sumMoney, nonnegativeMoney, validMoneyBps } from "@workspace/valopay-schema";
 import { DEFAULT_PROVIDER_FEE, SETTLEMENT_BATCH_TOLERANCE_KOBO, SETTLEMENT_ITEM_TOLERANCE_KOBO, WAT_OFFSET_MS, allocationClosedStatuses, conditionClearedCode, counted, exceptionCatalogue, hasFeeSchedule, heldEvidenceCodes, heldEvidenceCondition, heldEvidenceOf, isKobo, isOpenException, moneyText, nairaText, normaliseFailureCode, normaliseRefundStatus, normaliseReversalStatus, otherCurrenciesText, paymentAwaitsAllocation, paymentMoneyReturned, paymentRefundedKobo, paymentUnappliedKobo, providerFeeKobo, resolveExceptionType, unseenReversalCodes, unseenReversalCondition, unseenReversalOf, type ExceptionType, type ProviderFeeSchedule, type PaymentChannel } from "@workspace/valopay-schema";
 import { findRecord, makeRecord, recordsOf, touch } from "./records";
 import { indexedPass, recordById, recordsOfKind, recordsWhere } from "./record-index";
@@ -37,7 +37,7 @@ const batchIdentity = (state: DomainState, batch: TypedRecord<"settlement-batche
 /** The connection a record names, as written: its providerConnection, else its provider (as observationProviderKey reads them); undefined when it names neither, and then it carries no provider identity. */
 const namedConnection = (record: ValopayRecord): string | undefined => [record.data.providerConnection, record.data.provider].find((value): value is string => typeof value === "string" && connectionKey(value) !== "");
 /** FIN-03: a settlement batch held for its provider identity, a review not released since (holdEarlierSettlementIdentities). */
-const identityHeld = (batch: ValopayRecord): boolean => !!batch.data.providerIdentityReview && !batch.data.providerIdentityRelease;
+export const identityHeld = (batch: ValopayRecord): boolean => !!batch.data.providerIdentityReview && !batch.data.providerIdentityRelease;
 
 /** The four independent status dimensions of a Payment (TRD 4.2), written in one vocabulary; legacy spellings are normalised. */
 export function paymentDimensions(payment: TypedRecord<"payments">): void {
@@ -629,32 +629,130 @@ function countDisplacedLines(state: DomainState, ctx: Context, from: TypedRecord
   return countedNow;
 }
 
-/** A settlement batch released from an earlier build's provider identity hold: the connection it holds, and the lines it held meanwhile, which are counted again. */
-interface IdentityRelease { batch: TypedRecord<"settlement-batches">; connection: string; held: TypedRecord<"observations">[] }
+/**
+ * A settlement batch released from a provider identity hold: the connection it holds, the lines it held meanwhile,
+ * which are counted again, and for one Finance confirmed (confirmIdentity), who did, the evidence of other connections
+ * it moved out (lines counted again, credits left to link to their own batch) and whether its totals were kept as typed.
+ */
+interface IdentityRelease {
+  batch: TypedRecord<"settlement-batches">; connection: string; held: TypedRecord<"observations">[];
+  confirmedBy?: string; confirmedAt?: string; detached?: TypedRecord<"observations">[]; credits?: TypedRecord<"observations">[]; totalsKept?: boolean;
+}
+
+/** The resolution confirming a held batch's identity (providerIdentityConfirmedCode), while it names one of the identities the batch was held for and, for a batch that records its identity, that one (heldBatchToConfirm). */
+function identityConfirmation(state: DomainState, batch: TypedRecord<"settlement-batches">): TypedRecord<"exceptions"> | undefined {
+  const identities = (batch.data.providerIdentityReview as { identities?: string[] }).identities ?? [];
+  return recordsWhere(state, "exceptions", "data.linkedRecordId", batch.id).find((item) => item.data.condition === providerIdentityCondition(batch.id) && !isOpenException(item.status)
+    && item.data.resolutionCode === providerIdentityConfirmedCode && identities.includes(String(item.data.confirmedProviderIdentity))
+    && (!batch.data.providerIdentityKey || batch.data.providerIdentityKey === item.data.confirmedProviderIdentity));
+}
+
+/**
+ * The settlement batch a provider identity confirmation releases, checked before it is recorded: a batch still held for
+ * its provider identity (409 otherwise), and an identity it was held for, or for a batch that records its identity, that
+ * one, which the store keeps (400 otherwise). resolve_exception checks the role first: only Admin or Finance confirms.
+ */
+export function heldBatchToConfirm(state: DomainState, exception: TypedRecord<"exceptions">, identity: string | undefined): TypedRecord<"settlement-batches"> {
+  const batchId = providerIdentityOf(exception.data.condition);
+  const batch = batchId === undefined ? undefined : recordsWhere(state, "settlement-batches", "id", batchId)[0];
+  if (!batch || !identityHeld(batch)) throw Object.assign(new Error("This settlement batch is no longer held for its provider identity. Refresh the exception to see where it stands."), { status: 409 });
+  const identities = (batch.data.providerIdentityReview as { identities?: string[] }).identities ?? [];
+  const choices = batch.data.providerIdentityKey ? identities.filter((item) => item === batch.data.providerIdentityKey) : identities;
+  if (!identity || !choices.includes(identity)) throw new Error(`Choose one of the identities settlement batch ${batch.reference} was held for: ${choices.join(", ")}.`);
+  return batch;
+}
+
+/**
+ * Decision on Finance's confirmation of a held batch's identity (identityConfirmation): the batch is released as that
+ * identity, once. Its evidence of that connection, and evidence that names none, stays with it. Each settlement line of
+ * another connection leaves its lines and, while its totals are the ones its lines added (totalsFromLines), its totals,
+ * and is returned to be counted as a new line is, in its own connection's batch; each statement credit of another
+ * connection is unlinked, to link to its own connection's batch; and the lines it held meanwhile are returned too. The
+ * release records the identity, who confirmed it and when, and what moved; the batch takes the confirmed connection as
+ * its identity and its provider and providerConnection, keeping in the release (previous) those that named another.
+ */
+function confirmIdentity(state: DomainState, ctx: Context, batch: TypedRecord<"settlement-batches">, confirmation: TypedRecord<"exceptions">, linked: Map<string, TypedRecord<"observations">>): IdentityRelease {
+  const identity = String(confirmation.data.confirmedProviderIdentity), key = providerIdentityParts(identity)?.connection ?? identity;
+  const identityOf = (item: TypedRecord<"observations">, named: string) => JSON.stringify([connectionKey(named), String(item.data.batchReference || batch.reference)]);
+  const other = (item: TypedRecord<"observations">) => { const named = namedConnection(item); return named !== undefined && identityOf(item, named) !== identity; };
+  const evidence = [...linked.values()];
+  const connection = evidence.map((item) => { const named = namedConnection(item); return named !== undefined && identityOf(item, named) === identity ? named.trim() : undefined; }).find(Boolean) ?? key;
+  const held = evidence.filter((item) => item.data.providerIdentityHeld === true);
+  const detached = evidence.filter((item) => item.data.source === "settlement" && item.data.providerIdentityHeld !== true && other(item));
+  const credits = evidence.filter((item) => item.data.source === "statement" && other(item));
+  const paymentOf: PaymentOf = (line) => recordsWhere(state, "payments", "id", String(line.data.paymentId ?? ""))[0];
+  const lines = Array.isArray(batch.data.lineObservationIds) ? batch.data.lineObservationIds.map((id) => recordsWhere(state, "observations", "id", String(id))[0]) : [];
+  const counted = detached.filter((line) => lines.includes(line)), fromLines = counted.length > 0 && totalsFromLines(batch, lines, paymentOf);
+  for (const line of counted) {
+    if (fromLines) {
+      const added = lineAdded(line, paymentOf);
+      batch.data.grossKobo = sumMoney([Number(batch.data.grossKobo), -added.grossKobo]);
+      batch.data.feeKobo = sumMoney([Number(batch.data.feeKobo), -added.feeKobo]);
+      if (batch.data.expectedFeeKobo !== undefined) batch.data.expectedFeeKobo = sumMoney([Number(batch.data.expectedFeeKobo), -added.expectedFeeKobo]);
+    }
+    batch.data.lineObservationIds = (batch.data.lineObservationIds as string[]).filter((id) => id !== line.id);
+    if (!lines.some((item) => item && !counted.includes(item) && item.data.paymentId === line.data.paymentId)) batch.data.linePaymentIds = ((batch.data.linePaymentIds ?? []) as string[]).filter((id) => id !== line.data.paymentId);
+  }
+  if (fromLines) {
+    batch.data.netKobo = sumMoney([Number(batch.data.grossKobo), -Number(batch.data.feeKobo)]);
+    if (batch.data.expectedFeeKobo !== undefined) batch.data.feeVarianceKobo = sumMoney([Number(batch.data.feeKobo), -Number(batch.data.expectedFeeKobo)]);
+  }
+  if (Array.isArray(batch.data.otherCurrencyLineIds)) batch.data.otherCurrencyLineIds = batch.data.otherCurrencyLineIds.filter((id) => !detached.some((line) => line.id === id));
+  for (const line of detached) {
+    for (const field of ["settlementBatchId", "countedGrossKobo", "assumedFeeKobo", "expectedFeeKobo", "feeVarianceKobo", "duplicateSettlementLine", "countedInBatchId", "otherCurrencyLine"]) delete line.data[field];
+    touch(line, ctx.now);
+  }
+  for (const credit of credits) {
+    credit.status = "unresolved";
+    for (const field of ["resolvedTo", "resolutionKey", "duplicateStatementCredit", "otherCurrencyCredit"]) delete credit.data[field];
+    touch(credit, ctx.now);
+  }
+  // The credits it keeps are summed again by the statement link.
+  if (credits.length) for (const field of ["statementObservationId", "statementNetKobo", "statementOtherCurrencies"]) delete batch.data[field];
+  for (const line of held) { delete line.data.providerIdentityHeld; delete line.data.settlementBatchId; touch(line, ctx.now); }
+  for (const item of [...held, ...detached, ...credits]) linked.delete(item.id);
+  // The batch takes the connection Finance confirmed, unless it records its identity already (then the store keeps these).
+  const previous = batch.data.providerIdentityKey ? {} : Object.fromEntries((["provider", "providerConnection"] as const).filter((field) => batch.data[field] !== undefined && connectionKey(String(batch.data[field])) !== key).map((field) => [field, batch.data[field]]));
+  const confirmedBy = String(confirmation.data.resolvedBy ?? ""), confirmedAt = String(confirmation.data.resolvedAt ?? "");
+  batch.data.providerIdentityRelease = {
+    releasedAt: ctx.now, identity, heldLineIds: held.map((item) => item.id).sort(), confirmedBy, confirmedAt, exceptionId: confirmation.id,
+    detachedLineIds: detached.map((item) => item.id).sort(), detachedCreditIds: credits.map((item) => item.id).sort(), ...(Object.keys(previous).length ? { previous } : {}),
+  };
+  if (!batch.data.providerIdentityKey) {
+    batch.data.providerIdentityKey = identity;
+    for (const field of Object.keys(previous)) batch.data[field] = connection;
+    batch.data.providerConnection ||= connection;
+  }
+  touch(batch, ctx.now);
+  return { batch, connection, held, confirmedBy, confirmedAt, detached, credits, totalsKept: counted.length > 0 && !fromLines };
+}
 
 /**
  * FIN-03: a settlement batch is one provider connection's payout, and one whose
- * evidence is genuinely ambiguous is held for a data owner's repair
- * (providerIdentityReview keeps its earlier totals and links; the batch stays in
- * variance) instead of being split by guesswork. It is ambiguous when its evidence
- * names more than one connection (the connection, else the provider, each of its
- * settlement lines and statement credits names, observationProviderKey, with its
- * batch reference; its recorded identity; and for a batch Finance entered by hand,
- * the provider it records), or when another batch claims its identity. Evidence
- * that names no connection carries no identity and never makes a batch ambiguous.
- * Decision on the batches earlier builds saved: one saved before identities were
- * recorded takes the one connection its evidence names, else the lender's own (as
- * ING-03 reads evidence that names none), never the connection an earlier build
- * copied to it from its first payment (providerConnection), and records it
- * (providerIdentityKey). A batch PR #61's build held that is not ambiguous is
- * released, once: providerIdentityRelease records when, as which identity and the
- * lines it attached but held meanwhile (providerIdentityHeld), beside its snapshot,
- * which is kept; the exception raised for the hold closes as its condition cleared;
- * and those lines are returned to be counted as a line is when it arrives
+ * evidence is genuinely ambiguous is held for review (providerIdentityReview keeps
+ * its earlier totals and links; the batch stays in variance) instead of being split
+ * by guesswork. It is ambiguous when its evidence names more than one connection
+ * (the connection, else the provider, each of its settlement lines and statement
+ * credits names, observationProviderKey, with its batch reference; its recorded
+ * identity; and for a batch Finance entered by hand, the provider it records), or
+ * when another batch claims its identity. Evidence that names no connection
+ * carries no identity and never makes a batch ambiguous. Decision on the batches
+ * earlier builds saved: one saved before identities were recorded takes the one
+ * connection its evidence names, else the lender's own (as ING-03 reads evidence
+ * that names none), never the connection an earlier build copied to it from its
+ * first payment (providerConnection), and records it (providerIdentityKey). A batch
+ * PR #61's build held that is not ambiguous is released, once:
+ * providerIdentityRelease records when, as which identity and the lines it
+ * attached but held meanwhile (providerIdentityHeld), beside its snapshot, which is
+ * kept; the exception raised for the hold closes as its condition cleared; and
+ * those lines are returned to be counted as a line is when it arrives
  * (settlementBatch), in this batch or in their own connection's. Its totals and
- * statement links were kept, so the pass then reconciles it as before. A released
- * batch whose evidence later names another connection is held again. Returns how
- * many batches are held, those released and the exceptions their release closed.
+ * statement links were kept, so the pass then reconciles it as before. A held
+ * batch whose identity Finance confirmed is released as that identity first
+ * (confirmIdentity), and another batch claiming it does not hold it again. A
+ * released batch whose evidence later names another connection is held again.
+ * Returns how many batches are held, those released and the exceptions their
+ * release closed.
  */
 function holdEarlierSettlementIdentities(state: DomainState, ctx: Context): { held: number; released: IdentityRelease[]; cleared: TypedRecord<"exceptions">[] } {
   const evidence = new Map<string, Map<string, TypedRecord<"observations">>>();
@@ -665,10 +763,15 @@ function holdEarlierSettlementIdentities(state: DomainState, ctx: Context): { he
     link(observation.data.source === "settlement" ? observation.data.settlementBatchId
       : observation.data.source === "statement" && String(observation.data.resolvedTo ?? "").startsWith("batch:") ? String(observation.data.resolvedTo).slice(6) : undefined, observation);
   }
-  const assessed = recordsOf(state, "settlement-batches").map((batch) => {
+  const batches = recordsOf(state, "settlement-batches"), released: IdentityRelease[] = [], cleared: TypedRecord<"exceptions">[] = [];
+  for (const batch of batches) {
     for (const id of [...(Array.isArray(batch.data.lineObservationIds) ? batch.data.lineObservationIds : []), ...(Array.isArray(batch.data.otherCurrencyLineIds) ? batch.data.otherCurrencyLineIds : []), ...(batch.data.statementObservationId ? [batch.data.statementObservationId] : [])]) {
       link(batch.id, recordsWhere(state, "observations", "id", String(id))[0]);
     }
+    const confirmation = identityHeld(batch) ? identityConfirmation(state, batch) : undefined;
+    if (confirmation) released.push(confirmIdentity(state, ctx, batch, confirmation, evidence.get(batch.id) ?? new Map()));
+  }
+  const assessed = batches.map((batch) => {
     const linked = [...(evidence.get(batch.id)?.values() ?? [])];
     // A line a hold attached without counting it was never the batch's evidence: it is read again once the batch is released.
     const own = linked.filter((item) => item.data.providerIdentityHeld !== true);
@@ -690,9 +793,10 @@ function holdEarlierSettlementIdentities(state: DomainState, ctx: Context): { he
     for (const item of claimed) claimants.set(item, (claimants.get(item) ?? new Set<string>()).add(batch.id));
   }
   let held = 0;
-  const released: IdentityRelease[] = [], cleared: TypedRecord<"exceptions">[] = [];
   for (const { batch, linked, own, claims, identity, connection } of assessed) {
-    if (claims.size > 1 || (claimants.get(identity)?.size ?? 0) > 1) {
+    // Finance confirmed its identity: another batch claiming it does not hold it again.
+    const confirmed = !!(batch.data.providerIdentityRelease as { confirmedBy?: unknown } | undefined)?.confirmedBy;
+    if (claims.size > 1 || (!confirmed && (claimants.get(identity)?.size ?? 0) > 1)) {
       if (!batch.data.providerIdentityReview) {
         batch.data.providerIdentityReview = {
           detectedAt: ctx.now, identities: (claims.size > 1 ? [...claims.keys()] : [identity]).sort(), observationIds: own.map((item) => item.id).sort(),
@@ -708,7 +812,7 @@ function holdEarlierSettlementIdentities(state: DomainState, ctx: Context): { he
       batch.data.providerIdentityRelease = { releasedAt: ctx.now, identity, heldLineIds: lines.map((item) => item.id).sort() };
       for (const line of lines) { delete line.data.providerIdentityHeld; delete line.data.settlementBatchId; touch(line, ctx.now); }
       const reason = `the evidence of settlement batch ${batch.reference} names one provider connection, ${connection}, which no other batch claims, so its provider identity hold is released`;
-      for (const exception of recordsWhere(state, "exceptions", "data.linkedRecordId", batch.id).filter((item) => isOpenException(item.status) && item.data.condition === `settlement_variance:${batch.id}:provider_identity`)) {
+      for (const exception of recordsWhere(state, "exceptions", "data.linkedRecordId", batch.id).filter((item) => isOpenException(item.status) && item.data.condition === providerIdentityCondition(batch.id))) {
         // One that carries a report only Finance settles stays open for it.
         if (carriedReports(exception).length) noteUpdate(exception, ctx, `${reason[0]!.toUpperCase()}${reason.slice(1)}.${stillReported(exception)}`);
         else { closeClearedException(exception, ctx, reason); cleared.push(exception); }
@@ -873,7 +977,7 @@ const STATEMENT_MATCHED = "Statement credit matched the settlement batch net tot
  * it, so while one names the batch it is in variance.
  */
 export function settlementBatchState(batch: TypedRecord<"settlement-batches">, credits = 1): { status: "pending" | "reconciled" | "variance"; explanation?: string; condition?: string; settledBy?: string[] } {
-  if (identityHeld(batch)) return { status: "variance", condition: `settlement_variance:${batch.id}:provider_identity`, explanation: "Historical settlement evidence mixes or conflicts with provider connections. Totals and prior links are preserved for Finance review and cannot certify a reconciled payout. An operator-reviewed repair using verified provider-scoped evidence is required; rerunning reconciliation or reimporting the same batch does not clear this hold." };
+  if (identityHeld(batch)) return { status: "variance", condition: providerIdentityCondition(batch.id), explanation: "Historical settlement evidence mixes or conflicts with provider connections. Totals and prior links are preserved for Finance review and cannot certify a reconciled payout. Once the providers confirm whose payout this is, Finance or an administrator resolves this exception as provider identity confirmed, naming that connection: the next reconciliation keeps its evidence in the batch and moves the evidence of other connections to their own batches. Rerunning reconciliation or reimporting the same batch does not clear this hold." };
   const currency = currencyOf(batch), checked = hasFeeSchedule(currency);
   const net = Number(batch.data.netKobo || 0), variance = checked ? Number(batch.data.feeVarianceKobo || 0) : 0;
   const feesDiffer = Math.abs(variance) > SETTLEMENT_BATCH_TOLERANCE_KOBO;
@@ -2291,7 +2395,7 @@ function reconcileRecords(state: DomainState, ctx: Context): { message: string; 
   const separated = separateEarlierCurrencies(state, ctx);
   const canonicalPayments = new CanonicalPaymentIndex(state), settlementLines = new SettlementLines(state);
   // The lines a released batch held are counted as they would have been when they arrived, before this pass's evidence.
-  for (const line of identities.released.flatMap((item) => item.held)) {
+  for (const line of identities.released.flatMap((item) => [...item.held, ...(item.detached ?? [])])) {
     const payment = recordsWhere(state, "payments", "id", String(line.data.paymentId ?? ""))[0];
     if (payment) settlementBatch(state, ctx, line, payment, settlementLines);
   }
@@ -2396,12 +2500,30 @@ function restoredStatusesNote(restored: readonly HoldRestored[]): string | undef
 
 /** What the audit entry adds for settlement batches released from an earlier build's provider identity hold: each batch, its connection and the lines it held meanwhile. */
 function releasedBatchesNote(released: readonly IdentityRelease[]): string | undefined {
-  if (!released.length) return undefined;
+  const automatic = released.filter((item) => item.confirmedBy === undefined);
+  const notes = released.filter((item) => item.confirmedBy !== undefined).map(confirmedReleaseNote);
   const lines = ({ held }: IdentityRelease) => held.length ? `; ${counted(held.length, "settlement line")} it held meanwhile ${held.length === 1 ? "was" : "were"} counted again` : "";
-  if (released.length === 1) return `Released settlement batch ${released[0]!.batch.reference} from the provider identity hold an earlier build placed on it, as its evidence names one provider connection, ${released[0]!.connection}${lines(released[0]!)}.`;
-  const named = released.slice(0, 3).map((item) => `${item.batch.reference} (${item.connection}${lines(item)})`);
-  const more = released.length > 3 ? `; and ${counted(released.length - 3, "more", "more")}` : "";
-  return `Released ${counted(released.length, "settlement batch", "settlement batches")} from the provider identity hold an earlier build placed on them, as each one's evidence names one provider connection: ${named.join("; ")}${more}.`;
+  if (automatic.length === 1) notes.push(`Released settlement batch ${automatic[0]!.batch.reference} from the provider identity hold an earlier build placed on it, as its evidence names one provider connection, ${automatic[0]!.connection}${lines(automatic[0]!)}.`);
+  else if (automatic.length) {
+    const named = automatic.slice(0, 3).map((item) => `${item.batch.reference} (${item.connection}${lines(item)})`);
+    const more = automatic.length > 3 ? `; and ${counted(automatic.length - 3, "more", "more")}` : "";
+    notes.push(`Released ${counted(automatic.length, "settlement batch", "settlement batches")} from the provider identity hold an earlier build placed on them, as each one's evidence names one provider connection: ${named.join("; ")}${more}.`);
+  }
+  return notes.join(" ") || undefined;
+}
+
+/** What the audit entry says of a batch released as the identity Finance confirmed (confirmIdentity): the batch, the connection, who confirmed it and when, and the evidence of other connections it moved out. */
+function confirmedReleaseNote(release: IdentityRelease): string {
+  const references = (items: readonly ValopayRecord[]) => `${items.slice(0, 3).map((item) => item.reference).join(", ")}${items.length > 3 ? ` and ${counted(items.length - 3, "more", "more")}` : ""}`;
+  const was = (items: readonly unknown[]) => (items.length === 1 ? "was" : "were");
+  const { detached = [], credits = [], held } = release;
+  const moved = [
+    detached.length ? `${counted(detached.length, "settlement line")} of another connection (${references(detached)}) ${was(detached)} counted again in its own connection's batch` : "",
+    credits.length ? `${counted(credits.length, "statement credit")} of another connection (${references(credits)}) ${was(credits)} left to link to its own` : "",
+    held.length ? `${counted(held.length, "settlement line")} it held meanwhile ${was(held)} counted again` : "",
+  ].filter(Boolean);
+  const confirmedAt = Date.parse(String(release.confirmedAt));
+  return `Released settlement batch ${release.batch.reference} as the payout of ${release.connection}, which ${release.confirmedBy} confirmed${Number.isFinite(confirmedAt) ? ` on ${watDate(confirmedAt)} (WAT)` : ""}${moved.length ? `: ${moved.join(", and ")}` : ""}.${release.totalsKept ? " Its totals were typed by hand, so they were left as they are: check that they leave out the lines that moved." : ""}`;
 }
 
 /** What the audit entry adds for settlement lines an earlier build counted in a batch of another currency: each line, its batch, both currencies and the batch that now counts its collection instead. */

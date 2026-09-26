@@ -16,7 +16,7 @@ export const exceptionCatalogue = {
   overpayment: { title: "Overpayment", trigger: "The allocated amount is more than the instalment due", owner: "Finance", slaBusinessDays: 2, severity: "medium", resolutionCodes: ["refund_requested", "held_credit", "applied_to_next"] },
   unpaid_after_final_attempt: { title: "Unpaid after final attempt", trigger: "The retry policy allows no further attempts", owner: "Operations", slaBusinessDays: 2, severity: "medium", resolutionCodes: ["paid_other_channel", "rescheduled_by_lms", "written_off_by_lms", "mandate_reissued"] },
   mandate_limit_exceeded: { title: "Mandate limit exceeded", trigger: "Due amount above the mandate limit", owner: "Operations", slaBusinessDays: 2, severity: "medium", resolutionCodes: ["limit_raised_new_mandate", "split_by_lms", "cancelled"] },
-  settlement_variance: { title: "Settlement variance", trigger: "The net settlement amount does not match the gross amount minus fees", owner: "Finance", slaBusinessDays: 2, severity: "medium", resolutionCodes: ["fee_schedule_updated", "provider_corrected", "accepted_variance"] },
+  settlement_variance: { title: "Settlement variance", trigger: "The net settlement amount does not match the gross amount minus fees", owner: "Finance", slaBusinessDays: 2, severity: "medium", resolutionCodes: ["fee_schedule_updated", "provider_corrected", "accepted_variance", "provider_identity_confirmed"] },
   provider_status_mismatch: { title: "Provider status mismatch", trigger: "Provider and platform disagree on mandate or attempt state", owner: "Operations", slaBusinessDays: 1, severity: "medium", resolutionCodes: ["provider_state_adopted", "platform_state_confirmed", "escalated_to_provider"] },
   customer_dispute: { title: "Customer dispute", trigger: "The provider reports a disputed debit, or the lender records a customer dispute", owner: "Operations", slaBusinessDays: 1, severity: "high", resolutionCodes: ["upheld_refund", "not_upheld", "mandate_cancelled"] },
   unknown_outcome: { title: "Unknown outcome", trigger: "A debit's outcome, or a pay-by-bank payment's, is still unknown after 24 hours", owner: "Operations", slaBusinessDays: 1, severity: "high", resolutionCodes: ["resolved_succeeded", "resolved_failed", "provider_confirmed_no_debit"] },
@@ -114,6 +114,31 @@ export function unseenReversalOf(condition: unknown): string | undefined {
 export const unseenReversalCodes = { setAside: "platform_state_confirmed", adopted: "provider_state_adopted" } as const;
 
 /**
+ * FIN-03: the condition a settlement_variance is raised with for a settlement
+ * batch held for its provider identity, because its evidence names more than one
+ * provider connection or another batch claims its identity.
+ */
+export function providerIdentityCondition(batchId: string): string {
+  return `settlement_variance:${batchId}:provider_identity`;
+}
+
+/** The batch a provider identity condition (providerIdentityCondition) names; undefined for any other condition. */
+export function providerIdentityOf(condition: unknown): string | undefined {
+  const parts = String(condition ?? "").split(":");
+  return parts.length === 3 && parts[0] === "settlement_variance" && parts[1] && parts[2] === "provider_identity" ? parts[1] : undefined;
+}
+
+/**
+ * Finance's release of a settlement batch held for its provider identity, once
+ * the providers have confirmed whose payout it is. Only Admin or Finance records
+ * it, with the identity it confirms (data.confirmedProviderIdentity, one of the
+ * identities the batch was held for, providerIdentityReview.identities): the next
+ * reconciliation keeps that connection's evidence in the batch and moves the
+ * evidence of the others to their own batches.
+ */
+export const providerIdentityConfirmedCode = "provider_identity_confirmed";
+
+/**
  * Decision on what a resolution means: it keeps the meaning Finance was shown
  * when it was recorded. resolve_exception records the rules it was recorded
  * under on the exception (data.resolutionRuleVersion). Several earlier builds
@@ -128,12 +153,15 @@ export const resolutionRuleVersion = 1;
  * evidence held because it came through another connection alone, and
  * not_money only for held payment evidence, never for a held payment. The
  * provider_status_mismatch of a reversal waiting for a payment no connection
- * has seen offers only the two codes that decide it (unseenReversalCodes).
+ * has seen offers only the two codes that decide it (unseenReversalCodes). A
+ * settlement_variance offers provider_identity_confirmed only for a batch held
+ * for its provider identity (providerIdentityCondition).
  */
 export function resolutionCodesForException(exception: { data?: { type?: unknown; condition?: unknown } | null } | null | undefined): readonly string[] {
   const codes = resolutionCodesFor(exception?.data?.type);
   const type = resolveExceptionType(exception?.data?.type);
   if (type === "provider_status_mismatch" && unseenReversalOf(exception?.data?.condition)) return codes.filter((code) => code === unseenReversalCodes.adopted || code === unseenReversalCodes.setAside);
+  if (type === "settlement_variance") return providerIdentityOf(exception?.data?.condition) ? codes : codes.filter((code) => code !== providerIdentityConfirmedCode);
   if (type !== "suspected_duplicate") return codes;
   const held = heldEvidenceOf(exception?.data?.condition);
   return codes.filter((code) => code === heldEvidenceCodes.samePayment ? held?.connectionOnly === true : code === heldEvidenceCodes.notMoney ? held !== undefined : true);

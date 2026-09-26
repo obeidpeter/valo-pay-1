@@ -1,13 +1,13 @@
 import {
   allocationDecisionDataSchema, counted, businessDateSchema,
   DEFAULT_ACTIVATION_WINDOW_DAYS, PLATFORM_OWNER, activationReminderCaps, closeRules, failureCodeList, handBackFallbackOwner, isKnownFailureCode,
-  heldEvidenceCodes, heldEvidenceOf, moneyText, nairaText, nextCloseInstant, normaliseFailureCode, otherCurrenciesText, passRuleText, paymentUnappliedKobo, resolutionCodesForException, resolutionRuleVersion, resolveExceptionType, unseenReversalCodes, unseenReversalOf, withinQuietHours, templateTextProblems,
+  heldEvidenceCodes, heldEvidenceOf, moneyText, nairaText, nextCloseInstant, normaliseFailureCode, otherCurrenciesText, passRuleText, paymentUnappliedKobo, providerIdentityConfirmedCode, providerIdentityParts, resolutionCodesForException, resolutionRuleVersion, resolveExceptionType, unseenReversalCodes, unseenReversalOf, withinQuietHours, templateTextProblems,
   type CloseTrigger,
 } from "@workspace/valopay-schema";
 import { findRecord, makeRecord, recordsOf, touch } from "./records";
 import {
   REVIEW_SUPERSESSION, allocatePayment, applyConfirmedAllocation, clearSettledExceptions, clearedExceptionsNote, confirmAttemptOutcome, dueStatusText, forgetRejectedMatch,
-  currencyOf, paymentRefunded, paymentReversed, reconcile, recordPaymentRefund, refreshHeldEvidence, reinstateAllocation, releaseDispute, releaseDuplicateHold, rememberRejectedMatch, reportsReversal,
+  currencyOf, heldBatchToConfirm, paymentRefunded, paymentReversed, reconcile, recordPaymentRefund, refreshHeldEvidence, reinstateAllocation, releaseDispute, releaseDuplicateHold, rememberRejectedMatch, reportsReversal,
   settlePaymentStatus, supersedeAllocation, supersededByReview, withdrawPayerIdentification,
 } from "./reconciliation";
 import { resolveUnknownCheckout } from "./connected";
@@ -491,6 +491,11 @@ function runAction(state: DomainState, ctx: Context, input: ActionInput, audit?:
       if (evidenceReference && /\d{8,}/.test(evidenceReference)) throw new Error("Enter a masked evidence reference, such as STMT-***4411. Do not enter a full account or statement number.");
       if (evidenceReference && data.resolutionCode !== "resolved_succeeded") throw new Error("An evidence reference is recorded only when the payment is confirmed as received.");
     } else if (evidenceReference) throw new Error("An evidence reference is recorded only when a pay-by-bank payment whose outcome stayed unknown is confirmed as received.");
+    // FIN-03: only Finance, or an administrator, confirms whose payout a batch held for its provider identity is, naming one of the identities it was held for.
+    const identity = typeof data.confirmedProviderIdentity === "string" && data.confirmedProviderIdentity.trim() ? data.confirmedProviderIdentity : undefined;
+    if (data.resolutionCode === providerIdentityConfirmedCode) assertActionRole(ctx, ["Admin", "Finance"]);
+    else if (identity !== undefined) throw new Error("A provider identity is confirmed only when a settlement batch held for its provider identity is resolved as provider identity confirmed.");
+    const heldBatch = data.resolutionCode === providerIdentityConfirmedCode ? heldBatchToConfirm(state, item, identity) : undefined;
     const confirmedCode = data.confirmedFailureCode === undefined || data.confirmedFailureCode === null || data.confirmedFailureCode === "" ? undefined : data.confirmedFailureCode;
     if (confirmedCode !== undefined) {
       if (type !== "unknown_outcome" || data.resolutionCode !== "resolved_failed") throw new Error("A confirmed failure code is recorded only when an unknown outcome is resolved as failed.");
@@ -499,8 +504,10 @@ function runAction(state: DomainState, ctx: Context, input: ActionInput, audit?:
     // The rules the resolution follows, so it keeps the meaning its answer gives it whatever a later build changes.
     item.status = "resolved"; item.data.resolutionCode = data.resolutionCode; item.data.notes = reason(input); item.data.resolvedBy = ctx.actor; item.data.resolvedAt = now; item.data.resolutionRuleVersion = resolutionRuleVersion;
     if (confirmedCode !== undefined) item.data.confirmedFailureCode = normaliseFailureCode(confirmedCode);
+    if (heldBatch) item.data.confirmedProviderIdentity = identity;
     if (!type) item.data.legacyType = true;
     touch(item, now);
+    if (heldBatch) return result(`Exception resolution recorded. The next reconciliation releases settlement batch ${heldBatch.reference} as the payout of ${providerIdentityParts(identity)?.connection ?? identity}: its evidence of that connection, and evidence that names no connection, stays with it; each settlement line of another connection moves to that connection's own batch, and each statement credit of another connection is left to link to its own. Its totals leave out the lines that move, unless they were typed by hand. No money moves.`, item, { settlementBatchId: heldBatch.id, providerIdentity: identity });
     if (item.data.legacyResolutionReview) return result("Renewed reversal review recorded without changing the earlier decision or its history. Run reconciliation to apply this decision. Previously applied allocations or reversals are changed only by the normal reversal/correction workflow. That reconciliation returns each instalment the review paused to the status it had before the hold, unless a dispute was recorded for it meanwhile; a paid instalment, or one unpaid after its final attempt, kept its status throughout.", item);
     if (checkout) {
       const settled = resolveUnknownCheckout(state, ctx, item, checkout, { reason: reason(input), evidenceReference });
