@@ -9,9 +9,15 @@ import * as zod from 'zod';
 
 
 /**
- * Never touches the database, so a database outage does not read as a dead process. Needs no sandbox or sign-in, and answers whether or not Clerk is configured. At most 120 health checks a minute per client network, both health addresses together (an IPv6 client's network is its /64).
+ * Never touches the database, so a database outage does not read as a dead process: the scheduler's backlog is what its latest pass read, counted without naming a lender. Needs no sandbox or sign-in, and answers whether or not Clerk is configured. At most 120 health checks a minute per client network, both health addresses together (an IPv6 client's network is its /64).
  * @summary Liveness: the process answers, with its build, uptime and scheduler state
  */
+export const healthCheckResponseSchedulerBacklogOneOverdueMin = 0;
+
+export const healthCheckResponseSchedulerBacklogOneFailingMin = 0;
+
+
+
 export const HealthCheckResponse = zod.object({
   "status": zod.string(),
   "build": zod.string(),
@@ -35,8 +41,14 @@ export const HealthCheckResponse = zod.object({
   "batches": zod.number().int().optional()
 }).describe('The last scheduler pass that found work: its id, when it ran, how long it took, how many batches it read and what it did, including idle sandboxes whose automatic close it paused.'),zod.null()]),
   "lastSuccessAt": zod.string().nullish(),
-  "lastErrorAt": zod.string().nullish()
-}).describe('Whether closes are scheduled in this process, how often it looks, when it last looked and its last pass with work.')
+  "lastErrorAt": zod.string().nullish(),
+  "backlog": zod.union([zod.object({
+  "checkedAt": zod.string(),
+  "overdue": zod.number().int().min(healthCheckResponseSchedulerBacklogOneOverdueMin),
+  "failing": zod.number().int().min(healthCheckResponseSchedulerBacklogOneFailingMin),
+  "lateAfterMinutes": zod.number().int()
+}).describe('The lenders still owed a scheduled close, as the latest pass read them from the database, counted without naming any: overdue, those whose automatic close is on and whose pending close is more than lateAfterMinutes past its time; failing, those with a failed scheduled attempt at their pending time, which only that lender\'s own close ends, whatever other lenders\' closes do and across a restart. checkedAt is when the pass read them, on the API host\'s clock.'),zod.null()]).optional().describe('What the latest pass read from the database as still owed; null until this process\'s first pass has read it, and kept as last read while the scheduler is stopped or failing. Absent from builds before it was added, which report only lastRun.')
+}).describe('Whether closes are scheduled in this process, how often it looks, when it last looked, its last pass with work and what its latest pass read as still owed.')
 }).describe('The liveness answer: the build, when the process started, its uptime and what the close scheduler is doing.')
 
 

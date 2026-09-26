@@ -7,7 +7,7 @@ import { commissioningReport, writeCommissioningReport } from './commission-oper
 
 const probe = {
   service: 'https://example.test', observedAt: '2026-09-26T10:00:00.000Z', codes: [], warnings: [],
-  observations: { liveness: 'ok', database: 'ok', schema: 'ok', scheduler: 'running', schedulerEvidence: 'fresh_process_heartbeat' },
+  observations: { liveness: 'ok', database: 'ok', schema: 'ok', scheduler: 'running', schedulerEvidence: 'fresh_process_heartbeat', closeBacklog: { overdue: 0, failing: 0 } },
 };
 const configured = {
   VALOPAY_MONITOR_EXPECT_SCHEDULER: 'on', VALOPAY_OPERATIONS_HOST_MODE: 'reserved-vm',
@@ -23,6 +23,14 @@ assert.ok(report.acceptance.pending.includes('test_alert_received_and_acknowledg
 assert.ok(report.acceptance.pending.includes('isolated_host_database_objects_and_key_recovery'));
 assert.ok(!JSON.stringify(report).includes('synthetic-token'), 'a receiver URL is never copied to the report');
 assert.ok(!JSON.stringify(report).includes('/private'), 'a private state path is never copied to the report');
+assert.deepEqual(report.observations.closeBacklog, { overdue: 0, failing: 0 }, 'the report reads what the scheduler still owes, as counts');
+
+// A lender still owed a close blocks commissioning until it closes; a build that cannot say so blocks it too.
+report = commissioningReport({ ...probe, codes: ['scheduler_close_failed', 'scheduler_closes_overdue'], observations: { ...probe.observations, schedulerEvidence: 'failed', closeBacklog: { overdue: 2, failing: 1 } } }, configured);
+assert.equal(report.status, 'needs_configuration_or_repair');
+assert.deepEqual([report.blockers, report.observations.closeBacklog], [['scheduler_close_failed', 'scheduler_closes_overdue'], { overdue: 2, failing: 1 }]);
+report = commissioningReport({ ...probe, warnings: ['scheduler_backlog_not_reported'], observations: { ...probe.observations, closeBacklog: 'not_reported' } }, configured);
+assert.deepEqual([report.blockers, report.warnings], [['scheduler_backlog_not_reported'], ['scheduler_backlog_not_reported']], 'a build reporting only its last pass with work cannot evidence close failures');
 
 report = commissioningReport(probe, { ...configured, VALOPAY_OPERATIONS_HOST_MODE: 'autoscale' });
 assert.ok(report.blockers.includes('scheduler_stops_when_host_scales_down'), 'a current tick cannot commission an in-process timer on an idle Autoscale host');
@@ -69,4 +77,4 @@ try {
   assert.ok(directory.includes('valopay-commission-test-'));
   await rm(directory, { recursive: true, force: true });
 }
-console.log('Operational commissioning passed: scoped/redacted read-only evidence, configured versus observed versus accepted states, Autoscale scheduling mismatch, unresolved external heartbeat, alert/recovery acceptance, private report replacement and actual CLI failure status.');
+console.log('Operational commissioning passed: scoped/redacted read-only evidence, configured versus observed versus accepted states, failing and overdue closes as counts, a build without them, Autoscale scheduling mismatch, unresolved external heartbeat, alert/recovery acceptance, private report replacement and actual CLI failure status.');

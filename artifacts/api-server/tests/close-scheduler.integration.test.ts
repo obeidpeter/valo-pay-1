@@ -404,12 +404,74 @@ try {
   const oneShotClose = (await closesOf(o1))[0]!;
   assert.equal(oneShotClose.data.schedule.trigger, "scheduled", "a one-shot close is a scheduled close");
   assert.equal(oneShotClose.data.schedule.late, true);
+  // The next run, inside the failed lender's wait, tries nothing, but the close is still failing: that run fails too.
+  const waitingRun = await runClosePassOnce({ onlyMerchantIds: [o1, o2], log: oneShotLog });
+  assert.deepEqual([waitingRun.exitCode, waitingRun.run!.examined, waitingRun.run!.failed.length], [2, 0, 0], "a run that tried nothing still fails while a lender's close is failing");
   await pool.query("UPDATE valopay_records SET data = $2 WHERE id=$1", [brokenOnce.id, brokenOnce.data]);
   await retryNow(o2);
   const afterRetry = await runClosePassOnce({ onlyMerchantIds: [o1, o2], log: oneShotLog });
   assert.equal(afterRetry.exitCode, 0);
   assert.deepEqual(closedIds(afterRetry.run!), [o2]);
-  assert.deepEqual(oneShotLines.filter((line) => line.event === "close.one_shot").map((line) => [line.exitCode, line.budgetSpent]), [[2, true], [2, false], [0, false]], "one close.one_shot line a run, with its exit status and whether the budget ended it");
+  assert.deepEqual(oneShotLines.filter((line) => line.event === "close.one_shot").map((line) => [line.exitCode, line.budgetSpent, line.failing]), [[2, true, 0], [2, false, 1], [2, false, 1], [0, false, 0]], "one close.one_shot line a run, with its exit status, whether the budget ended it and the lenders still failing");
+
+  // A lender whose close fails stays visible until its own close succeeds, whatever other lenders' passes do and
+  // across a restart (K): each pass reads what is still owed from the database, the health answer carries it without
+  // naming a lender, and the monitor raises it. A close more than 30 minutes past its time is overdue, whoever holds it.
+  const { probeService } = await import(new URL("../../../scripts/monitor-valopay.mjs", import.meta.url).href);
+  const { HealthCheckResponse } = await import("@workspace/api-zod");
+  const { contractAnswer } = await import("../src/lib/contract.js");
+  /** The health answer /api/healthz gives with this scheduler status, and the monitor's codes for it. */
+  const healthAnswer = (scheduler: unknown) => contractAnswer(HealthCheckResponse, { status: "ok", build: "test", startedAt: new Date().toISOString(), uptimeSeconds: 1, scheduler });
+  const readyAnswer = { status: "ok", build: "test", checks: { database: { status: "ok", latencyMs: 1 }, schema: { status: "ok" } } };
+  const monitorCodes = async (scheduler: unknown): Promise<string[]> => (await probeService({ origin: "https://example.test", expectScheduler: "on", fetchImpl: async (url: string) => new Response(JSON.stringify(url.endsWith("readyz") ? readyAnswer : healthAnswer(scheduler))) })).codes;
+  const [e1, e2] = await sandboxLenders(), [e3] = await sandboxLenders();
+  const owedOnly = [e1, e2, e3];
+  clock = await databaseNow();
+  await setCursor(e1, new Date(clock - 5 * 60 * 1000).toISOString());
+  const brokenE1 = await breakLender(e1);
+  const watched = startCloseScheduler({ intervalMs: 60_000, firstDelayMs: 60_000, onlyMerchantIds: owedOnly });
+  try {
+    await watched.tick();
+    assert.equal(schedulerStatus().lastRun?.failed, 1);
+    assert.deepEqual(await monitorCodes(schedulerStatus()), ["scheduler_close_failed"], "the failed close is raised");
+    await setCursor(e2, new Date(clock - 60 * 1000).toISOString());
+    await watched.tick();
+    assert.deepEqual([schedulerStatus().lastRun?.closed, schedulerStatus().lastRun?.failed], [1, 0], "the next pass with work closed another lender while E1 waits for its retry");
+    assert.deepEqual(await monitorCodes(schedulerStatus()), ["scheduler_close_failed"], "another lender's close does not hide the failing one");
+    assert.equal((await watched.tick())!.examined, 0);
+    assert.deepEqual(await monitorCodes(schedulerStatus()), ["scheduler_close_failed"], "nor does a quiet pass");
+    const answer = JSON.stringify(healthAnswer(schedulerStatus()));
+    assert.ok(owedOnly.every((id) => !answer.includes(id)), "the health answer names no lender");
+  } finally {
+    watched.stop();
+    await watched.settle();
+  }
+  // A restarted process: nothing is known until its first pass, which does not try E1, still waiting, but reads it.
+  const restarted: typeof import("../src/lib/close-scheduler.js") = await import(`${new URL("../src/lib/close-scheduler.ts", import.meta.url).href}?restarted`);
+  const afterRestart = restarted.startCloseScheduler({ intervalMs: 60_000, firstDelayMs: 60_000, onlyMerchantIds: owedOnly });
+  try {
+    assert.deepEqual(await monitorCodes(restarted.schedulerStatus()), ["scheduler_stale"], "before its first pass the process has no evidence");
+    assert.equal((await afterRestart.tick())!.examined, 0);
+    assert.deepEqual(await monitorCodes(restarted.schedulerStatus()), ["scheduler_close_failed"], "its first pass reads the failing lender from the database");
+    await setCursor(e3, hoursAgo(clock, 1));
+    const holdsE3 = await pool.connect();
+    try {
+      await holdsE3.query("BEGIN");
+      await holdsE3.query("SELECT 1 FROM valopay_merchants WHERE id=$1 FOR UPDATE", [e3]);
+      assert.deepEqual((await afterRestart.tick())!.skipped, [e3]);
+      assert.deepEqual(await monitorCodes(restarted.schedulerStatus()), ["scheduler_close_failed", "scheduler_closes_overdue"], "a close an hour past its time is overdue, whoever holds the lender");
+    } finally {
+      await holdsE3.query("ROLLBACK");
+      holdsE3.release();
+    }
+    await pool.query("UPDATE valopay_records SET data = $2 WHERE id=$1", [brokenE1.id, brokenE1.data]);
+    await retryNow(e1);
+    assert.deepEqual(closedIds((await afterRestart.tick())!).sort(), [e1, e3].sort());
+    assert.deepEqual(await monitorCodes(restarted.schedulerStatus()), [], "the failing lender's own close ends it");
+  } finally {
+    afterRestart.stop();
+    await afterRestart.settle();
+  }
 
   // Expiry: scheduled-close audit entries never keep an abandoned sandbox alive.
   const workspace = (await pool.query<{ workspace_id: string }>("SELECT workspace_id FROM valopay_merchants WHERE id=$1", [a])).rows[0]!.workspace_id;

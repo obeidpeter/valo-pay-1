@@ -25,12 +25,16 @@
  * (checkAuditChainDaily) of each lender it gave its first close of the WAT
  * day, once a day however many missed business dates it catches up, and of
  * each lender a person closed meanwhile in this process (auditChecks), while
- * its budget lasts: the checks it leaves wait for the next pass.
+ * its budget lasts: the checks it leaves wait for the next pass.  Last, it
+ * reads from the database what is still owed (scheduledCloseBacklog): the
+ * lenders whose close is failing or overdue, which /api/healthz reports, so
+ * a failing lender stays visible until its own close succeeds, whatever
+ * other lenders' passes do and across a restart.
  */
 import { randomUUID } from "node:crypto";
 import type { Logger } from "pino";
 import { closeRules } from "@workspace/valopay-schema";
-import { SYSTEM_ACTOR_PREFIX, appendAudit, checkAuditChainDaily, dailyAuditCheckDue, dueScheduledCloses, inMerchantAsSystem, initialiseCloseCursors, loadState, recordScheduledCloseFailure, sandboxInactiveFor, saveState, settleChanges, writeAuditCheck } from "./valopay-store";
+import { SYSTEM_ACTOR_PREFIX, appendAudit, checkAuditChainDaily, dailyAuditCheckDue, dueScheduledCloses, inMerchantAsSystem, initialiseCloseCursors, loadState, recordScheduledCloseFailure, sandboxInactiveFor, saveState, scheduledCloseBacklog, settleChanges, writeAuditCheck } from "./valopay-store";
 import { runDailyClose } from "../domain/actions";
 import { pauseIdleSandboxClose, scheduledCloseDue } from "../domain/close";
 import { enrolEligibleFailures } from "../domain/policy-engine";
@@ -44,9 +48,26 @@ export const SCHEDULED_CLOSE_ACTOR = `${SYSTEM_ACTOR_PREFIX}scheduled close`;
 export interface ClosedMerchant { merchantId: string; closeId: string; late: boolean; delayMinutes: number | null }
 
 /**
- * What the scheduler is doing, for /api/healthz: whether it ticks, when it last looked, and what its last pass that
- * found work did. `off` and `external` both mean this process schedules no closes; `external` says a separate
- * scheduled job runs them (the one-shot close pass), so a close it misses still counts as missed.
+ * What the scheduled close still owes, as a pass read it from the database: durable facts, so a lender whose close
+ * failed stays counted until its own close succeeds, whatever other lenders' passes do, and a restarted process's
+ * first pass reads it again. Counts only: no lender is named.
+ */
+export interface CloseBacklog {
+  /** When the pass read it, on this process's clock, as lastSuccessAt. */
+  checkedAt: string;
+  /** Lenders whose automatic close is on and whose pending close is more than lateAfterMinutes past its time: missed. */
+  overdue: number;
+  /** Lenders with a failed scheduled attempt recorded at their pending close time (settings.closeRetry), which only their close ends. */
+  failing: number;
+  /** How long after its time a close counts as overdue (closeRules.lateAfterMinutes). */
+  lateAfterMinutes: number;
+}
+
+/**
+ * What the scheduler is doing, for /api/healthz: whether it ticks, when it last looked, what its last pass that
+ * found work did, and what its latest pass read as still owed. `off` and `external` both mean this process schedules
+ * no closes; `external` says a separate scheduled job runs them (the one-shot close pass), so a close it misses still
+ * counts as missed.
  */
 export interface SchedulerStatus {
   state: "not_started" | "running" | "off" | "external" | "stopped";
@@ -56,19 +77,22 @@ export interface SchedulerStatus {
   lastSuccessAt: string | null;
   lastErrorAt: string | null;
   lastRun: { runId: string; at: string; durationMs: number; initialised: number; batches: number; examined: number; closed: number; skipped: number; paused: number; failed: number } | null;
+  /** Null until this process's first pass has read it; kept while the scheduler is stopped or failing, as last read. */
+  backlog: CloseBacklog | null;
 }
-const status: SchedulerStatus = { state: "not_started", intervalMs: null, ticks: 0, lastTickAt: null, lastSuccessAt: null, lastErrorAt: null, lastRun: null };
+const status: SchedulerStatus = { state: "not_started", intervalMs: null, ticks: 0, lastTickAt: null, lastSuccessAt: null, lastErrorAt: null, lastRun: null, backlog: null };
 /** A copy of the scheduler's state, for the health answer. */
 export function schedulerStatus(): SchedulerStatus & { observedAt: string } { return { ...structuredClone(status), observedAt: new Date().toISOString() }; }
 /**
  * One change to the scheduler's state: it started, a pass began, a pass
- * returned (with its counts when it found work) or failed, it stopped, or this
- * process schedules no closes.
+ * returned (with its counts when it found work, and what it read as still
+ * owed unless it was told to stop) or failed, it stopped, or this process
+ * schedules no closes.
  */
 export type SchedulerEvent =
   | { type: "started"; intervalMs: number }
   | { type: "ticked"; at: string }
-  | { type: "succeeded"; at: string; run: SchedulerStatus["lastRun"] }
+  | { type: "succeeded"; at: string; run: SchedulerStatus["lastRun"]; backlog?: CloseBacklog | null }
   | { type: "failed"; at: string }
   | { type: "stopped" }
   | { type: "off" | "external" };
@@ -83,7 +107,7 @@ const observers = new Set<(event: SchedulerEvent) => void>();
 export function applySchedulerEvent(event: SchedulerEvent): void {
   if (event.type === "started") { status.state = "running"; status.intervalMs = event.intervalMs; }
   else if (event.type === "ticked") { status.ticks += 1; status.lastTickAt = event.at; }
-  else if (event.type === "succeeded") { status.lastSuccessAt = event.at; status.lastErrorAt = null; if (event.run) status.lastRun = event.run; }
+  else if (event.type === "succeeded") { status.lastSuccessAt = event.at; status.lastErrorAt = null; if (event.run) status.lastRun = event.run; if (event.backlog) status.backlog = event.backlog; }
   else if (event.type === "failed") status.lastErrorAt = event.at;
   else if (event.type === "stopped") status.state = "stopped";
   else status.state = event.type;
@@ -114,6 +138,8 @@ export interface CloseRun {
   failed: Array<{ merchantId: string; error: string; failures?: number; retryAt?: string }>;
   /** Whether the time budget ended the pass before it had taken up every lender due, so some may still be due; false for a pass told to stop. */
   budgetSpent: boolean;
+  /** What was still owed when the pass ended, read from the database (scheduledCloseBacklog); null for a pass told to stop. */
+  backlog: { overdue: number; failing: number } | null;
 }
 
 /** How a pass runs.  `onlyMerchantIds` limits it to the lenders named, for tests and operator tooling. */
@@ -164,7 +190,7 @@ export async function runDailyAuditCheck(merchantId: string, log?: Logger): Prom
  * stays due, and gets one catch-up close per pass, the oldest date first.
  */
 export async function runDueCloses(options: CloseRunOptions = {}): Promise<CloseRun> {
-  const run: CloseRun = { runId: randomUUID(), initialised: 0, batches: 0, examined: 0, closed: [], skipped: [], paused: [], failed: [], budgetSpent: false };
+  const run: CloseRun = { runId: randomUUID(), initialised: 0, batches: 0, examined: 0, closed: [], skipped: [], paused: [], failed: [], budgetSpent: false, backlog: null };
   const started = Date.now();
   const batchSize = options.batchSize ?? closeRules.batchSize, budgetMs = options.budgetMs ?? closeRules.passBudgetSeconds * 1000;
   const log = options.log?.child({ job: "scheduled_close", runId: run.runId });
@@ -238,9 +264,12 @@ export async function runDueCloses(options: CloseRunOptions = {}): Promise<Close
   }
   // Ended by its budget rather than by a stop or the end of what was due: the lenders it did not take up are still due.
   run.budgetSpent = !drained && options.signal?.aborted !== true;
+  // What is still owed, read afresh whatever the pass did, so neither another lender's close nor a restart hides a
+  // failing one; a pass told to stop leaves it to the next.
+  if (options.signal?.aborted !== true) run.backlog = await scheduledCloseBacklog(closeRules.lateAfterMinutes, { only: options.onlyMerchantIds });
   if (run.initialised) log?.info({ initialised: run.initialised }, "close cursors initialised for merchants that had none");
-  // One line per pass that found work, with its duration and the audit checks its budget left; a quiet pass is a debug line so the log is not a metronome.
-  const summary = { event: "close.run", durationMs: Date.now() - started, initialised: run.initialised, batches: run.batches, examined: run.examined, closed: run.closed.length, skipped: run.skipped.length, paused: run.paused.length, failed: run.failed.length, auditChecksLeft: auditChecks.size };
+  // One line per pass that found work, with its duration, the audit checks its budget left and what is still owed; a quiet pass is a debug line so the log is not a metronome.
+  const summary = { event: "close.run", durationMs: Date.now() - started, initialised: run.initialised, batches: run.batches, examined: run.examined, closed: run.closed.length, skipped: run.skipped.length, paused: run.paused.length, failed: run.failed.length, auditChecksLeft: auditChecks.size, ...run.backlog };
   if (run.examined || run.failed.length || auditChecks.size) log?.info(summary, "scheduled close pass finished"); else log?.debug(summary, "scheduled close pass found nothing due");
   return run;
 }
@@ -255,9 +284,11 @@ export const ONE_SHOT_PASS_BUDGET_MS = 10 * 60_000;
 /** What a one-shot pass did, and the exit status that says so. */
 export interface OneShotCloseRun {
   /**
-   * 0: the pass took up every lender due, and each was closed, paused or left to another process; 2: the pass ran,
-   * but at least one close failed (recorded and retried by a later pass) or its budget ran out before it had taken
-   * up every lender due (still due for the next run); 1: the pass could not run, or was stopped before it finished.
+   * 0: the pass took up every lender due, and each was closed, paused or left to another process, and no lender's
+   * close is failing or overdue; 2: the pass ran, but at least one close failed (recorded and retried by a later
+   * pass), its budget ran out before it had taken up every lender due (still due for the next run), or a lender's
+   * close is still failing, or overdue, from an earlier run; 1: the pass could not run, or was stopped before it
+   * finished.
    */
   exitCode: 0 | 1 | 2;
   run: CloseRun | null;
@@ -269,23 +300,27 @@ export interface OneShotCloseRun {
  * Deployment next to an Autoscale deployment: the same pass the tick loop
  * runs (runDueCloses), through the same repository, locks and audit, with a
  * longer budget, ending with one close.one_shot line that carries its exit
- * status. Another process closing at the same time never closes the same
- * lender twice (SKIP LOCKED, and each close re-checks under its lock).
+ * status. A lender whose close is still failing or overdue fails every run
+ * until its close succeeds, whether or not that run tried it, so the job's
+ * history shows it. Another process closing at the same time never closes the
+ * same lender twice (SKIP LOCKED, and each close re-checks under its lock).
  */
 export async function runClosePassOnce(options: CloseRunOptions = {}, pass: (options: CloseRunOptions) => Promise<CloseRun> = runDueCloses): Promise<OneShotCloseRun> {
   const started = Date.now();
   try {
     const run = await pass({ ...options, budgetMs: options.budgetMs ?? ONE_SHOT_PASS_BUDGET_MS });
     const stopped = options.signal?.aborted === true;
-    const exitCode = stopped ? 1 : run.failed.length || run.budgetSpent ? 2 : 0;
-    const fields = { event: "close.one_shot", exitCode, runId: run.runId, durationMs: Date.now() - started, stopped, budgetSpent: run.budgetSpent, examined: run.examined, closed: run.closed.length, skipped: run.skipped.length, paused: run.paused.length, failed: run.failed.length };
+    const owed = Boolean(run.backlog?.failing || run.backlog?.overdue);
+    const exitCode = stopped ? 1 : run.failed.length || run.budgetSpent || owed ? 2 : 0;
+    const fields = { event: "close.one_shot", exitCode, runId: run.runId, durationMs: Date.now() - started, stopped, budgetSpent: run.budgetSpent, examined: run.examined, closed: run.closed.length, skipped: run.skipped.length, paused: run.paused.length, failed: run.failed.length, ...run.backlog };
     if (exitCode === 0) options.log?.info(fields, "One-shot close pass finished");
     else options.log?.error(fields, stopped ? "One-shot close pass stopped before it finished; the lenders it did not reach are still due"
       : run.budgetSpent ? `One-shot close pass ran out of time with lenders still due${run.failed.length ? ", and some closes failed" : ""}; the next run takes them up`
-      : "One-shot close pass finished, but some closes failed; each is retried by a later pass");
+      : run.failed.length ? "One-shot close pass finished, but some closes failed; each is retried by a later pass"
+      : "One-shot close pass finished, but some lenders' closes are still failing or overdue; a later run takes each up");
     return { exitCode, run };
   } catch (error) {
-    options.log?.error({ event: "close.one_shot", exitCode: 1, durationMs: Date.now() - started, err: error }, "One-shot close pass could not read what was due");
+    options.log?.error({ event: "close.one_shot", exitCode: 1, durationMs: Date.now() - started, err: error }, "One-shot close pass could not read what was due, or what is still owed");
     return { exitCode: 1, run: null };
   }
 }
@@ -320,7 +355,8 @@ export function startCloseScheduler(options: { intervalMs?: number; firstDelayMs
     running = runDueCloses({ batchSize: options.batchSize, log: options.log, onlyMerchantIds: options.onlyMerchantIds, budgetMs, signal: stopping.signal, auditChecks })
       .then((run) => {
         const at = new Date().toISOString();
-        applySchedulerEvent({ type: "succeeded", at, run: run.examined || run.failed.length ? { runId: run.runId, at, durationMs: Date.now() - started, initialised: run.initialised, batches: run.batches, examined: run.examined, closed: run.closed.length, skipped: run.skipped.length, paused: run.paused.length, failed: run.failed.length } : null });
+        applySchedulerEvent({ type: "succeeded", at, run: run.examined || run.failed.length ? { runId: run.runId, at, durationMs: Date.now() - started, initialised: run.initialised, batches: run.batches, examined: run.examined, closed: run.closed.length, skipped: run.skipped.length, paused: run.paused.length, failed: run.failed.length } : null,
+          backlog: run.backlog && { checkedAt: at, ...run.backlog, lateAfterMinutes: closeRules.lateAfterMinutes } });
         return run;
       })
       .catch((error: unknown) => { applySchedulerEvent({ type: "failed", at: new Date().toISOString() }); options.log?.error({ event: "close.tick_failed", err: error }, "scheduled close tick failed"); return null; })
