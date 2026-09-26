@@ -54,6 +54,14 @@ export function definitiveRefusal(error: unknown): boolean {
   return (definitiveRefusalStatuses as readonly number[]).includes(response?.status ?? 0) && typeof response?.data?.error === 'string' && !requestOpen(error);
 }
 
+/** A refusal of a request the service saved earlier (a 4xx with `operation: "completed"`): its saved answer is
+ * withheld, because the permission or review it was made under changed, or retention removed it. Retrying the same
+ * request cannot recover it, so the request is over; a failure (5xx) may still give the answer on a retry. */
+export function savedAnswerWithheld(error: unknown): boolean {
+  const response = error as { status?: number; data?: { error?: unknown; operation?: unknown } } | null;
+  return Boolean(response?.status && response.status >= 400 && response.status < 500 && response.data?.operation === 'completed' && typeof response.data.error === 'string');
+}
+
 function recoveryError(message: string) {
   return Object.assign(new Error(message), { data: { error: message } });
 }

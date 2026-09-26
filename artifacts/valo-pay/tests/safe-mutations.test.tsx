@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { render, cleanup, renderHook, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { useSafePerformAction, useSafeImportRecords, useSafeCreateRecord, useSafeUpdateRecord, useSafeUpdateSettings, useSafeCreateExport, useSafeRetryExportJob, definitiveRefusal, outcomeIsUnconfirmed, requestClosed } from '@/lib/safe-mutations';
+import { useSafePerformAction, useSafeImportRecords, useSafeCreateRecord, useSafeUpdateRecord, useSafeUpdateSettings, useSafeCreateExport, useSafeRetryExportJob, definitiveRefusal, outcomeIsUnconfirmed, requestClosed, savedAnswerWithheld } from '@/lib/safe-mutations';
 import { installFakeApi, type FakeApi } from './fake-api';
 import { screen, userEvent, waitFor } from './harness';
 
@@ -280,6 +280,14 @@ describe('safe mutation intentions', () => {
     for(const data of [{error:'This calculation cannot be completed.',code:'MONEY_OUT_OF_RANGE',operation:'cancelled'},{error:'This calculation cannot be completed.',code:'INVALID_MONEY_RATE'}])
       expect(definitiveRefusal({status:422,data})).toBe(true);
     expect(outcomeIsUnconfirmed({status:422,data:{error:'This calculation cannot be completed.'}})).toBe(false);
+  });
+
+  it('marks only a refusal of a request saved earlier, whose answer is withheld, as the end of it',()=>{
+    for(const status of [403,409,410]) expect(savedAnswerWithheld({status,data:{error:'This request already completed.',operation:'completed'}})).toBe(true);
+    // A failure may still give the saved answer on a retry; any other state is not a completed request.
+    expect(savedAnswerWithheld({status:500,data:{error:'This request was saved.',operation:'completed'}})).toBe(false);
+    expect(savedAnswerWithheld({status:409,data:{error:'Changed',operation:'pending'}})).toBe(false);
+    expect(savedAnswerWithheld({status:403,data:{operation:'completed'}})).toBe(false);
   });
 
   it.each(['null','empty','invalid JSON'])('does not treat a %s successful body as a confirmed action',async body=>{
