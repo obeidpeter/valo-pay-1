@@ -3,12 +3,15 @@
 -- first on search_path. Never run automatically at application startup.
 -- Preserves all records. Duplicate identities abort before any schema change;
 -- the error counts them and names up to five by lender and identity alone.
+-- The checks read the records: in a runtime schema, whose tables force row
+-- security, a first run where records exist needs the tables' owner with
+-- BYPASSRLS or a superuser, since the owner alone sees none (see the runbook).
 -- Repeatable. It drops the old event guard under any name: tables copied with
 -- LIKE ... INCLUDING ALL, as a runtime schema's are, hold it under a generated
 -- one, which earlier copies of this file, dropping it only by its name, left in
 -- place. A host that applied one of those runs this again in each runtime
--- schema. The drop takes an ACCESS EXCLUSIVE lock on valopay_records until
--- COMMIT, so reads of the table wait for that moment too.
+-- schema, as the tables' owner. The drop takes an ACCESS EXCLUSIVE lock on
+-- valopay_records until COMMIT, so reads of the table wait for that moment too.
 -- See docs/record-identity-migration.md for preflight and remediation.
 BEGIN;
 SET LOCAL lock_timeout = '5s';
