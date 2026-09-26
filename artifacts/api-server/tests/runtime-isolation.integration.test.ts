@@ -400,9 +400,20 @@ try {
   // /api/readyz reads the isolated schema, as the restricted login: its copied tables carry every column and, under generated names, every index this build needs.
   const ready = await store.pingDatabase();
   assert.deepEqual([ready.status, ready.schema], ["ok", { status: "ok", missing: [] }], "readiness checks the isolated runtime schema");
+  // Tables copied while the application schema still held the provider event guard 009 replaces hold a copy of it under
+  // a generated name, which 009 run before the review fixes of 26 September 2026 left. Readiness, as the restricted
+  // login, names it and the schema to run 009 in; 009 run again there, as the migration owner, drops it.
+  const leftover = "valopay_records_merchant_id_expr_expr1_idx";
+  await admin.query(`CREATE UNIQUE INDEX ${leftover} ON "${schema}".valopay_records (merchant_id, (data->>'source'), (data->>'eventId')) WHERE kind = 'observations' AND data->>'eventId' IS NOT NULL`);
+  const superseded = await store.pingDatabase();
+  assert.deepEqual([superseded.status, superseded.schema], ["ok", { status: "incomplete", missing: [`superseded unique index ${leftover}: the earlier provider event guard, which refuses one event ID from two providers; apply lib/db/migrations/009_record_identity_guards.sql with ${schema} first on the search path`] }], "readiness names the earlier event guard left in the runtime schema");
+  const identityMigration = await readFile(new URL("../../../lib/db/migrations/009_record_identity_guards.sql", import.meta.url), "utf8");
+  const migrationOwner = await admin.connect();
+  try { await migrationOwner.query(`SET search_path TO "${schema}"`); await migrationOwner.query(identityMigration); } finally { await migrationOwner.query("RESET search_path"); migrationOwner.release(); }
+  assert.deepEqual((await store.pingDatabase()).schema, { status: "ok", missing: [] }, "009 run again in the runtime schema drops the earlier guard");
   await store.closeDatabase(); runtimePool = undefined;
   assert.deepEqual(await publicFlags(), publicBefore, "The rehearsal leaves the application's own tables as they were.");
-  console.log("Runtime isolation passed: migrations refused without opt-in or in the application's schema, actual restricted login, ten forced-RLS tables, the reviewed policies, helpers, workspace guard, role attributes, memberships, privileges and schema objects compared by definition (twenty-two weakenings refused), readiness from the transaction's own check and of the isolated schema, once-per-statement lender scope at pilot scale, pooled-scope reset, no rows or writes without a full scope, own-lender writes and rollback, cross-lender, identity-column, delete and row-security changes refused, mixed-tenant denial, per-lender grants, concurrent invitation acceptance and renewal, a read queued behind a change to its own membership refused with a 409, service requester checks, the daily audit check as the service member, and real repository/MFA integration.");
+  console.log("Runtime isolation passed: migrations refused without opt-in or in the application's schema, actual restricted login, ten forced-RLS tables, the reviewed policies, helpers, workspace guard, role attributes, memberships, privileges and schema objects compared by definition (twenty-two weakenings refused), readiness from the transaction's own check and of the isolated schema, an earlier event guard left there named by readiness and dropped by 009 run again, once-per-statement lender scope at pilot scale, pooled-scope reset, no rows or writes without a full scope, own-lender writes and rollback, cross-lender, identity-column, delete and row-security changes refused, mixed-tenant denial, per-lender grants, concurrent invitation acceptance and renewal, a read queued behind a change to its own membership refused with a 409, service requester checks, the daily audit check as the service member, and real repository/MFA integration.");
 } finally {
   if (runtimePool) await runtimePool.end();
   if (!/^valopay_runtime_test_[a-f0-9]+$/.test(schema) || !/^runtime_(app|helper)_[a-f0-9]+$/.test(appRole) || !/^runtime_(app|helper)_[a-f0-9]+$/.test(helperRole)) throw new Error("Unsafe generated test cleanup target.");

@@ -2680,6 +2680,30 @@ export const integrityGuards = [
   { type: "unique index", name: "valopay_staff_lender_access_membership_id_merchant_id_pk", table: "valopay_staff_lender_access", definition: "USING btree (membership_id, merchant_id)" },
 ] as const;
 /**
+ * The migration in lib/db/migrations that installs each integrity guard: 003
+ * and 004 with their tables, 009 on the record table. The guards of the four
+ * base tables come with those tables, and no file installs them.
+ */
+export const guardMigrations: Partial<Record<(typeof integrityGuards)[number]["name"], string>> = {
+  valopay_unique_customer_reference: "009_record_identity_guards.sql", valopay_unique_provider_event: "009_record_identity_guards.sql",
+  valopay_operations_pkey: "003_pilot_workflow.sql", valopay_operation_status: "003_pilot_workflow.sql", valopay_teams_pkey: "003_pilot_workflow.sql",
+  valopay_teams_organization_id_unique: "003_pilot_workflow.sql", valopay_staff_memberships_pkey: "003_pilot_workflow.sql", valopay_staff_workspace_user: "003_pilot_workflow.sql",
+  valopay_staff_status: "003_pilot_workflow.sql", valopay_staff_role: "003_pilot_workflow.sql", valopay_staff_invitations_pkey: "003_pilot_workflow.sql",
+  valopay_staff_invitations_token_hash_unique: "003_pilot_workflow.sql", valopay_invitation_status: "003_pilot_workflow.sql", valopay_staff_events_pkey: "003_pilot_workflow.sql",
+  valopay_staff_lender_access_membership_id_merchant_id_pk: "004_staff_lender_access.sql",
+};
+const guardSource = (name: (typeof integrityGuards)[number]["name"]) => guardMigrations[name] ? `apply lib/db/migrations/${guardMigrations[name]}` : "restore it as docs/database-migrations.md describes";
+/**
+ * Unique indexes this build must not find, compared by definition: the
+ * provider event guard before migration 009, one event ID per lender and
+ * source whatever the provider, which refuses a second provider's delivery.
+ * 009 drops it under any name; tables copied with LIKE ... INCLUDING ALL, as
+ * an isolated runtime schema's are, hold it under a generated one.
+ */
+export const supersededGuards = [
+  { name: "valopay_unique_observation", table: "valopay_records", definition: "USING btree (merchant_id, ((data ->> 'source'::text)), ((data ->> 'eventId'::text))) WHERE ((kind = 'observations'::text) AND ((data ->> 'eventId'::text) IS NOT NULL))", description: "the earlier provider event guard, which refuses one event ID from two providers", migration: "009_record_identity_guards.sql" },
+] as const;
+/**
  * The read indexes later migrations add, as PostgreSQL 16 writes their
  * definitions after the name and table. They are compared by definition, not
  * by name: an isolated runtime schema holds copies of the tables whose indexes
@@ -2697,7 +2721,7 @@ const requiredIndexes = [
 ] as const;
 type SchemaCatalogue = {
   columns: Array<{ table: string; column: string }>;
-  indexes: Array<{ table: string; unique: boolean; definition: string }>;
+  indexes: Array<{ table: string; schema: string; name: string; unique: boolean; definition: string }>;
   checks: Array<{ table: string; definition: string }>;
 };
 /**
@@ -2711,16 +2735,17 @@ const schemaCatalogue = `SELECT
   (SELECT coalesce(json_agg(json_build_object('table',c.relname,'column',a.attname)),'[]') FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
     JOIN pg_attribute a ON a.attrelid=c.oid AND a.attnum>0 AND NOT a.attisdropped
     WHERE CASE WHEN $1::text IS NULL THEN pg_table_is_visible(c.oid) ELSE n.nspname=$1::text END AND c.relname=ANY($2::text[]) AND c.relkind IN ('r','p')) AS columns,
-  (SELECT coalesce(json_agg(json_build_object('table',t.relname,'unique',i.indisunique,'definition',regexp_replace(pg_get_indexdef(i.indexrelid),'^CREATE (UNIQUE )?INDEX \\S+ ON (ONLY )?\\S+ ',''))),'[]')
-    FROM pg_index i JOIN pg_class t ON t.oid=i.indrelid JOIN pg_namespace n ON n.oid=t.relnamespace
+  (SELECT coalesce(json_agg(json_build_object('table',t.relname,'schema',n.nspname,'name',x.relname,'unique',i.indisunique,'definition',regexp_replace(pg_get_indexdef(i.indexrelid),'^CREATE (UNIQUE )?INDEX \\S+ ON (ONLY )?\\S+ ',''))),'[]')
+    FROM pg_index i JOIN pg_class x ON x.oid=i.indexrelid JOIN pg_class t ON t.oid=i.indrelid JOIN pg_namespace n ON n.oid=t.relnamespace
     WHERE CASE WHEN $1::text IS NULL THEN pg_table_is_visible(t.oid) ELSE n.nspname=$1::text END AND t.relname=ANY($2::text[]) AND i.indisvalid AND i.indisready) AS indexes,
   (SELECT coalesce(json_agg(json_build_object('table',t.relname,'definition',pg_get_constraintdef(k.oid))),'[]')
     FROM pg_constraint k JOIN pg_class t ON t.oid=k.conrelid JOIN pg_namespace n ON n.oid=t.relnamespace
     WHERE CASE WHEN $1::text IS NULL THEN pg_table_is_visible(t.oid) ELSE n.nspname=$1::text END AND t.relname=ANY($2::text[]) AND k.contype='c' AND k.convalidated) AS checks`;
 /**
  * What the catalogue lacks of what this build needs, each with where it comes
- * from: the tables and columns the queries use and the integrity guards, then
- * the read indexes; at most 20 of each, then a count.
+ * from: the tables and columns the queries use and the integrity guards, and
+ * any superseded guard still in place, by its own name and with the schema to
+ * migrate; then the read indexes; at most 20 of each, then a count.
  */
 function schemaGaps(catalogue: SchemaCatalogue): { required: string[]; indexes: string[] } {
   const present = new Map<string, Set<string>>(), required: string[] = [], indexes: string[] = [];
@@ -2733,7 +2758,9 @@ function schemaGaps(catalogue: SchemaCatalogue): { required: string[]; indexes: 
   const defined = new Set(catalogue.indexes.map((index) => `${index.table} ${index.definition}`));
   const guarded = new Set([...catalogue.indexes.filter((index) => index.unique).map((index) => `${index.table} unique index ${index.definition}`), ...catalogue.checks.map((check) => `${check.table} check ${check.definition}`)]);
   // A missing table is named above; its guards and indexes are not listed again.
-  for (const guard of integrityGuards) if (present.has(guard.table) && !guarded.has(`${guard.table} ${guard.type} ${guard.definition}`)) required.push(`${guard.type} ${guard.name}: restore it from the Drizzle schema in lib/db`);
+  for (const guard of integrityGuards) if (present.has(guard.table) && !guarded.has(`${guard.table} ${guard.type} ${guard.definition}`)) required.push(`${guard.type} ${guard.name}: ${guardSource(guard.name)}`);
+  for (const guard of supersededGuards) for (const index of catalogue.indexes.filter((index) => index.unique && index.table === guard.table && index.definition === guard.definition).sort((a, b) => a.name.localeCompare(b.name)))
+    required.push(`superseded unique index ${index.name}: ${guard.description}; apply lib/db/migrations/${guard.migration} with ${index.schema} first on the search path`);
   for (const index of requiredIndexes) if (present.has(index.table) && !defined.has(`${index.table} ${index.definition}`)) indexes.push(`index ${index.name}: apply lib/db/migrations/${index.migration}`);
   const capped = (list: string[]) => list.length > 20 ? [...list.slice(0, 20), `and ${list.length - 20} more`] : list;
   return { required: capped(required), indexes: capped(indexes) };
@@ -2743,9 +2770,10 @@ function schemaGaps(catalogue: SchemaCatalogue): { required: string[]; indexes: 
  * it holds everything this build needs. `incomplete` means a table or column
  * the queries use is missing, so requests would fail, or an integrity guard
  * is, so the database would accept what the application relies on it to
- * refuse; `indexes_missing` means only a read index a migration adds is
- * missing, so some reads are slower but every request still works. `missing`
- * names each, for the log.
+ * refuse, or a superseded guard remains, so it would refuse what the
+ * application relies on it to accept; `indexes_missing` means only a read
+ * index a migration adds is missing, so some reads are slower but every
+ * request still works. `missing` names each, for the log.
  */
 export interface DatabaseReadiness {
   status: "ok" | "failed"; latencyMs: number; error?: string;
@@ -2760,8 +2788,9 @@ let readiness: InstanceType<typeof Pool> | undefined;
  * reached. The round trip reads the catalogue, so a database that answers but
  * lacks a table or a column this build needs (a migration not yet applied), or
  * a unique index or check constraint it relies on (a push stopped part way),
- * is not ready either; a missing read index is reported without failing, since
- * every request still works, only slower. A SELECT 1 could not tell. It checks
+ * or that still holds a guard this build replaced, is not ready either; a
+ * missing read index is reported without failing, since every request still
+ * works, only slower. A SELECT 1 could not tell. It checks
  * the application's schema: the isolated runtime schema when runtime isolation
  * is on, otherwise the connection's own (`schema` names another, for tests).
  * Never throws; a connection error stays in the caller's log, not in an
