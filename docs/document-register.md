@@ -20,6 +20,7 @@ This register identifies the current core planning documents, repository guidanc
 | PR #65, merge `253eb90dc747d0e35b9b18d3a5502f7bd6b71a07` | Merged to `main`, not deployed | [PR #65](https://github.com/obeidpeter/valo-pay/pull/65): state clarity, invitation recovery, role guidance and release/migration documentation. |
 | PR #66, merge `99eac2525869ddf5e9329b07e60adf1da5122171` | Merged to `main`, not deployed | [PR #66](https://github.com/obeidpeter/valo-pay/pull/66): draft preservation, dialog focus and readiness-failure classification. |
 | PR #67, merge `0b556f5854f90ae0a687bc2918894936c0ce20cb` | Merged to `main`, not deployed | [PR #67](https://github.com/obeidpeter/valo-pay/pull/67): this documentation refresh. It changes no acceptance gate, permission or live integration. |
+| PR #68, merge `e52b1c32cb4bcb08fc3f0b5319e7039806aecbcb` | Merged to `main`, not deployed | [PR #68](https://github.com/obeidpeter/valo-pay/pull/68): the review fixes for PRs #61 to #67, with the steps before and after deploying it that [build status](BUILD_STATUS.md) lists. |
 
 The deployed application remains a synthetic sandbox. The complete rehearsable pilot journey is lender setup → saved import batches → reconciliation → coordinated exceptions/cases → independent close review → evidence export, supported by a persistent request journal and recovery checks. Pay-by-bank, Credit Desk, Cash Desk and purpose-specific permissions also have persisted synthetic workflows. These are narrower than the planned live products.
 
