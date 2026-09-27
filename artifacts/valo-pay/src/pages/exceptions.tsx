@@ -241,7 +241,7 @@ export default function ExceptionsPage() {
           : values.confirmedFailureCode && values.resolutionCode !== 'resolved_failed' ? { confirmedFailureCode: 'Choose a failure code only when the provider confirmed that the debit failed.' } : {}) }) : undefined}
         fields={
           actionKind === 'resolve' ? [
-            { name: 'resolutionCode', label: `How was this resolved? (${readableLabel(selectedEx?.data?.type || 'exception').toLowerCase()})`, type: 'select', isData: true, required: true, options: resolutionChoices(selectedEx, workspace?.role, heldBatch.held).map(code => ({ label: resolutionLabel(selectedEx, code), value: code })) },
+            { name: 'resolutionCode', label: `How was this resolved? (${readableLabel(selectedEx?.data?.type || 'exception').toLowerCase()})`, type: 'select', isData: true, required: true, options: resolutionChoices(selectedEx, workspace?.role, heldBatch.held, heldBatch.blocked).map(code => ({ label: resolutionLabel(selectedEx, code), value: code })) },
             ...(heldIdentities.length ? [{
               name: 'confirmedProviderIdentity', label: 'Connection whose payout this batch is', type: 'select' as const, isData: true, options: heldIdentities,
               help: 'Only with Provider identity confirmed: the connection the providers confirmed. Its evidence stays with the batch; the evidence of the others moves to their own batches.',

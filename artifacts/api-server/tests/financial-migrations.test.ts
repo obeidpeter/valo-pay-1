@@ -7,6 +7,7 @@ import { executeAction } from "../src/domain/actions.js";
 import { evaluateRetry } from "../src/domain/policy-engine.js";
 import { connectedRevision, runConnectedAction } from "../src/domain/connected.js";
 import { makeRecord, recordsOf } from "../src/domain/records.js";
+import { validateRecord } from "../src/domain/validation.js";
 import type { DomainState, TypedRecord } from "../src/domain/types.js";
 import { resolutionCodesForException } from "@workspace/valopay-schema";
 const { assertFinalState } = await import("../src/lib/valopay-store.js");
@@ -403,14 +404,15 @@ function repairMixed({ state, batch, aLine, bLine, aCredit, bCredit }: ReturnTyp
   return own;
 }
 const exceptionsOf = (state: DomainState, batch: TypedRecord<"settlement-batches">) => recordsOf(state, "exceptions").filter((item) => item.data.linkedRecordId === batch.id);
+const identityHeldOf = (batch: TypedRecord<"settlement-batches">) => !!batch.data.providerIdentityReview && !batch.data.providerIdentityRelease;
 const kinds = (state: DomainState) => JSON.stringify(state.records.filter((item) => ["settlement-batches", "observations", "exceptions"].includes(item.kind)));
 const identityOf = (connection: string) => JSON.stringify([connection, "SHARED"]);
 const confirm = (state: DomainState, exception: TypedRecord<"exceptions">, role: string, data: Record<string, unknown>, at = now) =>
   transaction(state, () => executeAction(state, ctxAt(at, role), { action: "resolve_exception", recordId: exception.id, reason: "Both providers confirmed whose payout this batch is.", data: { resolutionCode: "provider_identity_confirmed", ...data } }));
 const runAt = (state: DomainState, at: string) => transaction(state, () => reconcile(state, ctxAt(at, "Finance")));
 /** Whether a resolution is refused, and with what status and message. */
-function refusal(state: DomainState, exception: TypedRecord<"exceptions">, role: string, data: Record<string, unknown>): [number, string] {
-  try { confirm(structuredClone(state), structuredClone(exception), role, data); } catch (error) { return [(error as { status?: number }).status ?? 400, (error as Error).message]; }
+function refusal(state: DomainState, exception: TypedRecord<"exceptions">, role: string, data: Record<string, unknown>, at = now): [number, string] {
+  try { confirm(structuredClone(state), structuredClone(exception), role, data, at); } catch (error) { return [(error as { status?: number }).status ?? 400, (error as Error).message]; }
   return [200, ""];
 }
 const onlyConfirmation = /^Resolution code must be provider_identity_confirmed: a settlement batch held for its provider identity is released only when Finance or an administrator confirms whose payout it is\. If the providers cannot attribute the payout to one connection, leave this exception open until the data owner repairs the evidence/;
@@ -463,7 +465,8 @@ const onlyConfirmation = /^Resolution code must be provider_identity_confirmed: 
   run(state);
   assert.deepEqual([batch.status, batch.data.providerIdentityRelease !== undefined, hold.status], ["reconciled", true, "open"], "the batch is released, and the exception stays open for the report it carries");
   assert.match(String(hold.data.notes), /so its provider identity hold is released\. It stays open for the collection the provider reports in two batches/);
-  assert.deepEqual(refusal(state, hold, "Finance", { confirmedProviderIdentity: identityOf("connection-a") }), [400, "Resolution code must be one of: fee_schedule_updated, provider_corrected, accepted_variance."], "the confirmation is no longer offered or accepted");
+  assert.deepEqual(refusal(state, hold, "Finance", { confirmedProviderIdentity: identityOf("connection-a") }), [409, "This settlement batch is no longer held for its provider identity. Refresh the exception to see where it stands."], "a confirmation, as from a dialog open while the batch was released, is told to refresh");
+  assert.deepEqual(resolutionCodesForException(hold, { identityHeld: false }), ["fee_schedule_updated", "provider_corrected", "accepted_variance"], "the codes it offers now are the settlement codes");
   transaction(state, () => executeAction(state, finance, { action: "resolve_exception", recordId: hold.id, reason: "Both payouts checked with the provider.", data: { resolutionCode: "accepted_variance" } }));
   run(state); run(state);
   assert.deepEqual([hold.status, exceptionsOf(state, batch).filter((item) => item.data.condition === report).length], ["resolved", 0], "its resolution settles the report, which is not raised again");
@@ -533,6 +536,113 @@ const onlyConfirmation = /^Resolution code must be provider_identity_confirmed: 
   const answer = run(state);
   const holds = exceptionsOf(state, batch).filter((item) => item.data.condition === `settlement_variance:${batch.id}:provider_identity`);
   assert.deepEqual([holds.length, holds[0]?.status, answer.data.settlementProviderIdentityReviews], [1, "open", undefined], "a batch held with no exception of the hold's own gets one");
+}
+// Decision on a collision: a confirmation settles which connection's payout a batch is. It does not settle a collision
+// between two batches that claim one identity, which the data owner settles by correcting the duplicate batch's reference
+// or provider, after which the genuine batch is released automatically.
+const idR1 = JSON.stringify(["connection-a", "R-1"]);
+/** The provider's batch R-1 of connection-a, and a copy Finance entered by hand, which an earlier build let take its reference. */
+function duplicateBatches(merchantId: string) {
+  const { state } = liveFixture({ withFailure: false, merchantId });
+  addObservation(state, { reference: "PAY-1", amountKobo: 99_500, grossAmountKobo: 100_000, feeKobo: 500, batchReference: "R-1", source: "settlement", eventId: "l1", occurredAt: wat("2027-07-01T08:00:00"), providerConnection: "connection-a" } as any);
+  run(state);
+  const built = recordsOf(state, "settlement-batches").find((item) => item.reference === "R-1")!;
+  const typed = makeRecord(state, "settlement-batches", { name: "Settlement batch R-1", status: "pending", reference: "R-1", data: { batchReference: "R-1", provider: "connection-a", currency: "NGN", grossKobo: 100_000, feeKobo: 500, netKobo: 99_500 } });
+  run(state);
+  const holdOf = (batch: TypedRecord<"settlement-batches">) => exceptionsOf(state, batch).find((item) => item.status === "open" && item.data.condition === `settlement_variance:${batch.id}:provider_identity`);
+  return { state, built, typed, holdOf };
+}
+{
+  // This build refuses a batch reference another batch has, on a create, even one giving only the batch reference, and on an edit.
+  const { state } = liveFixture({ withFailure: false, merchantId: "duplicate-reference" });
+  addObservation(state, { reference: "PAY-1", amountKobo: 99_500, grossAmountKobo: 100_000, feeKobo: 500, batchReference: "R-1", source: "settlement", eventId: "l1", occurredAt: wat("2027-07-01T08:00:00"), providerConnection: "connection-a" } as any);
+  run(state);
+  const duplicate = /^Another settlement batch already has this reference\. A batch is one provider connection's payout/;
+  const refusedWith409 = (run: () => unknown) => assert.throws(run, (error) => (error as { status?: number }).status === 409 && duplicate.test((error as Error).message));
+  const hand = () => ({ name: "Settlement batch R-1B", status: "pending", reference: "R-1B", amountKobo: 0, customerId: "", data: { batchReference: "R-1B", provider: "connection-a", grossKobo: 100_000, feeKobo: 500, netKobo: 99_500 } });
+  refusedWith409(() => validateRecord(state, finance, "settlement-batches", { ...hand(), reference: "R-1", data: { ...hand().data, batchReference: "R-1" } }));
+  refusedWith409(() => validateRecord(state, finance, "settlement-batches", { ...hand(), reference: undefined, data: { ...hand().data, batchReference: "R-1" } } as any));
+  const input = hand();
+  validateRecord(state, finance, "settlement-batches", input);
+  const typed = makeRecord(state, "settlement-batches", input);
+  refusedWith409(() => validateRecord(state, finance, "settlement-batches", { ...structuredClone(typed), reference: "R-1", data: { ...typed.data, batchReference: "R-1" } }, true));
+  refusedWith409(() => validateRecord(state, finance, "settlement-batches", { ...structuredClone(typed), data: { ...typed.data, batchReference: "R-1" } }, true));
+  assert.doesNotThrow(() => validateRecord(state, finance, "settlement-batches", { ...structuredClone(typed), name: "Settlement batch R-1B (renamed)", data: { ...typed.data, grossKobo: 100_000 } }, true), "an edit that keeps its references is not checked");
+}
+{
+  // Both batches claim ["connection-a","R-1"], so both are held, and neither can be confirmed as that payout.
+  const { state, built, typed, holdOf } = duplicateBatches("duplicate-identity");
+  assert.deepEqual([built.status, !!built.data.providerIdentityReview, typed.status, !!typed.data.providerIdentityReview], ["variance", true, "variance", true], "both batches are held");
+  assert.deepEqual([built.data.providerIdentityClaimedBy, typed.data.providerIdentityClaimedBy], [[{ identity: idR1, batchId: typed.id, reference: "R-1", handEntered: true }], [{ identity: idR1, batchId: built.id, reference: "R-1", handEntered: false }]], "each records the other batch that claims its identity");
+  const collision = (other: string) => `Settlement batch R-1 cannot be confirmed as this payout: settlement batch R-1, ${other} also records or claims the payout of connection-a (${idR1}). A confirmation settles which connection's payout a batch is, not a collision between two batches: the data owner corrects the duplicate batch's reference or provider, and the next reconciliation then releases the genuine batch.`;
+  assert.deepEqual(refusal(state, holdOf(built)!, "Finance", { confirmedProviderIdentity: idR1 }), [409, collision("entered by hand")], "the provider's batch cannot be confirmed as the payout the copy also claims");
+  assert.deepEqual(refusal(state, holdOf(typed)!, "Finance", { confirmedProviderIdentity: idR1 }), [409, collision("built from the provider's lines")], "nor can the copy");
+  run(state);
+  const saved = kinds(state);
+  run(state);
+  assert.equal(kinds(state), saved, "reconciling again changes nothing");
+  // The data owner corrects the copy's reference: the next reconciliation releases the provider's batch, and the copy as its own.
+  const corrected = { ...structuredClone(typed), reference: "R-1C", data: { ...typed.data, batchReference: "R-1C" } };
+  validateRecord(state, finance, "settlement-batches", corrected, true);
+  const [builtHold, typedHold] = [holdOf(built)!, holdOf(typed)!];
+  Object.assign(typed, corrected);
+  const answer = run(state);
+  assert.deepEqual([built.data.providerIdentityKey, (built.data.providerIdentityRelease as { confirmedBy?: string }).confirmedBy, built.data.providerIdentityClaimedBy, typed.data.providerIdentityKey, typed.data.providerIdentityClaimedBy, answer.data.settlementProviderIdentityReleases], [idR1, undefined, undefined, JSON.stringify(["connection-a", "R-1C"]), undefined, 2], "the genuine batch is released automatically, and so is the corrected copy");
+  assert.deepEqual([builtHold.status, builtHold.data.resolutionCode, typedHold.status, typedHold.data.resolutionCode], ["closed", "condition_cleared", "closed", "condition_cleared"]);
+}
+{
+  // Two confirmations of one payout recorded before one reconciliation, as the build before this fix accepted them: neither
+  // is applied. Each batch keeps an open exception, a new one since a decision is never reopened, saying why; once the data
+  // owner corrects the duplicate, the genuine batch's confirmation applies and the copy is released as its own.
+  const { state, built, typed, holdOf } = duplicateBatches("duplicate-confirmations");
+  const [builtHold, typedHold] = [holdOf(built)!, holdOf(typed)!];
+  for (const hold of [builtHold, typedHold]) {
+    Object.assign(hold, { status: "resolved" });
+    Object.assign(hold.data, { resolutionCode: "provider_identity_confirmed", confirmedProviderIdentity: idR1, resolvedBy: "Sandbox Finance", resolvedAt: now, resolutionRuleVersion: 1, notes: "Confirmed by the providers." });
+  }
+  const answer = run(state);
+  assert.deepEqual([identityHeldOf(built), identityHeldOf(typed), answer.data.settlementProviderIdentityReleases], [true, true, undefined], "neither confirmation is applied");
+  for (const [batch, other] of [[built, "entered by hand"], [typed, "built from the provider's lines"]] as const) {
+    const open = holdOf(batch)!;
+    assert.ok(open && ![builtHold.id, typedHold.id].includes(open.id), "the batch has a new open exception for its hold");
+    assert.match(String(open.data.notes), new RegExp(`Update on .* \\(WAT\\): the confirmation recorded on exception .*, of settlement batch R-1 as the payout of connection-a, was not applied: settlement batch R-1, ${other} also records or claims the payout of connection-a`));
+  }
+  assert.deepEqual([builtHold.status, typedHold.status, builtHold.data.resolutionCode], ["resolved", "resolved", "provider_identity_confirmed"], "the decisions are kept as they were recorded");
+  const saved = kinds(state);
+  run(state);
+  assert.equal(kinds(state), saved, "reconciling again changes nothing");
+  const corrected = { ...structuredClone(typed), reference: "R-1C", data: { ...typed.data, batchReference: "R-1C" } };
+  validateRecord(state, finance, "settlement-batches", corrected, true);
+  Object.assign(typed, corrected);
+  run(state);
+  assert.deepEqual([(built.data.providerIdentityRelease as { exceptionId?: string }).exceptionId, built.data.providerIdentityKey, typed.data.providerIdentityKey, (typed.data.providerIdentityRelease as { confirmedBy?: string }).confirmedBy], [builtHold.id, idR1, JSON.stringify(["connection-a", "R-1C"]), undefined], "the genuine batch's confirmation applies once no other batch claims its identity, and the copy is released as its own");
+  assert.deepEqual(exceptionsOf(state, built).concat(exceptionsOf(state, typed)).filter((item) => item.status === "open"), [], "their open exceptions close");
+}
+{
+  // A batch held for both reasons, its evidence naming two connections and another batch claiming one of them, can be
+  // confirmed as the identity nobody else claims; the one the other batch claims is refused.
+  let other!: TypedRecord<"settlement-batches">;
+  const mixed = mixedBatch("collision-and-mixture", (state) => {
+    other = makeRecord(state, "settlement-batches", { name: "Settlement batch SHARED", status: "pending", reference: "SHARED", data: { batchReference: "SHARED", provider: "connection-a", providerConnection: "connection-a", providerIdentityKey: identityOf("connection-a"), currency: "NGN", lineObservationIds: [], linePaymentIds: [], grossKobo: 0, feeKobo: 0, netKobo: 0 } });
+  });
+  const { state, batch, hold, aLine, aCredit } = mixed;
+  assert.deepEqual(batch.data.providerIdentityClaimedBy, [{ identity: identityOf("connection-a"), batchId: other.id, reference: "SHARED", handEntered: false }]);
+  assert.equal(refusal(state, hold, "Finance", { confirmedProviderIdentity: identityOf("connection-a") })[0], 409, "the identity the other batch records is refused");
+  confirm(state, hold, "Finance", { confirmedProviderIdentity: identityOf("connection-b") });
+  run(state); run(state);
+  assert.deepEqual([batch.data.providerIdentityKey, batch.status, identityHeldOf(other), other.data.lineObservationIds, aCredit.data.resolvedTo, aLine.data.settlementBatchId], [identityOf("connection-b"), "reconciled", false, [aLine.id], `batch:${other.id}`, other.id], "confirmed as the other connection, the batch is released, and the evidence of connection-a goes to that connection's batch, which is then released");
+}
+{
+  // A batch released as the identity Finance confirmed stays released when a duplicate later claims it; the duplicate is
+  // held and cannot be confirmed as that identity, which the released batch records.
+  const { state, batch, hold } = mixedBatch("confirmed-then-duplicate");
+  confirm(state, hold, "Finance", { confirmedProviderIdentity: identityOf("connection-a") });
+  run(state);
+  const copy = makeRecord(state, "settlement-batches", { name: "Settlement batch SHARED", status: "pending", reference: "SHARED", data: { batchReference: "SHARED", provider: "connection-a", currency: "NGN", grossKobo: 100_000, feeKobo: 500, netKobo: 99_500 } });
+  runAt(state, wat("2027-07-04T10:00:00"));
+  const copyHold = exceptionsOf(state, copy).find((item) => item.status === "open" && item.data.condition === `settlement_variance:${copy.id}:provider_identity`)!;
+  assert.deepEqual([identityHeldOf(batch), identityHeldOf(copy), copy.data.providerIdentityClaimedBy], [false, true, [{ identity: identityOf("connection-a"), batchId: batch.id, reference: "SHARED", handEntered: false }]]);
+  assert.match(refusal(state, copyHold, "Finance", { confirmedProviderIdentity: identityOf("connection-a") }, wat("2027-07-04T11:00:00"))[1], /cannot be confirmed as this payout: settlement batch SHARED, built from the provider's lines also records or claims the payout of connection-a/);
 }
 {
   // Decision on a later hold: the release it ends stays in the batch's history, a confirmation of the earlier hold does not

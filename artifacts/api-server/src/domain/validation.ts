@@ -403,6 +403,14 @@ export function validateRecord(
     for (const key of ["grossKobo", "feeKobo", "netKobo"]) positiveInteger(data[key], key, true);
     if (data.grossKobo - data.feeKobo !== data.netKobo) throw new Error("The net settlement amount must equal the gross amount minus fees.");
     if (!isUpdate && input.status !== (defaultStatus["settlement-batches"] ?? "pending")) throw new Error("New settlement batches must start as pending. Reconciliation updates their status.");
+    // FIN-03: a batch Finance adds or corrects by hand takes no reference another batch has, whether the reference or only the
+    // batch reference is given, so two batches never become one payout; reconciliation alone keeps one batch per connection
+    // under a reference. An edit that keeps the batch's references is not checked.
+    const references = [input.reference, data.batchReference].filter((value): value is string => typeof value === "string" && !!value);
+    if ((!existing || input.reference !== existing.reference || data.batchReference !== existing.data.batchReference)
+      && state.records.some((record) => record.kind === "settlement-batches" && record.id !== existing?.id && (references.includes(record.reference) || references.includes(String(record.data.batchReference ?? ""))))) {
+      throw Object.assign(new Error("Another settlement batch already has this reference. A batch is one provider connection's payout: record this one under its own reference, or correct the other batch."), { status: 409 });
+    }
     // Decision on currencies: a batch holds one currency, naira unless given, and its amounts are in its smallest unit.
     // One the provider's lines build takes its first line's, which reconciliation records.
     if (data.currency === undefined || data.currency === null || data.currency === "") data.currency = isUpdate ? existing?.data.currency : "NGN";
@@ -415,7 +423,7 @@ export function validateRecord(
     }
     // Reconciliation copies these from the provider's lines, the fee schedule and the linked statement credit, and derives the status from them.
     // Compared by value: jsonb returns enteredTotals' keys in its own order.
-    for (const key of ["statementObservationId", "statementNetKobo", "statementOtherCurrencies", "lineObservationIds", "linePaymentIds", "otherCurrencyLineIds", "expectedFeeKobo", "feeVarianceKobo", "enteredTotals", "providerIdentityReview", "providerIdentityKey", "providerIdentityRelease", "providerIdentityHistory"]) {
+    for (const key of ["statementObservationId", "statementNetKobo", "statementOtherCurrencies", "lineObservationIds", "linePaymentIds", "otherCurrencyLineIds", "expectedFeeKobo", "feeVarianceKobo", "enteredTotals", "providerIdentityReview", "providerIdentityKey", "providerIdentityRelease", "providerIdentityHistory", "providerIdentityClaimedBy"]) {
       if (!isDeepStrictEqual(data[key], existing?.data[key])) throw new Error(`Settlement batch ${key} is recorded by reconciliation and cannot be changed here.`);
     }
     if (existing?.data.providerIdentityKey !== undefined && (input.reference !== existing.reference || data.batchReference !== existing.data.batchReference)) throw new Error('A settlement batch identity is recorded by reconciliation and its reference cannot be changed here.');

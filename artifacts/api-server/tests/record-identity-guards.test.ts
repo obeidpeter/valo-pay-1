@@ -82,6 +82,10 @@ const refused = (run: () => unknown, pattern: RegExp) => { assert.throws(run, pa
  // Only reconciliation releases a held batch: an edit that wrote the release would lift a genuine hold.
  const released = { ...batch, data: mergeData(batch.data, { providerIdentityRelease: { releasedAt: now, identity: '["provider a","BATCH-A"]', heldLineIds: [] } }) };
  refused(() => validateRecord(state, admin, 'settlement-batches', released, true), /providerIdentityRelease is recorded by reconciliation/);
+ // Nor may an edit write the history of earlier releases, or which other batch claims a held batch's identity.
+ for (const [field, value] of Object.entries({ providerIdentityHistory: [], providerIdentityClaimedBy: [{ identity: '["provider a","BATCH-A"]', batchId: 'other', reference: 'BATCH-A', handEntered: true }] })) {
+   refused(() => validateRecord(state, admin, 'settlement-batches', { ...batch, data: mergeData(batch.data, { [field]: value }) }, true), new RegExp(`${field} is recorded by reconciliation`));
+ }
 }
 {
  const state = seedMerchant('customer-guards'), customers = state.records.filter(record => record.kind === 'customers');
