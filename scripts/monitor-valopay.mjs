@@ -62,6 +62,21 @@ function backlogCounts(scheduler) {
 const reportsBacklog = scheduler => scheduler !== null && typeof scheduler === 'object' && Object.hasOwn(scheduler, 'backlog')
   && (scheduler.state !== 'external' || scheduler.backlog !== null || Number(scheduler.intervalMs) > 0);
 /**
+ * How long a process may still be waiting for its first read of what is still owed, beyond its first read's delay
+ * and one interval: the scheduler's first look, or the read a process makes where a scheduled job runs the closes,
+ * comes at most five seconds after its background thread starts, then one each interval (close-scheduler.ts). The
+ * margin covers the process and its thread starting.
+ */
+const FIRST_READ_MARGIN_MS = 15_000;
+/**
+ * Whether the answering process is too young to have made its first read, so that a read it has not made is no
+ * evidence yet: its uptime is below its first read's delay, one interval and the margin. False when it does not say.
+ */
+function awaitingFirstRead(health, interval) {
+  const uptime = health?.uptimeSeconds;
+  return Number.isSafeInteger(uptime) && uptime >= 0 && Number.isFinite(interval) && interval > 0 && uptime * 1000 < Math.min(interval, 5_000) + interval + FIRST_READ_MARGIN_MS;
+}
+/**
  * The lenders' failing and overdue closes are incidents; public anonymous sandboxes', which a visitor's own synthetic
  * data can cause, are warnings, never incidents.
  */
@@ -98,12 +113,14 @@ export async function probeService({ origin, expectScheduler = false, fetchImpl 
   if (expectScheduler === 'external' && health.status === 'fulfilled') {
     // The job's own runs are not visible here: they show in its run history and its close.one_shot lines. Each web
     // instance reads what is still owed at the scheduler's interval instead, so a job that has stopped running shows
-    // as overdue closes; a read missing, or older than three intervals, is no evidence, like a stale heartbeat.
+    // as overdue closes; a read older than three intervals is no evidence, like a stale heartbeat, and nor is a missing
+    // one, unless the process is too young to have made it yet, which is a warning.
     const scheduler = health.value?.scheduler;
     if (scheduler?.state !== 'external') codes.push('scheduler_not_external');
     else if (reportsBacklog(scheduler)) {
       const interval = Number(scheduler.intervalMs), checkedAt = Date.parse(scheduler.backlog?.checkedAt || ''), backlog = backlogCounts(scheduler);
-      if (!backlog || !Number.isFinite(interval) || interval <= 0 || !Number.isFinite(checkedAt) || now - checkedAt > 3 * interval || checkedAt > now + interval) codes.push('scheduler_stale');
+      if (scheduler.backlog === null && awaitingFirstRead(health.value, interval)) warnings.push('scheduler_backlog_pending');
+      else if (!backlog || !Number.isFinite(interval) || interval <= 0 || !Number.isFinite(checkedAt) || now - checkedAt > 3 * interval || checkedAt > now + interval) codes.push('scheduler_stale');
       raiseBacklog(backlog, codes, warnings);
     } else warnings.push('scheduler_backlog_not_reported');
   } else if (expectScheduler && health.status === 'fulfilled') {
@@ -111,7 +128,11 @@ export async function probeService({ origin, expectScheduler = false, fetchImpl 
     const interval = Number(scheduler?.intervalMs);
     const successAt = Date.parse(scheduler?.lastSuccessAt || '');
     const failedAt = Date.parse(scheduler?.lastErrorAt || '');
+    // Before its first pass has returned, a process too young for that to have happened has no heartbeat yet, as a web
+    // instance of an external host has no read: a warning. An older one without a pass, or an old heartbeat, is stale.
+    const young = awaitingFirstRead(health.value, interval);
     if (scheduler?.state !== 'running') codes.push('scheduler_not_running');
+    else if (!Number.isFinite(successAt) && young) warnings.push('scheduler_backlog_pending');
     else if (!Number.isFinite(interval) || interval <= 0 || !Number.isFinite(successAt) || now - successAt > 3 * interval || successAt > now + interval) codes.push('scheduler_stale');
     else if (Number.isFinite(failedAt) && failedAt >= successAt) codes.push('scheduler_failed');
     // A pass can finish successfully while individual lenders failed. Each pass reads what is still owed from the
@@ -120,7 +141,9 @@ export async function probeService({ origin, expectScheduler = false, fetchImpl 
     const backlog = backlogCounts(scheduler);
     if (reportsBacklog(scheduler)) {
       // Null until a restarted process's first pass, which the heartbeat checks above name; otherwise no evidence.
-      if (!backlog && !codes.some(code => code.startsWith('scheduler_'))) codes.push('scheduler_stale');
+      if (!backlog && !codes.some(code => code.startsWith('scheduler_'))) {
+        if (scheduler.backlog === null && young) warnings.push('scheduler_backlog_pending'); else codes.push('scheduler_stale');
+      }
       raiseBacklog(backlog, codes, warnings);
     } else if (scheduler !== null && typeof scheduler === 'object') {
       // A build from before the backlog: its last pass with work is kept across quiet ticks, but a later pass with work replaces it.
@@ -131,26 +154,35 @@ export async function probeService({ origin, expectScheduler = false, fetchImpl 
   const schedulerStates = ['not_started', 'running', 'off', 'external', 'stopped'];
   // In external mode the monitor saw the backlog only from a build that reads it; from one before, the mode alone.
   const sawBacklog = health.status === 'fulfilled' && health.value?.scheduler?.state === 'external' && reportsBacklog(health.value.scheduler);
-  return { service: base, observedAt: new Date(now).toISOString(), codes: [...new Set(codes)].sort(), warnings,
+  const pending = warnings.includes('scheduler_backlog_pending');
+  return { service: base, observedAt: new Date(now).toISOString(), codes: [...new Set(codes)].sort(), warnings: [...new Set(warnings)],
     observations: {
       liveness: health.status === 'fulfilled' && health.value?.status === 'ok' ? 'ok' : 'unavailable',
       database: ready.status === 'fulfilled' && ready.value?.checks?.database?.status === 'ok' ? 'ok' : 'unavailable',
       schema: ready.status === 'fulfilled' && ['ok', 'indexes_missing', 'incomplete'].includes(ready.value?.checks?.schema?.status) ? ready.value.checks.schema.status : 'unverified',
       scheduler: schedulerStates.includes(health.value?.scheduler?.state) ? health.value.scheduler.state : 'unverified',
       schedulerEvidence: !expectScheduler ? 'not_requested' : expectScheduler === 'external' && !sawBacklog ? 'mode_only'
-        : codes.some(code => code.startsWith('scheduler_')) || health.status !== 'fulfilled' ? 'failed' : expectScheduler === 'external' ? 'mode_and_fresh_backlog' : 'fresh_process_heartbeat',
+        : codes.some(code => code.startsWith('scheduler_')) || health.status !== 'fulfilled' ? 'failed' : pending ? 'first_read_pending'
+        : expectScheduler === 'external' ? 'mode_and_fresh_backlog' : 'fresh_process_heartbeat',
       // Counts only, never a lender: what the process last read as still owed, public sandboxes apart.
       closeBacklog: !expectScheduler ? 'not_requested' : backlogCounts(health.value?.scheduler)
-        ?? (health.status === 'fulfilled' && health.value?.scheduler !== null && typeof health.value?.scheduler === 'object' && !reportsBacklog(health.value.scheduler) ? 'not_reported' : 'unverified'),
+        ?? (health.status === 'fulfilled' && health.value?.scheduler !== null && typeof health.value?.scheduler === 'object' && !reportsBacklog(health.value.scheduler) ? 'not_reported' : pending ? 'pending' : 'unverified'),
     },
   };
 }
 
-/** Stable incidents suppress repeated delivery; failed delivery never advances state. */
+/**
+ * Stable incidents suppress repeated delivery; failed delivery never advances state. A probe that found nothing but a
+ * process too young to have read what is still owed (scheduler_backlog_pending) is no evidence either way: it neither
+ * ends an open incident nor counts towards one, so a restart neither ends nor repeats an incident.
+ */
 export async function deliverTransition(probe, previous, deliver, { owner, failureThreshold = 2 } = {}) {
   if (!owner?.trim() || !Number.isInteger(failureThreshold) || failureThreshold < 1) throw new Error('An alert owner and positive failure threshold are required.');
   const signature = probe.codes.join('|');
   const previousForService = previous?.service === probe.service ? previous : {};
+  if (!signature && probe.warnings?.includes('scheduler_backlog_pending')) {
+    return { state: { service: probe.service, pending: previousForService.pending ?? '', streak: Number(previousForService.streak || 0), delivered: previousForService.delivered || '', observedAt: probe.observedAt }, delivered: false };
+  }
   const streak = previousForService.pending === signature ? Number(previousForService.streak || 0) + 1 : 1;
   const state = { service: probe.service, pending: signature, streak, delivered: previousForService.delivered || '', observedAt: probe.observedAt };
   if (signature === state.delivered || (signature && streak < failureThreshold)) return { state, delivered: false };

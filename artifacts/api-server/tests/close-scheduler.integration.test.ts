@@ -431,10 +431,10 @@ try {
   const { probeService } = await import(new URL("../../../scripts/monitor-valopay.mjs", import.meta.url).href);
   const { HealthCheckResponse } = await import("@workspace/api-zod");
   const { contractAnswer } = await import("../src/lib/contract.js");
-  /** The health answer /api/healthz gives with this scheduler status, and the monitor's probe of it, or its codes alone. */
-  const healthAnswer = (scheduler: unknown) => contractAnswer(HealthCheckResponse, { status: "ok", build: "test", startedAt: new Date().toISOString(), uptimeSeconds: 1, scheduler });
+  /** The health answer /api/healthz gives with this scheduler status, from a process up for ten minutes unless said, and the monitor's probe of it, or its codes alone. */
+  const healthAnswer = (scheduler: unknown, uptimeSeconds = 600) => contractAnswer(HealthCheckResponse, { status: "ok", build: "test", startedAt: new Date().toISOString(), uptimeSeconds, scheduler });
   const readyAnswer = { status: "ok", build: "test", checks: { database: { status: "ok", latencyMs: 1 }, schema: { status: "ok" } } };
-  const monitorProbe = async (scheduler: unknown) => probeService({ origin: "https://example.test", expectScheduler: "on", fetchImpl: async (url: string) => new Response(JSON.stringify(url.endsWith("readyz") ? readyAnswer : healthAnswer(scheduler))) });
+  const monitorProbe = async (scheduler: unknown, uptimeSeconds?: number) => probeService({ origin: "https://example.test", expectScheduler: "on", fetchImpl: async (url: string) => new Response(JSON.stringify(url.endsWith("readyz") ? readyAnswer : healthAnswer(scheduler, uptimeSeconds))) });
   const monitorCodes = async (scheduler: unknown): Promise<string[]> => (await monitorProbe(scheduler)).codes;
   const [e1, e2] = await signedInLenders(), [e3] = await signedInLenders();
   const owedOnly = [e1, e2, e3];
@@ -459,10 +459,13 @@ try {
     await watched.settle();
   }
   // A restarted process: nothing is known until its first pass, which does not try E1, still waiting, but reads it.
+  // Just started, it is too young for that pass to have returned: a warning, not an incident. Up long enough, it is stale.
   const restarted: typeof import("../src/lib/close-scheduler.js") = await import(`${new URL("../src/lib/close-scheduler.ts", import.meta.url).href}?restarted`);
   const afterRestart = restarted.startCloseScheduler({ intervalMs: 60_000, firstDelayMs: 60_000, onlyMerchantIds: owedOnly });
   try {
-    assert.deepEqual(await monitorCodes(restarted.schedulerStatus()), ["scheduler_stale"], "before its first pass the process has no evidence");
+    const justStarted = await monitorProbe(restarted.schedulerStatus(), 1);
+    assert.deepEqual([justStarted.codes, justStarted.warnings, justStarted.observations.closeBacklog], [[], ["scheduler_backlog_pending"], "pending"], "before its first pass a process just started has no evidence yet");
+    assert.deepEqual(await monitorCodes(restarted.schedulerStatus()), ["scheduler_stale"], "nor has one up long enough to have made that pass, which is stale");
     assert.equal((await afterRestart.tick())!.examined, 0);
     assert.deepEqual(await monitorCodes(restarted.schedulerStatus()), ["scheduler_close_failed"], "its first pass reads the failing lender from the database");
     await setCursor(e3, hoursAgo(clock, 1));
