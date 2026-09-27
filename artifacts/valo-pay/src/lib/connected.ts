@@ -6,6 +6,7 @@ import {
   nothingSaved,
   outcomeIsUnconfirmed,
   requestClosed,
+  savedAnswerWithheld,
   submissionFingerprint,
 } from "./safe-mutations";
 import { useUnsavedChanges } from "./unsaved-changes";
@@ -139,20 +140,23 @@ export function useConnected() {
         // A later authentication/revision rejection can happen before replay
         // lookup. It does not prove that an earlier unknown write failed,
         // unless the service says the key's journal entry is cancelled: then
-        // nothing sent with the key was saved or can be.
-        current.unconfirmed = requestClosed(error)
+        // nothing sent with the key was saved or can be. Nor is it unknown
+        // once the service says the request completed earlier but withholds
+        // its saved answer (savedAnswerWithheld): retrying cannot recover it,
+        // so the request is over and the page is free for the next action.
+        const over = requestClosed(error) || savedAnswerWithheld(error);
+        current.unconfirmed = over
           ? false
           : current.unconfirmed || outcomeIsUnconfirmed(error);
-        // A finished request (refused for good, or saved nothing) cannot run
-        // again under its key: the next action needs a new one. A 401 or 429
-        // is not final (any journal entry it left stays pending), so the same
-        // action keeps its key, as in useSafeMutation.
+        // A finished request (refused for good, saved nothing, or saved with
+        // its answer withheld) cannot run again under its key: the next action
+        // needs a new one. A 401 or 429 is not final (any journal entry it
+        // left stays pending), so the same action keeps its key, as in
+        // useSafeMutation.
         if (
           !current.unconfirmed &&
           attempt.current === current &&
-          (requestClosed(error) ||
-            nothingSaved(error) ||
-            definitiveRefusal(error))
+          (over || nothingSaved(error) || definitiveRefusal(error))
         )
           attempt.current = null;
         throw error;
@@ -160,6 +164,7 @@ export function useConnected() {
         current.pending = false;
       }
     },
+    // Every outcome reloads the workspace, a refusal's included: one that ends a held request shows what it left.
     onSettled: () => client.invalidateQueries(),
   });
   useUnsavedChanges(

@@ -24,7 +24,7 @@ import {
 import { withAuditNote } from "../domain/reconciliation";
 import { ConnectedCashError } from "../domain/connected-cash";
 import { CreditDomainError } from "../domain/connected-credit";
-import { assertConnectedReplayAllowed, bindConnectedReplayAuthority } from "../domain/connected-replay";
+import { assertConnectedReplayAllowed } from "../domain/connected-replay";
 import { routerOptions } from "./router-options";
 const router: IRouter = Router(routerOptions);
 router.get("/v1/connected", async (req, res) => {
@@ -80,10 +80,10 @@ router.post("/v1/connected/actions", async (req, res) => {
         let outcome;
         try {
           outcome = runConnectedActionWithNote(state, ctx, input);
-          bindConnectedReplayAuthority(state, ctx, input.action, outcome.result);
         } catch (error) {
           if (error instanceof CreditDomainError)
             fail(error.message, error.status);
+          // A money refusal (MoneyArithmeticError) is not the Cash Desk's own refusal: it answers 422 with its code.
           if (error instanceof ConnectedCashError) fail(error.message, 400);
           throw error;
         }

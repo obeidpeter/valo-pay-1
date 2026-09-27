@@ -1,20 +1,40 @@
-import {
-  appendAudit,
-  inMerchantAsSystem,
-  loadState,
-  saveState,
-  systemWorkspaceMatches,
-  fail,
-} from "./valopay-store";
+import { logger } from "./logger";
+import { databaseLimitOf } from "./database-limits";
 import { createPaystackTestAdapter } from "../providers/paystack";
 import {
   paystackConnections,
   paystackTestSecretKey,
 } from "../providers/paystack-ingress-config";
 import {
+  refuseVerification,
   verifyQueuedPaystackEvent,
+  type PaystackVerificationOutcome,
   type PaystackVerificationTransaction,
 } from "../providers/paystack-verification";
+
+/** The repository, loaded once a check has its configuration: a refusal before then opens no database. */
+let store: typeof import("./valopay-store") | undefined;
+// Loading connects to nothing, so it fails only for missing settings, such as the database address.
+const loadStore = async () =>
+  (store ??= await import("./valopay-store").catch(() =>
+    refuseVerification(
+      "The database is not configured. Run the command with the API's database settings; nothing was checked.",
+      503,
+      "not_configured",
+    ),
+  ));
+const configured = <T>(read: () => T): T => {
+  try {
+    return read();
+  } catch (error) {
+    // The ingress settings' own refusals are fixed words that name no value.
+    return refuseVerification(
+      error instanceof Error ? error.message : "Paystack test verification is not configured.",
+      503,
+      "not_configured",
+    );
+  }
+};
 
 /** Operator-only test evidence preparation. No HTTP route or background scheduler
  * calls this function. Configure a disabled synthetic lender before running it. */
@@ -22,29 +42,37 @@ export async function verifyStoredPaystackTestEvent(
   connectionId: string,
   eventId: string,
 ) {
-  const secretKey = paystackTestSecretKey();
-  const mapping = paystackConnections();
+  const secretKey = configured(paystackTestSecretKey);
+  const mapping = configured(paystackConnections);
   const connection = Object.hasOwn(mapping, connectionId)
     ? mapping[connectionId]
     : undefined;
-  if (!connection) fail("Paystack test connection not found.", 404);
+  if (!connection)
+    refuseVerification("The test connection is not configured.", 404, "connection_not_mapped");
+  const { appendAudit, inMerchantAsSystem, loadState, merchantInWorkspace, saveState, systemWorkspaceMatches } =
+    await loadStore();
   const transact: PaystackVerificationTransaction = async (
     id,
     write,
     apply,
   ) => {
     const currentConfiguration = () => {
-      const current = paystackConnections()[id];
+      let current: (typeof mapping)[string] | undefined;
+      try {
+        current = paystackTestSecretKey() === secretKey ? paystackConnections()[id] : undefined;
+      } catch {
+        current = undefined;
+      }
       if (
         id !== connectionId ||
-        paystackTestSecretKey() !== secretKey ||
         !current ||
         current.workspaceId !== connection.workspaceId ||
         current.merchantId !== connection.merchantId
       )
-        fail(
+        refuseVerification(
           "The test connection changed during verification. No provider result was applied.",
           409,
+          "configuration_changed",
         );
     };
     currentConfiguration();
@@ -53,28 +81,40 @@ export async function verifyStoredPaystackTestEvent(
       "System · Paystack test verification",
       async (ctx) => {
         if (!systemWorkspaceMatches(ctx, connection.workspaceId))
-          fail("Paystack test connection is unavailable.", 403);
+          refuseVerification("Paystack test connection is unavailable.", 403, "connection_unavailable");
         const state = await loadState(ctx, connection.merchantId, "update");
         currentConfiguration();
         const result = apply(state, ctx);
         if (write) {
+          // The lender's audit trail names the finding, as the event's history does.
+          const found = (result as { outcome?: unknown }).outcome;
           appendAudit(
             state,
             ctx,
             "paystack.test_verification",
             eventId,
-            "An operator independently checked stored test evidence. No financial instruction was created.",
+            `An operator independently checked stored test evidence${typeof found === "string" ? ` (${found.replaceAll("_", " ")})` : ""}. No financial instruction was created.`,
           );
           await saveState(ctx, state);
         }
         return result;
       },
     );
-    if (result === undefined)
-      fail(
-        "The mapped test lender is unavailable or busy. Check the same event later.",
+    if (result === undefined) {
+      // No row was locked: the lender is busy, or the mapping names a lender that is not in its workspace, which no
+      // retry mends. The ingress tells them apart the same way (paystack-connection.ts).
+      if (!(await merchantInWorkspace(connection.merchantId, connection.workspaceId)))
+        refuseVerification(
+          "The lender mapped to this Paystack test connection was not found in its workspace. Correct the connection mapping; checking the same event again will not help.",
+          404,
+          "lender_not_found",
+        );
+      refuseVerification(
+        "The mapped test lender is busy with another change. Check the same event later.",
         503,
+        "lender_unavailable",
       );
+    }
     return result;
   };
   return verifyQueuedPaystackEvent({
@@ -83,4 +123,106 @@ export async function verifyStoredPaystackTestEvent(
     transact,
     adapter: createPaystackTestAdapter({ secretKey }),
   });
+}
+
+/** What the command prints and logs: one named outcome, its exit status and a fixed message. */
+export type PaystackVerificationReport = {
+  result: PaystackVerificationOutcome;
+  exitCode: 0 | 1 | 2;
+  message: string;
+  eventStatus?: string;
+  observationCreated?: boolean;
+  financialRecordsCreated: 0;
+  instructions: "disabled";
+};
+/** Nothing to put right: check the same event again later. Any other outcome but verified needs the operator. */
+const later: readonly PaystackVerificationOutcome[] = ["pending", "reference_not_found", "provider_unavailable", "invalid_response", "lender_unavailable", "database_unavailable"];
+const named: readonly PaystackVerificationOutcome[] = [...later, "verified", "credentials_refused", "live_mode", "mismatch", "usage", "not_configured", "connection_not_mapped", "connection_unavailable", "configuration_changed", "lender_not_found", "lender_not_eligible", "event_not_found", "not_a_test_payment", "held_for_review", "check_limit_reached", "expectation_mismatch", "evidence_changed", "duplicate_observation", "observation_missing"];
+/**
+ * Whether the database refused the command's own settings, by the SQLSTATE of the failure or its cause: a
+ * database that does not exist (3D000), a login it refuses (class 28) or a right it lacks (42501). Those are
+ * put right, not waited for; a connection refused, lost or timed out is checked again later.
+ */
+function settingsRefused(error: unknown): boolean {
+  for (let cause = error, depth = 0; cause instanceof Error && depth < 4; cause = cause.cause, depth++) {
+    const code = String((cause as { code?: unknown }).code ?? "");
+    if (code === "3D000" || code === "42501" || /^28[0-9A-Z]{3}$/.test(code)) return true;
+  }
+  return false;
+}
+
+/**
+ * A check's result, or why it did not reach one, as its report: exit 0
+ * verified; 2 not verified yet with nothing to put right (check the same event
+ * later); 1 a problem the operator must fix or review first. An error that
+ * names no outcome is `not_configured` when the database refused the settings,
+ * `database_unavailable` at another database limit and otherwise `failed`, and
+ * its own words, which may quote a setting, are never repeated.
+ */
+export function paystackVerificationReport(value: unknown): PaystackVerificationReport {
+  const given = value && typeof value === "object" ? (value as { outcome?: unknown; message?: unknown; status?: unknown; observationCreated?: unknown }) : {};
+  const outcome = named.find((item) => item === given.outcome);
+  const refused = !outcome && settingsRefused(value);
+  const result = outcome ?? (refused ? "not_configured" : databaseLimitOf(value) ? "database_unavailable" : "failed");
+  const message = outcome && typeof given.message === "string" ? given.message
+    : refused ? "The database refused the command's settings: the database named does not exist, or it refused the login or its rights. Correct the API's database settings, then run the command again. Nothing was recorded."
+    : result === "database_unavailable" ? "The database could not be reached, timed out or was busy. Check the same event again later; a completed check is never repeated."
+    : "The check could not be completed. Check the same event again; a completed check is never repeated and no instruction was sent.";
+  // A result, unlike a refusal, says what became of the event.
+  const recorded = !(value instanceof Error) && typeof given.status === "string";
+  return {
+    result,
+    exitCode: result === "verified" ? 0 : later.includes(result) ? 2 : 1,
+    message,
+    ...(recorded ? { eventStatus: given.status as string, observationCreated: given.observationCreated === true } : {}),
+    financialRecordsCreated: 0,
+    instructions: "disabled",
+  };
+}
+
+/** One line per run naming its outcome: never the key, the connection or event ID, or the payment's details. */
+function logPaystackVerification(report: PaystackVerificationReport, merchantId?: string) {
+  logger[report.exitCode === 0 ? "info" : "warn"](
+    {
+      event: "paystack.test_verification",
+      outcome: report.result,
+      exitCode: report.exitCode,
+      ...(report.eventStatus ? { eventStatus: report.eventStatus, observationCreated: report.observationCreated } : {}),
+      ...(merchantId ? { merchantId } : {}),
+    },
+    "Paystack saved-event verification finished",
+  );
+}
+
+/** The command's arguments could not be used: reported and logged like any other run. */
+export function paystackVerificationUsage(usage: string): PaystackVerificationReport {
+  const report = paystackVerificationReport(Object.assign(new Error(usage), { outcome: "usage" }));
+  logPaystackVerification(report);
+  return report;
+}
+
+/** The command's check of one saved event: it never throws, logs one line naming its outcome and closes the database. */
+export async function runPaystackEventVerification(
+  connectionId: string,
+  eventId: string,
+): Promise<PaystackVerificationReport> {
+  let report: PaystackVerificationReport;
+  try {
+    report = paystackVerificationReport(await verifyStoredPaystackTestEvent(connectionId, eventId));
+  } catch (error) {
+    report = paystackVerificationReport(error);
+  } finally {
+    await store?.closeDatabase().catch(() => {
+      /* the outcome is already decided */
+    });
+  }
+  let merchantId: string | undefined;
+  try {
+    const mapping = paystackConnections();
+    if (Object.hasOwn(mapping, connectionId)) merchantId = mapping[connectionId]!.merchantId;
+  } catch {
+    merchantId = undefined;
+  }
+  logPaystackVerification(report, merchantId);
+  return report;
 }

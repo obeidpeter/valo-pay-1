@@ -304,6 +304,69 @@ async function startAssessment(user: ReturnType<typeof userEvent.setup>) {
   await screen.findByText("Previous action outcome unconfirmed");
 }
 
+it("a retry refused because the saved answer is withheld ends the held action and reloads the workspace", async () => {
+  // The first request was saved and its answer lost. By the retry, the permission it was made under changed, so the
+  // service refuses to give the saved answer and says the request completed (operation completed): retrying again
+  // cannot recover it, so the page is released, shows the service's words and loads the workspace again.
+  const withheld =
+    "This request already completed, but its saved response is no longer available under the current permissions or review. Permission was revoked, expired or replaced. Obtain current authority and prepare a new assessment. The action has not been run again.";
+  const send = globalThis.fetch;
+  const submissions: Array<{ key: string; body: string }> = [];
+  let reads = 0;
+  globalThis.fetch = async (input, options) => {
+    const url =
+      typeof input === "string"
+        ? input
+        : input instanceof Request
+          ? input.url
+          : input.toString();
+    if (options?.method !== "POST" || !url.includes("/connected/actions")) {
+      if (url.includes("/api/v1/connected?")) reads++;
+      return send(input, options);
+    }
+    submissions.push({
+      key: new Headers(options.headers).get("Idempotency-Key")!,
+      body: String(options.body),
+    });
+    if (submissions.length === 1) {
+      await send(input, options);
+      throw new TypeError("Failed to fetch");
+    }
+    if (submissions.length === 2)
+      return new Response(
+        JSON.stringify({ error: withheld, operation: "completed", requestId: "synthetic-request" }),
+        { status: 403, headers: { "Content-Type": "application/json" } },
+      );
+    return send(input, options);
+  };
+  const user = userEvent.setup();
+  await startAssessment(user);
+  const readsBefore = reads;
+  await user.click(
+    screen.getByRole("button", { name: "Retry original sample request" }),
+  );
+  expect((await screen.findByText(withheld)).getAttribute("role")).toBe("alert");
+  expect(screen.queryByText("Previous action outcome unconfirmed")).toBeNull();
+  expect(
+    screen.getByLabelText("Reason for this assessment").closest("fieldset")
+      ?.disabled,
+  ).toBe(false);
+  await waitFor(() => expect(reads).toBeGreaterThan(readsBefore));
+  expect(submissions[1]).toEqual(submissions[0]);
+  // The request is over: the next action is a new one, with a new key.
+  await user.click(
+    screen.getByRole("button", { name: /Run sample assessment/ }),
+  );
+  await screen.findByText(/A new immutable sample assessment has been recorded/);
+  expect(submissions).toHaveLength(3);
+  expect(submissions[2]!.key).not.toBe(submissions[0]!.key);
+  expect(
+    api
+      .state()
+      .records.filter((r) => r.kind === "connected-credit-assessments"),
+  ).toHaveLength(2);
+});
+
 it("a refusal the service marks as cancelled releases the held action", async () => {
   // The service cancels the key of a request it refuses and says so, so a
   // retried request that met a changed workspace is known not to have saved.

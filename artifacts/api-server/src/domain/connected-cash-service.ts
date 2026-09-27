@@ -20,6 +20,7 @@ import {
   reconcileVatEvidence,
   reviewErpDraft,
   transitionPayrollItem,
+  vatEvidenceHash,
   type CashAccount,
   type CashCommitment,
   type CashObservation,
@@ -48,6 +49,16 @@ type AuthoritySnapshot = Array<{
 }>;
 const erpPurposes: Purpose[] = ["merchant_account_read", "erp_draft"];
 const payrollPurposes: Purpose[] = ["merchant_account_read", "payroll_prepare"];
+/** The grants a saved view or schedule is bound to when it is saved (replayAuthority): business-account read, and
+ * accounting preparation for a VAT schedule. ERP drafts and payroll plans bind their own preparation and review. */
+const savedPurposes: Record<string, Purpose[]> = {
+  "connected-cash-workspace": ["merchant_account_read"],
+  "connected-cash-forecasts": ["merchant_account_read"],
+  "connected-cash-vat": erpPurposes,
+};
+/** Whether a Cash Desk record is bound, when saved, to the grants it was made under (savedCashDisclosable). */
+export const boundWhenSaved = (kind: string): boolean =>
+  Object.hasOwn(savedPurposes, kind);
 /** Bind a review to the exact current scoped grants, not merely to another grant
  * with the same purpose. Unknown dates, versions and overlapping grants fail closed. */
 function authoritySnapshot(
@@ -473,6 +484,67 @@ function payrollFundingCurrent(
     age <= 60 * 60_000
   );
 }
+/** What a forecast is made from, as a digest: the opening booked balance and every commitment. */
+const forecastSource = (openingMinor: number, commitments: CashCommitment[]) =>
+  cashEvidenceHash({ openingMinor, commitments });
+/**
+ * Whether a saved view or schedule may be disclosed, on the desk or by a replay:
+ * it was bound, when saved, to the grants it was made under, and they are the
+ * current ones; and a forecast or VAT schedule was made from the evidence the
+ * desk holds now (a forecast's opening balance and commitments, a schedule's
+ * invoices, bank allocations and ledger control). One an earlier build saved
+ * without these bindings (without its grants, or a forecast without its
+ * source) cannot show what it was made under or from, so it is not disclosed
+ * either: a new one is prepared under the current permission. Made once for a
+ * view, it works out the current grants and evidence once, however many saved
+ * schedules the view lists.
+ */
+export function savedCashDisclosable(
+  state: DomainState,
+  now: string,
+): (record: ValopayRecord) => boolean {
+  const data = stored(state)?.data.workspace as CashWorkspace | undefined;
+  const grants = new Map<Purpose[], string | undefined>();
+  const currentGrants = (purposes: Purpose[]) => {
+    if (!grants.has(purposes)) {
+      const snapshot = authoritySnapshot(state, purposes, now);
+      grants.set(purposes, snapshot && cashEvidenceHash(snapshot));
+    }
+    return grants.get(purposes);
+  };
+  let forecastNow: string | undefined, vatNow: string | undefined;
+  return (record) => {
+    const purposes = savedPurposes[record.kind];
+    const bound = record.data.replayAuthority;
+    if (!purposes || !Array.isArray(bound)) return false;
+    const current = currentGrants(purposes);
+    if (!current || cashEvidenceHash(bound) !== current) return false;
+    if (record.kind === "connected-cash-forecasts") {
+      if (!data) return false;
+      forecastNow ??= forecastSource(
+        consolidateCashPositions(
+          entityScope(state),
+          data.accounts,
+          data.observations,
+          now,
+        )[0]?.bookedMinor ?? 0,
+        data.commitments,
+      );
+      return record.data.sourceHash === forecastNow;
+    }
+    if (record.kind === "connected-cash-vat") {
+      if (!data) return false;
+      vatNow ??= vatEvidenceHash(
+        entityScope(state),
+        data.vatInvoices,
+        data.vatAllocations,
+        data.vatControl,
+      );
+      return record.data.schedule?.evidenceHash === vatNow;
+    }
+    return true;
+  };
+}
 export function cashView(state: DomainState, ctx: Context) {
   const data = workspace(state, ctx);
   const read = permission(state, "merchant_account_read", ctx.now);
@@ -487,16 +559,27 @@ export function cashView(state: DomainState, ctx: Context) {
     ctx.now,
   );
   const position = positions.find((p) => p.currency === "NGN");
+  const disclosable = savedCashDisclosable(state, ctx.now);
+  // The latest saved forecast, while it may be disclosed; withheld, it is named without its figures (savedForecast).
   const savedForecast = ownRecords(state, "connected-cash-forecasts").at(-1);
+  const forecastCurrent = !!savedForecast && disclosable(savedForecast);
   const forecast =
     !stored(state) || read
-      ? (savedForecast?.data.forecast ??
-        forecastCash(data.scope, position?.bookedMinor ?? 0, data.commitments, {
-          asOf: ctx.now,
-          version: "sample-preview",
-          openingQualified: position?.qualified ?? false,
-          bufferMinor: 150_000_000,
-        }))
+      ? savedForecast
+        ? forecastCurrent
+          ? savedForecast.data.forecast
+          : null
+        : forecastCash(
+            data.scope,
+            position?.bookedMinor ?? 0,
+            data.commitments,
+            {
+              asOf: ctx.now,
+              version: "sample-preview",
+              openingQualified: position?.qualified ?? false,
+              bufferMinor: 150_000_000,
+            },
+          )
       : null;
   const erp = permission(state, "erp_draft", ctx.now);
   const payroll = permission(state, "payroll_prepare", ctx.now);
@@ -517,6 +600,16 @@ export function cashView(state: DomainState, ctx: Context) {
     positions,
     commitments: read || !stored(state) ? data.commitments : [],
     forecast,
+    savedForecast:
+      read && savedForecast
+        ? {
+            id: savedForecast.id,
+            createdAt: savedForecast.createdAt,
+            state: forecastCurrent
+              ? ("current" as const)
+              : ("prepare_again" as const),
+          }
+        : null,
     erpDrafts:
       read && erp
         ? ownRecords(state, "connected-cash-erp").map((r) => {
@@ -563,14 +656,21 @@ export function cashView(state: DomainState, ctx: Context) {
           })
         : [],
     vat,
+    // Listed while the grants allow the desk; its figures only while it was made under the current grants and evidence.
     vatExports:
       read && erp
-        ? ownRecords(state, "connected-cash-vat").map((r) => ({
-            id: r.id,
-            createdAt: r.createdAt,
-            schedule: r.data.schedule,
-            reviewer: r.data.reviewer,
-          }))
+        ? ownRecords(state, "connected-cash-vat").map((r) => {
+            const current = disclosable(r);
+            return {
+              id: r.id,
+              createdAt: r.createdAt,
+              reviewer: r.data.reviewer,
+              state: current
+                ? ("current" as const)
+                : ("prepare_again" as const),
+              ...(current ? { schedule: r.data.schedule } : {}),
+            };
+          })
         : [],
     payrollPlans:
       read && payroll
@@ -743,7 +843,10 @@ export function runCashAction(
         "connected-cash-forecasts",
         "30-day cash forecast",
         "planning_estimate",
-        { forecast: value },
+        {
+          forecast: value,
+          sourceHash: forecastSource(position.bookedMinor, data.commitments),
+        },
       );
       message = "Base and downside forecasts saved with their input version.";
     } else if (input.action === "cash.erp.prepare") {
@@ -1063,6 +1166,17 @@ export function runCashAction(
       record.data.plan = plan;
       touch(record, ctx.now);
     } else throw new Error("Unknown Cash Desk action.");
+  }
+  // Recorded at saving, not at first replay: the grants a saved view or schedule was made under.
+  const purposes = record && savedPurposes[record.kind];
+  if (record && purposes) {
+    const authority = authoritySnapshot(state, purposes, ctx.now);
+    if (!authority)
+      throw refusal(
+        "Current scoped permission is required before saving this response.",
+        403,
+      );
+    record.data.replayAuthority = authority;
   }
   return {
     message,

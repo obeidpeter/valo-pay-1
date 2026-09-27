@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { moneyRefusalCodes } from "./money";
 
 /**
  * Building blocks the API and the console share for requests and answers: the
@@ -99,7 +100,7 @@ export const errorBodySchema = z.object({
   requestId: z.string().describe("The request's reference, also sent as X-Request-Id; quoting it finds the request in the log."),
   details: z.array(errorDetailSchema).max(ERROR_DETAIL_LIMIT).optional().describe("Present when validation failed: the first 20 fields at most, each with what is wrong with it."),
   detailCount: z.number().int().min(0).optional().describe("Present with details: how many problems validation found, which may be more than details lists."),
-  code: z.enum(pilotAccessFailureCodes).optional().describe("Present when staff access was refused: why."),
+  code: z.enum([...pilotAccessFailureCodes, ...moneyRefusalCodes]).optional().describe("Present when staff access was refused (why), or with a 422 when a money calculation the request needs was refused: INVALID_MONEY_AMOUNT (an amount that is not a safe whole number of minor units), INVALID_MONEY_RATE (a rate outside its bounds) or MONEY_OUT_OF_RANGE (a result beyond the safe-integer minor-unit range)."),
   committed: z.literal(false).optional().describe("Present on a failure that saved nothing: the transaction was rolled back, so the request may be sent again as new. For a request with an Idempotency-Key it is decided for the key: present only when nothing sent with the key was or can be saved (its journal entry is cancelled, or nothing was saved under it before this request failed), never while a request with the key was saved or is still running. A read's 500 never carries it."),
   operation: z.enum(operationStates).optional().describe("Present when the request's Idempotency-Key has an operations-journal entry whose state is known: completed (a request with the key was saved), running (another attempt with the key is still running it), pending (its outcome is not confirmed yet) or cancelled (nothing sent with the key was or can be saved)."),
 }).strict();

@@ -806,6 +806,13 @@ section("the allocation picker's choices for one payment", () => {
   equal(nobody.page.total, open.length, "a payment that names neither is offered every open instalment");
   equal(choicesFor("TRF-USD-1").page.total, 0, "a payment in another currency, which no allocation accepts, is offered none");
   check(open.every((d) => !accepts(choicesFor("TRF-USD-1").p, d)), "and indeed none accepts it");
+  // A payment reconciliation holds for a renewed review of an earlier reversal decision takes no allocation (409) until
+  // Finance resolves the review, so it too is offered none, whoever its payer.
+  const held = state.records.find((item) => item.id === nobody.p.id)!;
+  held.data.legacyReversalReviewIds = ["review-of-an-earlier-decision"];
+  equal(choicesFor("TRF-NOBODY-1").page.total, 0, "a payment held for a renewed reversal review is offered none");
+  check(open.every((d) => !accepts(held, d)), "and indeed none accepts it");
+  delete held.data.legacyReversalReviewIds;
   equal(allocationChoices({ allocatable: "true", paymentId: named.p.id, customerId: "someone-else" }, { customerId: due.customerId }), undefined, "a list for another customer than the payer's offers none");
   check((() => { try { allocatableOnly("due-items", { paymentId: named.p.id }); return false; } catch (error) { return (error as { status?: number }).status === 400; } })(), "paymentId without allocatable=true is refused");
 });

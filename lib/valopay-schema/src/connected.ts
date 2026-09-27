@@ -165,13 +165,19 @@ export const payrollManifestSchema = z.object({
   items: z.array(z.object({ id: z.string(), beneficiaryReference: z.string(), beneficiaryVersion: z.string(), netMinor: int, idempotencyKey: z.string() }).strict()),
   paymentStatus: z.literal("not_evidenced"), manifestHash: z.string(), warning: z.string(),
 }).strict();
+/** Whether a saved forecast or VAT schedule may be shown: `current` while the grants it was saved under are the current ones and the desk holds the evidence it was made from, `prepare_again` otherwise (its figures are withheld, and a new one is prepared under the current permission). */
+const savedStateSchema = z.enum(["current", "prepare_again"]);
 /** The Cash Desk: a separate sample SME's accounts, positions, commitments, forecast, accounting drafts, VAT schedules and payroll plans, as its permissions allow. */
 export const cashViewSchema = z.object({
   initialised: z.boolean(), scope: currencyScopeSchema, name: z.string(), accounts: z.array(cashAccountSchema), positions: z.array(cashPositionSchema),
-  commitments: z.array(cashCommitmentSchema), forecast: cashForecastSchema.nullable(),
+  commitments: z.array(cashCommitmentSchema),
+  forecast: cashForecastSchema.nullable().describe("The latest saved forecast while it may be shown, null while it must be prepared again, or a sample preview when none is saved. Once the desk is set up it is null without business-account read permission; before that the preview is shown whatever the permissions, so a forecast here is not proof of that permission."),
+  savedForecast: z.object({ id: z.string(), createdAt: z.string(), state: savedStateSchema }).strict().nullable()
+    .describe("The latest saved forecast, named with business-account read permission: current while the grants it was saved under are the current ones and the desk's opening balance and commitments are those it was made from, prepare_again otherwise, when its figures are withheld (forecast is null). Null when none is saved."),
   erpDrafts: z.array(z.object({ id: z.string(), status: z.string(), name: z.string(), createdAt: z.string(), draft: erpDraftSchema, manifest: erpManifestSchema.optional() }).strict()),
   vat: vatScheduleSchema.nullable(),
-  vatExports: z.array(z.object({ id: z.string(), createdAt: z.string(), schedule: vatScheduleSchema, reviewer: z.string() }).strict()),
+  vatExports: z.array(z.object({ id: z.string(), createdAt: z.string(), reviewer: z.string(), state: savedStateSchema, schedule: vatScheduleSchema.optional() }).strict())
+    .describe("The saved VAT review schedules, listed with business-account read and accounting preparation permissions: each current, with its schedule, while the grants it was saved under are the current ones and the desk holds the invoices, bank allocations and ledger control it was made from; prepare_again otherwise, without its schedule."),
   payrollPlans: z.array(z.object({
     id: z.string(), status: z.string(), plan: payrollPlanSchema,
     summary: z.object({ itemCount: count, totalNetMinor: int, counts: z.object({ planned: count, exported: count, submitted: count, succeeded: count, failed: count, unknown: count, reversed: count }).strict(), status: z.enum(["completed", "partially_completed", "needs_reconciliation", "submitted", "exported_unpaid", "planning"]), liveDispatchAllowed: z.literal(false) }).strict(),
@@ -194,6 +200,8 @@ export const connectedViewSchema = z.object({
   payments: z.object({
     intents: z.array(valopayRecordSchema),
     dues: z.array(z.object({ id: z.string(), name: z.string(), reference: z.string(), customerId: z.string(), customerName: z.string(), outstandingKobo: int, blocked: z.boolean() }).strict()),
+    // The instalments offered or named by a checkout that reconciliation holds for a renewed reversal review: checkouts for them are refused.
+    heldForReversalReview: z.array(z.string()),
   }).strict(),
   credit: creditViewSchema,
   cash: cashViewSchema,

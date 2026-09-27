@@ -1,10 +1,17 @@
 /** Money rules from the business plan v2.1 and TRD sections 5.3 and 5.15.  Amounts are integer kobo. */
 
+/** Why a money calculation was refused, as a 422 answer's `code` names it: an amount that is not a safe whole
+ * number of minor units, a rate outside its bounds, or a result beyond the safe-integer minor-unit range. */
+export const moneyRefusalCodes = ["INVALID_MONEY_AMOUNT", "INVALID_MONEY_RATE", "MONEY_OUT_OF_RANGE"] as const;
+/** A money refusal's code. */
+export type MoneyRefusalCode = (typeof moneyRefusalCodes)[number];
+/** What a money refusal (422) says: the amount that could not be computed stays in no answer or log. */
+export const MONEY_REFUSAL_MESSAGE = "This calculation cannot be completed within the supported amount or rate limits. Review the amounts and billing settings before trying again.";
 /** The v1 JSON number contract supports only exact, safe integer minor units.
  * Intermediate arithmetic is bigint; no bigint escapes to JSON. Signed amounts
  * are permitted for adjustments and balances, never implicitly coerced. */
 export class MoneyArithmeticError extends RangeError {
-  constructor(public readonly code: "INVALID_MONEY_AMOUNT" | "INVALID_MONEY_RATE" | "MONEY_OUT_OF_RANGE", message: string) {
+  constructor(public readonly code: MoneyRefusalCode, message: string) {
     super(message);
     this.name = "MoneyArithmeticError";
   }
@@ -33,13 +40,16 @@ export function sumMoney(values: Iterable<number>): number {
   for (const value of values) sum += BigInt(integerMoney(value));
   return moneyFromBigInt(sum);
 }
-/** Exact signed product/division with explicitly selected historical rounding. */
-export function multiplyDivideMoney(value: number, multiplier: number, divisor: number, rounding: "floor" | "trunc" = "floor"): number {
+/** Exact signed product/division with explicitly selected historical rounding; `ceil` rounds up, for a figure that must not be understated. */
+export function multiplyDivideMoney(value: number, multiplier: number, divisor: number, rounding: "floor" | "trunc" | "ceil" = "floor"): number {
   integerMoney(value); integerMoney(multiplier); integerMoney(divisor);
   if (divisor <= 0) throw new MoneyArithmeticError("INVALID_MONEY_RATE", "The divisor must be positive.");
   const product = BigInt(value) * BigInt(multiplier), denominator = BigInt(divisor);
   let quotient = product / denominator;
-  if (rounding === "floor" && product < 0n && product % denominator !== 0n) quotient -= 1n;
+  if (product % denominator !== 0n) {
+    if (rounding === "floor" && product < 0n) quotient -= 1n;
+    if (rounding === "ceil" && product > 0n) quotient += 1n;
+  }
   return moneyFromBigInt(quotient);
 }
 /** Validate a whole basis-point rate from zero through one hundred percent. */

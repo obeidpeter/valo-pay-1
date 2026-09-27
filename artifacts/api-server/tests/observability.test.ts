@@ -18,7 +18,7 @@ const { default: app, requestIdFor } = await import("../src/app.js");
 const { errorHandler } = await import("../src/lib/error-handler.js");
 const { DatabaseLimitError } = await import("../src/lib/database-limits.js");
 const { markRolledBack } = await import("../src/lib/transaction-outcome.js");
-const { schedulerStatus, markSchedulerOff } = await import("../src/lib/close-scheduler.js");
+const { applySchedulerEvent, schedulerStatus, markSchedulerOff } = await import("../src/lib/close-scheduler.js");
 const { BUILD } = await import("../src/lib/build-info.js");
 const { readinessAnswer, readinessWarning } = await import("../src/routes/health.js");
 
@@ -107,7 +107,7 @@ try {
   const base = `http://127.0.0.1:${port}`;
 
   const health = await fetch(`${base}/api/healthz?token=should-not-be-logged`);
-  const healthBody = await health.json() as { status: string; build: string; startedAt: string; uptimeSeconds: number; scheduler: { state: string; ticks: number } };
+  const healthBody = await health.json() as { status: string; build: string; startedAt: string; uptimeSeconds: number; scheduler: { state: string; ticks: number; backlog: unknown } };
   assert.equal(health.status, 200);
   assert.equal(healthBody.status, "ok");
   assert.equal(healthBody.build, BUILD);
@@ -115,12 +115,17 @@ try {
   assert.ok(typeof healthBody.uptimeSeconds === "number" && healthBody.uptimeSeconds >= 0);
   assert.match(healthBody.startedAt, /^\d{4}-\d{2}-\d{2}T/);
   assert.equal(healthBody.scheduler.state, "not_started", "nothing started the scheduler in this process");
+  assert.equal(healthBody.scheduler.backlog, null, "what is still owed is unknown until a pass reads it");
   assert.equal(health.headers.get("cache-control"), "no-store");
   assert.match(health.headers.get("x-request-id") ?? "", /^[0-9a-f]{16}$/, "every answer names its request");
   markSchedulerOff();
   assert.equal(schedulerStatus().state, "off");
   assert.equal(((await (await fetch(`${base}/api/healthz`)).json()) as { scheduler: { state: string } }).scheduler.state, "off", "the health answer says when closes are not scheduled here");
-  checks += 10;
+  // What the latest pass read as still owed, as counts: the answer names no lender.
+  const owed = { checkedAt: "2026-09-26T06:01:00.000Z", overdue: 2, failing: 1, lateAfterMinutes: 30 };
+  applySchedulerEvent({ type: "succeeded", at: owed.checkedAt, run: null, backlog: owed });
+  assert.deepEqual(((await (await fetch(`${base}/api/healthz`)).json()) as { scheduler: { backlog: unknown } }).scheduler.backlog, owed, "the health answer carries the lenders still owed a close");
+  checks += 12;
 
   const started = Date.now();
   const ready = await fetch(`${base}/api/readyz`);

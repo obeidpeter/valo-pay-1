@@ -5,9 +5,9 @@ import { useWorkspace } from '@/lib/workspace-context';
 
 /** Keep the unavailable action discoverable, with a visible, accessible explanation. */
 export const PermissionButton = React.forwardRef<HTMLButtonElement, ButtonProps & PermissionRequest>(
-  ({ action, kind, record, children, ...props }, ref) => {
+  ({ action, kind, record, payment, instalment, children, ...props }, ref) => {
     const { workspace } = useWorkspace();
-    const reason = permissionReason(workspace, { action, kind, record });
+    const reason = permissionReason(workspace, { action, kind, record, payment, instalment });
     const id = useId();
     if (!reason) return <Button ref={ref} {...props}>{children}</Button>;
     return <span className="inline-flex max-w-64 flex-col items-start gap-1 align-top">

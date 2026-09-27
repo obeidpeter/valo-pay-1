@@ -5,11 +5,12 @@
  * Valo Pay collections and connected banking sandbox API. All monetary fields are integer minor units (NGN kobo). Real data and all outbound provider instructions are disabled in connected modules.
  * OpenAPI spec version: 1.1.0
  */
+import type { SchedulerBacklog } from './schedulerBacklog';
 import type { SchedulerRun } from './schedulerRun';
 import type { SchedulerStatusState } from './schedulerStatusState';
 
 /**
- * Whether closes are scheduled in this process, how often it looks, when it last looked and its last pass with work.
+ * Whether closes are scheduled in this process, how often it looks, when it last looked, its last pass with work and what its latest pass read as still owed.
  */
 export interface SchedulerStatus {
   /** running: this process schedules the daily closes. off: it schedules none (VALOPAY_CLOSE_SCHEDULER=off). external: it schedules none because a separate scheduled job runs them with the one-shot close pass (VALOPAY_CLOSE_SCHEDULER=external), which this process cannot observe. not_started and stopped: the scheduler has not started yet, or has stopped. */
@@ -24,4 +25,6 @@ export interface SchedulerStatus {
   lastSuccessAt?: string | null;
   /** @nullable */
   lastErrorAt?: string | null;
+  /** What the latest pass read from the database as still owed; null until this process's first pass has read it, and kept as last read while the scheduler is stopped or failing. Absent from builds before it was added, which report only lastRun. */
+  backlog?: SchedulerBacklog | null;
 }

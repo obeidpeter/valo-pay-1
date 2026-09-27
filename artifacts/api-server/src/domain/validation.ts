@@ -170,7 +170,7 @@ export function validateRecord(
   for (const field of ['case', 'importIdentity']) {
     if (JSON.stringify(data[field]) !== JSON.stringify(existing?.data[field])) refuse(field, `Use the dedicated workflow to change ${field === 'case' ? 'case coordination' : 'import provenance'}.`);
   }
-  for (const field of ['legacyReversalReviewIds', 'legacyReversalReviewAppliedId', 'providerIdentityHeld']) {
+  for (const field of ['legacyReversalReviewIds', 'legacyReversalReviewAppliedId', 'legacyReversalReviewPause', 'providerIdentityHeld']) {
     if (!isDeepStrictEqual(data[field], existing?.data[field])) throw new Error('Reversal and provider identity review holds are recorded by reconciliation and cannot be changed here.');
   }
   if (kind === "exceptions") {
@@ -314,6 +314,10 @@ export function validateRecord(
     if (data.paymentId !== undefined || data.resolutionKey !== undefined || input.status === "resolved") {
       refuse(undefined, "Valo Pay determines how payment evidence is matched. Do not set its resolution when creating it.");
     }
+    // Reconciliation alone links evidence to a settlement batch, or marks where a line is counted: evidence naming a batch
+    // by these could make a batch Finance confirmed ambiguous again, or claim another batch's count.
+    const linked = ["settlementBatchId", "resolvedTo", "countedInBatchId", "duplicateSettlementLine", "otherCurrencyLine"].filter((field) => data[field] !== undefined);
+    if (linked.length) refuse(linked[0], "Valo Pay links payment evidence to its settlement batch and records where a settlement line is counted. Do not set these links when creating it.");
     if (data.dueItemId) {
       const due = link("dueItemId", data.dueItemId, "due-items", "observation dueItemId");
       if (due && due.customerId !== input.customerId) refuse("dueItemId", "The payment evidence and linked instalment must belong to the same customer.");
@@ -399,6 +403,20 @@ export function validateRecord(
     for (const key of ["grossKobo", "feeKobo", "netKobo"]) positiveInteger(data[key], key, true);
     if (data.grossKobo - data.feeKobo !== data.netKobo) throw new Error("The net settlement amount must equal the gross amount minus fees.");
     if (!isUpdate && input.status !== (defaultStatus["settlement-batches"] ?? "pending")) throw new Error("New settlement batches must start as pending. Reconciliation updates their status.");
+    // FIN-03: a batch Finance adds or corrects by hand takes no reference another batch has, whether the reference or only the
+    // batch reference is given, so two batches never become one payout; reconciliation alone keeps one batch per connection
+    // under a reference. An edit that keeps the batch's references is not checked. A copy an earlier build let an API
+    // client create with only its batch reference carries the other batch's reference in both fields, and the console's
+    // Edit changes the reference only: correcting such a duplicate carries its batch reference over, as the repair a
+    // refused confirmation asks for. Every other edit keeps its batch reference, the key the provider's lines match by.
+    const others = state.records.filter((record) => record.kind === "settlement-batches" && record.id !== existing?.id);
+    if (existing && typeof input.reference === "string" && input.reference && input.reference !== existing.reference && data.batchReference === existing.data.batchReference
+      && existing.data.batchReference === existing.reference && others.some((record) => record.reference === existing.reference || record.data.batchReference === existing.reference)) data.batchReference = input.reference;
+    const references = [input.reference, data.batchReference].filter((value): value is string => typeof value === "string" && !!value);
+    if ((!existing || input.reference !== existing.reference || data.batchReference !== existing.data.batchReference)
+      && others.some((record) => references.includes(record.reference) || references.includes(String(record.data.batchReference ?? "")))) {
+      throw Object.assign(new Error("Another settlement batch already has this reference. A batch is one provider connection's payout: record this one under its own reference, or correct the other batch."), { status: 409 });
+    }
     // Decision on currencies: a batch holds one currency, naira unless given, and its amounts are in its smallest unit.
     // One the provider's lines build takes its first line's, which reconciliation records.
     if (data.currency === undefined || data.currency === null || data.currency === "") data.currency = isUpdate ? existing?.data.currency : "NGN";
@@ -411,7 +429,7 @@ export function validateRecord(
     }
     // Reconciliation copies these from the provider's lines, the fee schedule and the linked statement credit, and derives the status from them.
     // Compared by value: jsonb returns enteredTotals' keys in its own order.
-    for (const key of ["statementObservationId", "statementNetKobo", "statementOtherCurrencies", "lineObservationIds", "linePaymentIds", "otherCurrencyLineIds", "expectedFeeKobo", "feeVarianceKobo", "enteredTotals", "providerIdentityReview", "providerIdentityKey"]) {
+    for (const key of ["statementObservationId", "statementNetKobo", "statementOtherCurrencies", "lineObservationIds", "linePaymentIds", "otherCurrencyLineIds", "expectedFeeKobo", "feeVarianceKobo", "enteredTotals", "providerIdentityReview", "providerIdentityKey", "providerIdentityRelease", "providerIdentityHistory", "providerIdentityClaimedBy"]) {
       if (!isDeepStrictEqual(data[key], existing?.data[key])) throw new Error(`Settlement batch ${key} is recorded by reconciliation and cannot be changed here.`);
     }
     if (existing?.data.providerIdentityKey !== undefined && (input.reference !== existing.reference || data.batchReference !== existing.data.batchReference)) throw new Error('A settlement batch identity is recorded by reconciliation and its reference cannot be changed here.');

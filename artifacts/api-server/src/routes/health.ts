@@ -26,7 +26,8 @@ export function readinessAnswer(database: DatabaseReadiness) {
 let reportedIndexes = "";
 /**
  * The warning line a readiness check writes, if any: every time the database
- * does not answer or lacks a table, column, unique index or check constraint;
+ * does not answer, lacks a table, column, unique index or check constraint,
+ * or holds a guard this build replaced;
  * for missing read indexes, once until what is missing changes, so a host
  * polling readiness every few seconds does not write the same warning each
  * time.
@@ -38,7 +39,7 @@ export function readinessWarning(database: DatabaseReadiness): { fields: Record<
   // Which schema was read: the isolated runtime schema, or the tables the connection's search path reaches.
   const schema = database.searched ?? "search_path";
   if (database.status !== "ok") return { fields: { event: "readiness.failed", latencyMs: database.latencyMs, reason: database.error }, message: "Readiness check failed: the database did not answer" };
-  if (database.schema.status === "incomplete") return { fields: { event: "readiness.failed", latencyMs: database.latencyMs, reason: "schema incomplete", schema, missing: database.schema.missing }, message: "Readiness check failed: the database lacks a table, column, unique index or check constraint this build needs" };
+  if (database.schema.status === "incomplete") return { fields: { event: "readiness.failed", latencyMs: database.latencyMs, reason: "schema incomplete", schema, missing: database.schema.missing }, message: "Readiness check failed: the database lacks a table, column, unique index or check constraint this build needs, or holds a guard it replaced" };
   if (indexes && !repeated) return { fields: { event: "readiness.indexes_missing", schema, missing: database.schema.missing }, message: "Ready, but the database lacks an index this build expects: some reads are slower until its migration is applied" };
   return undefined;
 }
@@ -84,7 +85,8 @@ const limited: RequestHandler = (req, res, next) => {
 /**
  * Two questions a host or a person can ask without a sandbox or a sign-in.
  * Liveness (/healthz): the process answers, and says which build it is, how
- * long it has been up and what its scheduler is doing. It never touches the
+ * long it has been up and what its scheduler is doing, with the lenders still
+ * owed a close as its latest pass counted them. It never touches the
  * database, so a database outage does not read as a dead process. Readiness
  * (/readyz): one bounded round trip to the database on its own connection, so
  * a busy request pool does not read as an unreachable database, which also

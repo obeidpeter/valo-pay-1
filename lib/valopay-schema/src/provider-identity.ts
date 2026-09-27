@@ -16,3 +16,13 @@ export function observationEventKey(data: Record<string, unknown>): string | und
   if (data.eventId === undefined || data.eventId === null) return undefined;
   return JSON.stringify([observationProviderKey(data), String(data.source ?? ''), String(data.eventId)]);
 }
+
+/** A settlement batch identity (providerIdentityKey, providerIdentityReview.identities) as its parts: the connection, compared without case or surrounding spaces, and the batch reference; undefined for any other value. */
+export function providerIdentityParts(identity: unknown): { connection: string; batchReference: string } | undefined {
+  try {
+    const parts: unknown = JSON.parse(String(identity));
+    return Array.isArray(parts) && parts.length === 2 && typeof parts[0] === "string" && typeof parts[1] === "string" ? { connection: parts[0], batchReference: parts[1] } : undefined;
+  } catch {
+    return undefined;
+  }
+}

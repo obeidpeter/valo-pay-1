@@ -11,4 +11,5 @@ import type { ValopayRecord } from './valopayRecord';
 export type ConnectedWorkspacePayments = {
   intents: ValopayRecord[];
   dues: ConnectedWorkspacePaymentsDuesItem[];
+  heldForReversalReview: string[];
 };

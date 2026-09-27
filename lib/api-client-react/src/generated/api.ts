@@ -199,7 +199,7 @@ export const getHealthCheckUrl = () => {
 }
 
 /**
- * Never touches the database, so a database outage does not read as a dead process. Needs no sandbox or sign-in, and answers whether or not Clerk is configured. At most 120 health checks a minute per client network, both health addresses together (an IPv6 client's network is its /64).
+ * Never touches the database, so a database outage does not read as a dead process: the scheduler's backlog is what its latest pass read, counted without naming a lender. Needs no sandbox or sign-in, and answers whether or not Clerk is configured. At most 120 health checks a minute per client network, both health addresses together (an IPv6 client's network is its /64).
  * @summary Liveness: the process answers, with its build, uptime and scheduler state
  */
 export const healthCheck = async ( options?: Parameters<typeof customFetch>[1]): Promise<HealthStatus> => {
@@ -277,7 +277,7 @@ export const getReadinessCheckUrl = () => {
 }
 
 /**
- * Answers 503 with status degraded while the database does not answer within the check's time limit, or lacks a table, column, unique index or check constraint this build needs. A missing read index leaves the answer ready, with checks.schema.status indexes_missing, since every request still works, only slower. The log names what is missing and where it comes from, and any connection error; the answer does not. Probes share one check: while it runs every probe waits for it, and its answer is reused for a second after it finishes, so a burst makes one database round trip. Needs no sandbox or sign-in, and answers whether or not Clerk is configured. At most 120 health checks a minute per client network, both health addresses together.
+ * Answers 503 with status degraded while the database does not answer within the check's time limit, or lacks a table, column, unique index or check constraint this build needs, or still holds a guard it replaced. A missing read index leaves the answer ready, with checks.schema.status indexes_missing, since every request still works, only slower. The log names what is missing and where it comes from, and any connection error; the answer does not. Probes share one check: while it runs every probe waits for it, and its answer is reused for a second after it finishes, so a burst makes one database round trip. Needs no sandbox or sign-in, and answers whether or not Clerk is configured. At most 120 health checks a minute per client network, both health addresses together.
  * @summary Readiness: one bounded round trip to the database, which also checks its schema
  */
 export const readinessCheck = async ( options?: Parameters<typeof customFetch>[1]): Promise<ReadinessStatus> => {

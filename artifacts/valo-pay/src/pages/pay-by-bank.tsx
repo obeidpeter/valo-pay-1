@@ -25,6 +25,7 @@ import { nairaToKobo, koboToNaira } from "@/lib/money-input";
 import { useFormDraft } from "@/lib/unsaved-changes";
 import { useWorkspace } from "@/lib/workspace-context";
 import { useDialogFocusReturn, useFocusWhenLost } from "@/lib/focus";
+import { reversalReviewRefusals } from "@/lib/permissions";
 const TITLE = "Pay-by-bank",
   DESCRIPTION =
     "A clear journey from bank authorisation to a verified receipt, tied to the instalment it pays.";
@@ -126,6 +127,10 @@ function PaymentContent({ api }: { api: ReturnType<typeof useConnected> }) {
     checkoutExpired =
       !!intent &&
       Date.parse(intent.data.expiresAt) <= Date.parse(api.data.asOf);
+  // Instalments reconciliation holds for a renewed reversal review: the service refuses their checkouts.
+  const heldForReview = new Set(payments.heldForReversalReview),
+    dueHeld = !!due && heldForReview.has(due.id),
+    intentHeld = !!intent && heldForReview.has(String(intent.data.dueItemId));
   // When the outcome became unknown: after 24 hours the daily close raises an exception for Finance, which the checkout names.
   const unknownSince = (intent?.data.events as { at: string; status: string }[] | undefined)?.find(
       (e) => e.status === "unknown",
@@ -246,6 +251,7 @@ function PaymentContent({ api }: { api: ReturnType<typeof useConnected> }) {
                       <option value={d.id} key={d.id}>
                         {d.customerName} · {d.reference}
                         {d.blocked ? " · pending instruction" : ""}
+                        {heldForReview.has(d.id) ? " · held for review" : ""}
                       </option>
                     ))}
                   </select>
@@ -280,7 +286,7 @@ function PaymentContent({ api }: { api: ReturnType<typeof useConnected> }) {
                 </div>
                 <Button
                   type="submit"
-                  disabled={api.pending || !canPay || due?.blocked}
+                  disabled={api.pending || !canPay || due?.blocked || dueHeld}
                 >
                   Create sample checkout <ArrowRight size={16} />
                 </Button>
@@ -295,6 +301,11 @@ function PaymentContent({ api }: { api: ReturnType<typeof useConnected> }) {
                   <p className="text-xs text-muted-foreground">
                     An instruction is pending. Resolve its outcome before
                     collecting again.
+                  </p>
+                )}
+                {dueHeld && (
+                  <p className="text-xs text-muted-foreground">
+                    {reversalReviewRefusals.checkout}
                   </p>
                 )}
               </form>
@@ -389,7 +400,9 @@ function PaymentContent({ api }: { api: ReturnType<typeof useConnected> }) {
                 {intent.status === "created" && (
                   <>
                     <Button
-                      disabled={api.pending || !canPay || checkoutExpired}
+                      disabled={
+                        api.pending || !canPay || checkoutExpired || intentHeld
+                      }
                       onClick={() =>
                         openReview(
                           "payment.authorise",
@@ -417,6 +430,11 @@ function PaymentContent({ api }: { api: ReturnType<typeof useConnected> }) {
                       <p className="text-sm text-muted-foreground">
                         This checkout expired. Cancel it and create a new
                         checkout to obtain fresh authorisation.
+                      </p>
+                    )}
+                    {intentHeld && (
+                      <p className="text-sm text-muted-foreground">
+                        {reversalReviewRefusals.authorise}
                       </p>
                     )}
                   </>

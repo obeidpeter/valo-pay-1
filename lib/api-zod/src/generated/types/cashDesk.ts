@@ -12,6 +12,7 @@ import type { CashDeskPayrollPlansItem } from './cashDeskPayrollPlansItem';
 import type { CashDeskPayrollReconciliationItem } from './cashDeskPayrollReconciliationItem';
 import type { CashDeskPermissions } from './cashDeskPermissions';
 import type { CashDeskPositionsItem } from './cashDeskPositionsItem';
+import type { CashDeskSavedForecast } from './cashDeskSavedForecast';
 import type { CashDeskScope } from './cashDeskScope';
 import type { CashDeskVatExportsItem } from './cashDeskVatExportsItem';
 import type { CashForecast } from './cashForecast';
@@ -27,9 +28,16 @@ export interface CashDesk {
   accounts: CashDeskAccountsItem[];
   positions: CashDeskPositionsItem[];
   commitments: CashDeskCommitmentsItem[];
+  /** The latest saved forecast while it may be shown, null while it must be prepared again, or a sample preview when none is saved. Once the desk is set up it is null without business-account read permission; before that the preview is shown whatever the permissions, so a forecast here is not proof of that permission. */
   forecast: CashForecast | null;
+  /**
+     * The latest saved forecast, named with business-account read permission: current while the grants it was saved under are the current ones and the desk's opening balance and commitments are those it was made from, prepare_again otherwise, when its figures are withheld (forecast is null). Null when none is saved.
+     * @nullable
+     */
+  savedForecast: CashDeskSavedForecast;
   erpDrafts: CashDeskErpDraftsItem[];
   vat: VatSchedule | null;
+  /** The saved VAT review schedules, listed with business-account read and accounting preparation permissions: each current, with its schedule, while the grants it was saved under are the current ones and the desk holds the invoices, bank allocations and ledger control it was made from; prepare_again otherwise, without its schedule. */
   vatExports: CashDeskVatExportsItem[];
   payrollPlans: CashDeskPayrollPlansItem[];
   payrollReconciliation: CashDeskPayrollReconciliationItem[];

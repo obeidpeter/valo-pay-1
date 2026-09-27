@@ -8,7 +8,7 @@ import { pilotProgress, closeReviewList, prepareCloseReview, decideCloseReview, 
 import { derivePersonalWork, recordWorkReceipt } from '../../api-server/src/domain/personal-work';
 import { lifecycleView, lifecycleRunView, saveLifecyclePolicy, setLifecycleHold, lifecyclePreview, approveLifecycleRun } from '../../api-server/src/domain/lifecycle';
 import { executeApprovedRun } from '../../api-server/src/domain/lifecycle-run';
-import { sourceProfileInputSchema, paystackFixtureInputSchema, providerReplayInputSchema, prepareCloseReviewSchema, decideCloseReviewSchema, personalWorkQuerySchema, personalWorkViewSchema, workReceiptInputSchema, workReceiptSchema, ERROR_DETAIL_LIMIT } from '@workspace/valopay-schema';
+import { sourceProfileInputSchema, paystackFixtureInputSchema, providerReplayInputSchema, prepareCloseReviewSchema, decideCloseReviewSchema, personalWorkQuerySchema, personalWorkViewSchema, workReceiptInputSchema, workReceiptSchema, ERROR_DETAIL_LIMIT, MONEY_REFUSAL_MESSAGE, MoneyArithmeticError } from '@workspace/valopay-schema';
 import { advanceRecordVersions, mergeData } from '../../api-server/src/lib/edit-versions';
 import { pageCustomerHistory } from '../../api-server/src/lib/customer-history';
 import { connectedView, connectedActionSchema, runConnectedAction } from '../../api-server/src/domain/connected';
@@ -98,8 +98,9 @@ function contract<S extends ZodTypeAny>(schema: S, value: unknown): z.output<S> 
   return parsed.data;
 }
 
-/** Mirrors the server's error handler: zod details (at most 20, with how many there were), a status carried by the error, or the permission wording that maps to 403. */
+/** Mirrors the server's error handler: a money refusal's 422 and code, zod details (at most 20, with how many there were), a status carried by the error, or the permission wording that maps to 403. */
 function toHttpError(error: unknown): { status: number; body: unknown } {
+  if (error instanceof MoneyArithmeticError) return { status: 422, body: { error: MONEY_REFUSAL_MESSAGE, code: error.code } };
   if (error instanceof ZodError) return { status: 400, body: { error: "Validation failed.", details: error.issues.slice(0, ERROR_DETAIL_LIMIT).map((issue) => ({ field: issue.path.join("."), message: issue.message })), detailCount: error.issues.length } };
   const message = error instanceof Error ? error.message : String(error);
   const carried = (error as { status?: number } | null)?.status;

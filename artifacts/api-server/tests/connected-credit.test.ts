@@ -352,6 +352,17 @@ test("zero repayment and fractional money rejected", () => {
   input.transactions[0]!.amountKobo = 5.5;
   rejects(() => assessCredit(input, ctx), "INVALID_AMOUNT");
 });
+test("monthly averages of large amounts are exact whole kobo", () => {
+  // Three 30-day periods at the top of the range: sustainable income rounds down and observed spending rounds up.
+  const input = fixture(), large = 3_002_399_751_580_329;
+  [large, large, large + 2].forEach((amount, period) => { input.transactions[period * 2]!.amountKobo = amount; });
+  [15_000_000, 15_000_000, 15_000_001].forEach((amount, period) => { input.transactions[period * 2 + 1]!.amountKobo = amount; });
+  const features = assessCredit(input, ctx).features!;
+  assert.equal(features.periodCount, 3);
+  assert.equal(features.sustainableMonthlyIncomeKobo, Number((3n * BigInt(large) + 2n) / 3n));
+  assert.equal(features.observedEssentialMonthlyKobo, 15_000_001);
+  assert.equal(features.incomeVolatilityBps, 0);
+});
 test("overflow fails instead of silently rounding kobo", () => {
   const input = fixture();
   input.transactions[0]!.amountKobo = Number.MAX_SAFE_INTEGER;

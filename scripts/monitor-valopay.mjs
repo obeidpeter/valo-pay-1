@@ -42,6 +42,15 @@ async function readJson(response, readiness = false) {
   } finally { await reader.cancel().catch(() => {}); }
 }
 
+/** The backlog a health answer's scheduler reports, as counts; undefined when it reports none the monitor can read. */
+function backlogCounts(scheduler) {
+  const count = value => Number.isSafeInteger(value) && value >= 0;
+  const backlog = scheduler?.backlog;
+  return count(backlog?.overdue) && count(backlog?.failing) ? { overdue: backlog.overdue, failing: backlog.failing } : undefined;
+}
+/** Whether a health answer's scheduler carries the backlog at all: builds before it report only their last pass with work. */
+const reportsBacklog = scheduler => scheduler !== null && typeof scheduler === 'object' && Object.hasOwn(scheduler, 'backlog');
+
 /**
  * One probe, no customer records, no log bodies, no provider requests. `expectScheduler`: true or 'on' expects the
  * API process to run the scheduled closes with a fresh successful check; 'external' expects it to leave them to a
@@ -75,9 +84,20 @@ export async function probeService({ origin, expectScheduler = false, fetchImpl 
     if (scheduler?.state !== 'running') codes.push('scheduler_not_running');
     else if (!Number.isFinite(interval) || interval <= 0 || !Number.isFinite(successAt) || now - successAt > 3 * interval || successAt > now + interval) codes.push('scheduler_stale');
     else if (Number.isFinite(failedAt) && failedAt >= successAt) codes.push('scheduler_failed');
-    // A pass can finish successfully while individual lenders failed. lastRun keeps the last pass with work,
-    // including its failures, across quiet ticks; only a later pass with work replaces it.
-    if (Number.isSafeInteger(scheduler?.lastRun?.failed) && scheduler.lastRun.failed > 0) codes.push('scheduler_close_failed');
+    // A pass can finish successfully while individual lenders failed. Each pass reads what is still owed from the
+    // database, so a lender whose close failed stays counted until its own close succeeds, whatever other lenders'
+    // passes do and across a restart; a close more than its grace past its time is overdue, whoever holds it.
+    const backlog = backlogCounts(scheduler);
+    if (reportsBacklog(scheduler)) {
+      // Null until a restarted process's first pass, which the heartbeat checks above name; otherwise no evidence.
+      if (!backlog && !codes.some(code => code.startsWith('scheduler_'))) codes.push('scheduler_stale');
+      if (backlog?.failing > 0) codes.push('scheduler_close_failed');
+      if (backlog?.overdue > 0) codes.push('scheduler_closes_overdue');
+    } else if (scheduler !== null && typeof scheduler === 'object') {
+      // A build from before the backlog: its last pass with work is kept across quiet ticks, but a later pass with work replaces it.
+      warnings.push('scheduler_backlog_not_reported');
+      if (Number.isSafeInteger(scheduler.lastRun?.failed) && scheduler.lastRun.failed > 0) codes.push('scheduler_close_failed');
+    }
   }
   const schedulerStates = ['not_started', 'running', 'off', 'external', 'stopped'];
   return { service: base, observedAt: new Date(now).toISOString(), codes: [...new Set(codes)].sort(), warnings,
@@ -87,6 +107,9 @@ export async function probeService({ origin, expectScheduler = false, fetchImpl 
       schema: ready.status === 'fulfilled' && ['ok', 'indexes_missing', 'incomplete'].includes(ready.value?.checks?.schema?.status) ? ready.value.checks.schema.status : 'unverified',
       scheduler: schedulerStates.includes(health.value?.scheduler?.state) ? health.value.scheduler.state : 'unverified',
       schedulerEvidence: !expectScheduler ? 'not_requested' : expectScheduler === 'external' ? 'mode_only' : codes.some(code => code.startsWith('scheduler_')) || health.status !== 'fulfilled' ? 'failed' : 'fresh_process_heartbeat',
+      // Counts only, never a lender: what the scheduler's latest pass read as still owed.
+      closeBacklog: !expectScheduler || expectScheduler === 'external' ? 'not_requested' : backlogCounts(health.value?.scheduler)
+        ?? (health.status === 'fulfilled' && health.value?.scheduler !== null && typeof health.value?.scheduler === 'object' && !reportsBacklog(health.value.scheduler) ? 'not_reported' : 'unverified'),
     },
   };
 }

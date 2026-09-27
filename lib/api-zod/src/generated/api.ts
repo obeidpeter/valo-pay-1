@@ -9,9 +9,15 @@ import * as zod from 'zod';
 
 
 /**
- * Never touches the database, so a database outage does not read as a dead process. Needs no sandbox or sign-in, and answers whether or not Clerk is configured. At most 120 health checks a minute per client network, both health addresses together (an IPv6 client's network is its /64).
+ * Never touches the database, so a database outage does not read as a dead process: the scheduler's backlog is what its latest pass read, counted without naming a lender. Needs no sandbox or sign-in, and answers whether or not Clerk is configured. At most 120 health checks a minute per client network, both health addresses together (an IPv6 client's network is its /64).
  * @summary Liveness: the process answers, with its build, uptime and scheduler state
  */
+export const healthCheckResponseSchedulerBacklogOneOverdueMin = 0;
+
+export const healthCheckResponseSchedulerBacklogOneFailingMin = 0;
+
+
+
 export const HealthCheckResponse = zod.object({
   "status": zod.string(),
   "build": zod.string(),
@@ -35,13 +41,19 @@ export const HealthCheckResponse = zod.object({
   "batches": zod.number().int().optional()
 }).describe('The last scheduler pass that found work: its id, when it ran, how long it took, how many batches it read and what it did, including idle sandboxes whose automatic close it paused.'),zod.null()]),
   "lastSuccessAt": zod.string().nullish(),
-  "lastErrorAt": zod.string().nullish()
-}).describe('Whether closes are scheduled in this process, how often it looks, when it last looked and its last pass with work.')
+  "lastErrorAt": zod.string().nullish(),
+  "backlog": zod.union([zod.object({
+  "checkedAt": zod.string(),
+  "overdue": zod.number().int().min(healthCheckResponseSchedulerBacklogOneOverdueMin),
+  "failing": zod.number().int().min(healthCheckResponseSchedulerBacklogOneFailingMin),
+  "lateAfterMinutes": zod.number().int()
+}).describe('The lenders still owed a scheduled close, as the latest pass read them from the database, counted without naming any: overdue, those whose automatic close is on and whose pending close is more than lateAfterMinutes past its time; failing, those with a failed scheduled attempt at their pending time, which only that lender\'s own close, or a change to its schedule, ends: not other lenders\' closes, nor a restart. checkedAt is when the pass read them, on the API host\'s clock.'),zod.null()]).optional().describe('What the latest pass read from the database as still owed; null until this process\'s first pass has read it, and kept as last read while the scheduler is stopped or failing. Absent from builds before it was added, which report only lastRun.')
+}).describe('Whether closes are scheduled in this process, how often it looks, when it last looked, its last pass with work and what its latest pass read as still owed.')
 }).describe('The liveness answer: the build, when the process started, its uptime and what the close scheduler is doing.')
 
 
 /**
- * Answers 503 with status degraded while the database does not answer within the check's time limit, or lacks a table, column, unique index or check constraint this build needs. A missing read index leaves the answer ready, with checks.schema.status indexes_missing, since every request still works, only slower. The log names what is missing and where it comes from, and any connection error; the answer does not. Probes share one check: while it runs every probe waits for it, and its answer is reused for a second after it finishes, so a burst makes one database round trip. Needs no sandbox or sign-in, and answers whether or not Clerk is configured. At most 120 health checks a minute per client network, both health addresses together.
+ * Answers 503 with status degraded while the database does not answer within the check's time limit, or lacks a table, column, unique index or check constraint this build needs, or still holds a guard it replaced. A missing read index leaves the answer ready, with checks.schema.status indexes_missing, since every request still works, only slower. The log names what is missing and where it comes from, and any connection error; the answer does not. Probes share one check: while it runs every probe waits for it, and its answer is reused for a second after it finishes, so a burst makes one database round trip. Needs no sandbox or sign-in, and answers whether or not Clerk is configured. At most 120 health checks a minute per client network, both health addresses together.
  * @summary Readiness: one bounded round trip to the database, which also checks its schema
  */
 export const ReadinessCheckResponse = zod.object({
@@ -53,10 +65,10 @@ export const ReadinessCheckResponse = zod.object({
   "latencyMs": zod.number().int()
 }).describe('One round trip to the database and how long it took.'),
   "schema": zod.object({
-  "status": zod.enum(['ok', 'indexes_missing', 'incomplete', 'unchecked']).describe('ok: every table, column, unique index, check constraint and read index this build needs is present. indexes_missing: ready, but a read index a migration adds is missing, so some reads are slower until it is applied. incomplete: a table, column, unique index or check constraint is missing, so the instance is not ready. unchecked: the database did not answer. The server log names what is missing and where it comes from.')
-}).describe('Whether the database holds every table, column, unique index, check constraint and read index this build needs: ok, indexes_missing (ready, some reads slower), incomplete (not ready) or unchecked while the database does not answer. The server log, not the answer, names what is missing.')
+  "status": zod.enum(['ok', 'indexes_missing', 'incomplete', 'unchecked']).describe('ok: every table, column, unique index, check constraint and read index this build needs is present, and no guard it replaced remains. indexes_missing: ready, but a read index a migration adds is missing, so some reads are slower until it is applied. incomplete: a table, column, unique index or check constraint is missing, or a guard this build replaced is still in place, so the instance is not ready. unchecked: the database did not answer. The server log names what is missing and where it comes from, and a replaced guard and the schema to migrate.')
+}).describe('Whether the database holds every table, column, unique index, check constraint and read index this build needs, and no guard it replaced: ok, indexes_missing (ready, some reads slower), incomplete (not ready) or unchecked while the database does not answer. The server log, not the answer, names what is missing or replaced.')
 })
-}).describe('The readiness answer: ok, or degraded while the database does not answer or lacks a table, column, unique index or check constraint this build needs.')
+}).describe('The readiness answer: ok, or degraded while the database does not answer, lacks a table, column, unique index or check constraint this build needs, or still holds a guard it replaced.')
 
 
 /**
@@ -204,7 +216,7 @@ export const ListRecordsQueryParams = zod.object({
   "updatedSince": zod.string().optional().describe('An RFC 3339 date and time with Z or an offset, such as 2026-09-18T08:00:00+01:00; only records updated at or after that instant (incremental sync). A number, a date without a time, a time without Z or an offset, or a year outside 0001 to 9999 is refused (400, naming updatedSince).'),
   "customerId": zod.string().optional().describe('Only records directly linked to this customer, in the selected lender.'),
   "id": zod.string().optional().describe('Only this exact record ID, in the selected kind and lender.'),
-  "allocatable": zod.enum(['true', 'false']).optional().describe('Instalments (due-items) only. true lists just the instalments that can take an allocation now: those that still owe an amount and are not cancelled, closed or in dispute, and with paymentId only those a manual allocation of that payment accepts, so total counts the choices. Omitted or false lists every instalment. Refused (400) for any other kind.'),
+  "allocatable": zod.enum(['true', 'false']).optional().describe('Instalments (due-items) only. true lists just the instalments that can take an allocation now: those that still owe an amount, are not cancelled, closed or in dispute and are not held for a renewed review of an earlier reversal decision (a non-empty data.legacyReversalReviewIds, whatever their status), and with paymentId only those a manual allocation of that payment accepts (none for a payment held for a renewed reversal review, which takes no allocation), so total counts the choices. Omitted or false lists every instalment. Refused (400) for any other kind.'),
   "paymentId": zod.string().min(1).max(listRecordsQueryPaymentIdMax).optional().describe('With allocatable=true, the payment whose choices are listed: the instalments a manual allocation of it accepts, by the payer rule that allocation applies. A payment with a recorded payer takes only its payer\'s instalments; one whose evidence named no payer but names an instalment takes only that instalment\'s customer\'s; one that names neither takes any customer\'s. A payment in another currency than naira, whose money went back or with nothing left to allocate takes none, so the list is empty. A payment the lender does not have is a 404; without allocatable=true, paymentId is refused (400).')
 })
 
@@ -1537,7 +1549,8 @@ export const GetConnectedWorkspaceResponse = zod.object({
   "customerName": zod.string(),
   "outstandingKobo": zod.number().int(),
   "blocked": zod.boolean()
-}))
+})),
+  "heldForReversalReview": zod.array(zod.string())
 }),
   "credit": zod.object({
   "mode": zod.literal("synthetic"),
@@ -1774,7 +1787,12 @@ export const GetConnectedWorkspaceResponse = zod.object({
   "includedCommitmentIds": zod.array(zod.string()),
   "excludedCommitmentIds": zod.array(zod.string()),
   "warnings": zod.array(zod.string())
-}).describe('Base and downside cash forecasts from approved commitments: a planning estimate, not an available balance.'),zod.null()]),
+}).describe('Base and downside cash forecasts from approved commitments: a planning estimate, not an available balance.'),zod.null()]).describe('The latest saved forecast while it may be shown, null while it must be prepared again, or a sample preview when none is saved. Once the desk is set up it is null without business-account read permission; before that the preview is shown whatever the permissions, so a forecast here is not proof of that permission.'),
+  "savedForecast": zod.object({
+  "id": zod.string(),
+  "createdAt": zod.string(),
+  "state": zod.enum(['current', 'prepare_again'])
+}).nullable().describe('The latest saved forecast, named with business-account read permission: current while the grants it was saved under are the current ones and the desk\'s opening balance and commitments are those it was made from, prepare_again otherwise, when its figures are withheld (forecast is null). Null when none is saved.'),
   "erpDrafts": zod.array(zod.object({
   "id": zod.string(),
   "status": zod.string(),
@@ -1911,6 +1929,8 @@ export const GetConnectedWorkspaceResponse = zod.object({
   "vatExports": zod.array(zod.object({
   "id": zod.string(),
   "createdAt": zod.string(),
+  "reviewer": zod.string(),
+  "state": zod.enum(['current', 'prepare_again']),
   "schedule": zod.object({
   "tenantId": zod.string(),
   "legalEntityId": zod.string(),
@@ -1938,9 +1958,8 @@ export const GetConnectedWorkspaceResponse = zod.object({
   "missingEvidence": zod.array(zod.string()),
   "excludedBankCreditsMinor": zod.number().int(),
   "evidenceHash": zod.string()
-}).describe('A VAT evidence review schedule reconciled to the ledger control: never a filed return or a payment.'),
-  "reviewer": zod.string()
-})),
+}).optional().describe('A VAT evidence review schedule reconciled to the ledger control: never a filed return or a payment.')
+})).describe('The saved VAT review schedules, listed with business-account read and accounting preparation permissions: each current, with its schedule, while the grants it was saved under are the current ones and the desk holds the invoices, bank allocations and ledger control it was made from; prepare_again otherwise, without its schedule.'),
   "payrollPlans": zod.array(zod.object({
   "id": zod.string(),
   "status": zod.string(),
@@ -2048,7 +2067,7 @@ export const GetConnectedWorkspaceResponse = zod.object({
 }),
   "limitations": zod.array(zod.string())
 }).describe('The Cash Desk: a separate sample SME\'s accounts, positions, commitments, forecast, accounting drafts, VAT schedules and payroll plans, as its permissions allow.')
-}).describe('Synthetic connected workspace: granular consents with their effective state, bound sample payment intents, the Credit and Cash Desks and the live gates, every one closed. No read creates sample records.')
+}).describe('Synthetic connected workspace: granular consents with their effective state, bound sample payment intents, the Credit and Cash Desks and the live gates, every one closed. payments.heldForReversalReview names the instalments offered or named by a checkout that reconciliation holds for a renewed review of an earlier reversal decision: creating or authorising a checkout for one is refused (409) until that review is resolved and reconciliation runs. No read creates sample records.')
 
 
 /**
@@ -4051,7 +4070,7 @@ export const GetSourcesResponse = zod.object({
   "deliveryCount": zod.number().int().min(getSourcesResponsePaystackEventsItemDeliveryCountMin).max(getSourcesResponsePaystackEventsItemDeliveryCountMax),
   "replayCount": zod.number().int().min(getSourcesResponsePaystackEventsItemReplayCountMin).max(getSourcesResponsePaystackEventsItemReplayCountMax),
   "financialRecordsCreated": zod.literal(0)
-}).describe('A stored provider event: fixture or test mode, how often it was delivered and replayed, and the guarantee that it created no financial record.')).max(getSourcesResponsePaystackEventsMax),
+}).describe('A stored provider event: fixture or test mode, how often it was delivered and replayed (replayCount counts rechecks, not the operator\'s verification checks), and the guarantee that it created no financial record.')).max(getSourcesResponsePaystackEventsMax),
   "total": zod.number().int().min(getSourcesResponsePaystackTotalMin).max(getSourcesResponsePaystackTotalMax),
   "quarantined": zod.number().int().min(getSourcesResponsePaystackQuarantinedMin).max(getSourcesResponsePaystackQuarantinedMax),
   "duplicates": zod.number().int().min(getSourcesResponsePaystackDuplicatesMin).max(getSourcesResponsePaystackDuplicatesMax)
@@ -4352,7 +4371,7 @@ export const RunPaystackFixtureResponse = zod.object({
   "deliveryCount": zod.number().int().min(runPaystackFixtureResponseEventDeliveryCountMin).max(runPaystackFixtureResponseEventDeliveryCountMax),
   "replayCount": zod.number().int().min(runPaystackFixtureResponseEventReplayCountMin).max(runPaystackFixtureResponseEventReplayCountMax),
   "financialRecordsCreated": zod.literal(0)
-}).describe('A stored provider event: fixture or test mode, how often it was delivered and replayed, and the guarantee that it created no financial record.')
+}).describe('A stored provider event: fixture or test mode, how often it was delivered and replayed (replayCount counts rechecks, not the operator\'s verification checks), and the guarantee that it created no financial record.')
 }).describe('Whether the fixture was accepted or recognised as a duplicate, and the stored event.')
 
 
@@ -4419,7 +4438,7 @@ export const ReplayProviderEventResponse = zod.object({
   "deliveryCount": zod.number().int().min(replayProviderEventResponseDeliveryCountMin).max(replayProviderEventResponseDeliveryCountMax),
   "replayCount": zod.number().int().min(replayProviderEventResponseReplayCountMin).max(replayProviderEventResponseReplayCountMax),
   "financialRecordsCreated": zod.literal(0)
-}).describe('A stored provider event: fixture or test mode, how often it was delivered and replayed, and the guarantee that it created no financial record.')
+}).describe('A stored provider event: fixture or test mode, how often it was delivered and replayed (replayCount counts rechecks, not the operator\'s verification checks), and the guarantee that it created no financial record.')
 
 
 /**

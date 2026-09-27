@@ -5,9 +5,10 @@
 // stored answer cannot be opened; a repeat of a request still running is
 // turned away as running and leaves the journal entry to the attempt running
 // it; only the attempt that created an entry closes it on a failure that saved
-// nothing; and a keyed write reaches a journaled route only journaled, with its
+// nothing; a keyed write reaches a journaled route only journaled, with its
 // answer kept under its own entry, so a key used on another route never
-// refuses it or strands it.
+// refuses it or strands it; and a money refusal (422) closes its entry as
+// refused, so nothing waits in Operations.
 import assert from "node:assert/strict";
 import express from "express";
 import { once } from "node:events";
@@ -228,6 +229,37 @@ try {
     assert.equal(await saved(body.reference), 1);
     checks += 4;
   }
+
+  // ---- 8. A money refusal is final for its key: its entry is closed as refused, and nothing waits in Operations ----
+  {
+    const other = ok(await call("/v1/workspace")).merchants[1].id as string;
+    const inOther = (path: string) => `${path}${path.includes("?") ? "&" : "?"}merchantId=${other}`;
+    // Two synthetic instalments at the top of the supported range: a close's totals cannot hold their sum.
+    await store.inWorkspace(sandboxRequest(other), response, async (ctx) => {
+      const state = await store.loadState(ctx, other, "update");
+      const payer = makeRecord(state, "customers", { name: "Synthetic overflow payer", reference: `JOURNAL-${randomUUID()}`, createdAt: ctx.now, data: { consentProvenance: "Synthetic fixture" } });
+      for (let index = 0; index < 2; index++)
+        makeRecord(state, "due-items", { name: "Synthetic high instalment", reference: `JOURNAL-HIGH-${randomUUID()}`, status: "scheduled", customerId: payer.id, amountKobo: Number.MAX_SAFE_INTEGER, createdAt: ctx.now, data: { owner: "lms", dueDate: ctx.now.slice(0, 10), outstandingKobo: Number.MAX_SAFE_INTEGER } });
+      store.appendAudit(state, ctx, "test.journal.money", payer.id, "Arrange synthetic totals beyond the supported range.");
+      await store.saveState(ctx, state);
+    });
+    const closes = async () => Number((await pool.query("SELECT count(*)::int AS n FROM valopay_records WHERE merchant_id=$1 AND kind='closes'", [other])).rows[0].n);
+    const before = await closes(), key = randomUUID(), body = { action: "daily_close", reason: "Close the synthetic day" };
+    const refused = await call(inOther("/v1/actions"), "POST", body, key);
+    assert.equal(refused.status, 422, JSON.stringify(refused.data));
+    assert.deepEqual([refused.data.code, refused.data.operation], ["MONEY_OUT_OF_RANGE", "cancelled"], "the refusal names its code and says the entry is closed");
+    const id = refused.headers.get("x-valopay-operation");
+    assert.equal((await pool.query("SELECT status FROM valopay_operations WHERE id=$1", [id])).rows[0]?.status, "cancelled");
+    assert.equal(ok(await call(inOther("/v1/operations/pending"))).pending, 0, "nothing waits for confirmation or counts towards the pending limit");
+    const listed = ok(await call(inOther("/v1/operations"))).items.find((item: { id: string }) => item.id === id);
+    assert.equal(listed?.status, "cancelled");
+    assert.match(listed.message, /^The service refused this request: This calculation cannot be completed within the supported amount or rate limits\./);
+    const again = await call(inOther("/v1/actions"), "POST", body, key);
+    assert.deepEqual([again.status, again.data.operation], [409, "cancelled"], "the same key cannot run again");
+    assert.match(again.data.error, /^The service refused this request and saved nothing: This calculation cannot be completed/);
+    assert.equal(await closes(), before, "and nothing was saved");
+    checks += 9;
+  }
 } finally {
   restoreLimits?.();
   server.close();
@@ -239,4 +271,4 @@ try {
   }
   await pool.end();
 }
-console.log(`Journal outcome checks passed (${checks} checks): a repeat of a saved request never says nothing was saved, a repeat of a running request is turned away and leaves its entry, only the creating attempt closes an entry on a failure, and keyed writes reach journaled routes only journaled, their answers kept under their own entries.`);
+console.log(`Journal outcome checks passed (${checks} checks): a repeat of a saved request never says nothing was saved, a repeat of a running request is turned away and leaves its entry, only the creating attempt closes an entry on a failure, and keyed writes reach journaled routes only journaled, their answers kept under their own entries; a money refusal closes its entry.`);

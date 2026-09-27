@@ -5,13 +5,11 @@
  * Valo Pay collections and connected banking sandbox API. All monetary fields are integer minor units (NGN kobo). Real data and all outbound provider instructions are disabled in connected modules.
  * OpenAPI spec version: 1.1.0
  */
-import type { CashDeskVatExportsItemState } from './cashDeskVatExportsItemState';
-import type { VatSchedule } from './vatSchedule';
 
-export type CashDeskVatExportsItem = {
-  id: string;
-  createdAt: string;
-  reviewer: string;
-  state: CashDeskVatExportsItemState;
-  schedule?: VatSchedule;
-};
+export type CashDeskVatExportsItemState = typeof CashDeskVatExportsItemState[keyof typeof CashDeskVatExportsItemState];
+
+
+export const CashDeskVatExportsItemState = {
+  current: 'current',
+  prepare_again: 'prepare_again',
+} as const;

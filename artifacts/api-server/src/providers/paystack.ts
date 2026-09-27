@@ -48,8 +48,9 @@ function normalisePayment(value: unknown): VerifiedPayment {
   if (typeof data.channel !== 'string' || !/^[a-z_]{1,40}$/.test(data.channel)) reject('invalid_response', 'Paystack returned an unrecognised payment channel.');
   return { provider: 'paystack', domain: 'test', transactionId: transactionId(data.id), reference: data.reference, amountKobo: data.amount, currency: 'NGN', state: transactionStatuses[data.status as keyof typeof transactionStatuses], channel: data.channel };
 }
+const mismatch = (): never => reject('mismatch', 'Paystack verification does not match the expected reference, amount, currency or channel. Hold this item for review.');
 function checkMatch(payment: VerifiedPayment, expected: ExpectedPayment): void {
-  if (payment.reference !== expected.reference || payment.amountKobo !== expected.amountKobo || payment.currency !== expected.currency || (expected.channel && payment.channel !== expected.channel)) reject('mismatch', 'Paystack verification does not match the expected reference, amount, currency or channel. Hold this item for review.');
+  if (payment.reference !== expected.reference || payment.amountKobo !== expected.amountKobo || payment.currency !== expected.currency || (expected.channel && payment.channel !== expected.channel)) mismatch();
 }
 
 export type PaystackWebhook =
@@ -156,7 +157,10 @@ export function createPaystackTestAdapter(options: PaystackTestAdapterOptions) {
   async function verifyTransaction(expected: ExpectedPayment): Promise<VerifiedPayment> {
     expectedPayment(expected);
     const response = await get(`/transaction/verify/${encodeURIComponent(expected.reference)}`);
-    const payment = normalisePayment(response.data);
+    // A test transaction in another currency disagrees with the expectation; it is not an unreadable answer.
+    const data = object(response.data);
+    if (data.domain === 'test' && typeof data.currency === 'string' && /^[A-Z]{3}$/.test(data.currency) && data.currency !== expected.currency) mismatch();
+    const payment = normalisePayment(data);
     checkMatch(payment, expected);
     return payment;
   }
@@ -190,7 +194,9 @@ export function createPaystackTestAdapter(options: PaystackTestAdapterOptions) {
         return { outcome: 'verified', payment, nextAction: payment.state === 'pending' ? 'verify_same_reference' : 'record_verified_result', reissue: false };
       } catch (error) {
         if (!(error instanceof PaystackError)) throw error;
-        return { outcome: 'unknown', reason: error.code, nextAction: ['timeout', 'unavailable', 'not_found', 'rate_limited'].includes(error.code) ? 'verify_same_reference' : 'manual_review', reissue: false };
+        // Only a disagreement needs review. A refused key, an unreadable or live-mode answer or a transport
+        // failure says nothing about the payment: put the cause right, then verify the same reference.
+        return { outcome: 'unknown', reason: error.code, nextAction: error.code === 'mismatch' ? 'manual_review' : 'verify_same_reference', reissue: false };
       }
     },
   };

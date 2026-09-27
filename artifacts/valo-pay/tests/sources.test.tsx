@@ -1,8 +1,11 @@
 import { beforeEach, afterEach, it, expect } from "vitest";
 import { act, cleanup, fireEvent } from "@testing-library/react";
 import { queryClient } from "@/App";
+import { createHmac } from "node:crypto";
 import { installFakeApi, type FakeApi } from "./fake-api";
-import { renderApp, screen, userEvent, waitFor } from "./harness";
+import { renderApp, screen, userEvent, waitFor, within } from "./harness";
+import { parsePaystackTestWebhook } from "../../api-server/src/providers/paystack";
+import { receivePaystackEvent, replayProviderEvent } from "../../api-server/src/providers/paystack-inbox";
 let api: FakeApi;
 beforeEach(()=>{ api=installFakeApi({now:"2026-09-22T08:00:00.000Z"}); });
 afterEach(()=>api.uninstall());
@@ -167,6 +170,36 @@ it("labels offline Paystack fixtures and preserves conflicting receipts without 
   await screen.findByText(/Synthetic fixture.*Quarantined/i);
   expect(api.state().records.filter(r=>r.kind==='payments')).toHaveLength(count);
   expect(screen.getByText(/do not contact Paystack/)).toBeTruthy();
+});
+
+it("offers Recheck saved receipt only for receipts the service can replay, and counts replays apart from verification checks",async()=>{
+  const user=userEvent.setup(),key=["sk","test","OFFLINE","FIXTURE","0".repeat(20)].join("_");
+  const [verified,awaiting]=api.mutate((state,ctx)=>{
+    const signed=(id:string,reference:string)=>{const raw=Buffer.from(JSON.stringify({event:"charge.success",data:{id,domain:"test",status:"success",reference,amount:250000,currency:"NGN",channel:"direct_debit"}}));return parsePaystackTestWebhook(raw,createHmac("sha512",key).update(raw).digest("hex"),key);};
+    const connection={connectionId:"a".repeat(64),mode:"test" as const};
+    const check=(result:string,named:string,kind:string)=>({at:ctx.now,actor:"System · Paystack test verification",reason:"Explicit operator read-only test verification",result,check:named,kind,outcome:{outcome:"unknown",reason:"authentication",nextAction:"verify_same_reference",reissue:false}});
+    const verified=receivePaystackEvent(state,ctx,signed("9990001","SYNTHETIC-VERIFIED-001"),connection).event;
+    verified.status="verified";verified.data.message="Independently verified sample receipt.";
+    verified.data.replayHistory=[check("awaiting_verification","credentials_refused","independent_transaction_check"),{...check("verified","verified","independent_transaction_verification"),observationId:"sample-observation"}];
+    const awaiting=receivePaystackEvent(state,ctx,signed("9990002","SYNTHETIC-AWAITING-002"),connection).event;
+    awaiting.data.message="Sample receipt awaiting verification.";
+    awaiting.data.replayHistory=[check("awaiting_verification","credentials_refused","independent_transaction_check")];
+    return [verified,awaiting];
+  });
+  // The service refuses to replay verified evidence and replays a receipt still awaiting verification.
+  const finance={actor:"Sandbox Finance",role:"Finance",now:api.now};
+  expect(()=>replayProviderEvent(structuredClone(api.state()),finance,verified.id,verified.updatedAt,"Recheck the saved receipt")).toThrow(/already has an independently verified observation/);
+  expect(replayProviderEvent(structuredClone(api.state()),finance,awaiting.id,awaiting.updatedAt,"Recheck the saved receipt").status).toBe("awaiting_verification");
+  api.role="Finance";renderApp("/sources");
+  const card=(message:string)=>screen.getByText(message).closest("article")!;
+  await screen.findByText("Independently verified sample receipt.");
+  expect(within(card("Independently verified sample receipt.")).queryByRole("button",{name:"Recheck saved receipt"})).toBeNull();
+  expect(card("Independently verified sample receipt.").textContent).toContain("0 replays");
+  expect(card("Sample receipt awaiting verification.").textContent).toContain("0 replays");
+  await user.type(within(card("Sample receipt awaiting verification.")).getByLabelText("Reason to recheck this receipt"),"Recheck the saved receipt");
+  await user.click(within(card("Sample receipt awaiting verification.")).getByRole("button",{name:"Recheck saved receipt"}));
+  await waitFor(()=>expect(api.state().records.find(record=>record.id===awaiting.id)!.data.replayHistory).toHaveLength(2));
+  await waitFor(()=>expect(screen.getAllByText(/1 replay ·/)).toHaveLength(1));
 });
 
 it("shows missing feeds and omits change controls for a read-only user",async()=>{

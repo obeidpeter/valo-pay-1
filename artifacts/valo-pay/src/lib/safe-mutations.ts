@@ -46,12 +46,20 @@ export function requestOpen(error: unknown): boolean {
   return operation === 'completed' || operation === 'running' || operation === 'pending';
 }
 
-/** A structured refusal the service treats as final for its key (400, 403, 404, 409, 410, 413, 415): the same
+/** A structured refusal the service treats as final for its key (400, 403, 404, 409, 410, 413, 415, 422): the same
  * request would be refused again, and its key cannot run again. A 401 or 429 keeps the key, as does a refusal that
  * says a request with the key was saved or is still open (requestOpen). */
 export function definitiveRefusal(error: unknown): boolean {
   const response = error as { status?: number; data?: { error?: unknown } } | null;
   return (definitiveRefusalStatuses as readonly number[]).includes(response?.status ?? 0) && typeof response?.data?.error === 'string' && !requestOpen(error);
+}
+
+/** A refusal of a request the service saved earlier (a 4xx with `operation: "completed"`): its saved answer is
+ * withheld, because the permission or review it was made under changed, or retention removed it. Retrying the same
+ * request cannot recover it, so the request is over; a failure (5xx) may still give the answer on a retry. */
+export function savedAnswerWithheld(error: unknown): boolean {
+  const response = error as { status?: number; data?: { error?: unknown; operation?: unknown } } | null;
+  return Boolean(response?.status && response.status >= 400 && response.status < 500 && response.data?.operation === 'completed' && typeof response.data.error === 'string');
 }
 
 function recoveryError(message: string) {

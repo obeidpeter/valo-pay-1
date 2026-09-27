@@ -50,17 +50,19 @@ try {
     parentPort.postMessage({ type: "log", line: JSON.stringify({ level: 30, thread: "background", event: "fixture.line", msg: "from the thread" }) + "\\n" });
     parentPort.postMessage({ type: "scheduler", event: { type: "started", intervalMs: 60000 } });
     parentPort.postMessage({ type: "scheduler", event: { type: "ticked", at: "2026-09-23T06:00:00.000Z" } });
+    parentPort.postMessage({ type: "scheduler", event: { type: "succeeded", at: "2026-09-23T06:00:01.000Z", run: null, backlog: { checkedAt: "2026-09-23T06:00:01.000Z", overdue: 1, failing: 2, lateAfterMinutes: 30 } } });
     ${stoppable}`) });
-  await waitFor(() => schedulerStatus().ticks === 1, "the relayed tick");
+  await waitFor(() => schedulerStatus().lastSuccessAt === "2026-09-23T06:00:01.000Z", "the relayed pass");
   assert.equal(schedulerStatus().state, "running");
   assert.equal(schedulerStatus().lastTickAt, "2026-09-23T06:00:00.000Z");
+  assert.deepEqual(schedulerStatus().backlog, { checkedAt: "2026-09-23T06:00:01.000Z", overdue: 1, failing: 2, lateAfterMinutes: 30 }, "what the thread's pass read as still owed reaches the health answer");
   assert.deepEqual(events("fixture.line").map((line) => [line.thread, line.msg]), [["background", "from the thread"]], "the thread's line is written as it formatted it");
   assert.deepEqual(events("background.started").map((line) => [line.closes, line.exports, line.poolSize, line.crashes]), [[true, false, 3, 0]]);
   relaying.stop();
   await relaying.settle();
   assert.equal(events("background.stopped").length, 1);
   assert.equal(events("background.crashed").length, 0, "a thread asked to stop has not crashed");
-  checks += 6;
+  checks += 7;
 
   // ---- A crash is logged, marks the scheduler failed and starts the thread again, the waits doubling to their maximum ----
   const crashing = startBackgroundWorker({ log: logger, closes: {}, exports: null, restartMs: 20, maxRestartMs: 80, entry: fixture(`throw new Error("Synthetic background failure");`) });

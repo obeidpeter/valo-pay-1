@@ -36,7 +36,19 @@ export interface SchedulerRun {
 }
 
 /**
- * Whether closes are scheduled in this process, how often it looks, when it last looked and its last pass with work.
+ * The lenders still owed a scheduled close, as the latest pass read them from the database, counted without naming any: overdue, those whose automatic close is on and whose pending close is more than lateAfterMinutes past its time; failing, those with a failed scheduled attempt at their pending time, which only that lender's own close, or a change to its schedule, ends: not other lenders' closes, nor a restart. checkedAt is when the pass read them, on the API host's clock.
+ */
+export interface SchedulerBacklog {
+  checkedAt: string;
+  /** @minimum 0 */
+  overdue: number;
+  /** @minimum 0 */
+  failing: number;
+  lateAfterMinutes: number;
+}
+
+/**
+ * Whether closes are scheduled in this process, how often it looks, when it last looked, its last pass with work and what its latest pass read as still owed.
  */
 export interface SchedulerStatus {
   /** running: this process schedules the daily closes. off: it schedules none (VALOPAY_CLOSE_SCHEDULER=off). external: it schedules none because a separate scheduled job runs them with the one-shot close pass (VALOPAY_CLOSE_SCHEDULER=external), which this process cannot observe. not_started and stopped: the scheduler has not started yet, or has stopped. */
@@ -51,6 +63,8 @@ export interface SchedulerStatus {
   lastSuccessAt?: string | null;
   /** @nullable */
   lastErrorAt?: string | null;
+  /** What the latest pass read from the database as still owed; null until this process's first pass has read it, and kept as last read while the scheduler is stopped or failing. Absent from builds before it was added, which report only lastRun. */
+  backlog?: SchedulerBacklog | null;
 }
 
 /**
@@ -81,7 +95,7 @@ export interface DatabaseCheck {
 }
 
 /**
- * ok: every table, column, unique index, check constraint and read index this build needs is present. indexes_missing: ready, but a read index a migration adds is missing, so some reads are slower until it is applied. incomplete: a table, column, unique index or check constraint is missing, so the instance is not ready. unchecked: the database did not answer. The server log names what is missing and where it comes from.
+ * ok: every table, column, unique index, check constraint and read index this build needs is present, and no guard it replaced remains. indexes_missing: ready, but a read index a migration adds is missing, so some reads are slower until it is applied. incomplete: a table, column, unique index or check constraint is missing, or a guard this build replaced is still in place, so the instance is not ready. unchecked: the database did not answer. The server log names what is missing and where it comes from, and a replaced guard and the schema to migrate.
  */
 export type SchemaCheckStatus = typeof SchemaCheckStatus[keyof typeof SchemaCheckStatus];
 
@@ -94,10 +108,10 @@ export const SchemaCheckStatus = {
 } as const;
 
 /**
- * Whether the database holds every table, column, unique index, check constraint and read index this build needs: ok, indexes_missing (ready, some reads slower), incomplete (not ready) or unchecked while the database does not answer. The server log, not the answer, names what is missing.
+ * Whether the database holds every table, column, unique index, check constraint and read index this build needs, and no guard it replaced: ok, indexes_missing (ready, some reads slower), incomplete (not ready) or unchecked while the database does not answer. The server log, not the answer, names what is missing or replaced.
  */
 export interface SchemaCheck {
-  /** ok: every table, column, unique index, check constraint and read index this build needs is present. indexes_missing: ready, but a read index a migration adds is missing, so some reads are slower until it is applied. incomplete: a table, column, unique index or check constraint is missing, so the instance is not ready. unchecked: the database did not answer. The server log names what is missing and where it comes from. */
+  /** ok: every table, column, unique index, check constraint and read index this build needs is present, and no guard it replaced remains. indexes_missing: ready, but a read index a migration adds is missing, so some reads are slower until it is applied. incomplete: a table, column, unique index or check constraint is missing, or a guard this build replaced is still in place, so the instance is not ready. unchecked: the database did not answer. The server log names what is missing and where it comes from, and a replaced guard and the schema to migrate. */
   status: SchemaCheckStatus;
 }
 
@@ -115,7 +129,7 @@ export type ReadinessStatusChecks = {
 };
 
 /**
- * The readiness answer: ok, or degraded while the database does not answer or lacks a table, column, unique index or check constraint this build needs.
+ * The readiness answer: ok, or degraded while the database does not answer, lacks a table, column, unique index or check constraint this build needs, or still holds a guard it replaced.
  */
 export interface ReadinessStatus {
   status: ReadinessStatusStatus;
@@ -677,7 +691,7 @@ export interface ErrorDetail {
 }
 
 /**
- * Present when staff access was refused: why.
+ * Present when staff access was refused (why), or with a 422 when a money calculation the request needs was refused: INVALID_MONEY_AMOUNT (an amount that is not a safe whole number of minor units), INVALID_MONEY_RATE (a rate outside its bounds) or MONEY_OUT_OF_RANGE (a result beyond the safe-integer minor-unit range).
  */
 export type ErrorBodyCode = typeof ErrorBodyCode[keyof typeof ErrorBodyCode];
 
@@ -692,6 +706,9 @@ export const ErrorBodyCode = {
   role_not_permitted: 'role_not_permitted',
   mfa_required: 'mfa_required',
   reverification_required: 'reverification_required',
+  INVALID_MONEY_AMOUNT: 'INVALID_MONEY_AMOUNT',
+  INVALID_MONEY_RATE: 'INVALID_MONEY_RATE',
+  MONEY_OUT_OF_RANGE: 'MONEY_OUT_OF_RANGE',
 } as const;
 
 /**
@@ -708,7 +725,7 @@ export const ErrorBodyOperation = {
 } as const;
 
 /**
- * The body of every refusal and failure: what happened in plain words and the request's reference, with the fields validation refused (at most 20, and how many there were), the staff-access refusal code, whether nothing was saved (committed false) and the state of the request's journal entry (operation).
+ * The body of every refusal and failure: what happened in plain words and the request's reference, with the fields validation refused (at most 20, and how many there were), the staff-access or money refusal code, whether nothing was saved (committed false) and the state of the request's journal entry (operation).
  */
 export interface ErrorBody {
   /** What happened, in plain words: a refusal in its rule's own wording, a failure in general words. */
@@ -725,7 +742,7 @@ export interface ErrorBody {
      * @minimum 0
      */
   detailCount?: number;
-  /** Present when staff access was refused: why. */
+  /** Present when staff access was refused (why), or with a 422 when a money calculation the request needs was refused: INVALID_MONEY_AMOUNT (an amount that is not a safe whole number of minor units), INVALID_MONEY_RATE (a rate outside its bounds) or MONEY_OUT_OF_RANGE (a result beyond the safe-integer minor-unit range). */
   code?: ErrorBodyCode;
   /** Present on a failure that saved nothing: the transaction was rolled back, so the request may be sent again as new. For a request with an Idempotency-Key it is decided for the key: present only when nothing sent with the key was or can be saved (its journal entry is cancelled, or nothing was saved under it before this request failed), never while a request with the key was saved or is still running. A read's 500 never carries it. */
   committed?: false;
@@ -1357,6 +1374,24 @@ export type CashDeskCommitmentsItem = {
   version: string;
 };
 
+export type CashDeskSavedForecastState = typeof CashDeskSavedForecastState[keyof typeof CashDeskSavedForecastState];
+
+
+export const CashDeskSavedForecastState = {
+  current: 'current',
+  prepare_again: 'prepare_again',
+} as const;
+
+/**
+ * The latest saved forecast, named with business-account read permission: current while the grants it was saved under are the current ones and the desk's opening balance and commitments are those it was made from, prepare_again otherwise, when its figures are withheld (forecast is null). Null when none is saved.
+ * @nullable
+ */
+export type CashDeskSavedForecast = {
+  id: string;
+  createdAt: string;
+  state: CashDeskSavedForecastState;
+} | null;
+
 export type CashDeskErpDraftsItemDraftInputScope = {
   tenantId: string;
   legalEntityId: string;
@@ -1484,11 +1519,20 @@ export type CashDeskErpDraftsItem = {
   manifest?: ErpManifest;
 };
 
+export type CashDeskVatExportsItemState = typeof CashDeskVatExportsItemState[keyof typeof CashDeskVatExportsItemState];
+
+
+export const CashDeskVatExportsItemState = {
+  current: 'current',
+  prepare_again: 'prepare_again',
+} as const;
+
 export type CashDeskVatExportsItem = {
   id: string;
   createdAt: string;
-  schedule: VatSchedule;
   reviewer: string;
+  state: CashDeskVatExportsItemState;
+  schedule?: VatSchedule;
 };
 
 export type CashDeskPayrollPlansItemSummaryCounts = {
@@ -1579,9 +1623,16 @@ export interface CashDesk {
   accounts: CashDeskAccountsItem[];
   positions: CashDeskPositionsItem[];
   commitments: CashDeskCommitmentsItem[];
+  /** The latest saved forecast while it may be shown, null while it must be prepared again, or a sample preview when none is saved. Once the desk is set up it is null without business-account read permission; before that the preview is shown whatever the permissions, so a forecast here is not proof of that permission. */
   forecast: CashForecast | null;
+  /**
+     * The latest saved forecast, named with business-account read permission: current while the grants it was saved under are the current ones and the desk's opening balance and commitments are those it was made from, prepare_again otherwise, when its figures are withheld (forecast is null). Null when none is saved.
+     * @nullable
+     */
+  savedForecast: CashDeskSavedForecast;
   erpDrafts: CashDeskErpDraftsItem[];
   vat: VatSchedule | null;
+  /** The saved VAT review schedules, listed with business-account read and accounting preparation permissions: each current, with its schedule, while the grants it was saved under are the current ones and the desk holds the invoices, bank allocations and ledger control it was made from; prepare_again otherwise, without its schedule. */
   vatExports: CashDeskVatExportsItem[];
   payrollPlans: CashDeskPayrollPlansItem[];
   payrollReconciliation: CashDeskPayrollReconciliationItem[];
@@ -1651,10 +1702,11 @@ export type ConnectedWorkspacePaymentsDuesItem = {
 export type ConnectedWorkspacePayments = {
   intents: ValopayRecord[];
   dues: ConnectedWorkspacePaymentsDuesItem[];
+  heldForReversalReview: string[];
 };
 
 /**
- * Synthetic connected workspace: granular consents with their effective state, bound sample payment intents, the Credit and Cash Desks and the live gates, every one closed. No read creates sample records.
+ * Synthetic connected workspace: granular consents with their effective state, bound sample payment intents, the Credit and Cash Desks and the live gates, every one closed. payments.heldForReversalReview names the instalments offered or named by a checkout that reconciliation holds for a renewed review of an earlier reversal decision: creating or authorising a checkout for one is refused (409) until that review is resolved and reconciliation runs. No read creates sample records.
  */
 export interface ConnectedWorkspace {
   mode: 'synthetic';
@@ -3405,7 +3457,7 @@ export const ProviderEventMode = {
 } as const;
 
 /**
- * A stored provider event: fixture or test mode, how often it was delivered and replayed, and the guarantee that it created no financial record.
+ * A stored provider event: fixture or test mode, how often it was delivered and replayed (replayCount counts rechecks, not the operator's verification checks), and the guarantee that it created no financial record.
  */
 export interface ProviderEvent {
   id: string;
@@ -4349,7 +4401,7 @@ customerId?: string;
  */
 id?: string;
 /**
- * Instalments (due-items) only. true lists just the instalments that can take an allocation now: those that still owe an amount and are not cancelled, closed or in dispute, and with paymentId only those a manual allocation of that payment accepts, so total counts the choices. Omitted or false lists every instalment. Refused (400) for any other kind.
+ * Instalments (due-items) only. true lists just the instalments that can take an allocation now: those that still owe an amount, are not cancelled, closed or in dispute and are not held for a renewed review of an earlier reversal decision (a non-empty data.legacyReversalReviewIds, whatever their status), and with paymentId only those a manual allocation of that payment accepts (none for a payment held for a renewed reversal review, which takes no allocation), so total counts the choices. Omitted or false lists every instalment. Refused (400) for any other kind.
  */
 allocatable?: ListRecordsAllocatable;
 /**

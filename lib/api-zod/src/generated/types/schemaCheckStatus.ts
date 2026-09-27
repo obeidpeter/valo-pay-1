@@ -7,7 +7,7 @@
  */
 
 /**
- * ok: every table, column, unique index, check constraint and read index this build needs is present. indexes_missing: ready, but a read index a migration adds is missing, so some reads are slower until it is applied. incomplete: a table, column, unique index or check constraint is missing, so the instance is not ready. unchecked: the database did not answer. The server log names what is missing and where it comes from.
+ * ok: every table, column, unique index, check constraint and read index this build needs is present, and no guard it replaced remains. indexes_missing: ready, but a read index a migration adds is missing, so some reads are slower until it is applied. incomplete: a table, column, unique index or check constraint is missing, or a guard this build replaced is still in place, so the instance is not ready. unchecked: the database did not answer. The server log names what is missing and where it comes from, and a replaced guard and the schema to migrate.
  */
 export type SchemaCheckStatus = typeof SchemaCheckStatus[keyof typeof SchemaCheckStatus];
 

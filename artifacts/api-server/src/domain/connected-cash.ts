@@ -1,4 +1,4 @@
-import { counted, sumMoney, MoneyArithmeticError } from "@workspace/valopay-schema";
+import { counted, sumMoney } from "@workspace/valopay-schema";
 import { canonicalDigest } from "../lib/digests";
 
 /** Synthetic/import planning domain. These functions never connect to a bank, post to an ERP,
@@ -31,13 +31,9 @@ function money(value: number, label: string, signed = false): number {
     fail("invalid_amount", `${label} must be a safe integer in minor units.`);
   return value;
 }
-function total(values: number[]): number {
-  try { return sumMoney(values); }
-  catch (error) {
-    if (error instanceof MoneyArithmeticError) fail("invalid_amount", error.message);
-    throw error;
-  }
-}
+/** An exact sum. A total beyond the supported range is the money refusal every calculation gives
+ * (MoneyArithmeticError, answered 422 with its code), not a refusal of the input. */
+const total = (values: number[]): number => sumMoney(values);
 function instant(value: string, label: string): number {
   const parsed = Date.parse(value);
   if (!Number.isFinite(parsed))
@@ -793,6 +789,14 @@ export interface VatControlInput {
   remittancesMinor: number;
   authorisedRemittanceEvidence: boolean;
 }
+/** The evidence a VAT schedule is made from, as its digest (the schedule's evidenceHash): a saved schedule is
+ * disclosed only while the desk holds the same evidence. */
+export const vatEvidenceHash = (
+  scope: CurrencyScope,
+  invoices: VatInvoiceEvidence[],
+  bankAllocations: VatBankAllocation[],
+  control: VatControlInput,
+): string => cashEvidenceHash({ scope, invoices, bankAllocations, control });
 /** TAX-REC: report the approved invoice tax amounts, including unpaid invoices. Cash receipts never
  * create tax evidence or input-tax entitlement; this is a review schedule, not a filed return. */
 export function reconcileVatEvidence(
@@ -932,12 +936,7 @@ export function reconcileVatEvidence(
         .filter((a) => a.category !== "invoice_payment")
         .map((a) => a.amountMinor),
     ),
-    evidenceHash: cashEvidenceHash({
-      scope,
-      invoices,
-      bankAllocations,
-      control,
-    }),
+    evidenceHash: vatEvidenceHash(scope, invoices, bankAllocations, control),
   };
 }
 

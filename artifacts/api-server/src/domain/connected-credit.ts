@@ -1,6 +1,7 @@
 import {
   counted,
   legacyCollatedCompare,
+  multiplyDivideMoney,
   sameJson,
   WAT_OFFSET_MS,
 } from "@workspace/valopay-schema";
@@ -943,10 +944,11 @@ export function assessCredit(
       "UNCLEAR_INCOME",
       "Too much incoming value is unclassified. Obtain evidence before scoring.",
     );
+  // Monthly averages are kobo: divided exactly, down for income and up for spending, which must not be understated.
   const totalIncome = sum(income),
     sustainable = Math.min(
       median(income),
-      Math.floor(totalIncome / periodCount),
+      multiplyDivideMoney(totalIncome, 1, periodCount),
     );
   if (sustainable === 0)
     issue(
@@ -1007,7 +1009,7 @@ export function assessCredit(
     );
   const observedEssential = Math.max(
     median(expenses),
-    Math.ceil(sum(expenses) / periodCount),
+    multiplyDivideMoney(sum(expenses), 1, periodCount, "ceil"),
   );
   const features: CreditFeatures = {
     codeVersion: "credit-features-synthetic-v1",
@@ -1026,8 +1028,10 @@ export function assessCredit(
     totalCommitmentsMonthlyKobo: sum([verified, declared]),
     activeIncomePeriods: income.filter((value) => value > 0).length,
     incomeVolatilityBps: ratio(
-      Math.floor(
-        sum(income.map((value) => Math.abs(value - sustainable))) / periodCount,
+      multiplyDivideMoney(
+        sum(income.map((value) => Math.abs(value - sustainable))),
+        1,
+        periodCount,
       ),
       sustainable,
     ),
