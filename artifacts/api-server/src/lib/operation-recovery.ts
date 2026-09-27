@@ -1,6 +1,6 @@
 import type { RequestHandler } from "express";
 import { parse } from "csv-parse/sync";
-import { definitiveRefusalStatuses, pathId } from "@workspace/valopay-schema";
+import { definitiveRefusalStatuses, pathId, recoverableOperation } from "@workspace/valopay-schema";
 import { lenderQuery, optionalKey } from "./contract";
 import { assertNoRealBankDetails } from "../domain/records";
 import { markKeyed, markKeyUnused, registerRefusalCloser, type OperationState } from "./refused-operations";
@@ -20,32 +20,7 @@ import {
 // segment exactly, in its case, with no trailing slash, and a parameter as any
 // segment, still percent-encoded. So a keyed write reaches a journaled route
 // only journaled, however its path is spelled.
-export function recoverableRequest(
-  method: string,
-  path: string,
-  body: any,
-): boolean {
-  if (method === "PATCH")
-    return (
-      /^\/v1\/records\/[^/]+\/[^/]+$/.test(path) || path === "/v1/settings"
-    );
-  if (method !== "POST") return false;
-  if (path === "/v1/actions") return body?.action !== "set_role";
-  if (path === "/v1/imports") return body?.commit === true;
-  return (
-    path === "/v1/connected/actions" ||
-    /^\/v1\/records\/[^/]+$/.test(path) ||
-    path === "/v1/exports" ||
-    /^\/v1\/exports\/[^/]+\/retry$/.test(path) ||
-    /^\/v1\/pilot\/batches(?:\/[^/]+\/(?:save|commit))?$/.test(path) ||
-    /^\/v1\/pilot\/cases\/[^/]+$/.test(path) ||
-    /^\/v1\/pilot\/import-corrections(?:\/[^/]+\/decision)?$/.test(path) ||
-    /^\/v1\/pilot\/close-reviews\/(?:prepare|[^/]+\/decision)$/.test(path) ||
-    /^\/v1\/sources\/(?:manifests|profiles(?:\/[^/]+\/save)?|paystack\/fixtures|events\/[^/]+\/replay)$/.test(path) ||
-    /^\/v1\/work\/(?:notifications\/read|handovers\/acknowledge)$/.test(path) ||
-    /^\/v1\/lifecycle\/(?:policy|holds|runs(?:\/[^/]+\/(?:approve|execute))?)$/.test(path)
-  );
-}
+export const recoverableRequest = recoverableOperation;
 // Statuses that mean the same request would be refused again (shared with the
 // console, which then drops the key). A 401 or 429 leaves the entry pending;
 // a failure is settled for the key (closeRejectedOperation).

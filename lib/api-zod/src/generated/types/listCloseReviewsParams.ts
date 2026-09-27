@@ -13,4 +13,21 @@ export type ListCloseReviewsParams = {
  * @maxLength 100
  */
 merchantId: string;
+/**
+ * Zero-based offset into the filtered history.
+ * @minimum 0
+ * @maximum 1000000
+ */
+offset?: number;
+/**
+ * Maximum number of close summaries on this page; defaults to 25.
+ * @minimum 1
+ * @maximum 25
+ */
+limit?: number;
+/**
+ * Literal close name, reference or business-date search.
+ * @maxLength 200
+ */
+search?: string;
 };

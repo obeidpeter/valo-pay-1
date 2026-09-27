@@ -1,6 +1,7 @@
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useWorkspace } from "./workspace-context";
+import { useSubmissionRecovery } from './submission-recovery';
 import {
   definitiveRefusal,
   nothingSaved,
@@ -46,7 +47,8 @@ async function request(url: string, options: RequestInit = {}): Promise<unknown>
 export function useConnected() {
   const { merchantId, workspace } = useWorkspace(),
     client = useQueryClient();
-  const scope = `${merchantId ?? ""}:${workspace?.role ?? ""}`;
+  const recovery = useSubmissionRecovery();
+  const scope = `${merchantId ?? ""}:${workspace?.actor ?? ""}:${workspace?.role ?? ""}`;
   const previousScope = useRef(scope);
   const attempt = useRef<{
     fingerprint: string;
@@ -60,11 +62,15 @@ export function useConnected() {
     };
     unconfirmed: boolean;
     pending: boolean;
+    recovery: typeof recovery;
   } | null>(null);
-  if (previousScope.current !== scope) {
+  if (previousScope.current !== scope || (attempt.current?.recovery && attempt.current.recovery.scope !== recovery?.scope)) {
+    const original = attempt.current;
+    if (original?.recovery) queueMicrotask(() => original.recovery?.keep(original.key));
     previousScope.current = scope;
     attempt.current = null;
   }
+  useEffect(() => () => { if (attempt.current) attempt.current.recovery?.keep(attempt.current.key); }, []);
   const query = useQuery<ConnectedView>({
     queryKey: ["connected", merchantId],
     enabled: !!merchantId,
@@ -107,6 +113,7 @@ export function useConnected() {
         throw new Error(
           "The previous request has an unconfirmed outcome. Retry the original request before changing it.",
         );
+      recovery?.assertAvailable(attempt.current?.key);
       if (!attempt.current || attempt.current.fingerprint !== fingerprint)
         attempt.current = {
           fingerprint,
@@ -118,8 +125,10 @@ export function useConnected() {
           input: structuredClone(input),
           unconfirmed: false,
           pending: false,
+          recovery,
         };
       const current = attempt.current;
+      recovery?.remember(current.key, { method: 'POST', path: '/v1/connected/actions', merchantId });
       current.pending = true;
       try {
         const result = await request(
@@ -133,6 +142,7 @@ export function useConnected() {
         // Only the confirmation this action gives counts, with its record in this lender (a Cash Desk action's
         // outcome, every other action's record): anything else leaves the outcome unconfirmed.
         if (!readAnswer(connectedActionResultFor(current.input.action, merchantId), result)) throw answerProblem(UNCONFIRMED_SAMPLE);
+        current.recovery?.forget(current.key);
         if (attempt.current === current) attempt.current = null;
       } catch (error) {
         // A definite request rejection did not commit; a reviewed retry may
@@ -157,8 +167,7 @@ export function useConnected() {
           !current.unconfirmed &&
           attempt.current === current &&
           (over || nothingSaved(error) || definitiveRefusal(error))
-        )
-          attempt.current = null;
+        ) { current.recovery?.forget(current.key); attempt.current = null; }
         throw error;
       } finally {
         current.pending = false;
@@ -188,9 +197,10 @@ export function useConnected() {
         throw new Error("There is no unconfirmed request to retry.");
       await mutation.mutateAsync(attempt.current.input);
     },
-    /** Forgets the original request and its key after the person chose to discard it: the next action is new. */
+    /** Discards private in-memory fields; server recovery must settle the retained request identity. */
     abandonUnconfirmed: () => {
       if (attempt.current?.pending) return;
+      if (attempt.current) attempt.current.recovery?.keep(attempt.current.key);
       attempt.current = null;
       mutation.reset();
     },

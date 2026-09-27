@@ -3,7 +3,7 @@ import { cleanup, fireEvent } from "@testing-library/react";
 import { installFakeApi, type FakeApi } from "./fake-api";
 import { renderApp, screen, userEvent, waitFor, within } from "./harness";
 import { executeAction } from "../../api-server/src/domain/actions";
-import { closeReviewIssues, prepareCloseReview } from "../../api-server/src/domain/close-review";
+import { closeReviewIssues, prepareCloseReview, decideCloseReview } from "../../api-server/src/domain/close-review";
 import { makeRecord } from "../../api-server/src/domain/records";
 import { queryClient } from "@/App";
 
@@ -135,7 +135,7 @@ it("clears a saved Finance draft before a slow refresh without leaving later edi
   await user.type(screen.getByLabelText(/Finance acceptance reason/), "The synthetic rehearsal may proceed with limited source coverage.");
   await user.type(screen.getByLabelText(/Finance supporting evidence/), "Synthetic case FIN-49.");
   await user.click(screen.getByRole("checkbox", { name: /I inspected this snapshot/ }));
-  const release = api.hold(/^\/v1\/pilot\/close-reviews$/);
+  const release = api.hold(/^\/v1\/pilot\/close-reviews(?:\/[^/]+)?$/);
   try {
     await user.click(screen.getByRole("button", { name: "Record Finance approval" }));
     await waitFor(() => expect(api.state().records.find(record => record.kind === "close-reviews")!.status).toBe("approved"));
@@ -209,4 +209,60 @@ it("requires an independent reviewer acknowledgement and preserves the recorded 
   await user.click(button);
   await screen.findByText("Approved");
   expect(api.state().records.find(record => record.kind === "close-reviews")!.status).toBe("approved");
+});
+
+it("opens a historical Finance decision directly beyond 25 closes and searches its history", async () => {
+  emptyClose();
+  const older = api.state().records.find(record => record.kind === "closes")!;
+  api.mutate((state, ctx) => {
+    const review = prepareCloseReview(state, ctx, { closeId: older.id, expectedUpdatedAt: older.updatedAt, reviewer: "Sandbox Finance", preparationNote: "Original historical preparation retained for Finance.", discrepancyResponses: closeReviewIssues(older).map(issue => ({ issueId: issue.id, explanation: "The source delivery still needs independent Finance review." })), unresolvedAcceptance: "Finance will check all synthetic source limitations." }, [{ actor: "Sandbox Finance", role: "Finance" }]);
+    decideCloseReview(state, { ...ctx, actor: "Sandbox Finance", role: "Finance", principalId: "another-person" }, review.id, { expectedUpdatedAt: review.updatedAt, action: "return", note: "Historical decision: await the provider statement." });
+  });
+  for (let index = 0; index < 26; index++) { api.setNow(new Date(Date.parse(api.now) + 86_400_000).toISOString()); api.mutate((state, ctx) => executeAction(state, ctx, { action: "daily_close" })); }
+  const user = userEvent.setup(); renderApp(`/close-review?close=${older.id}`);
+  await screen.findByText("Historical decision: await the provider statement.");
+  expect(screen.getByRole("region", { name: "Recorded close statement" })).toBeTruthy();
+  expect(screen.queryByText("This close is not in the recent list")).toBeNull();
+  expect(within(screen.getByRole("navigation", { name: "Close snapshots" })).getAllByRole("link")).toHaveLength(25);
+  await user.click(screen.getByRole("button", { name: "Next" }));
+  await screen.findByText(/27 matching closes · page 2/);
+  expect(screen.getByText("Historical decision: await the provider statement.")).toBeTruthy();
+  await user.type(screen.getByLabelText("Search close history"), "Sandbox Finance");
+  await user.click(screen.getByRole("button", { name: "Search history" }));
+  await screen.findByText(/1 matching closes · page 1/);
+  expect(within(screen.getByRole("navigation", { name: "Close snapshots" })).getAllByRole("link")).toHaveLength(1);
+});
+
+it("shows recorded amounts and supporting links without presenting technical JSON as the statement", async () => {
+  api.mutate((state, ctx) => executeAction(state, ctx, { action: "daily_close" }));
+  const close = api.state().records.find(record => record.kind === "closes")!, report = close.data.report;
+  renderApp(`/close-review?close=${close.id}`);
+  const statement = await screen.findByRole("region", { name: "Recorded close statement" });
+  expect(within(statement).getByText("Receipts and payment matching")).toBeTruthy();
+  expect(within(statement).getByText("Source records received").nextElementSibling?.textContent).toBe(String(report.observations.received));
+  expect(within(statement).getByText("Confirmed allocations").nextElementSibling?.textContent).toContain(`${report.allocated.count} items`);
+  expect(within(statement).getByRole("link", { name: "Open reconciliation queues" }).getAttribute("href")).toBe("/reconciliation");
+  expect(within(statement).getByText("Technical report (JSON)").closest("details")!.open).toBe(false);
+  expect(screen.queryByText("Inspect the complete recorded report")).toBeNull();
+});
+
+it("does not show another lender's directly requested close", async () => {
+  emptyClose(); renderApp("/close-review?close=other-lender-record");
+  await screen.findByText("Close not found in this lender.");
+  expect(screen.queryByRole("region", { name: "Recorded close statement" })).toBeNull();
+});
+
+it("keeps foreign currency amounts separate and explains unavailable fee comparisons", async () => {
+  emptyClose();
+  const close = api.state().records.find(record => record.kind === "closes")!;
+  // The close is a recorded fixture, not a current money mutation.
+  close.data.report.unallocated = { count: 2, kobo: 10000, olderThan24Hours: 1, otherCurrencies: { USD: { count: 1, amount: 2500 } } };
+  close.data.report.variances = { count: 1, feeVarianceKobo: 0, otherCurrencies: { USD: { count: 1, amount: 2500 } }, batches: [{ batchId: "usd-batch", reference: "USD-SETTLEMENT", currency: "USD", feeVarianceKobo: 0, netKobo: 2500, statementNetKobo: null, explanation: "The USD statement is still missing." }] };
+  renderApp(`/close-review?close=${close.id}`);
+  const statement = await screen.findByRole("region", { name: "Recorded close statement" });
+  const unmatched = within(statement).getByText("Unmatched at close").nextElementSibling!;
+  expect(unmatched.textContent).toContain("₦100.00");
+  expect(unmatched.textContent).toMatch(/USD\s*25\.00/);
+  expect(within(statement).getByText("Not checked: no USD fee schedule")).toBeTruthy();
+  expect(within(statement).getByRole("link", { name: "USD-SETTLEMENT" }).getAttribute("href")).toContain("q=USD-SETTLEMENT");
 });

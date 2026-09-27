@@ -1858,6 +1858,34 @@ export interface PendingOperations {
   pending: number;
 }
 
+export type OperationLookupInputMethod = typeof OperationLookupInputMethod[keyof typeof OperationLookupInputMethod];
+
+
+export const OperationLookupInputMethod = {
+  POST: 'POST',
+  PATCH: 'PATCH',
+} as const;
+
+/**
+ * Opaque request identity retained by the browser for same-form reload recovery. No request body.
+ */
+export interface OperationLookupInput {
+  key: string;
+  method: OperationLookupInputMethod;
+  /**
+     * @maxLength 1000
+     * @pattern ^\/v1\/[^?#\\\s]+$
+     */
+  path: string;
+}
+
+/**
+ * The exact journal entry for this caller and original role, or null if not yet received.
+ */
+export interface OperationLookup {
+  operation: OperationView | null;
+}
+
 /**
  * The original route's answer, recovered or re-run under the current validation and authorisation; its shape is that route's response.
  */
@@ -2652,6 +2680,92 @@ export interface CloseReviewList {
   ownPrincipal: string;
 }
 
+export type CloseReviewHistoryClosesItem = {
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  id: string;
+  name: string;
+  reference: string;
+  createdAt: string;
+  /** @nullable */
+  businessDate: string | null;
+  /** @nullable */
+  reviewStatus: string | null;
+  latest: boolean;
+};
+
+/**
+ * Bounded searchable close history without full reports or frozen review snapshots.
+ */
+export interface CloseReviewHistory {
+  /** @maxItems 25 */
+  closes: CloseReviewHistoryClosesItem[];
+  /** @minimum 0 */
+  total: number;
+  /** @minimum 0 */
+  offset: number;
+  /**
+     * @minimum 1
+     * @maximum 25
+     */
+  limit: number;
+}
+
+export type CloseReviewDetailAccessMode = typeof CloseReviewDetailAccessMode[keyof typeof CloseReviewDetailAccessMode];
+
+
+export const CloseReviewDetailAccessMode = {
+  sandbox: 'sandbox',
+  staff: 'staff',
+} as const;
+
+export type CloseReviewDetailPendingCorrectionsItem = {
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  id: string;
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  batchId: string;
+  name: string;
+};
+
+/**
+ * One historical close, full recorded report, reviews, assignment events and pending correction links, scoped to the lender.
+ */
+export interface CloseReviewDetail {
+  entry: CloseReviewEntry;
+  events: ValopayRecord[];
+  actor: string;
+  reviewers: Assignee[];
+  accessMode: CloseReviewDetailAccessMode;
+  ownPrincipal: string;
+  pendingCorrections: CloseReviewDetailPendingCorrectionsItem[];
+}
+
+/**
+ * Administrator reassignment of a pending review with its current version and an audit reason.
+ */
+export interface ReassignCloseReviewInput {
+  /** An RFC 3339 date and time with Z or an offset, such as 2026-09-18T08:00:00+01:00. The service stores and compares the UTC instant. */
+  expectedUpdatedAt: string;
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  reviewer: string;
+  /**
+     * @minLength 10
+     * @maxLength 3000
+     */
+  reason: string;
+}
+
 export type PrepareCloseReviewInputDiscrepancyResponsesItem = {
   /**
      * @minLength 1
@@ -2884,6 +2998,12 @@ export const ImportCorrectionDecisionInputAction = {
 export interface ImportCorrectionDecisionInput {
   /** @pattern ^[a-f0-9]{64}$ */
   proposalDigest: string;
+  /**
+     * @minLength 1
+     * @maxLength 100
+     * @nullable
+     */
+  assignmentEventId?: string | null;
   action: ImportCorrectionDecisionInputAction;
   /**
      * @minLength 10
@@ -2891,6 +3011,39 @@ export interface ImportCorrectionDecisionInput {
      */
   reason: string;
 }
+
+/**
+ * Administrator reassignment with proposal digest, current assignment event, independent reviewer and reason.
+ */
+export interface ImportCorrectionRecoveryInput {
+  /** @pattern ^[a-f0-9]{64}$ */
+  proposalDigest: string;
+  /**
+     * @minLength 1
+     * @maxLength 100
+     * @nullable
+     */
+  expectedAssignmentEventId: string | null;
+  /**
+     * @minLength 1
+     * @maxLength 180
+     */
+  reviewer: string;
+  /**
+     * @minLength 10
+     * @maxLength 1000
+     */
+  reason: string;
+}
+
+export type ImportCorrectionViewAssignmentHistoryItem = {
+  id: string;
+  fromReviewer: string;
+  reviewer: string;
+  actor: string;
+  reason: string;
+  at: string;
+};
 
 export type ImportCorrectionViewStatus = typeof ImportCorrectionViewStatus[keyof typeof ImportCorrectionViewStatus];
 
@@ -2933,6 +3086,11 @@ export interface ImportCorrectionView {
   proposedBy: string;
   proposedPrincipal: string;
   reviewer: string;
+  originalReviewer?: string;
+  /** @nullable */
+  assignmentEventId?: string | null;
+  assignmentUpdatedAt?: string;
+  assignmentHistory?: ImportCorrectionViewAssignmentHistoryItem[];
   reason: string;
   evidence: string;
   proposalDigest: string;
@@ -3596,6 +3754,7 @@ export const PersonalWorkViewItemsItemType = {
   case: 'case',
   handover: 'handover',
   review: 'review',
+  correction: 'correction',
 } as const;
 
 export type PersonalWorkViewItemsItem = {
@@ -3626,6 +3785,7 @@ export type PersonalWorkViewItemsItem = {
      */
   assignee: string;
   assigneeName: string;
+  waitingSince?: string;
   /** @nullable */
   dueAt: string | null;
   overdue: boolean;
@@ -4767,6 +4927,24 @@ export type PerformConnectedActionParams = {
 merchantId: string;
 };
 
+export type LookupOwnOperationParams = {
+/**
+ * The lender (a merchant in the API) the request is scoped to; one of the caller's workspace merchants. Missing or empty, the request is refused with 400 naming merchantId, on every operation.
+ * @minLength 1
+ * @maxLength 100
+ */
+merchantId: string;
+};
+
+export type CancelOwnOperationParams = {
+/**
+ * The lender (a merchant in the API) the request is scoped to; one of the caller's workspace merchants. Missing or empty, the request is refused with 400 naming merchantId, on every operation.
+ * @minLength 1
+ * @maxLength 100
+ */
+merchantId: string;
+};
+
 export type ListOperationsParams = {
 /**
  * The lender (a merchant in the API) the request is scoped to; one of the caller's workspace merchants. Missing or empty, the request is refused with 400 naming merchantId, on every operation.
@@ -4903,6 +5081,41 @@ export type ListCloseReviewsParams = {
  * @maxLength 100
  */
 merchantId: string;
+/**
+ * Zero-based offset into the filtered history.
+ * @minimum 0
+ * @maximum 1000000
+ */
+offset?: number;
+/**
+ * Maximum number of close summaries on this page; defaults to 25.
+ * @minimum 1
+ * @maximum 25
+ */
+limit?: number;
+/**
+ * Literal close name, reference or business-date search.
+ * @maxLength 200
+ */
+search?: string;
+};
+
+export type GetCloseReviewParams = {
+/**
+ * The lender (a merchant in the API) the request is scoped to; one of the caller's workspace merchants. Missing or empty, the request is refused with 400 naming merchantId, on every operation.
+ * @minLength 1
+ * @maxLength 100
+ */
+merchantId: string;
+};
+
+export type ReassignCloseReviewParams = {
+/**
+ * The lender (a merchant in the API) the request is scoped to; one of the caller's workspace merchants. Missing or empty, the request is refused with 400 naming merchantId, on every operation.
+ * @minLength 1
+ * @maxLength 100
+ */
+merchantId: string;
 };
 
 export type PrepareCloseReviewParams = {
@@ -4957,6 +5170,15 @@ merchantId: string;
 };
 
 export type DecideImportCorrectionParams = {
+/**
+ * The lender (a merchant in the API) the request is scoped to; one of the caller's workspace merchants. Missing or empty, the request is refused with 400 naming merchantId, on every operation.
+ * @minLength 1
+ * @maxLength 100
+ */
+merchantId: string;
+};
+
+export type RecoverImportCorrectionParams = {
 /**
  * The lender (a merchant in the API) the request is scoped to; one of the caller's workspace merchants. Missing or empty, the request is refused with 400 naming merchantId, on every operation.
  * @minLength 1

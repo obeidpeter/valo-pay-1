@@ -2239,6 +2239,88 @@ export const PerformConnectedActionResponse = zod.object({
 
 
 /**
+ * Read-only lookup of the caller’s exact key in this lender and role. Absence does not prove a delayed request cannot arrive.
+ * @summary Check an interrupted submission
+ */
+export const lookupOwnOperationQueryMerchantIdMax = 100;
+
+
+
+export const LookupOwnOperationQueryParams = zod.object({
+  "merchantId": zod.string().min(1).max(lookupOwnOperationQueryMerchantIdMax).describe('The lender (a merchant in the API) the request is scoped to; one of the caller\'s workspace merchants. Missing or empty, the request is refused with 400 naming merchantId, on every operation.')
+})
+
+export const lookupOwnOperationBodyPathMax = 1000;
+
+
+export const lookupOwnOperationBodyPathRegExp = new RegExp('^\\/v1\\/[^?#\\\\\\s]+$');
+
+
+export const LookupOwnOperationBody = zod.object({
+  "key": zod.string().uuid(),
+  "method": zod.enum(['POST', 'PATCH']),
+  "path": zod.string().max(lookupOwnOperationBodyPathMax).regex(lookupOwnOperationBodyPathRegExp)
+}).describe('Opaque request identity retained by the browser for same-form reload recovery. No request body.')
+
+export const lookupOwnOperationResponseOperationOneSummaryOneDetailsMax = 3;
+
+
+
+export const LookupOwnOperationResponse = zod.object({
+  "operation": zod.union([zod.object({
+  "id": zod.string(),
+  "label": zod.string(),
+  "actor": zod.string(),
+  "role": zod.string(),
+  "status": zod.enum(['pending', 'completed', 'cancelled']),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+  "message": zod.string(),
+  "recordId": zod.string().nullable(),
+  "recordKind": zod.string().nullable(),
+  "summary": zod.union([zod.object({
+  "action": zod.string(),
+  "targetKind": zod.string().nullable(),
+  "targetId": zod.string().nullable(),
+  "details": zod.array(zod.object({
+  "name": zod.string(),
+  "value": zod.string()
+})).max(lookupOwnOperationResponseOperationOneSummaryOneDetailsMax)
+}).describe('What an entry asked, safe to show: the action or route in plain words, the kind and ID of the record it names, and at most three short fields the request named (an action, a decision, a status, a kind or a format). Read from the stored request by field, never whole; it never holds a name, reference, reason, amount or file.'),zod.null()])
+}).describe('One journal entry: what was asked, by whom, in which role, and whether the service confirmed it. Original request bodies stay private; `summary` says what the request asked, and is null when payload encryption sealed the request or retention removed its payload. A completed entry names the record it produced (`recordId` and `recordKind`, the kind of that record: `exports` for an export, whatever kind it exports). A refused entry is cancelled and its message says why.'),zod.null()])
+}).describe('The exact journal entry for this caller and original role, or null if not yet received.')
+
+
+/**
+ * Refuses a completed request or existing receipt. If not yet received, records a terminal fence so a delayed copy cannot execute.
+ * @summary Cancel an interrupted submission safely
+ */
+export const cancelOwnOperationQueryMerchantIdMax = 100;
+
+
+
+export const CancelOwnOperationQueryParams = zod.object({
+  "merchantId": zod.string().min(1).max(cancelOwnOperationQueryMerchantIdMax).describe('The lender (a merchant in the API) the request is scoped to; one of the caller\'s workspace merchants. Missing or empty, the request is refused with 400 naming merchantId, on every operation.')
+})
+
+export const cancelOwnOperationBodyPathMax = 1000;
+
+
+export const cancelOwnOperationBodyPathRegExp = new RegExp('^\\/v1\\/[^?#\\\\\\s]+$');
+
+
+export const CancelOwnOperationBody = zod.object({
+  "key": zod.string().uuid(),
+  "method": zod.enum(['POST', 'PATCH']),
+  "path": zod.string().max(cancelOwnOperationBodyPathMax).regex(cancelOwnOperationBodyPathRegExp)
+}).describe('Opaque request identity retained by the browser for same-form reload recovery. No request body.')
+
+export const CancelOwnOperationResponse = zod.object({
+  "message": zod.string()
+}).describe('A confirmation in plain words; nothing else changed that the caller needs to read back.')
+
+
+/**
  * Every keyed, recoverable request the caller made in this lender, with its confirmation state. Read-only; private to the person who made the requests.
  * @summary List the caller's recovery journal
  */
@@ -3271,27 +3353,85 @@ export const GetPilotProgressResponse = zod.object({
 
 
 /**
- * Newest 25 closes with their discrepancies, review state and the available Finance reviewers.
- * @summary List closes and their reviews
+ * Paged history summaries. Open any historical close by its own detail route, regardless of this page.
+ * @summary Search close history
  */
 export const listCloseReviewsQueryMerchantIdMax = 100;
+
+export const listCloseReviewsQueryOffsetMin = 0;
+export const listCloseReviewsQueryOffsetMax = 1000000;
+
+export const listCloseReviewsQueryLimitMax = 25;
+
+export const listCloseReviewsQuerySearchMax = 200;
 
 
 
 export const ListCloseReviewsQueryParams = zod.object({
-  "merchantId": zod.string().min(1).max(listCloseReviewsQueryMerchantIdMax).describe('The lender (a merchant in the API) the request is scoped to; one of the caller\'s workspace merchants. Missing or empty, the request is refused with 400 naming merchantId, on every operation.')
+  "merchantId": zod.string().min(1).max(listCloseReviewsQueryMerchantIdMax).describe('The lender (a merchant in the API) the request is scoped to; one of the caller\'s workspace merchants. Missing or empty, the request is refused with 400 naming merchantId, on every operation.'),
+  "offset": zod.coerce.number().int().min(listCloseReviewsQueryOffsetMin).max(listCloseReviewsQueryOffsetMax).optional().describe('Zero-based offset into the filtered history.'),
+  "limit": zod.coerce.number().int().min(1).max(listCloseReviewsQueryLimitMax).optional().describe('Maximum number of close summaries on this page; defaults to 25.'),
+  "search": zod.string().max(listCloseReviewsQuerySearchMax).optional().describe('Literal close name, reference or business-date search.')
 })
 
-export const listCloseReviewsResponseClosesItemPendingFinancialCorrectionsMin = 0;
+export const listCloseReviewsResponseClosesItemIdMax = 100;
 
 export const listCloseReviewsResponseClosesMax = 25;
 
 export const listCloseReviewsResponseTotalMin = 0;
 
+export const listCloseReviewsResponseOffsetMin = 0;
+
+export const listCloseReviewsResponseLimitMax = 25;
+
 
 
 export const ListCloseReviewsResponse = zod.object({
   "closes": zod.array(zod.object({
+  "id": zod.string().min(1).max(listCloseReviewsResponseClosesItemIdMax),
+  "name": zod.string(),
+  "reference": zod.string(),
+  "createdAt": zod.string(),
+  "businessDate": zod.string().nullable(),
+  "reviewStatus": zod.string().nullable(),
+  "latest": zod.boolean()
+})).max(listCloseReviewsResponseClosesMax),
+  "total": zod.number().int().min(listCloseReviewsResponseTotalMin),
+  "offset": zod.number().int().min(listCloseReviewsResponseOffsetMin),
+  "limit": zod.number().int().min(1).max(listCloseReviewsResponseLimitMax)
+}).describe('Bounded searchable close history without full reports or frozen review snapshots.')
+
+
+/**
+ * Full recorded financial evidence, decisions and assignments for one lender-scoped close. Historical access does not relax approval currency checks.
+ * @summary Read a historical close
+ */
+export const getCloseReviewPathIdMax = 100;
+
+
+
+export const GetCloseReviewParams = zod.object({
+  "id": zod.coerce.string().min(1).max(getCloseReviewPathIdMax).describe('The record\'s id.')
+})
+
+export const getCloseReviewQueryMerchantIdMax = 100;
+
+
+
+export const GetCloseReviewQueryParams = zod.object({
+  "merchantId": zod.string().min(1).max(getCloseReviewQueryMerchantIdMax).describe('The lender (a merchant in the API) the request is scoped to; one of the caller\'s workspace merchants. Missing or empty, the request is refused with 400 naming merchantId, on every operation.')
+})
+
+export const getCloseReviewResponseEntryPendingFinancialCorrectionsMin = 0;
+
+export const getCloseReviewResponsePendingCorrectionsItemIdMax = 100;
+
+export const getCloseReviewResponsePendingCorrectionsItemBatchIdMax = 100;
+
+
+
+export const GetCloseReviewResponse = zod.object({
+  "entry": zod.object({
   "close": zod.object({
   "id": zod.string(),
   "merchantId": zod.string(),
@@ -3312,7 +3452,7 @@ export const ListCloseReviewsResponse = zod.object({
   "unresolved": zod.boolean()
 }).describe('A discrepancy or unresolved item the preparer must answer, and whether it remains open at the close.')),
   "problem": zod.string().nullable(),
-  "pendingFinancialCorrections": zod.number().int().min(listCloseReviewsResponseClosesItemPendingFinancialCorrectionsMin),
+  "pendingFinancialCorrections": zod.number().int().min(getCloseReviewResponseEntryPendingFinancialCorrectionsMin),
   "reviews": zod.array(zod.object({
   "id": zod.string(),
   "merchantId": zod.string(),
@@ -3328,8 +3468,20 @@ export const ListCloseReviewsResponse = zod.object({
 }).describe('A stored record of any kind, with its lender, status, reference, amount and data. amountKobo is in kobo, except where a kind with a currency field (a payment, payment evidence, or an exception about money in another currency) names another currency in data.currency: it then holds that currency\'s minor units (cents for USD). A data.currency on any other kind, such as a currency column an import kept as detail on an instalment, is not the amount\'s currency: that amount is in kobo.').and(zod.object({
   "current": zod.boolean()
 })).describe('A close review record with whether its snapshot still matches the close and its source evidence.'))
-}).describe('One close with the discrepancies a reviewer must answer, why it cannot be reviewed now (if so), pending financial corrections and its reviews.')).max(listCloseReviewsResponseClosesMax),
-  "total": zod.number().int().min(listCloseReviewsResponseTotalMin),
+}).describe('One close with the discrepancies a reviewer must answer, why it cannot be reviewed now (if so), pending financial corrections and its reviews.'),
+  "events": zod.array(zod.object({
+  "id": zod.string(),
+  "merchantId": zod.string(),
+  "kind": zod.string(),
+  "name": zod.string(),
+  "status": zod.string(),
+  "reference": zod.string(),
+  "amountKobo": zod.number().int(),
+  "customerId": zod.string(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+  "data": zod.record(zod.string(), zod.unknown()).describe('A record\'s data: the fields the kind\'s schema declares, and anything else a caller stored.')
+}).describe('A stored record of any kind, with its lender, status, reference, amount and data. amountKobo is in kobo, except where a kind with a currency field (a payment, payment evidence, or an exception about money in another currency) names another currency in data.currency: it then holds that currency\'s minor units (cents for USD). A data.currency on any other kind, such as a currency column an import kept as detail on an instalment, is not the amount\'s currency: that amount is in kobo.')),
   "actor": zod.string(),
   "reviewers": zod.array(zod.object({
   "actor": zod.string(),
@@ -3337,8 +3489,70 @@ export const ListCloseReviewsResponse = zod.object({
   "role": zod.string()
 }).describe('A person who can own a case or review a close: demo roles in the sandbox, active staff with lender access on a staff host.')),
   "accessMode": zod.enum(['sandbox', 'staff']),
-  "ownPrincipal": zod.string()
-}).describe('The 25 newest closes with their reviews, the Finance reviewers available and who the caller is, so the console can enforce separation of duties.')
+  "ownPrincipal": zod.string(),
+  "pendingCorrections": zod.array(zod.object({
+  "id": zod.string().min(1).max(getCloseReviewResponsePendingCorrectionsItemIdMax),
+  "batchId": zod.string().min(1).max(getCloseReviewResponsePendingCorrectionsItemBatchIdMax),
+  "name": zod.string()
+}))
+}).describe('One historical close, full recorded report, reviews, assignment events and pending correction links, scoped to the lender.')
+
+
+/**
+ * Admin only; active independent Finance reviewer, current version and reason required. Prepared evidence remains immutable.
+ * @summary Reassign a pending close review
+ */
+export const reassignCloseReviewPathIdMax = 100;
+
+
+
+export const ReassignCloseReviewParams = zod.object({
+  "id": zod.coerce.string().min(1).max(reassignCloseReviewPathIdMax).describe('The record\'s id.')
+})
+
+export const reassignCloseReviewQueryMerchantIdMax = 100;
+
+
+
+export const ReassignCloseReviewQueryParams = zod.object({
+  "merchantId": zod.string().min(1).max(reassignCloseReviewQueryMerchantIdMax).describe('The lender (a merchant in the API) the request is scoped to; one of the caller\'s workspace merchants. Missing or empty, the request is refused with 400 naming merchantId, on every operation.')
+})
+
+export const reassignCloseReviewHeaderIdempotencyKeyMin = 8;
+export const reassignCloseReviewHeaderIdempotencyKeyMax = 200;
+
+
+
+export const ReassignCloseReviewHeader = zod.object({
+  "Idempotency-Key": zod.string().min(reassignCloseReviewHeaderIdempotencyKeyMin).max(reassignCloseReviewHeaderIdempotencyKeyMax).describe('Required: a request without one is refused (400, naming the header). 8 to 200 characters, one per unchanged intention. The same key with different input is refused (409). A key whose request was refused cannot run again: its journal entry is closed. A repeat after a lost answer returns the original result, checked before the version; once the lender\'s retention policy has removed that stored result, the repeat is refused (410). A repeat while the request is still running is answered 503 with Retry-After and operation running, and leaves it to finish. The result is kept with the request\'s journal entry, so a key names one request of the person who sent it, in its lender.')
+})
+
+export const reassignCloseReviewBodyReviewerMax = 200;
+
+export const reassignCloseReviewBodyReasonMin = 10;
+export const reassignCloseReviewBodyReasonMax = 3000;
+
+
+
+export const ReassignCloseReviewBody = zod.object({
+  "expectedUpdatedAt": zod.coerce.date().describe('An RFC 3339 date and time with Z or an offset, such as 2026-09-18T08:00:00+01:00. The service stores and compares the UTC instant.'),
+  "reviewer": zod.string().min(1).max(reassignCloseReviewBodyReviewerMax),
+  "reason": zod.string().min(reassignCloseReviewBodyReasonMin).max(reassignCloseReviewBodyReasonMax)
+}).describe('Administrator reassignment of a pending review with its current version and an audit reason.')
+
+export const ReassignCloseReviewResponse = zod.object({
+  "id": zod.string(),
+  "merchantId": zod.string(),
+  "kind": zod.string(),
+  "name": zod.string(),
+  "status": zod.string(),
+  "reference": zod.string(),
+  "amountKobo": zod.number().int(),
+  "customerId": zod.string(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+  "data": zod.record(zod.string(), zod.unknown()).describe('A record\'s data: the fields the kind\'s schema declares, and anything else a caller stored.')
+}).describe('A stored record of any kind, with its lender, status, reference, amount and data. amountKobo is in kobo, except where a kind with a currency field (a payment, payment evidence, or an exception about money in another currency) names another currency in data.currency: it then holds that currency\'s minor units (cents for USD). A data.currency on any other kind, such as a currency column an import kept as detail on an instalment, is not the amount\'s currency: that amount is in kobo.')
 
 
 /**
@@ -3494,6 +3708,9 @@ export const ListImportCorrectionsQueryParams = zod.object({
   "batchId": zod.string().min(1).max(listImportCorrectionsQueryBatchIdMax).describe('The committed import batch whose records may be corrected.')
 })
 
+export const listImportCorrectionsResponseProposalsItemAssignmentEventIdDefault = null;
+export const listImportCorrectionsResponseProposalsItemAssignmentHistoryDefault = [];
+
 export const ListImportCorrectionsResponse = zod.object({
   "batchId": zod.string(),
   "actor": zod.string(),
@@ -3519,6 +3736,17 @@ export const ListImportCorrectionsResponse = zod.object({
   "proposedBy": zod.string(),
   "proposedPrincipal": zod.string(),
   "reviewer": zod.string(),
+  "originalReviewer": zod.string().optional(),
+  "assignmentEventId": zod.string().nullish().default(listImportCorrectionsResponseProposalsItemAssignmentEventIdDefault),
+  "assignmentUpdatedAt": zod.string().optional(),
+  "assignmentHistory": zod.array(zod.object({
+  "id": zod.string(),
+  "fromReviewer": zod.string(),
+  "reviewer": zod.string(),
+  "actor": zod.string(),
+  "reason": zod.string(),
+  "at": zod.string()
+})).default(listImportCorrectionsResponseProposalsItemAssignmentHistoryDefault),
   "reason": zod.string(),
   "evidence": zod.string(),
   "proposalDigest": zod.string(),
@@ -3630,6 +3858,9 @@ export const ProposeImportCorrectionBody = zod.object({
   "evidence": zod.string().min(proposeImportCorrectionBodyEvidenceMin).max(proposeImportCorrectionBodyEvidenceMax)
 }).describe('A proposal quoting the preview digest, naming an independent Finance reviewer, with the reason and evidence.')
 
+export const proposeImportCorrectionResponseAssignmentEventIdDefault = null;
+export const proposeImportCorrectionResponseAssignmentHistoryDefault = [];
+
 export const ProposeImportCorrectionResponse = zod.object({
   "id": zod.string(),
   "merchantId": zod.string(),
@@ -3637,6 +3868,17 @@ export const ProposeImportCorrectionResponse = zod.object({
   "proposedBy": zod.string(),
   "proposedPrincipal": zod.string(),
   "reviewer": zod.string(),
+  "originalReviewer": zod.string().optional(),
+  "assignmentEventId": zod.string().nullish().default(proposeImportCorrectionResponseAssignmentEventIdDefault),
+  "assignmentUpdatedAt": zod.string().optional(),
+  "assignmentHistory": zod.array(zod.object({
+  "id": zod.string(),
+  "fromReviewer": zod.string(),
+  "reviewer": zod.string(),
+  "actor": zod.string(),
+  "reason": zod.string(),
+  "at": zod.string()
+})).default(proposeImportCorrectionResponseAssignmentHistoryDefault),
   "reason": zod.string(),
   "evidence": zod.string(),
   "proposalDigest": zod.string(),
@@ -3777,6 +4019,8 @@ export const DecideImportCorrectionHeader = zod.object({
 })
 
 export const decideImportCorrectionBodyProposalDigestRegExp = new RegExp('^[a-f0-9]{64}$');
+export const decideImportCorrectionBodyAssignmentEventIdMax = 100;
+
 export const decideImportCorrectionBodyReasonMin = 10;
 export const decideImportCorrectionBodyReasonMax = 1000;
 
@@ -3784,9 +4028,13 @@ export const decideImportCorrectionBodyReasonMax = 1000;
 
 export const DecideImportCorrectionBody = zod.object({
   "proposalDigest": zod.string().regex(decideImportCorrectionBodyProposalDigestRegExp),
+  "assignmentEventId": zod.string().min(1).max(decideImportCorrectionBodyAssignmentEventIdMax).nullish(),
   "action": zod.enum(['approve', 'reject', 'withdraw']),
   "reason": zod.string().min(decideImportCorrectionBodyReasonMin).max(decideImportCorrectionBodyReasonMax)
 }).describe('Approve, reject or withdraw, quoting the proposal digest, with a reason.')
+
+export const decideImportCorrectionResponseAssignmentEventIdDefault = null;
+export const decideImportCorrectionResponseAssignmentHistoryDefault = [];
 
 export const DecideImportCorrectionResponse = zod.object({
   "id": zod.string(),
@@ -3795,6 +4043,126 @@ export const DecideImportCorrectionResponse = zod.object({
   "proposedBy": zod.string(),
   "proposedPrincipal": zod.string(),
   "reviewer": zod.string(),
+  "originalReviewer": zod.string().optional(),
+  "assignmentEventId": zod.string().nullish().default(decideImportCorrectionResponseAssignmentEventIdDefault),
+  "assignmentUpdatedAt": zod.string().optional(),
+  "assignmentHistory": zod.array(zod.object({
+  "id": zod.string(),
+  "fromReviewer": zod.string(),
+  "reviewer": zod.string(),
+  "actor": zod.string(),
+  "reason": zod.string(),
+  "at": zod.string()
+})).default(decideImportCorrectionResponseAssignmentHistoryDefault),
+  "reason": zod.string(),
+  "evidence": zod.string(),
+  "proposalDigest": zod.string(),
+  "status": zod.enum(['awaiting_review', 'approved', 'rejected', 'withdrawn']),
+  "current": zod.boolean(),
+  "preview": zod.object({
+  "merchantId": zod.string(),
+  "batchId": zod.string(),
+  "targetId": zod.string(),
+  "targetKind": zod.string(),
+  "source": zod.string(),
+  "rowId": zod.string(),
+  "targetUpdatedAt": zod.string(),
+  "financial": zod.boolean(),
+  "previewDigest": zod.string(),
+  "differences": zod.array(zod.object({
+  "field": zod.enum(['name', 'phoneMasked', 'amountKobo', 'dueDate']),
+  "before": zod.union([zod.string(),zod.number(),zod.null()]),
+  "after": zod.union([zod.string(),zod.number()])
+})),
+  "affected": zod.array(zod.object({
+  "id": zod.string(),
+  "kind": zod.string(),
+  "name": zod.string(),
+  "reference": zod.string(),
+  "status": zod.string(),
+  "updatedAt": zod.string()
+})),
+  "blockers": zod.array(zod.string()),
+  "consequence": zod.string()
+}).describe('The before/after comparison, the records the change touches, any blockers and the digest a proposal must quote.'),
+  "decision": zod.object({
+  "id": zod.string(),
+  "action": zod.enum(['approve', 'reject', 'withdraw']),
+  "actor": zod.string(),
+  "principalId": zod.string(),
+  "reason": zod.string(),
+  "at": zod.string()
+}).nullable()
+}).describe('A proposal with its preview, its decision if any, and whether the comparison is still current.')
+
+
+/**
+ * Administrator records a reason and assigns active independent Finance without changing the proposal or its evidence. Stale assignments are refused.
+ * @summary Reassign an import correction
+ */
+export const recoverImportCorrectionPathIdMax = 100;
+
+
+
+export const RecoverImportCorrectionParams = zod.object({
+  "id": zod.coerce.string().min(1).max(recoverImportCorrectionPathIdMax).describe('The record\'s id.')
+})
+
+export const recoverImportCorrectionQueryMerchantIdMax = 100;
+
+
+
+export const RecoverImportCorrectionQueryParams = zod.object({
+  "merchantId": zod.string().min(1).max(recoverImportCorrectionQueryMerchantIdMax).describe('The lender (a merchant in the API) the request is scoped to; one of the caller\'s workspace merchants. Missing or empty, the request is refused with 400 naming merchantId, on every operation.')
+})
+
+export const recoverImportCorrectionHeaderIdempotencyKeyMin = 8;
+export const recoverImportCorrectionHeaderIdempotencyKeyMax = 200;
+
+
+
+export const RecoverImportCorrectionHeader = zod.object({
+  "Idempotency-Key": zod.string().min(recoverImportCorrectionHeaderIdempotencyKeyMin).max(recoverImportCorrectionHeaderIdempotencyKeyMax).describe('Required: a request without one is refused (400, naming the header). 8 to 200 characters, one per unchanged intention. The same key with different input is refused (409). A key whose request was refused cannot run again: its journal entry is closed. A repeat after a lost answer returns the original result, checked before the version; once the lender\'s retention policy has removed that stored result, the repeat is refused (410). A repeat while the request is still running is answered 503 with Retry-After and operation running, and leaves it to finish. The result is kept with the request\'s journal entry, so a key names one request of the person who sent it, in its lender.')
+})
+
+export const recoverImportCorrectionBodyProposalDigestRegExp = new RegExp('^[a-f0-9]{64}$');
+export const recoverImportCorrectionBodyExpectedAssignmentEventIdMax = 100;
+
+export const recoverImportCorrectionBodyReviewerMax = 180;
+
+export const recoverImportCorrectionBodyReasonMin = 10;
+export const recoverImportCorrectionBodyReasonMax = 1000;
+
+
+
+export const RecoverImportCorrectionBody = zod.object({
+  "proposalDigest": zod.string().regex(recoverImportCorrectionBodyProposalDigestRegExp),
+  "expectedAssignmentEventId": zod.string().min(1).max(recoverImportCorrectionBodyExpectedAssignmentEventIdMax).nullable(),
+  "reviewer": zod.string().min(1).max(recoverImportCorrectionBodyReviewerMax),
+  "reason": zod.string().min(recoverImportCorrectionBodyReasonMin).max(recoverImportCorrectionBodyReasonMax)
+}).describe('Administrator reassignment with proposal digest, current assignment event, independent reviewer and reason.')
+
+export const recoverImportCorrectionResponseAssignmentEventIdDefault = null;
+export const recoverImportCorrectionResponseAssignmentHistoryDefault = [];
+
+export const RecoverImportCorrectionResponse = zod.object({
+  "id": zod.string(),
+  "merchantId": zod.string(),
+  "createdAt": zod.string(),
+  "proposedBy": zod.string(),
+  "proposedPrincipal": zod.string(),
+  "reviewer": zod.string(),
+  "originalReviewer": zod.string().optional(),
+  "assignmentEventId": zod.string().nullish().default(recoverImportCorrectionResponseAssignmentEventIdDefault),
+  "assignmentUpdatedAt": zod.string().optional(),
+  "assignmentHistory": zod.array(zod.object({
+  "id": zod.string(),
+  "fromReviewer": zod.string(),
+  "reviewer": zod.string(),
+  "actor": zod.string(),
+  "reason": zod.string(),
+  "at": zod.string()
+})).default(recoverImportCorrectionResponseAssignmentHistoryDefault),
   "reason": zod.string(),
   "evidence": zod.string(),
   "proposalDigest": zod.string(),
@@ -4580,11 +4948,12 @@ export const GetPersonalWorkResponse = zod.object({
   "sourceId": zod.string().min(1).max(getPersonalWorkResponseItemsItemSourceIdMax),
   "sourceVersion": zod.coerce.date(),
   "sourceDigest": zod.string().regex(getPersonalWorkResponseItemsItemSourceDigestRegExp),
-  "type": zod.enum(['case', 'handover', 'review']),
+  "type": zod.enum(['case', 'handover', 'review', 'correction']),
   "title": zod.string(),
   "nextAction": zod.string(),
   "assignee": zod.string().min(1).max(getPersonalWorkResponseItemsItemAssigneeMax),
   "assigneeName": zod.string(),
+  "waitingSince": zod.coerce.date().optional(),
   "dueAt": zod.coerce.date().nullable(),
   "overdue": zod.boolean(),
   "escalated": zod.boolean(),

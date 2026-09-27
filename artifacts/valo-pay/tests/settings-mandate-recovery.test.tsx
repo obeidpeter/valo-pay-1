@@ -2,10 +2,12 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { installFakeApi, type FakeApi } from "./fake-api";
 import { renderApp, screen, userEvent, waitFor, within } from "./harness";
 import { queryClient } from "@/App";
+import { cancelInterrupted, unreceivedRecovery } from './unreceived-recovery';
 
 let api: FakeApi;
 beforeEach(() => {
   api = installFakeApi();
+  unreceivedRecovery(api);
 });
 afterEach(() => api.uninstall());
 
@@ -230,7 +232,7 @@ it("a settings retry refused as cancelled is a known failure, and Discard draft 
   expect(confirm).toHaveBeenCalled();
 });
 
-it("Discard draft and refresh also discards an original settings request that stays unconfirmed", async () => {
+it("Discard draft and refresh keeps an interrupted identity until the server cancels it", async () => {
   const user = userEvent.setup();
   const traffic = staleSettingsRetry(false);
   await loseSettingsSave(user);
@@ -251,7 +253,8 @@ it("Discard draft and refresh also discards an original settings request that st
   await user.click(refresh);
   await screen.findByRole("button", { name: "Edit" });
   expect(traffic.reads()).toBeGreaterThan(reads);
-  // Editing again starts a new request under a new key.
+  // Discarding the local form is not proof the first request failed. Obtain cancellation before a new write.
+  await cancelInterrupted(user);
   await user.click(screen.getByRole("button", { name: "Edit" }));
   const amount = screen.getByLabelText(
     "Notification cost alert (₦ per collection)",
@@ -336,7 +339,7 @@ function recordKeys(path: string, method: string) {
   return keys;
 }
 
-it("the unconfirmed settings notice discards its original request, and the next save is new", async () => {
+it("the unconfirmed settings notice discards its form, and a server cancellation permits a new save", async () => {
   const user = userEvent.setup();
   const keys = recordKeys("/v1/settings", "PATCH");
   api.failNext(/^\/v1\/settings$/, "offline", "PATCH");
@@ -353,6 +356,7 @@ it("the unconfirmed settings notice discards its original request, and the next 
     "Notification cost alert (₦ per collection)",
   );
   expect(amount.closest("fieldset")?.disabled).toBe(false);
+  await cancelInterrupted(user);
   await user.click(screen.getByRole("button", { name: "Save" }));
   await screen.findByText("Settings saved");
   expect(api.state().settings.notificationCostAlertKobo).toBe(1029);
@@ -360,7 +364,7 @@ it("the unconfirmed settings notice discards its original request, and the next 
   expect(keys[1]).not.toBe(keys[0]);
 });
 
-it("the unconfirmed emergency-stop notice discards its original request, and the next request is new", async () => {
+it("the emergency-stop notice discards its form, and a confirmed cancellation permits a new request", async () => {
   const user = userEvent.setup();
   renderApp("/settings");
   await screen.findByText("07:00 WAT");
@@ -389,6 +393,7 @@ it("the unconfirmed emergency-stop notice discards its original request, and the
   expect(reason.disabled).toBe(false);
   expect(api.state().merchant.killSwitch).toBe(false);
   await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "Activate emergency stop" })));
+  await cancelInterrupted(user);
   await user.click(
     screen.getByRole("button", { name: "Activate emergency stop" }),
   );

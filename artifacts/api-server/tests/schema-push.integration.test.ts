@@ -54,7 +54,7 @@ try {
   assert.deepEqual(push(), [], 'a second push on a freshly pushed database plans nothing');
   // An existing host's database: take away what the migrations add, then apply them as a host did.
   target = new Pool({ connectionString: targetUrl.toString() });
-  await target.query('DROP TABLE valopay_staff_lender_access, valopay_staff_events, valopay_staff_invitations, valopay_staff_memberships, valopay_teams, valopay_operations');
+  await target.query('DROP TABLE valopay_export_cleanup, valopay_staff_lender_access, valopay_staff_events, valopay_staff_invitations, valopay_staff_memberships, valopay_teams, valopay_operations');
   await target.query('DROP INDEX valopay_records_lender_kind_page, valopay_records_lender_kind_status_page, valopay_records_lender_customer, valopay_records_lender_kind_updated, valopay_merchants_workspace, valopay_records_export_queue');
   const readIndexes = spawnSync(process.execPath, [indexRunner, '--apply', '--database', database], { env, encoding: 'utf8', timeout: 60_000 });
   assert.equal(readIndexes.status, 0, readIndexes.stderr);
@@ -62,10 +62,10 @@ try {
   for (const [table, name, cut] of earlierNames) await target.query(`ALTER TABLE ${table} RENAME CONSTRAINT ${name} TO ${cut}`);
   await target.query('DROP INDEX valopay_unique_customer_reference, valopay_unique_provider_event');
   await target.query("CREATE UNIQUE INDEX valopay_unique_observation ON valopay_records (merchant_id,(data->>'source'),(data->>'eventId')) WHERE kind='observations' AND data->>'eventId' IS NOT NULL");
-  for (const name of ['007_journal_and_lender_indexes.sql', '008_export_queue_index_and_foreign_key_names.sql', '009_record_identity_guards.sql']) await target.query(await migration(name));
+  for (const name of ['007_journal_and_lender_indexes.sql', '008_export_queue_index_and_foreign_key_names.sql', '009_record_identity_guards.sql', '013_export_cleanup.sql']) await target.query(await migration(name));
   assert.deepEqual(push(), [], 'a push on a database built by the migrations plans nothing');
   assert.deepEqual(push(), [], 'and neither does the next one');
-  console.log('Schema push rehearsal passed: a second push plans nothing on a freshly pushed database, and a push plans nothing on a database built from the base tables and migrations 002, 003, 004 (with the earlier foreign key names), 007, 008 and 009, nor does the push after it.');
+  console.log('Schema push rehearsal passed: a second push plans nothing on a freshly pushed database, and a push plans nothing on a database built from the base tables and migrations 002, 003, 004 (with the earlier foreign key names), 007, 008, 009 and 013, nor does the push after it.');
 } finally {
   await target?.end();
   if (created) await pool.query(`DROP DATABASE "${database}"`);

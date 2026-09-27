@@ -12,7 +12,8 @@ declare const __VALOPAY_BACKGROUND_ENTRY__: string | undefined;
  * The background worker thread's own database connections: one for the
  * scheduled close, which closes one lender at a time (or, where a scheduled
  * job runs the closes, reads what is still owed), and one for each export
- * slot. With the request pool (VALOPAY_DATABASE_POOL_SIZE) and readiness's one
+ * slot. Cleanup shares this bound for its short, timed transactions and holds
+ * no connection during private-storage I/O. With the request pool (VALOPAY_DATABASE_POOL_SIZE) and readiness's one
  * connection, an API process holds at most that size plus four.
  */
 export const BACKGROUND_POOL_SIZE = 1 + EXPORT_CONCURRENCY;
@@ -30,6 +31,8 @@ export interface BackgroundOptions {
   backlog?: { intervalMs?: number; firstDelayMs?: number; onlyMerchantIds?: string[] } | null;
   /** The export worker, with its options, or null (tests of the close alone). */
   exports: { intervalMs?: number; maxBackoffMs?: number } | null;
+  /** Service-only expired sandbox file cleanup, sharing the bounded background pool. */
+  cleanup?: { intervalMs?: number } | null;
 }
 /** What the thread posts to the main thread: a log line to write, or a change of the scheduler's state. */
 export type BackgroundMessage = LogLineMessage | { type: "scheduler"; event: SchedulerEvent };

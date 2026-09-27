@@ -28,10 +28,12 @@ import type {
   ApproveLifecycleRunParams,
   BatchVersion,
   CancelOperationParams,
+  CancelOwnOperationParams,
   CaseDetail,
   CaseInput,
   CloseHistoryPage,
-  CloseReviewList,
+  CloseReviewDetail,
+  CloseReviewHistory,
   CommitImportBatchParams,
   ConnectedActionInput,
   ConnectedActionResult,
@@ -54,6 +56,7 @@ import type {
   Gates,
   GetCaseParams,
   GetCloseDetailParams,
+  GetCloseReviewParams,
   GetConnectedWorkspaceParams,
   GetCustomerHistoryParams,
   GetCustomerTimelineParams,
@@ -79,6 +82,7 @@ import type {
   ImportCorrectionPreview,
   ImportCorrectionPreviewInput,
   ImportCorrectionProposalInput,
+  ImportCorrectionRecoveryInput,
   ImportCorrectionView,
   ImportInput,
   ImportRecordsParams,
@@ -99,10 +103,13 @@ import type {
   ListQueueParams,
   ListReconciliationParams,
   ListRecordsParams,
+  LookupOwnOperationParams,
   MembershipInput,
   Merchant,
   Message,
   OperationList,
+  OperationLookup,
+  OperationLookupInput,
   OperationReplayResult,
   Overview,
   PayloadProtection,
@@ -127,10 +134,13 @@ import type {
   QueuePage,
   ReadNotificationParams,
   ReadinessStatus,
+  ReassignCloseReviewInput,
+  ReassignCloseReviewParams,
   ReconciliationPage,
   RecordInput,
   RecordList,
   RecordUpdate,
+  RecoverImportCorrectionParams,
   ReplayProviderEventParams,
   Report,
   RetentionHoldInput,
@@ -2576,6 +2586,200 @@ export const usePerformConnectedAction = <TError = ErrorType<ErrorBody>,
       return useMutation(getPerformConnectedActionMutationOptions(options));
     }
 
+export const getLookupOwnOperationUrl = (params: LookupOwnOperationParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/operations/lookup?${stringifiedParams}` : `/api/v1/operations/lookup`
+}
+
+/**
+ * Read-only lookup of the caller’s exact key in this lender and role. Absence does not prove a delayed request cannot arrive.
+ * @summary Check an interrupted submission
+ */
+export const lookupOwnOperation = async (operationLookupInput: OperationLookupInput,
+    params: LookupOwnOperationParams, options?: Parameters<typeof customFetch>[1]): Promise<OperationLookup> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<OperationLookup>(getLookupOwnOperationUrl(params),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(operationLookupInput)
+  }
+);}
+
+
+
+
+
+export const getLookupOwnOperationMutationKey = () => ['lookupOwnOperation'] as const;
+
+export const getLookupOwnOperationMutationOptions = <TError = ErrorType<ErrorBody>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof lookupOwnOperation>>, TError,LookupOwnOperationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof lookupOwnOperation>>, TError,LookupOwnOperationMutationVariables, TContext> => {
+
+const mutationKey = getLookupOwnOperationMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof lookupOwnOperation>>, LookupOwnOperationMutationVariables> = (props) => {
+          const {data,params} = props ?? {};
+
+          return  lookupOwnOperation(data,params,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LookupOwnOperationMutationResult = NonNullable<Awaited<ReturnType<typeof lookupOwnOperation>>>
+    export type LookupOwnOperationMutationBody = BodyType<OperationLookupInput>
+    export type LookupOwnOperationMutationError = ErrorType<ErrorBody>
+    export type LookupOwnOperationMutationVariables = {data: BodyType<OperationLookupInput>;params: LookupOwnOperationParams}
+
+    /**
+ * @summary Check an interrupted submission
+ */
+export const useLookupOwnOperation = <TError = ErrorType<ErrorBody>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof lookupOwnOperation>>, TError,LookupOwnOperationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof lookupOwnOperation>>,
+        TError,
+        LookupOwnOperationMutationVariables,
+        TContext
+      > => {
+      return useMutation(getLookupOwnOperationMutationOptions(options));
+    }
+
+export const getCancelOwnOperationUrl = (params: CancelOwnOperationParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/operations/cancel-unreceived?${stringifiedParams}` : `/api/v1/operations/cancel-unreceived`
+}
+
+/**
+ * Refuses a completed request or existing receipt. If not yet received, records a terminal fence so a delayed copy cannot execute.
+ * @summary Cancel an interrupted submission safely
+ */
+export const cancelOwnOperation = async (operationLookupInput: OperationLookupInput,
+    params: CancelOwnOperationParams, options?: Parameters<typeof customFetch>[1]): Promise<Message> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<Message>(getCancelOwnOperationUrl(params),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(operationLookupInput)
+  }
+);}
+
+
+
+
+
+export const getCancelOwnOperationMutationKey = () => ['cancelOwnOperation'] as const;
+
+export const getCancelOwnOperationMutationOptions = <TError = ErrorType<ErrorBody>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelOwnOperation>>, TError,CancelOwnOperationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof cancelOwnOperation>>, TError,CancelOwnOperationMutationVariables, TContext> => {
+
+const mutationKey = getCancelOwnOperationMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof cancelOwnOperation>>, CancelOwnOperationMutationVariables> = (props) => {
+          const {data,params} = props ?? {};
+
+          return  cancelOwnOperation(data,params,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CancelOwnOperationMutationResult = NonNullable<Awaited<ReturnType<typeof cancelOwnOperation>>>
+    export type CancelOwnOperationMutationBody = BodyType<OperationLookupInput>
+    export type CancelOwnOperationMutationError = ErrorType<ErrorBody>
+    export type CancelOwnOperationMutationVariables = {data: BodyType<OperationLookupInput>;params: CancelOwnOperationParams}
+
+    /**
+ * @summary Cancel an interrupted submission safely
+ */
+export const useCancelOwnOperation = <TError = ErrorType<ErrorBody>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelOwnOperation>>, TError,CancelOwnOperationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof cancelOwnOperation>>,
+        TError,
+        CancelOwnOperationMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCancelOwnOperationMutationOptions(options));
+    }
+
 export const getListOperationsUrl = (params: ListOperationsParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -4887,12 +5091,12 @@ export const getListCloseReviewsUrl = (params: ListCloseReviewsParams,) => {
 }
 
 /**
- * Newest 25 closes with their discrepancies, review state and the available Finance reviewers.
- * @summary List closes and their reviews
+ * Paged history summaries. Open any historical close by its own detail route, regardless of this page.
+ * @summary Search close history
  */
-export const listCloseReviews = async (params: ListCloseReviewsParams, options?: Parameters<typeof customFetch>[1]): Promise<CloseReviewList> => {
+export const listCloseReviews = async (params: ListCloseReviewsParams, options?: Parameters<typeof customFetch>[1]): Promise<CloseReviewHistory> => {
 
-  return customFetch<CloseReviewList>(getListCloseReviewsUrl(params),
+  return customFetch<CloseReviewHistory>(getListCloseReviewsUrl(params),
   {
     ...options,
     method: 'GET'
@@ -4935,7 +5139,7 @@ export type ListCloseReviewsQueryError = ErrorType<ErrorBody>
 
 
 /**
- * @summary List closes and their reviews
+ * @summary Search close history
  */
 
 export function useListCloseReviews<TData = Awaited<ReturnType<typeof listCloseReviews>>, TError = ErrorType<ErrorBody>>(
@@ -4955,6 +5159,195 @@ export function useListCloseReviews<TData = Awaited<ReturnType<typeof listCloseR
 
 
 
+
+export const getGetCloseReviewUrl = (id: string,
+    params: GetCloseReviewParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/pilot/close-reviews/${id}?${stringifiedParams}` : `/api/v1/pilot/close-reviews/${id}`
+}
+
+/**
+ * Full recorded financial evidence, decisions and assignments for one lender-scoped close. Historical access does not relax approval currency checks.
+ * @summary Read a historical close
+ */
+export const getCloseReview = async (id: string,
+    params: GetCloseReviewParams, options?: Parameters<typeof customFetch>[1]): Promise<CloseReviewDetail> => {
+
+  return customFetch<CloseReviewDetail>(getGetCloseReviewUrl(id,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCloseReviewQueryKey = (id: string,
+    params?: GetCloseReviewParams,) => {
+    return [
+    `/api/v1/pilot/close-reviews/${id}`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetCloseReviewQueryOptions = <TData = Awaited<ReturnType<typeof getCloseReview>>, TError = ErrorType<ErrorBody>>(id: string,
+    params: GetCloseReviewParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCloseReview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCloseReviewQueryKey(id,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCloseReview>>> = ({ signal }) => getCloseReview(id,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCloseReview>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCloseReviewQueryResult = NonNullable<Awaited<ReturnType<typeof getCloseReview>>>
+export type GetCloseReviewQueryError = ErrorType<ErrorBody>
+
+
+/**
+ * @summary Read a historical close
+ */
+
+export function useGetCloseReview<TData = Awaited<ReturnType<typeof getCloseReview>>, TError = ErrorType<ErrorBody>>(
+ id: string,
+    params: GetCloseReviewParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCloseReview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCloseReviewQueryOptions(id,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getReassignCloseReviewUrl = (id: string,
+    params: ReassignCloseReviewParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/pilot/close-reviews/${id}/reassign?${stringifiedParams}` : `/api/v1/pilot/close-reviews/${id}/reassign`
+}
+
+/**
+ * Admin only; active independent Finance reviewer, current version and reason required. Prepared evidence remains immutable.
+ * @summary Reassign a pending close review
+ */
+export const reassignCloseReview = async (id: string,
+    reassignCloseReviewInput: ReassignCloseReviewInput,
+    params: ReassignCloseReviewParams, options?: Parameters<typeof customFetch>[1]): Promise<ValopayRecord> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<ValopayRecord>(getReassignCloseReviewUrl(id,params),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(reassignCloseReviewInput)
+  }
+);}
+
+
+
+
+
+export const getReassignCloseReviewMutationKey = () => ['reassignCloseReview'] as const;
+
+export const getReassignCloseReviewMutationOptions = <TError = ErrorType<ErrorBody>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reassignCloseReview>>, TError,ReassignCloseReviewMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reassignCloseReview>>, TError,ReassignCloseReviewMutationVariables, TContext> => {
+
+const mutationKey = getReassignCloseReviewMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reassignCloseReview>>, ReassignCloseReviewMutationVariables> = (props) => {
+          const {id,data,params} = props ?? {};
+
+          return  reassignCloseReview(id,data,params,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReassignCloseReviewMutationResult = NonNullable<Awaited<ReturnType<typeof reassignCloseReview>>>
+    export type ReassignCloseReviewMutationBody = BodyType<ReassignCloseReviewInput>
+    export type ReassignCloseReviewMutationError = ErrorType<ErrorBody>
+    export type ReassignCloseReviewMutationVariables = {id: string;data: BodyType<ReassignCloseReviewInput>;params: ReassignCloseReviewParams}
+
+    /**
+ * @summary Reassign a pending close review
+ */
+export const useReassignCloseReview = <TError = ErrorType<ErrorBody>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reassignCloseReview>>, TError,ReassignCloseReviewMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reassignCloseReview>>,
+        TError,
+        ReassignCloseReviewMutationVariables,
+        TContext
+      > => {
+      return useMutation(getReassignCloseReviewMutationOptions(options));
+    }
 
 export const getPrepareCloseReviewUrl = (params: PrepareCloseReviewParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -5528,6 +5921,105 @@ export const useDecideImportCorrection = <TError = ErrorType<ErrorBody>,
         TContext
       > => {
       return useMutation(getDecideImportCorrectionMutationOptions(options));
+    }
+
+export const getRecoverImportCorrectionUrl = (id: string,
+    params: RecoverImportCorrectionParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/pilot/import-corrections/${id}/recovery?${stringifiedParams}` : `/api/v1/pilot/import-corrections/${id}/recovery`
+}
+
+/**
+ * Administrator records a reason and assigns active independent Finance without changing the proposal or its evidence. Stale assignments are refused.
+ * @summary Reassign an import correction
+ */
+export const recoverImportCorrection = async (id: string,
+    importCorrectionRecoveryInput: ImportCorrectionRecoveryInput,
+    params: RecoverImportCorrectionParams, options?: Parameters<typeof customFetch>[1]): Promise<ImportCorrectionView> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<ImportCorrectionView>(getRecoverImportCorrectionUrl(id,params),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(importCorrectionRecoveryInput)
+  }
+);}
+
+
+
+
+
+export const getRecoverImportCorrectionMutationKey = () => ['recoverImportCorrection'] as const;
+
+export const getRecoverImportCorrectionMutationOptions = <TError = ErrorType<ErrorBody>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recoverImportCorrection>>, TError,RecoverImportCorrectionMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof recoverImportCorrection>>, TError,RecoverImportCorrectionMutationVariables, TContext> => {
+
+const mutationKey = getRecoverImportCorrectionMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof recoverImportCorrection>>, RecoverImportCorrectionMutationVariables> = (props) => {
+          const {id,data,params} = props ?? {};
+
+          return  recoverImportCorrection(id,data,params,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RecoverImportCorrectionMutationResult = NonNullable<Awaited<ReturnType<typeof recoverImportCorrection>>>
+    export type RecoverImportCorrectionMutationBody = BodyType<ImportCorrectionRecoveryInput>
+    export type RecoverImportCorrectionMutationError = ErrorType<ErrorBody>
+    export type RecoverImportCorrectionMutationVariables = {id: string;data: BodyType<ImportCorrectionRecoveryInput>;params: RecoverImportCorrectionParams}
+
+    /**
+ * @summary Reassign an import correction
+ */
+export const useRecoverImportCorrection = <TError = ErrorType<ErrorBody>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recoverImportCorrection>>, TError,RecoverImportCorrectionMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof recoverImportCorrection>>,
+        TError,
+        RecoverImportCorrectionMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRecoverImportCorrectionMutationOptions(options));
     }
 
 export const getGetSourcesUrl = (params: GetSourcesParams,) => {

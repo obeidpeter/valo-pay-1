@@ -29,3 +29,24 @@ export const operationListSchema = z.object({ items: z.array(operationViewSchema
 export const pendingOperationsSchema = z.object({ pending: z.number().int().min(0) }).strict();
 /** A recovered or repeated journal entry's answer: the original route's own answer, whatever its shape. */
 export const operationReplaySchema = z.record(z.unknown());
+/** Browser recovery identifies its own original request without sending its payload or exposing a key in a URL. */
+export const operationLookupInputSchema = z.object({ key: z.string().uuid(), method: z.enum(['POST', 'PATCH']), path: z.string().max(1000).regex(/^\/v1\/[^?#\\\s]+$/) }).strict();
+/** The same owner, actor, role and lender's entry, or no received request; absence is not proof of cancellation. */
+export const operationLookupSchema = z.object({ operation: operationViewSchema.nullable() }).strict();
+/** Only writes whose body and receipt are journaled in one workspace transaction can recover after a reload. */
+export function recoverableOperation(method: string, path: string, body: unknown): boolean {
+  if (method === 'PATCH') return /^\/v1\/records\/[^/]+\/[^/]+$/.test(path) || path === '/v1/settings';
+  if (method !== 'POST') return false;
+  const input = body && typeof body === 'object' ? body as Record<string, unknown> : {};
+  if (path === '/v1/actions') return input.action !== 'set_role';
+  if (path === '/v1/imports') return input.commit === true;
+  return path === '/v1/connected/actions' || /^\/v1\/records\/[^/]+$/.test(path) || path === '/v1/exports'
+    || /^\/v1\/exports\/[^/]+\/retry$/.test(path)
+    || /^\/v1\/pilot\/batches(?:\/[^/]+\/(?:save|commit))?$/.test(path)
+    || /^\/v1\/pilot\/cases\/[^/]+$/.test(path)
+    || /^\/v1\/pilot\/import-corrections(?:\/[^/]+\/(?:decision|recovery))?$/.test(path)
+    || /^\/v1\/pilot\/close-reviews\/(?:prepare|[^/]+\/(?:decision|reassign))$/.test(path)
+    || /^\/v1\/sources\/(?:manifests|profiles(?:\/[^/]+\/save)?|paystack\/fixtures|events\/[^/]+\/replay)$/.test(path)
+    || /^\/v1\/work\/(?:notifications\/read|handovers\/acknowledge)$/.test(path)
+    || /^\/v1\/lifecycle\/(?:policy|holds|runs(?:\/[^/]+\/(?:approve|execute))?)$/.test(path);
+}

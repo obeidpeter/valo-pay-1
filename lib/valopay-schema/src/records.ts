@@ -674,10 +674,11 @@ export const recordDataSchemas = {
     impactDigest: z.string(), preview: importCorrectionPreviewSchema.partial().passthrough(), proposedBy: z.string(), proposedPrincipal: z.string(),
     reviewer: z.string(), reason: z.string(), evidence: z.string(), proposalDigest: z.string(),
   }).partial().passthrough(),
-  /** A decision on a proposed import correction (immutable). */
+  /** A decision or administrator reassignment on a proposed import correction (immutable). */
   "import-correction-events": z.object({
-    ...common, proposalId: z.string(), targetId: z.string(), batchId: z.string(), proposalDigest: z.string(), action: z.enum(["approve", "reject", "withdraw"]),
+    ...common, proposalId: z.string(), targetId: z.string(), batchId: z.string(), proposalDigest: z.string(), action: z.enum(["approve", "reject", "withdraw", "reassign"]),
     actor: z.string(), principalId: z.string(), reason: z.string(),
+    assignmentEventId: z.string().nullable(), previousAssignmentEventId: z.string().nullable(), fromReviewer: z.string(), reviewer: z.string(),
   }).partial().passthrough(),
   /** A source's reusable import contract and delivery expectation; its source and record type never change. */
   "source-profiles": z.object({
@@ -704,9 +705,9 @@ export const recordDataSchemas = {
     decidedBy: z.string(), decidedPrincipal: z.string(), decidedAt: isoDateOrTimestamp, decisionNote: z.string(),
     sourceExceptions: z.array(z.object({ issueId: z.string(), reason: z.string(), evidence: z.string() }).passthrough()),
   }).partial().passthrough(),
-  /** A step in a close review's history: prepared, approved or returned (immutable). */
+  /** A step in a close review's history: preparation, reassignment or decision (immutable). */
   "close-review-events": z.object({
-    ...common, reviewId: z.string(), closeId: z.string(), action: z.enum(["prepared", "approve", "return"]), actor: z.string(), reviewer: z.string(), note: z.string(), snapshotDigest: z.string(),
+    ...common, reviewId: z.string(), closeId: z.string(), action: z.enum(["prepared", "approve", "return", "reassign"]), actor: z.string(), reviewer: z.string(), previousReviewer: z.string(), note: z.string(), snapshotDigest: z.string(),
   }).partial().passthrough(),
   /** A claim, handover or next-action update on a case, with the assignment before and after (immutable). */
   "case-events": z.object({

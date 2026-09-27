@@ -4,6 +4,7 @@ import { makeRecord } from './records';
 import { closeReviewBasisOnce, reviewIsCurrent } from './close-review';
 import { canonicalDigest } from '../lib/digests';
 import { contractAnswer } from '../lib/contract';
+import { importCorrectionAssignment, importCorrectionView } from './import-corrections';
 
 export type WorkAssignee = { actor: string; name: string; role: string };
 const workRoles = ['Admin', 'Operations', 'Finance', 'Compliance reviewer'];
@@ -67,6 +68,26 @@ export function personalWorkItems(state: DomainState, ctx: Context, people: Work
       const eventId = `review:${record.id}:${record.updatedAt}:${current ? 'current' : 'stale'}:${escalated ? 'escalated' : 'pending'}`;
       result.push({ id: `review:${record.id}`, eventId, sourceId: record.id, sourceVersion: record.updatedAt, sourceDigest: digest({ merchantId: state.merchant.id, id: record.id, updatedAt: record.updatedAt, status: record.status, data: record.data, current }), type: 'review', title: 'Daily close awaiting review', nextAction: samePerson ? 'A different person must review this close. Open the review to inspect its assignment.' : current ? 'Open the close, inspect the evidence and record your decision.' : 'The close evidence has changed. Open the review to see what must be prepared again.', assignee: record.data.reviewer, assigneeName: name(record.data.reviewer), dueAt: null, overdue: false, escalated, escalationReason: escalated ? 'This review has waited at least 24 hours for a decision.' : null, reviewCurrent: current, href: `/close-review?close=${encodeURIComponent(String(record.data.closeId))}`, readAt: events.find(saved => saved.data.action === 'read' && saved.data.eventId === eventId && saved.data.actor === record.data.reviewer)?.createdAt || null, canAcknowledge: false, assignmentEventId: null, notice: samePerson ? 'Changing demo roles is not independent review. The preparer cannot approve their own work.' : current ? null : 'A fresh close and review are required; this reminder does not approve the old evidence.' });
     }
+    if (record.kind === 'import-corrections') {
+      const proposal = importCorrectionView(reviewState, ctx, record);
+      if (proposal.status !== 'awaiting_review') continue;
+      const assignment = importCorrectionAssignment(reviewState, record), current = proposal.current;
+      const targetLabel = records.find(source => source.id === proposal.preview.targetId)?.name || record.data.before?.name || `Source row ${proposal.preview.rowId}`;
+      const samePerson = assignment.reviewer === ctx.actor && (proposal.proposedBy === ctx.actor || proposal.proposedPrincipal === (ctx.principalId || ctx.actor));
+      const unavailable = !people.some(person => person.actor === assignment.reviewer && person.role === 'Finance');
+      const escalated = unavailable || now - Date.parse(record.createdAt) >= DAY;
+      const eventId = `correction:${record.id}:${assignment.eventId || 'original'}:${current ? 'current' : 'stale'}:${escalated ? 'escalated' : 'pending'}`;
+      result.push({ id: `correction:${record.id}`, eventId, sourceId: record.id, sourceVersion: assignment.updatedAt,
+        sourceDigest: digest({ merchantId: state.merchant.id, id: record.id, proposalDigest: proposal.proposalDigest, assignment, current, unavailable }),
+        type: 'correction', title: 'Import correction awaiting review', nextAction: `${targetLabel}. ${unavailable ? 'Ask an administrator to assign an active independent Finance reviewer.' : samePerson ? 'A different person must review this correction.' : current ? 'Compare the imported value with the proposed correction and its evidence, then record your decision.' : 'The source or related evidence changed. Reject or withdraw this proposal, then prepare a fresh comparison.'}`,
+        assignee: assignment.reviewer, assigneeName: name(assignment.reviewer), waitingSince: record.createdAt, dueAt: null, overdue: false, escalated,
+        escalationReason: unavailable ? 'The assigned Finance reviewer is no longer available in this lender.' : escalated ? 'This correction has waited at least 24 hours for a decision.' : null,
+        reviewCurrent: current, href: `/imports?batch=${encodeURIComponent(proposal.preview.batchId)}&correction=${encodeURIComponent(record.id)}`,
+        readAt: events.find(saved => saved.data.action === 'read' && saved.data.eventId === eventId && saved.data.actor === assignment.reviewer)?.createdAt || null,
+        canAcknowledge: false, assignmentEventId: assignment.eventId,
+        notice: samePerson ? 'Changing demo roles is not independent review. The proposer cannot approve their own correction.' : proposal.preview.financial ? 'This pending instalment correction blocks Finance preparation, approval and evidence export for the daily close.' : null,
+      });
+    }
   }
   return result.sort((a, b) => Number(b.escalated) - Number(a.escalated) || Number(b.overdue) - Number(a.overdue) || Number(b.type === 'handover') - Number(a.type === 'handover') || (a.dueAt || '9999').localeCompare(b.dueAt || '9999') || a.id.localeCompare(b.id));
 }
@@ -77,11 +98,11 @@ export function derivePersonalWork(state: DomainState, ctx: Context, people: Wor
   if (q.scope === 'team' && ctx.role !== 'Admin') refuse('Only an administrator can view this lender’s team workload.', 403);
   const canWork = eligible(ctx, people);
   const all = personalWorkItems(state, ctx, people).filter(item => q.scope === 'team' || item.assignee === ctx.actor);
-  const counts = { all: all.length, overdue: all.filter(item => item.overdue).length, handover: all.filter(item => item.type === 'handover').length, review: all.filter(item => item.type === 'review').length, unread: all.filter(item => !item.readAt).length, escalated: all.filter(item => item.escalated).length };
-  const matches = all.filter(item => q.filter === 'all' || q.filter === 'overdue' && item.overdue || q.filter === 'handover' && item.type === 'handover' || q.filter === 'review' && item.type === 'review' || q.filter === 'unread' && !item.readAt);
+  const counts = { all: all.length, overdue: all.filter(item => item.overdue).length, handover: all.filter(item => item.type === 'handover').length, review: all.filter(item => ['review', 'correction'].includes(item.type)).length, unread: all.filter(item => !item.readAt).length, escalated: all.filter(item => item.escalated).length };
+  const matches = all.filter(item => q.filter === 'all' || q.filter === 'overdue' && item.overdue || q.filter === 'handover' && item.type === 'handover' || q.filter === 'review' && ['review', 'correction'].includes(item.type) || q.filter === 'unread' && !item.readAt);
   const workload = q.scope === 'team' ? [...new Set(all.map(item => item.assignee))].sort().slice(0, 100).map(actor => {
     const items = all.filter(item => item.assignee === actor);
-    return { actor, name: items[0]!.assigneeName, total: items.length, overdue: items.filter(item => item.overdue).length, handovers: items.filter(item => item.type === 'handover').length, reviews: items.filter(item => item.type === 'review').length, escalated: items.filter(item => item.escalated).length };
+    return { actor, name: items[0]!.assigneeName, total: items.length, overdue: items.filter(item => item.overdue).length, handovers: items.filter(item => item.type === 'handover').length, reviews: items.filter(item => ['review', 'correction'].includes(item.type)).length, escalated: items.filter(item => item.escalated).length };
   }) : [];
   const history = localRecords(state).filter(record => record.kind === 'work-events' && record.data.actor === ctx.actor && ['read', 'acknowledge'].includes(record.data.action)).sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id)).slice(0, 10).map(record => ({ id: record.id, action: record.data.action, sourceId: record.data.sourceId, summary: String(record.data.summary), at: record.createdAt, href: String(record.data.href) }));
   return contractAnswer(personalWorkViewSchema, { merchantId: state.merchant.id, lenderName: state.merchant.name, actor: ctx.actor, role: ctx.role, asOf: ctx.now, syntheticOnly: true, canViewTeam: ctx.role === 'Admin', canWork, scope: q.scope, filter: q.filter, items: matches.slice(q.offset, q.offset + q.limit), total: matches.length, offset: q.offset, limit: q.limit, counts, workload, workloadTotal: q.scope === 'team' ? new Set(all.map(item => item.assignee)).size : 0, history, escalationRule: rule });
@@ -93,7 +114,7 @@ export function recordWorkReceipt(state: DomainState, ctx: Context, people: Work
   if (!eligible(ctx, people)) refuse('Your current staff role cannot acknowledge work. Ask an administrator to check your access.', 403);
   const source = localRecords(state).find(record => record.id === input.sourceId);
   if (!source) refuse('This work item was not found in the selected lender.', 404);
-  const intended = source.kind === 'exceptions' ? source.data.case?.assignee : source.kind === 'close-reviews' ? source.data.reviewer : undefined;
+  const intended = source.kind === 'exceptions' ? source.data.case?.assignee : source.kind === 'close-reviews' ? source.data.reviewer : source.kind === 'import-corrections' ? importCorrectionAssignment(state, source).reviewer : undefined;
   if (intended !== ctx.actor) refuse('Only the currently assigned staff member can acknowledge or mark this work as read.', 403);
   const currentItem = personalWorkItems(state, ctx, people).find(record => record.sourceId === input.sourceId);
   if (!currentItem || currentItem.sourceVersion !== input.expectedUpdatedAt || currentItem.sourceDigest !== input.expectedDigest) refuse('This work item changed. Refresh My work and review the current assignment before continuing.');

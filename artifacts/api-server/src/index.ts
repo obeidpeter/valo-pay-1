@@ -8,6 +8,7 @@ import { markSchedulerOff } from "./lib/close-scheduler";
 import { closeDatabase, watchDatabase } from "./lib/valopay-store";
 import { signInConfiguration } from "./lib/staff-access";
 import { startBackgroundWorker, type BackgroundWorker } from "./lib/background-worker";
+import { runtimeIsolationEnabled } from './lib/runtime-isolation';
 
 const port = serverSettings.port!;
 
@@ -38,7 +39,7 @@ const server = app.listen(port, (err) => {
     markSchedulerOff("external");
     logger.info({ event: "scheduler.external" }, "VALOPAY_CLOSE_SCHEDULER=external: this process runs no scheduled close; a scheduled job runs them with the one-shot close pass. This process reads the lenders still owed a close every minute, which /api/healthz reports, and a close the job misses still raises the missed-close alert.");
   }
-  background = startBackgroundWorker({ log: logger, closes: serverSettings.closeScheduler === "on" ? {} : null, backlog: serverSettings.closeScheduler === "external" ? {} : null, exports: {} });
+  background = startBackgroundWorker({ log: logger, closes: serverSettings.closeScheduler === "on" ? {} : null, backlog: serverSettings.closeScheduler === "external" ? {} : null, exports: {}, cleanup: runtimeIsolationEnabled() ? null : {} });
 });
 
 /**

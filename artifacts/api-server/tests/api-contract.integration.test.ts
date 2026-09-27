@@ -162,6 +162,9 @@ try {
   const proposal = { ...previewInput, previewDigest: preview.previewDigest, reviewer: "Sandbox Finance", reason: "Correct the synthetic customer's name.", evidence: "Contract check" };
   refusedFor(await call(q("/v1/pilot/import-corrections"), "POST", proposal), 400, "Idempotency-Key");
   const proposed = ok(await call(q("/v1/pilot/import-corrections"), "POST", proposal, { key: key() }));
+  const recovery = { proposalDigest: proposed.proposalDigest, expectedAssignmentEventId: null, reviewer: 'Sandbox Finance', reason: 'Inspect the recovery request contract before reassignment.' };
+  refusedFor(await call(q(`/v1/pilot/import-corrections/${proposed.id}/recovery`), 'POST', recovery), 400, 'Idempotency-Key');
+  assert.equal((await call(q(`/v1/pilot/import-corrections/${proposed.id}/recovery`), 'POST', recovery, { key: key() })).status, 409, 'Reassignment must name a different Finance reviewer; this sandbox has only one.');
   ok(await call(q(`/v1/pilot/import-corrections/${proposed.id}/decision`), "POST", { proposalDigest: proposed.proposalDigest, action: "withdraw", reason: "Withdrawn at the end of the contract check." }, { key: key() }));
 
   // ---- Connected workspace: a read, an action with its required key, and a cash outcome ----
@@ -236,6 +239,12 @@ try {
   const completed = journal.items.find((item: any) => item.status === "completed" && item.recordId === record.id);
   assert.ok(completed, "the keyed record save is in the journal");
   assert.equal(ok(await call(q(`/v1/operations/${completed.id}/retry`), "POST")).id, record.id);
+  const reloadIdentity = { key: keyed, method: 'POST', path: '/v1/records/customers' };
+  assert.equal(ok(await call(q('/v1/operations/lookup'), 'POST', reloadIdentity)).operation.recordId, record.id);
+  const notReceivedIdentity = { ...reloadIdentity, key: randomUUID() };
+  assert.equal(ok(await call(q('/v1/operations/lookup'), 'POST', notReceivedIdentity)).operation, null);
+  assert.match(ok(await call(q('/v1/operations/cancel-unreceived'), 'POST', notReceivedIdentity)).message, /cannot run/);
+  assert.equal(ok(await call(q('/v1/operations/lookup'), 'POST', notReceivedIdentity)).operation.status, 'cancelled');
   const sandboxRequest = () => ({ headers: { cookie }, secure: false, auth: Object.assign(() => ({ userId: null }), { [Symbol.for("@clerk/express.auth")]: true }) }) as any;
   const response = { cookie() {} } as any;
   const { id: pendingId } = await store.inWorkspace(sandboxRequest(), response, (ctx) => store.prepareOperation(ctx, lender, key(), { method: "POST", path: "/v1/records/customers", body: { name: "Never sent" } }));
@@ -258,7 +267,7 @@ try {
   const closes = ok(await call(q("/v1/close-history")));
   ok(await call(q(`/v1/close-history/${closes.items[0].id}`)));
   const reviews = ok(await call(q("/v1/pilot/close-reviews")));
-  const entry = reviews.closes[0];
+  const entry = ok(await call(q(`/v1/pilot/close-reviews/${reviews.closes[0].id}`))).entry;
   if (!entry.problem) {
     const prepare = { closeId: entry.close.id, expectedUpdatedAt: withOffset(entry.close.updatedAt), reviewer: "Sandbox Finance", preparationNote: "Prepared for the contract check.", discrepancyResponses: entry.issues.map((issue: any) => ({ issueId: issue.id, explanation: "Explained for the contract check." })), unresolvedAcceptance: "Owners and next steps recorded for the contract check." };
     refusedFor(await call(q("/v1/pilot/close-reviews/prepare"), "POST", prepare), 400, "Idempotency-Key");
@@ -449,6 +458,8 @@ try {
     "GET /v1/exports/{id}/download", // needs private object storage: tests/export-streams.integration.test.ts
     "POST /v1/team/readiness/encryption", "POST /v1/team/readiness/protect", // need a managed key
     "POST /v1/pilot/close-reviews/{id}/decision", // needs a second person: tests/source-close-controls.integration.test.ts
+    "POST /v1/pilot/close-reviews/{id}/reassign", // needs independent active staff: tests/source-close-controls.integration.test.ts
+    "POST /v1/pilot/import-corrections/{id}/recovery", // needs a second Finance reviewer: success, immutable history and replay checked in tests/source-close-controls.integration.test.ts
   ].includes(name));
   const missing = expected.filter((name) => !answered.get(name)?.has(200));
   assert.deepEqual(missing, [], "every console-facing operation answered with its described shape");

@@ -2,8 +2,9 @@ import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest';
 import {installFakeApi,type FakeApi} from './fake-api';
 import {renderApp,screen,userEvent,waitFor,within} from './harness';
 import { queueExport } from '../../api-server/src/lib/export-jobs';
+import { cancelInterrupted, unreceivedRecovery } from './unreceived-recovery';
 let api:FakeApi;
-beforeEach(()=>{api=installFakeApi({queuedExports:true});vi.spyOn(window,'open').mockReturnValue(null);});
+beforeEach(()=>{api=installFakeApi({queuedExports:true});unreceivedRecovery(api);vi.spyOn(window,'open').mockReturnValue(null);});
 afterEach(()=>api.uninstall());
 describe('saved background exports',()=>{
  it('keeps the original file format during uncertain request recovery',async()=>{
@@ -41,6 +42,7 @@ describe('saved background exports',()=>{
   // The notice went with its button: focus is on the export's own buttons again, not on the page.
   await waitFor(()=>expect(document.activeElement).toBe(screen.getByRole('button',{name:'JSON'})));
   expect(screen.getByRole('button',{name:'JSON'}).hasAttribute('disabled')).toBe(false);
+  await cancelInterrupted(user);
   await user.click(screen.getByRole('button',{name:'JSON'}));
   expect(await screen.findByText('Dispute pack is queued')).toBeTruthy();
   expect(keys).toHaveLength(2);

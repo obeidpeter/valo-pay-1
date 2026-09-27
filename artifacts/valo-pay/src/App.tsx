@@ -18,6 +18,7 @@ import {
 import { AuthProvider } from '@/lib/auth';
 
 import { WorkspaceProvider } from '@/lib/workspace-context';
+import { SubmissionRecoveryProvider } from '@/lib/submission-recovery';
 import { Layout } from '@/components/layout';
 import { PresentationProvider } from '@/components/presentation-guide';
 
@@ -170,6 +171,7 @@ function Console() {
   if (!known) return <NotFoundPage />;
   return (
     <WorkspaceProvider>
+      <SubmissionRecoveryProvider>
       <PresentationProvider>
       <Layout>
         {/* A page's code arrives on its first visit; the sidebar and the lender stay meanwhile, and the
@@ -180,6 +182,7 @@ function Console() {
         <Prefetch pages={consolePages} />
       </Layout>
       </PresentationProvider>
+      </SubmissionRecoveryProvider>
     </WorkspaceProvider>
   );
 }

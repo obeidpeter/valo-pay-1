@@ -4816,6 +4816,354 @@
         "description": "Runs inside the existing merchant transaction and audit boundary. Role, purpose, subject, expiry, ownership and version checks apply. Unknown payment outcomes hold retries. A repeat with the same key is answered before the revision is checked. No bank, credit bureau, accounting or tax endpoint is called."
       }
     },
+    "/v1/operations/lookup": {
+      "post": {
+        "operationId": "lookupOwnOperation",
+        "tags": [
+          "valopay"
+        ],
+        "parameters": [
+          {
+            "name": "merchantId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "description": "The lender (a merchant in the API) the request is scoped to; one of the caller's workspace merchants. Missing or empty, the request is refused with 400 naming merchantId, on every operation."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationLookup"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Refused: a parameter, header or body field failed validation (details names at most 20 of them, detailCount how many there were), the path's percent-encoding cannot be decoded, the body is not valid JSON, is nested more than 32 levels deep (refused from its bytes before it is parsed) or holds a NUL character or an unpaired surrogate, or a rule refused the request in its own words. Nothing was saved.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required: a staff host answers only a signed-in pilot staff session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Refused: another origin, or the caller's role, membership, lender access, recent MFA or a readiness gate does not allow it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found in the caller's workspace: the lender, or a record the path or the body names (an action's recordId, a customerId, a linked record, an export's close review, a retention run).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: what the request names changed since it was read, its Idempotency-Key belongs to another request or its journal entry is cancelled, or the change conflicts with saved records. Nothing was saved.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The body is larger than 2 MB, or holds more than 10,000 values (every object, list, text, number, true, false and null in it), counted from its bytes before it is parsed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "The body is not JSON (a form or text body is refused), its character set is not UTF-8, or it is compressed (any Content-Encoding but identity, refused before it is read, with Accept-Encoding: identity); send uncompressed UTF-8 JSON as application/json.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "headers": {
+              "Accept-Encoding": {
+                "description": "identity: sent when the body was refused for its Content-Encoding, naming the one coding the service reads.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "identity"
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: more than 300 a minute for this client (a signed-in person, a sandbox this server has served, or otherwise the client's network: an IPv4 address or an IPv6 /64), more than 1,200 a minute from its network, or too many new sandboxes from its network or on this server (try again in an hour).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait: 60 after the request limit, 3600 after the new-sandbox limit.",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The service failed. With committed false nothing was saved (for a request with an Idempotency-Key, nothing sent with the key); with operation completed a request with the key was saved; otherwise the outcome is unconfirmed: check Operations, or repeat the same request with its Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Busy or unavailable: a database limit turned the request away (a busy lender or workspace, a lock or statement past its limit, a lost or unavailable connection), the same request is still running (operation running), or a service it needs is unavailable or not configured: the key service, or private storage or the identity provider out of reach. committed false says nothing was saved (for a request with an Idempotency-Key, nothing sent with the key); operation completed says a request with the key was saved.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before trying again: sent when a database limit turned the request away, the same request is still running, or private storage or the identity provider could not be reached or said it is unavailable; absent when a service it needs is not configured, or the key service cannot open protected data.",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OperationLookupInput"
+              }
+            }
+          }
+        },
+        "summary": "Check an interrupted submission",
+        "description": "Read-only lookup of the caller’s exact key in this lender and role. Absence does not prove a delayed request cannot arrive."
+      }
+    },
+    "/v1/operations/cancel-unreceived": {
+      "post": {
+        "operationId": "cancelOwnOperation",
+        "tags": [
+          "valopay"
+        ],
+        "parameters": [
+          {
+            "name": "merchantId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "description": "The lender (a merchant in the API) the request is scoped to; one of the caller's workspace merchants. Missing or empty, the request is refused with 400 naming merchantId, on every operation."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Refused: a parameter, header or body field failed validation (details names at most 20 of them, detailCount how many there were), the path's percent-encoding cannot be decoded, the body is not valid JSON, is nested more than 32 levels deep (refused from its bytes before it is parsed) or holds a NUL character or an unpaired surrogate, or a rule refused the request in its own words. Nothing was saved.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required: a staff host answers only a signed-in pilot staff session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Refused: another origin, or the caller's role, membership, lender access, recent MFA or a readiness gate does not allow it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found in the caller's workspace: the lender, or a record the path or the body names (an action's recordId, a customerId, a linked record, an export's close review, a retention run).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: what the request names changed since it was read, its Idempotency-Key belongs to another request or its journal entry is cancelled, or the change conflicts with saved records. Nothing was saved.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The body is larger than 2 MB, or holds more than 10,000 values (every object, list, text, number, true, false and null in it), counted from its bytes before it is parsed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "The body is not JSON (a form or text body is refused), its character set is not UTF-8, or it is compressed (any Content-Encoding but identity, refused before it is read, with Accept-Encoding: identity); send uncompressed UTF-8 JSON as application/json.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "headers": {
+              "Accept-Encoding": {
+                "description": "identity: sent when the body was refused for its Content-Encoding, naming the one coding the service reads.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "identity"
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: more than 300 a minute for this client (a signed-in person, a sandbox this server has served, or otherwise the client's network: an IPv4 address or an IPv6 /64), more than 1,200 a minute from its network, or too many new sandboxes from its network or on this server (try again in an hour).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait: 60 after the request limit, 3600 after the new-sandbox limit.",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The service failed. With committed false nothing was saved (for a request with an Idempotency-Key, nothing sent with the key); with operation completed a request with the key was saved; otherwise the outcome is unconfirmed: check Operations, or repeat the same request with its Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Busy or unavailable: a database limit turned the request away (a busy lender or workspace, a lock or statement past its limit, a lost or unavailable connection), the same request is still running (operation running), or a service it needs is unavailable or not configured: the key service, or private storage or the identity provider out of reach. committed false says nothing was saved (for a request with an Idempotency-Key, nothing sent with the key); operation completed says a request with the key was saved.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before trying again: sent when a database limit turned the request away, the same request is still running, or private storage or the identity provider could not be reached or said it is unavailable; absent when a service it needs is not configured, or the key service cannot open protected data.",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OperationLookupInput"
+              }
+            }
+          }
+        },
+        "summary": "Cancel an interrupted submission safely",
+        "description": "Refuses a completed request or existing receipt. If not yet received, records a terminal fence so a delayed copy cannot execute."
+      }
+    },
     "/v1/operations": {
       "get": {
         "operationId": "listOperations",
@@ -9348,6 +9696,35 @@
               "maxLength": 100
             },
             "description": "The lender (a merchant in the API) the request is scoped to; one of the caller's workspace merchants. Missing or empty, the request is refused with 400 naming merchantId, on every operation."
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            "description": "Zero-based offset into the filtered history."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 25
+            },
+            "description": "Maximum number of close summaries on this page; defaults to 25."
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Literal close name, reference or business-date search."
           }
         ],
         "responses": {
@@ -9356,7 +9733,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CloseReviewList"
+                  "$ref": "#/components/schemas/CloseReviewHistory"
                 }
               }
             }
@@ -9460,8 +9837,412 @@
             }
           }
         },
-        "summary": "List closes and their reviews",
-        "description": "Newest 25 closes with their discrepancies, review state and the available Finance reviewers."
+        "summary": "Search close history",
+        "description": "Paged history summaries. Open any historical close by its own detail route, regardless of this page."
+      }
+    },
+    "/v1/pilot/close-reviews/{id}": {
+      "get": {
+        "operationId": "getCloseReview",
+        "tags": [
+          "valopay"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "description": "The record's id."
+          },
+          {
+            "name": "merchantId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "description": "The lender (a merchant in the API) the request is scoped to; one of the caller's workspace merchants. Missing or empty, the request is refused with 400 naming merchantId, on every operation."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloseReviewDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Refused: a parameter, header or body field failed validation (details names at most 20 of them, detailCount how many there were), the path's percent-encoding cannot be decoded, the body is not valid JSON, is nested more than 32 levels deep (refused from its bytes before it is parsed) or holds a NUL character or an unpaired surrogate, or a rule refused the request in its own words. Nothing was saved.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required: a staff host answers only a signed-in pilot staff session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Refused: another origin, or the caller's role, membership, lender access, recent MFA or a readiness gate does not allow it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found in the caller's workspace: the lender, or a record the path or the body names (an action's recordId, a customerId, a linked record, an export's close review, a retention run).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: what the request names changed since it was read, its Idempotency-Key belongs to another request or its journal entry is cancelled, or the change conflicts with saved records. Nothing was saved.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: more than 300 a minute for this client (a signed-in person, a sandbox this server has served, or otherwise the client's network: an IPv4 address or an IPv6 /64), more than 1,200 a minute from its network, or too many new sandboxes from its network or on this server (try again in an hour).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait: 60 after the request limit, 3600 after the new-sandbox limit.",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The service could not prepare this answer; a read changes nothing, so it can be tried again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Busy or unavailable: a database limit turned the request away (a busy lender or workspace, a lock or statement past its limit, a lost or unavailable connection), the same request is still running (operation running), or a service it needs is unavailable or not configured: the key service, or private storage or the identity provider out of reach. committed false says nothing was saved (for a request with an Idempotency-Key, nothing sent with the key); operation completed says a request with the key was saved.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before trying again: sent when a database limit turned the request away, the same request is still running, or private storage or the identity provider could not be reached or said it is unavailable; absent when a service it needs is not configured, or the key service cannot open protected data.",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            }
+          }
+        },
+        "summary": "Read a historical close",
+        "description": "Full recorded financial evidence, decisions and assignments for one lender-scoped close. Historical access does not relax approval currency checks."
+      }
+    },
+    "/v1/pilot/close-reviews/{id}/reassign": {
+      "post": {
+        "operationId": "reassignCloseReview",
+        "tags": [
+          "valopay"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "description": "The record's id."
+          },
+          {
+            "name": "merchantId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "description": "The lender (a merchant in the API) the request is scoped to; one of the caller's workspace merchants. Missing or empty, the request is refused with 400 naming merchantId, on every operation."
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 200
+            },
+            "description": "Required: a request without one is refused (400, naming the header). 8 to 200 characters, one per unchanged intention. The same key with different input is refused (409). A key whose request was refused cannot run again: its journal entry is closed. A repeat after a lost answer returns the original result, checked before the version; once the lender's retention policy has removed that stored result, the repeat is refused (410). A repeat while the request is still running is answered 503 with Retry-After and operation running, and leaves it to finish. The result is kept with the request's journal entry, so a key names one request of the person who sent it, in its lender."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValopayRecord"
+                }
+              }
+            },
+            "headers": {
+              "X-Valopay-Operation": {
+                "$ref": "#/components/headers/X-Valopay-Operation"
+              }
+            }
+          },
+          "400": {
+            "description": "Refused: a parameter, header or body field failed validation (details names at most 20 of them, detailCount how many there were), the path's percent-encoding cannot be decoded, the body is not valid JSON, is nested more than 32 levels deep (refused from its bytes before it is parsed) or holds a NUL character or an unpaired surrogate, or a rule refused the request in its own words. Nothing was saved.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "headers": {
+              "X-Valopay-Operation": {
+                "$ref": "#/components/headers/X-Valopay-Operation"
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required: a staff host answers only a signed-in pilot staff session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "headers": {
+              "X-Valopay-Operation": {
+                "$ref": "#/components/headers/X-Valopay-Operation"
+              }
+            }
+          },
+          "403": {
+            "description": "Refused: another origin, or the caller's role, membership, lender access, recent MFA or a readiness gate does not allow it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "headers": {
+              "X-Valopay-Operation": {
+                "$ref": "#/components/headers/X-Valopay-Operation"
+              }
+            }
+          },
+          "404": {
+            "description": "Not found in the caller's workspace: the lender, or a record the path or the body names (an action's recordId, a customerId, a linked record, an export's close review, a retention run).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "headers": {
+              "X-Valopay-Operation": {
+                "$ref": "#/components/headers/X-Valopay-Operation"
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: what the request names changed since it was read, its Idempotency-Key belongs to another request or its journal entry is cancelled, or the change conflicts with saved records. Nothing was saved.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "headers": {
+              "X-Valopay-Operation": {
+                "$ref": "#/components/headers/X-Valopay-Operation"
+              }
+            }
+          },
+          "410": {
+            "description": "Gone: a request with this Idempotency-Key already completed, and the lender's retention policy has since removed its stored result, so it cannot run again. Its entry in Operations remains.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "headers": {
+              "X-Valopay-Operation": {
+                "$ref": "#/components/headers/X-Valopay-Operation"
+              }
+            }
+          },
+          "413": {
+            "description": "The body is larger than 2 MB, or holds more than 10,000 values (every object, list, text, number, true, false and null in it), counted from its bytes before it is parsed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "headers": {
+              "X-Valopay-Operation": {
+                "$ref": "#/components/headers/X-Valopay-Operation"
+              }
+            }
+          },
+          "415": {
+            "description": "The body is not JSON (a form or text body is refused), its character set is not UTF-8, or it is compressed (any Content-Encoding but identity, refused before it is read, with Accept-Encoding: identity); send uncompressed UTF-8 JSON as application/json.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "headers": {
+              "Accept-Encoding": {
+                "description": "identity: sent when the body was refused for its Content-Encoding, naming the one coding the service reads.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "identity"
+                  ]
+                }
+              },
+              "X-Valopay-Operation": {
+                "$ref": "#/components/headers/X-Valopay-Operation"
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: more than 300 a minute for this client (a signed-in person, a sandbox this server has served, or otherwise the client's network: an IPv4 address or an IPv6 /64), more than 1,200 a minute from its network, or too many new sandboxes from its network or on this server (try again in an hour).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait: 60 after the request limit, 3600 after the new-sandbox limit.",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "X-Valopay-Operation": {
+                "$ref": "#/components/headers/X-Valopay-Operation"
+              }
+            }
+          },
+          "500": {
+            "description": "The service failed. With committed false nothing was saved (for a request with an Idempotency-Key, nothing sent with the key); with operation completed a request with the key was saved; otherwise the outcome is unconfirmed: check Operations, or repeat the same request with its Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "headers": {
+              "X-Valopay-Operation": {
+                "$ref": "#/components/headers/X-Valopay-Operation"
+              }
+            }
+          },
+          "503": {
+            "description": "Busy or unavailable: a database limit turned the request away (a busy lender or workspace, a lock or statement past its limit, a lost or unavailable connection), the same request is still running (operation running), or a service it needs is unavailable or not configured: the key service, or private storage or the identity provider out of reach. committed false says nothing was saved (for a request with an Idempotency-Key, nothing sent with the key); operation completed says a request with the key was saved.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before trying again: sent when a database limit turned the request away, the same request is still running, or private storage or the identity provider could not be reached or said it is unavailable; absent when a service it needs is not configured, or the key service cannot open protected data.",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "X-Valopay-Operation": {
+                "$ref": "#/components/headers/X-Valopay-Operation"
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReassignCloseReviewInput"
+              }
+            }
+          }
+        },
+        "summary": "Reassign a pending close review",
+        "description": "Admin only; active independent Finance reviewer, current version and reason required. Prepared evidence remains immutable."
       }
     },
     "/v1/pilot/close-reviews/prepare": {
@@ -10796,6 +11577,266 @@
         },
         "summary": "Decide an import correction",
         "description": "Only the named reviewer approves or rejects; the proposer may withdraw. Approval applies the change only while the comparison is current."
+      }
+    },
+    "/v1/pilot/import-corrections/{id}/recovery": {
+      "post": {
+        "operationId": "recoverImportCorrection",
+        "tags": [
+          "valopay"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "description": "The record's id."
+          },
+          {
+            "name": "merchantId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "description": "The lender (a merchant in the API) the request is scoped to; one of the caller's workspace merchants. Missing or empty, the request is refused with 400 naming merchantId, on every operation."
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 200
+            },
+            "description": "Required: a request without one is refused (400, naming the header). 8 to 200 characters, one per unchanged intention. The same key with different input is refused (409). A key whose request was refused cannot run again: its journal entry is closed. A repeat after a lost answer returns the original result, checked before the version; once the lender's retention policy has removed that stored result, the repeat is refused (410). A repeat while the request is still running is answered 503 with Retry-After and operation running, and leaves it to finish. The result is kept with the request's journal entry, so a key names one request of the person who sent it, in its lender."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportCorrectionView"
+                }
+              }
+            },
+            "headers": {
+              "X-Valopay-Operation": {
+                "$ref": "#/components/headers/X-Valopay-Operation"
+              }
+            }
+          },
+          "400": {
+            "description": "Refused: a parameter, header or body field failed validation (details names at most 20 of them, detailCount how many there were), the path's percent-encoding cannot be decoded, the body is not valid JSON, is nested more than 32 levels deep (refused from its bytes before it is parsed) or holds a NUL character or an unpaired surrogate, or a rule refused the request in its own words. Nothing was saved.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "headers": {
+              "X-Valopay-Operation": {
+                "$ref": "#/components/headers/X-Valopay-Operation"
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required: a staff host answers only a signed-in pilot staff session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "headers": {
+              "X-Valopay-Operation": {
+                "$ref": "#/components/headers/X-Valopay-Operation"
+              }
+            }
+          },
+          "403": {
+            "description": "Refused: another origin, or the caller's role, membership, lender access, recent MFA or a readiness gate does not allow it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "headers": {
+              "X-Valopay-Operation": {
+                "$ref": "#/components/headers/X-Valopay-Operation"
+              }
+            }
+          },
+          "404": {
+            "description": "Not found in the caller's workspace: the lender, or a record the path or the body names (an action's recordId, a customerId, a linked record, an export's close review, a retention run).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "headers": {
+              "X-Valopay-Operation": {
+                "$ref": "#/components/headers/X-Valopay-Operation"
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: what the request names changed since it was read, its Idempotency-Key belongs to another request or its journal entry is cancelled, or the change conflicts with saved records. Nothing was saved.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "headers": {
+              "X-Valopay-Operation": {
+                "$ref": "#/components/headers/X-Valopay-Operation"
+              }
+            }
+          },
+          "410": {
+            "description": "Gone: a request with this Idempotency-Key already completed, and the lender's retention policy has since removed its stored result, so it cannot run again. Its entry in Operations remains.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "headers": {
+              "X-Valopay-Operation": {
+                "$ref": "#/components/headers/X-Valopay-Operation"
+              }
+            }
+          },
+          "413": {
+            "description": "The body is larger than 2 MB, or holds more than 10,000 values (every object, list, text, number, true, false and null in it), counted from its bytes before it is parsed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "headers": {
+              "X-Valopay-Operation": {
+                "$ref": "#/components/headers/X-Valopay-Operation"
+              }
+            }
+          },
+          "415": {
+            "description": "The body is not JSON (a form or text body is refused), its character set is not UTF-8, or it is compressed (any Content-Encoding but identity, refused before it is read, with Accept-Encoding: identity); send uncompressed UTF-8 JSON as application/json.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "headers": {
+              "Accept-Encoding": {
+                "description": "identity: sent when the body was refused for its Content-Encoding, naming the one coding the service reads.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "identity"
+                  ]
+                }
+              },
+              "X-Valopay-Operation": {
+                "$ref": "#/components/headers/X-Valopay-Operation"
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: more than 300 a minute for this client (a signed-in person, a sandbox this server has served, or otherwise the client's network: an IPv4 address or an IPv6 /64), more than 1,200 a minute from its network, or too many new sandboxes from its network or on this server (try again in an hour).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait: 60 after the request limit, 3600 after the new-sandbox limit.",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "X-Valopay-Operation": {
+                "$ref": "#/components/headers/X-Valopay-Operation"
+              }
+            }
+          },
+          "500": {
+            "description": "The service failed. With committed false nothing was saved (for a request with an Idempotency-Key, nothing sent with the key); with operation completed a request with the key was saved; otherwise the outcome is unconfirmed: check Operations, or repeat the same request with its Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "headers": {
+              "X-Valopay-Operation": {
+                "$ref": "#/components/headers/X-Valopay-Operation"
+              }
+            }
+          },
+          "503": {
+            "description": "Busy or unavailable: a database limit turned the request away (a busy lender or workspace, a lock or statement past its limit, a lost or unavailable connection), the same request is still running (operation running), or a service it needs is unavailable or not configured: the key service, or private storage or the identity provider out of reach. committed false says nothing was saved (for a request with an Idempotency-Key, nothing sent with the key); operation completed says a request with the key was saved.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before trying again: sent when a database limit turned the request away, the same request is still running, or private storage or the identity provider could not be reached or said it is unavailable; absent when a service it needs is not configured, or the key service cannot open protected data.",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "X-Valopay-Operation": {
+                "$ref": "#/components/headers/X-Valopay-Operation"
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportCorrectionRecoveryInput"
+              }
+            }
+          }
+        },
+        "summary": "Reassign an import correction",
+        "description": "Administrator records a reason and assigns active independent Finance without changing the proposal or its evidence. Stale assignments are refused."
       }
     },
     "/v1/sources": {
@@ -19169,6 +20210,54 @@
         "additionalProperties": false,
         "description": "How many of the caller's requests in the lender wait for confirmation."
       },
+      "OperationLookupInput": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "POST",
+              "PATCH"
+            ]
+          },
+          "path": {
+            "type": "string",
+            "maxLength": 1000,
+            "pattern": "^\\/v1\\/[^?#\\\\\\s]+$"
+          }
+        },
+        "required": [
+          "key",
+          "method",
+          "path"
+        ],
+        "additionalProperties": false,
+        "description": "Opaque request identity retained by the browser for same-form reload recovery. No request body."
+      },
+      "OperationLookup": {
+        "type": "object",
+        "properties": {
+          "operation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OperationView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "operation"
+        ],
+        "additionalProperties": false,
+        "description": "The exact journal entry for this caller and original role, or null if not yet received."
+      },
       "OperationReplayResult": {
         "type": "object",
         "additionalProperties": {},
@@ -20575,6 +21664,178 @@
         "additionalProperties": false,
         "description": "The 25 newest closes with their reviews, the Finance reviewers available and who the caller is, so the console can enforce separation of duties."
       },
+      "CloseReviewHistory": {
+        "type": "object",
+        "properties": {
+          "closes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 100
+                },
+                "name": {
+                  "type": "string"
+                },
+                "reference": {
+                  "type": "string"
+                },
+                "createdAt": {
+                  "type": "string"
+                },
+                "businessDate": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "reviewStatus": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "latest": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "reference",
+                "createdAt",
+                "businessDate",
+                "reviewStatus",
+                "latest"
+              ],
+              "additionalProperties": false
+            },
+            "maxItems": 25
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 25
+          }
+        },
+        "required": [
+          "closes",
+          "total",
+          "offset",
+          "limit"
+        ],
+        "additionalProperties": false,
+        "description": "Bounded searchable close history without full reports or frozen review snapshots."
+      },
+      "CloseReviewDetail": {
+        "type": "object",
+        "properties": {
+          "entry": {
+            "$ref": "#/components/schemas/CloseReviewEntry"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ValopayRecord"
+            }
+          },
+          "actor": {
+            "type": "string"
+          },
+          "reviewers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Assignee"
+            }
+          },
+          "accessMode": {
+            "type": "string",
+            "enum": [
+              "sandbox",
+              "staff"
+            ]
+          },
+          "ownPrincipal": {
+            "type": "string"
+          },
+          "pendingCorrections": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 100
+                },
+                "batchId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 100
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "batchId",
+                "name"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "entry",
+          "events",
+          "actor",
+          "reviewers",
+          "accessMode",
+          "ownPrincipal",
+          "pendingCorrections"
+        ],
+        "additionalProperties": false,
+        "description": "One historical close, full recorded report, reviews, assignment events and pending correction links, scoped to the lender."
+      },
+      "ReassignCloseReviewInput": {
+        "type": "object",
+        "properties": {
+          "expectedUpdatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "An RFC 3339 date and time with Z or an offset, such as 2026-09-18T08:00:00+01:00. The service stores and compares the UTC instant."
+          },
+          "reviewer": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 3000
+          }
+        },
+        "required": [
+          "expectedUpdatedAt",
+          "reviewer",
+          "reason"
+        ],
+        "additionalProperties": false,
+        "description": "Administrator reassignment of a pending review with its current version and an audit reason."
+      },
       "PrepareCloseReviewInput": {
         "type": "object",
         "properties": {
@@ -20981,6 +22242,14 @@
             "type": "string",
             "pattern": "^[a-f0-9]{64}$"
           },
+          "assignmentEventId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 100
+          },
           "action": {
             "type": "string",
             "enum": [
@@ -21003,6 +22272,41 @@
         "additionalProperties": false,
         "description": "Approve, reject or withdraw, quoting the proposal digest, with a reason."
       },
+      "ImportCorrectionRecoveryInput": {
+        "type": "object",
+        "properties": {
+          "proposalDigest": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "expectedAssignmentEventId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "reviewer": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 180
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "proposalDigest",
+          "expectedAssignmentEventId",
+          "reviewer",
+          "reason"
+        ],
+        "additionalProperties": false,
+        "description": "Administrator reassignment with proposal digest, current assignment event, independent reviewer and reason."
+      },
       "ImportCorrectionView": {
         "type": "object",
         "properties": {
@@ -21023,6 +22327,55 @@
           },
           "reviewer": {
             "type": "string"
+          },
+          "originalReviewer": {
+            "type": "string"
+          },
+          "assignmentEventId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "assignmentUpdatedAt": {
+            "type": "string"
+          },
+          "assignmentHistory": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "fromReviewer": {
+                  "type": "string"
+                },
+                "reviewer": {
+                  "type": "string"
+                },
+                "actor": {
+                  "type": "string"
+                },
+                "reason": {
+                  "type": "string"
+                },
+                "at": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "fromReviewer",
+                "reviewer",
+                "actor",
+                "reason",
+                "at"
+              ],
+              "additionalProperties": false
+            },
+            "default": []
           },
           "reason": {
             "type": "string"
@@ -22308,7 +23661,8 @@
                   "enum": [
                     "case",
                     "handover",
-                    "review"
+                    "review",
+                    "correction"
                   ]
                 },
                 "title": {
@@ -22324,6 +23678,10 @@
                 },
                 "assigneeName": {
                   "type": "string"
+                },
+                "waitingSince": {
+                  "type": "string",
+                  "format": "date-time"
                 },
                 "dueAt": {
                   "type": [

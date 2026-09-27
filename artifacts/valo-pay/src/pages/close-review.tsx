@@ -3,32 +3,42 @@ import { Link, useSearchParams } from "wouter";
 import { CheckCircle2, FileCheck2, ShieldCheck } from "lucide-react";
 import { useWorkspace } from "@/lib/workspace-context";
 import { usePilotMutation, usePilotQuery } from "@/lib/pilot";
-import { closeReviewListSchema } from "@workspace/valopay-schema";
+import { closeReviewHistorySchema, closeReviewDetailSchema } from "@workspace/valopay-schema";
 import { confirmUnsavedChanges, useUnsavedChanges } from "@/lib/unsaved-changes";
 import { PilotError, PilotHeading, PilotPanel, RecoveryNotice, pilotField } from "@/components/pilot-ui";
 import { Button } from "@/components/ui/button";
 import { formatCount, formatDate, formatNumber } from "@/lib/formatters";
 import { ExportJobControl } from "@/components/export-job-control";
 import { SourceCompletenessPanel } from "@/components/source-manifest-editor";
+import { CloseStatement } from "@/components/close-statement";
 
 export default function CloseReviewPage() {
-  const { merchantId } = useWorkspace(), query = usePilotQuery("/pilot/close-reviews", closeReviewListSchema), [params] = useSearchParams();
-  const items: any[] = query.data?.closes || [], requested = params.get("close"), selected = items.find(item => item.close.id === requested) || (!requested ? items[0] : undefined);
+  const { merchantId } = useWorkspace(), [params, setParams] = useSearchParams();
+  const search = params.get("search") || "", rawOffset = Number(params.get("offset") || 0), offset = Number.isSafeInteger(rawOffset) && rawOffset >= 0 ? Math.min(rawOffset, 1000000) : 0;
+  const query = usePilotQuery(`/pilot/close-reviews?${new URLSearchParams({ search, offset: String(offset) })}`, closeReviewHistorySchema);
+  const items = query.data?.closes || [], requested = params.get("close"), selectedId = requested || items[0]?.id;
+  const updatePage = (values: Record<string, string | null>) => { if (!confirmUnsavedChanges()) return; setParams(current => { const next = new URLSearchParams(current); for (const [key, value] of Object.entries(values)) value ? next.set(key, value) : next.delete(key); return next; }); };
   return <div className="space-y-6 pb-8">
     <PilotHeading title="Finance close review">Prepare the evidence, explain differences and ask a different Finance user to review it. Every decision refers to one saved close snapshot.</PilotHeading>
     <div className="flex flex-wrap gap-4 text-sm"><Link href="/reports" className="text-primary underline">Run a daily close</Link><Link href="/pilot" className="text-primary underline">View pilot progress</Link><Link href="/operations" className="text-primary underline">Recover a request</Link></div>
     <PilotError error={query.error} retry={() => { void query.refetch(); }} />
     {query.isLoading && <p role="status">Loading close snapshots and Finance decisions…</p>}
-    {query.data?.accessMode !== "staff" && query.data && <section className="rounded-xl border bg-secondary/20 p-4 text-sm"><p className="font-semibold">Independent approval needs two people</p><p className="mt-1 text-muted-foreground">Demo roles belong to the same person. You can prepare the synthetic evidence here, but changing demo roles cannot approve your own close. Configure separate staff accounts to rehearse independent approval.</p></section>}
-    {query.data && !items.length && <PilotPanel title="No close to review"><p className="text-sm text-muted-foreground">Reconcile the sample payments and run a daily close from Reports. Its exact results will appear here for preparation.</p><Link href="/reports" className="inline-flex min-h-11 items-center text-primary underline">Open Reports</Link></PilotPanel>}
-    {!!items.length && <div className="grid min-w-0 gap-6 lg:grid-cols-[15rem_minmax(0,1fr)]">
-      <nav aria-label="Close snapshots" tabIndex={0} className="max-h-80 space-y-2 overflow-y-auto p-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring lg:max-h-[48rem]"><p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Recent snapshots</p>{items.map((item: any, index: number) => <Link key={item.close.id} href={`/close-review?close=${encodeURIComponent(item.close.id)}`} onClick={event => {
+    <form key={`${merchantId}:${search}`} className="flex flex-wrap items-end gap-3" onSubmit={event => { event.preventDefault(); updatePage({ search: String(new FormData(event.currentTarget).get("search") || "").trim(), offset: null }); }}><label className="grow text-sm font-medium">Search close history<input name="search" maxLength={200} defaultValue={search} placeholder="Date, reference, preparer or reviewer" className={pilotField} /></label><Button variant="outline" type="submit">Search history</Button>{search && <Button variant="ghost" type="button" onClick={() => updatePage({ search: null, offset: null })}>Clear search</Button>}</form>
+    {query.data && !items.length && <PilotPanel title={search ? "No matching closes" : "No close to review"}><p className="text-sm text-muted-foreground">{search ? "Try another date, reference or reviewer. A directly linked close remains available below." : "Reconcile the sample payments and run a daily close from Reports. Its exact results will appear here for preparation."}</p><Link href="/reports" className="inline-flex min-h-11 items-center text-primary underline">Open Reports</Link></PilotPanel>}
+    {(!!items.length || requested) && <div className="grid min-w-0 gap-6 lg:grid-cols-[15rem_minmax(0,1fr)]">
+      <div><nav aria-label="Close snapshots" tabIndex={0} className="max-h-80 space-y-2 overflow-y-auto p-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring lg:max-h-[48rem]"><p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Close history</p>{items.map(item => <Link key={item.id} href={`/close-review?${new URLSearchParams({ ...(search ? { search } : {}), ...(offset ? { offset: String(offset) } : {}), close: item.id })}`} onClick={event => {
         // A different query remounts the form without changing the page. Link leaves modified/new-tab clicks native.
-        if (selected?.close.id !== item.close.id && !confirmUnsavedChanges()) event.preventDefault();
-      }} aria-current={selected?.close.id === item.close.id ? "page" : undefined} className={`block rounded-lg border p-3 text-sm ${selected?.close.id === item.close.id ? "border-primary/50 bg-primary/5" : "bg-card"}`}><p className="font-semibold">{index === 0 ? "Latest close" : "Earlier close"}</p><p className="mt-1 text-muted-foreground">{formatDate(item.close.createdAt)}</p><p className="mt-2">{item.reviews[0]?.status === "approved" ? item.reviews[0]?.current ? "Approved · current" : "Approved · historical" : item.reviews[0]?.status === "awaiting_review" ? "Awaiting Finance" : item.reviews[0]?.status === "changes_requested" ? "Changes requested" : "Ready to prepare"}</p></Link>)}{(query.data?.total ?? 0) > items.length && <p className="text-xs text-muted-foreground">Showing the {formatNumber(items.length)} most recent closes. Full close history is in Reports.</p>}</nav>
-      {selected ? <CloseWork key={`${merchantId}:${selected.close.id}`} item={selected} data={query.data} refresh={() => query.refetch()} /> : <PilotPanel title="This close is not in the recent list"><p className="text-sm">Select a recent snapshot, or open Reports to inspect the full close history.</p></PilotPanel>}
+        if (selectedId !== item.id && !confirmUnsavedChanges()) event.preventDefault();
+      }} aria-current={selectedId === item.id ? "page" : undefined} className={`block rounded-lg border p-3 text-sm ${selectedId === item.id ? "border-primary/50 bg-primary/5" : "bg-card"}`}><p className="font-semibold">{item.latest ? "Latest close" : "Earlier close"}</p><p className="mt-1 text-muted-foreground">{formatDate(item.createdAt)}</p><p className="mt-2">{item.reviewStatus === "approved" ? "Approved snapshot" : item.reviewStatus === "awaiting_review" ? "Awaiting Finance" : item.reviewStatus === "changes_requested" ? "Changes requested" : "Not yet reviewed"}</p></Link>)}</nav>
+      {query.data && <div className="mt-4 space-y-3"><p className="text-xs text-muted-foreground">{formatNumber(query.data.total)} matching closes · page {formatNumber(Math.floor(query.data.offset / query.data.limit) + 1)}</p><div className="flex gap-2"><Button variant="outline" disabled={query.isFetching || query.data.offset === 0} onClick={() => updatePage({ offset: String(Math.max(0, query.data!.offset - query.data!.limit)) })}>Previous</Button><Button variant="outline" disabled={query.isFetching || query.data.offset + query.data.limit >= query.data.total} onClick={() => updatePage({ offset: String(query.data!.offset + query.data!.limit) })}>Next</Button></div></div>}</div>
+      {selectedId && <SelectedClose key={`${merchantId}:${selectedId}`} id={selectedId} />}
     </div>}
   </div>;
+}
+
+function SelectedClose({ id }: { id: string }) {
+  const query = usePilotQuery(`/pilot/close-reviews/${encodeURIComponent(id)}`, closeReviewDetailSchema);
+  return <div className="min-w-0 space-y-5"><PilotError error={query.error} retry={() => { void query.refetch(); }} />{query.isLoading && <p role="status">Loading the complete close and its Finance history…</p>}{query.data && <>{query.data.accessMode !== "staff" && <section className="rounded-xl border bg-secondary/20 p-4 text-sm"><p className="font-semibold">Independent approval needs two people</p><p className="mt-1 text-muted-foreground">Demo roles belong to the same person. Configure separate staff accounts to rehearse independent approval.</p></section>}<CloseWork item={query.data.entry} data={query.data} refresh={() => query.refetch()} /></>}</div>;
 }
 
 function CloseWork({ item, data, refresh }: { item: any; data: any; refresh(): Promise<any> }) {
@@ -38,7 +48,8 @@ function CloseWork({ item, data, refresh }: { item: any; data: any; refresh(): P
       <p className="text-sm text-muted-foreground">{close.data.summary || close.name}</p>
       <dl className="grid gap-3 text-sm sm:grid-cols-2"><div><dt className="text-muted-foreground">Recorded at</dt><dd>{formatDate(close.createdAt)}</dd></div><div><dt className="text-muted-foreground">Discrepancies and unresolved items</dt><dd>{formatNumber(item.issues.length)} to explain</dd></div></dl>
       {item.problem && <p role="status" className="rounded-lg border border-warning-border bg-warning/15 p-3 text-sm">{item.problem}</p>}
-      <details className="rounded-lg border p-3"><summary className="min-h-8 cursor-pointer text-sm font-medium">Inspect the complete recorded report</summary><pre className="mt-3 max-h-96 overflow-auto whitespace-pre-wrap break-words text-xs [overflow-wrap:anywhere]">{JSON.stringify(close.data.report, null, 2)}</pre></details>
+      {!!data.pendingCorrections?.length && <div className="rounded-lg border p-3 text-sm"><p className="font-semibold">Corrections needing a decision</p><ul className="mt-2 space-y-2">{data.pendingCorrections.map((correction: any) => <li key={correction.id}><Link className="text-primary underline" href={`/imports?${new URLSearchParams({ batch: correction.batchId, correction: correction.id })}`}>{correction.name || "Review import correction"}</Link></li>)}</ul></div>}
+      <CloseStatement close={close} />
     </PilotPanel>
     {close.data.reviewBasis?.sourceCompleteness && <SourceCompletenessPanel completeness={close.data.reviewBasis.sourceCompleteness} frozen/>}
     {!item.problem && (!review || review.status === "changes_requested") && <PrepareForm key={`${close.id}:${review?.id || "new"}`} item={item} reviewers={data.reviewers} />}
@@ -53,6 +64,8 @@ function CloseWork({ item, data, refresh }: { item: any; data: any; refresh(): P
       {saved.data.decidedAt && <div className="border-t pt-3 text-sm"><p className="font-medium">{saved.data.decidedBy} · {formatDate(saved.data.decidedAt)}</p><p className="mt-2 whitespace-pre-wrap text-muted-foreground">{saved.data.decisionNote}</p></div>}
       {saved.status === "awaiting_review" && workspace?.actor === saved.data.reviewer && workspace?.role === "Finance" && (data.ownPrincipal && data.ownPrincipal === saved.data.preparedPrincipal ? <p className="text-sm text-muted-foreground">You prepared this close. A different staff user must review it; switching roles does not provide independent approval.</p> : <DecisionForm key={`${saved.id}:${saved.updatedAt}`} review={saved} />)}
       {saved.status === "awaiting_review" && workspace?.actor !== saved.data.reviewer && <p className="text-sm text-muted-foreground">Waiting for the named Finance reviewer. They will find this request in My work.</p>}
+      {saved.status === "awaiting_review" && workspace?.role === "Admin" && <ReassignForm key={`assign:${saved.id}:${saved.updatedAt}`} review={saved} reviewers={data.reviewers} />}
+      {!!data.events?.filter((event: any) => event.data.reviewId === saved.id && event.data.action === "reassign").length && <details className="rounded-lg border p-3"><summary className="cursor-pointer text-sm font-medium">Reviewer assignment history</summary><ol className="mt-3 space-y-3 text-sm">{data.events.filter((event: any) => event.data.reviewId === saved.id && event.data.action === "reassign").map((event: any) => <li key={event.id}><p>{event.data.previousReviewer} → {event.data.reviewer}</p><p className="text-muted-foreground">{event.data.actor} · {formatDate(event.createdAt)}</p><p className="whitespace-pre-wrap">{event.data.note}</p></li>)}</ol></details>}
       {saved.status === "approved" && saved.current && <ReviewExport review={saved} />}
     </PilotPanel>)}
     <Button variant="outline" onClick={() => { void refresh(); }}>Refresh review status</Button>
@@ -94,6 +107,13 @@ function DecisionForm({ review }: { review: any }) {
       <Button type="submit" busy={mutation.isPending} disabled={decision === "approve" && (!review.current || !checked)}>{decision === "approve" ? "Record Finance approval" : "Request changes"}</Button>
     </fieldset><RecoveryNotice mutation={mutation} />
   </form>;
+}
+function ReassignForm({ review, reviewers }: { review: any; reviewers: any[] }) {
+  const [reviewer, setReviewer] = useState(""), [reason, setReason] = useState("");
+  const mutation = usePilotMutation(() => { setReviewer(""); setReason(""); });
+  useUnsavedChanges(Boolean(reviewer || reason));
+  const eligible = reviewers.filter(person => person.actor !== review.data.reviewer && person.actor !== review.data.preparedBy && !person.actor.startsWith("Sandbox "));
+  return <details className="rounded-lg border p-3"><summary className="min-h-8 cursor-pointer text-sm font-medium">Reviewer unavailable? Reassign this review</summary><p className="my-3 text-sm text-muted-foreground">An administrator can choose another active Finance colleague. The evidence and original preparation stay unchanged; the new reviewer must make their own decision.</p>{eligible.length ? <form onSubmit={event => { event.preventDefault(); mutation.mutate({ path: `/pilot/close-reviews/${review.id}/reassign`, data: { expectedUpdatedAt: review.updatedAt, reviewer, reason } }); }}><fieldset disabled={mutation.isPending || mutation.hasUnconfirmedOutcome} className="space-y-3"><label className="block text-sm font-medium">Replacement Finance reviewer<select required className={pilotField} value={reviewer} onChange={event => setReviewer(event.target.value)}><option value="">Choose an independent colleague</option>{eligible.map(person => <option key={person.actor} value={person.actor}>{person.name || person.actor}</option>)}</select></label><label className="block text-sm font-medium">Reason for reassignment<textarea required minLength={10} maxLength={3000} rows={3} className={pilotField} value={reason} onChange={event => setReason(event.target.value)} /></label><Button type="submit" busy={mutation.isPending}>Reassign Finance review</Button></fieldset></form> : <p className="text-sm text-muted-foreground">No other independent Finance reviewer has access to this lender. Arrange their staff access in Team before reassigning.</p>}<RecoveryNotice mutation={mutation} /></details>;
 }
 function ReviewExport({ review }: { review: any }) {
   return <div className="space-y-3 border-t pt-4"><p className="flex items-center gap-2 text-sm font-semibold"><CheckCircle2 aria-hidden="true" className="h-4 w-4 text-primary" />3. Export the approved evidence</p><p className="text-sm text-muted-foreground">The JSON and PDF exports include this exact snapshot, its explanations and the named Finance decision.</p><ExportJobControl kind="reviewed-close" closeReviewId={review.id} formats={['json', 'pdf']} label="Generate reviewed close evidence (JSON)" /></div>;

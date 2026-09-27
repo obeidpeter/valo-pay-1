@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { installFakeApi, type FakeApi } from './fake-api';
 import { renderApp, screen, userEvent, waitFor, within } from './harness';
+import { cancelInterrupted, unreceivedRecovery } from './unreceived-recovery';
 
 let api: FakeApi;
-beforeEach(() => { api = installFakeApi(); vi.spyOn(window, 'confirm').mockReturnValue(true); });
+beforeEach(() => { api = installFakeApi(); unreceivedRecovery(api); vi.spyOn(window, 'confirm').mockReturnValue(true); });
 afterEach(() => api.uninstall());
 
 async function customerImport(csv: string) {
@@ -97,6 +98,7 @@ describe('UX-I01 import outcome and correction guidance', () => {
     await user.click(within(notice).getByRole('button', { name: 'Discard original request' }));
     await waitFor(() => expect(screen.queryByText('Import outcome not confirmed')).toBeNull());
     expect(screen.getByLabelText('CSV content')).toHaveProperty('disabled', false);
+    await cancelInterrupted(user);
     await user.click(screen.getByRole('button', { name: 'Import data' }));
     await screen.findByRole('heading', { name: 'Import results' });
     expect(keys).toHaveLength(2);

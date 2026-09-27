@@ -6,6 +6,7 @@
  * OpenAPI spec version: 1.1.0
  */
 import type { ImportCorrectionPreview } from './importCorrectionPreview';
+import type { ImportCorrectionViewAssignmentHistoryItem } from './importCorrectionViewAssignmentHistoryItem';
 import type { ImportCorrectionViewDecision } from './importCorrectionViewDecision';
 import type { ImportCorrectionViewStatus } from './importCorrectionViewStatus';
 
@@ -19,6 +20,11 @@ export interface ImportCorrectionView {
   proposedBy: string;
   proposedPrincipal: string;
   reviewer: string;
+  originalReviewer?: string;
+  /** @nullable */
+  assignmentEventId?: string | null;
+  assignmentUpdatedAt?: string;
+  assignmentHistory?: ImportCorrectionViewAssignmentHistoryItem[];
   reason: string;
   evidence: string;
   proposalDigest: string;

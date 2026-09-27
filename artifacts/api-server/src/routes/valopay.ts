@@ -62,7 +62,7 @@ export type AuditInput = { action?: string; recordId?: string; reason?: string }
  * the record the write changed (auditObject), and its summary is the reason
  * the route's own schema carries, passed in `audit`, or the default.
  */
-export async function withState<S extends z.ZodTypeAny>(req:Request,res:Response,operation:(state:DomainState,context:StoreContext)=>unknown,mutating:boolean,responseSchema:S,audit:AuditInput={},options:{wholeCloses?:number}={}):Promise<z.output<S>>{
+export async function withState<S extends z.ZodTypeAny>(req:Request,res:Response,operation:(state:DomainState,context:StoreContext)=>unknown,mutating:boolean,responseSchema:S,audit:AuditInput={},options:{wholeCloses?:number;wholeCloseIds?:string[];closeReviewIds?:string[]}={}):Promise<z.output<S>>{
  const {merchantId}=lenderQuery(req);
  // A write's key is checked by name before anything runs; a read ignores one, and nothing of a read is fingerprinted.
  const key=mutating?optionalKey(req):undefined;

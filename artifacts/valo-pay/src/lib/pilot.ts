@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { z, ZodTypeAny } from "zod";
 import { useWorkspace } from "./workspace-context";
 import { keepRowsWhilePaging } from "./use-record-pagination";
-import { useSafeMutation } from "./safe-mutations";
+import { submissionIdentity, useSafeMutation } from "./safe-mutations";
 import { answerProblem, INCOMPLETE_CONFIRMATION, readAnswer, UNREADABLE_ANSWER } from "./answers";
 import {
   encryptionVerificationSchema, importCorrectionViewSchema, invitationCreatedSchema, lifecycleRunViewSchema, lifecycleViewSchema, merchantSchema,
@@ -75,8 +75,8 @@ const receipts: Array<{ path: RegExp; schema: ZodTypeAny; matches?: (answer: Rec
   { path: /^\/pilot\/lenders$/, schema: merchantSchema },
   { path: /^\/pilot\/batches(?:\/[^/]+\/(?:save|commit))?$/, schema: valopayRecordSchema, matches: (answer, _input, merchantId) => answer.kind === "import-batches" && answer.merchantId === merchantId },
   { path: /^\/pilot\/cases\/[^/]+$/, schema: valopayRecordSchema, matches: (answer, _input, merchantId) => answer.kind === "exceptions" && answer.merchantId === merchantId },
-  { path: /^\/pilot\/close-reviews\/(?:prepare|[^/]+\/decision)$/, schema: valopayRecordSchema, matches: (answer, _input, merchantId) => answer.kind === "close-reviews" && answer.merchantId === merchantId },
-  { path: /^\/pilot\/import-corrections(?:\/[^/]+\/decision)?$/, schema: importCorrectionViewSchema, matches: (answer, input, merchantId) => answer.merchantId === merchantId && (!input.batchId || answer.preview?.batchId === input.batchId) && (!input.targetId || answer.preview?.targetId === input.targetId) && (!input.proposalDigest || answer.proposalDigest === input.proposalDigest) },
+  { path: /^\/pilot\/close-reviews\/(?:prepare|[^/]+\/(?:decision|reassign))$/, schema: valopayRecordSchema, matches: (answer, _input, merchantId) => answer.kind === "close-reviews" && answer.merchantId === merchantId },
+  { path: /^\/pilot\/import-corrections(?:\/[^/]+\/(?:decision|recovery))?$/, schema: importCorrectionViewSchema, matches: (answer, input, merchantId) => answer.merchantId === merchantId && (!input.batchId || answer.preview?.batchId === input.batchId) && (!input.targetId || answer.preview?.targetId === input.targetId) && (!input.proposalDigest || answer.proposalDigest === input.proposalDigest) },
   { path: /^\/sources\/profiles(?:\/[^/]+\/save)?$/, schema: valopayRecordSchema, matches: (answer, _input, merchantId) => answer.kind === "source-profiles" && answer.merchantId === merchantId },
   { path: /^\/sources\/manifests$/, schema: valopayRecordSchema, matches: (answer, _input, merchantId) => answer.kind === "source-manifests" && answer.merchantId === merchantId },
   { path: /^\/sources\/paystack\/fixtures$/, schema: paystackFixtureResultSchema, matches: (answer) => answer.event?.mode === "fixture" },
@@ -130,6 +130,7 @@ export function usePilotMutation(onSuccess?: (data: any) => void) {
       return result;
     },
     {
+      recovery: v => v.lender === false ? null : submissionIdentity(v.method || 'POST', `/v1${v.path}`, merchantId || '', v.data),
       mutation: {
         onSuccess: (data) => {
           void cache.invalidateQueries();

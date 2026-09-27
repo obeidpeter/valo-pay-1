@@ -13,6 +13,12 @@ import type { ImportCorrectionDecisionInputAction } from './importCorrectionDeci
 export interface ImportCorrectionDecisionInput {
   /** @pattern ^[a-f0-9]{64}$ */
   proposalDigest: string;
+  /**
+     * @minLength 1
+     * @maxLength 100
+     * @nullable
+     */
+  assignmentEventId?: string | null;
   action: ImportCorrectionDecisionInputAction;
   /**
      * @minLength 10

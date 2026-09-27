@@ -35,6 +35,7 @@ export type PersonalWorkViewItemsItem = {
      */
   assignee: string;
   assigneeName: string;
+  waitingSince?: Date;
   /** @nullable */
   dueAt: Date | null;
   overdue: boolean;

@@ -13,4 +13,5 @@ export const PersonalWorkViewItemsItemType = {
   case: 'case',
   handover: 'handover',
   review: 'review',
+  correction: 'correction',
 } as const;
