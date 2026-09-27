@@ -2542,10 +2542,10 @@ export async function merchantInWorkspace(merchantId: string, workspaceId: strin
  * failed attempt after the rest; one lender per workspace per turn, so one
  * workspace's many lenders never hold another's back; then the earliest
  * time.  A lender waiting for its retry time is not due.  Each says whether
- * it is a public anonymous sandbox's (settings.anonymousWorkspace, set only
- * where a visitor's sandbox is seeded or creates a lender), whose failed close
- * a pass counts apart.  `exclude` leaves out lenders a pass has already dealt
- * with; `only` limits the read to the lenders named (tests and operator
+ * it is a public anonymous sandbox (settings.anonymousWorkspace, set only when
+ * a visitor's sandbox is seeded with a lender or creates one), whose failed
+ * close a pass counts apart.  `exclude` leaves out lenders a pass has already
+ * dealt with; `only` limits the read to the lenders named (tests and operator
  * tooling).  A plain read with the system limits (runtimeServiceRead binds
  * the service identity only under runtime isolation): the caller re-checks
  * under the merchant lock before closing.
