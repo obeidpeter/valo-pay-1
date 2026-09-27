@@ -29,12 +29,14 @@
  * reads from the database what is still owed (scheduledCloseBacklog): the
  * lenders whose close is failing or overdue, which /api/healthz reports, so
  * a failing lender stays visible until its own close succeeds, whatever
- * other lenders' passes do and across a restart.
+ * other lenders' passes do and across a restart.  Public anonymous sandboxes,
+ * whose visitors' own synthetic data can make a close fail, are counted apart
+ * there and in the pass's failures, and never fail a one-shot run.
  */
 import { randomUUID } from "node:crypto";
 import type { Logger } from "pino";
 import { closeRules } from "@workspace/valopay-schema";
-import { SYSTEM_ACTOR_PREFIX, appendAudit, checkAuditChainDaily, dailyAuditCheckDue, dueScheduledCloses, inMerchantAsSystem, initialiseCloseCursors, loadState, recordScheduledCloseFailure, sandboxInactiveFor, saveState, scheduledCloseBacklog, settleChanges, writeAuditCheck } from "./valopay-store";
+import { SYSTEM_ACTOR_PREFIX, appendAudit, checkAuditChainDaily, dailyAuditCheckDue, dueScheduledCloses, inMerchantAsSystem, initialiseCloseCursors, loadState, recordScheduledCloseFailure, sandboxInactiveFor, saveState, scheduledCloseBacklog, settleChanges, writeAuditCheck, type OwedCloses } from "./valopay-store";
 import { runDailyClose } from "../domain/actions";
 import { pauseIdleSandboxClose, scheduledCloseDue } from "../domain/close";
 import { enrolEligibleFailures } from "../domain/policy-engine";
@@ -52,13 +54,15 @@ export interface ClosedMerchant { merchantId: string; closeId: string; late: boo
  * failed stays counted until its own close succeeds, whatever other lenders' passes do, and a restarted process's
  * first pass reads it again. Counts only: no lender is named.
  */
-export interface CloseBacklog {
+export interface CloseBacklog extends OwedCloses {
   /** When the pass read it, on this process's clock, as lastSuccessAt. */
   checkedAt: string;
-  /** Lenders whose automatic close is on and whose pending close is more than lateAfterMinutes past its time: missed. */
+  /** Lenders other than public anonymous sandboxes whose automatic close is on and whose pending close is more than lateAfterMinutes past its time: missed. */
   overdue: number;
-  /** Lenders with a failed scheduled attempt recorded at their pending close time (settings.closeRetry), which only their close, or a change to their schedule, ends. */
+  /** Lenders other than public anonymous sandboxes with a failed scheduled attempt recorded at their pending close time (settings.closeRetry), which only their close, or a change to their schedule, ends. */
   failing: number;
+  /** The same two counts for public anonymous sandboxes, a visitor's synthetic lenders, whose own data can make a close fail. */
+  publicSandboxes: { overdue: number; failing: number };
   /** How long after its time a close counts as overdue (closeRules.lateAfterMinutes). */
   lateAfterMinutes: number;
 }
@@ -134,12 +138,29 @@ export interface CloseRun {
   skipped: string[];
   /** Lenders of idle anonymous sandboxes whose automatic close was switched off instead of run. */
   paused: string[];
-  /** Failed closes; once recorded, `failures` counts the failed attempts at this close time and `retryAt` is the next. */
-  failed: Array<{ merchantId: string; error: string; failures?: number; retryAt?: string }>;
+  /**
+   * Failed closes; once recorded, `failures` counts the failed attempts at this close time and `retryAt` is the next.
+   * `publicSandbox` marks a public anonymous sandbox's, which the pass's log lines count apart.
+   */
+  failed: Array<{ merchantId: string; error: string; failures?: number; retryAt?: string; publicSandbox?: true }>;
   /** Whether the time budget ended the pass before it had taken up every lender due, so some may still be due; false for a pass told to stop. */
   budgetSpent: boolean;
   /** What was still owed when the pass ended, read from the database (scheduledCloseBacklog); null for a pass told to stop. */
-  backlog: { overdue: number; failing: number } | null;
+  backlog: OwedCloses | null;
+}
+
+/**
+ * A pass's failures and what it read as still owed, as its log lines give them: the lenders' counts, and beside them
+ * the public anonymous sandboxes' own (their failed closes, and unless the pass was told to stop, their failing and
+ * overdue ones), which never raise an incident or fail a one-shot run.
+ */
+function passCounts(run: CloseRun) {
+  const sandboxFailures = run.failed.filter((item) => item.publicSandbox).length;
+  return {
+    failed: run.failed.length - sandboxFailures,
+    ...(run.backlog && { overdue: run.backlog.overdue, failing: run.backlog.failing }),
+    publicSandboxes: { failed: sandboxFailures, ...run.backlog?.publicSandboxes },
+  };
 }
 
 /** How a pass runs.  `onlyMerchantIds` limits it to the lenders named, for tests and operator tooling. */
@@ -204,7 +225,7 @@ export async function runDueCloses(options: CloseRunOptions = {}): Promise<Close
     const due = await dueScheduledCloses(batchSize, { exclude: [...exclude], only: options.onlyMerchantIds });
     run.batches += 1;
     const takenBefore = run.examined;
-    for (const merchantId of due) {
+    for (const { id: merchantId, publicSandbox } of due) {
       if (spent()) break;
       run.examined += 1;
       try {
@@ -249,8 +270,8 @@ export async function runDueCloses(options: CloseRunOptions = {}): Promise<Close
           return undefined;
         });
         if (!retry) exclude.add(merchantId);
-        run.failed.push({ merchantId, error: error instanceof Error ? error.message : String(error), ...(retry ? { failures: retry.failures, retryAt: retry.retryAt } : {}) });
-        log?.error({ merchantId, err: error, failures: retry?.failures, retryAt: retry?.retryAt }, "scheduled daily close failed");
+        run.failed.push({ merchantId, error: error instanceof Error ? error.message : String(error), ...(retry ? { failures: retry.failures, retryAt: retry.retryAt } : {}), ...(publicSandbox ? { publicSandbox } : {}) });
+        log?.error({ merchantId, err: error, failures: retry?.failures, retryAt: retry?.retryAt, ...(publicSandbox ? { publicSandbox } : {}) }, "scheduled daily close failed");
       }
     }
     if (due.length < batchSize) { drained = run.examined - takenBefore === due.length; break; }
@@ -268,8 +289,9 @@ export async function runDueCloses(options: CloseRunOptions = {}): Promise<Close
   // failing one; a pass told to stop leaves it to the next.
   if (options.signal?.aborted !== true) run.backlog = await scheduledCloseBacklog(closeRules.lateAfterMinutes, { only: options.onlyMerchantIds });
   if (run.initialised) log?.info({ initialised: run.initialised }, "close cursors initialised for merchants that had none");
-  // One line per pass that found work, with its duration, the audit checks its budget left and what is still owed; a quiet pass is a debug line so the log is not a metronome.
-  const summary = { event: "close.run", durationMs: Date.now() - started, initialised: run.initialised, batches: run.batches, examined: run.examined, closed: run.closed.length, skipped: run.skipped.length, paused: run.paused.length, failed: run.failed.length, auditChecksLeft: auditChecks.size, ...run.backlog };
+  // One line per pass that found work, with its duration, the audit checks its budget left and what is still owed, public
+  // anonymous sandboxes apart; a quiet pass is a debug line so the log is not a metronome.
+  const summary = { event: "close.run", durationMs: Date.now() - started, initialised: run.initialised, batches: run.batches, examined: run.examined, closed: run.closed.length, skipped: run.skipped.length, paused: run.paused.length, ...passCounts(run), auditChecksLeft: auditChecks.size };
   if (run.examined || run.failed.length || auditChecks.size) log?.info(summary, "scheduled close pass finished"); else log?.debug(summary, "scheduled close pass found nothing due");
   return run;
 }
@@ -288,7 +310,7 @@ export interface OneShotCloseRun {
    * close is failing or overdue; 2: the pass ran, but at least one close failed (recorded and retried by a later
    * pass), its budget ran out before it had taken up every lender due (still due for the next run), or a lender's
    * close is still failing, or overdue, from an earlier run; 1: the pass could not run, or was stopped before it
-   * finished.
+   * finished. A public anonymous sandbox's failed, failing or overdue close is counted apart and never makes it 2.
    */
   exitCode: 0 | 1 | 2;
   run: CloseRun | null;
@@ -302,21 +324,24 @@ export interface OneShotCloseRun {
  * longer budget, ending with one close.one_shot line that carries its exit
  * status. A lender whose close is still failing or overdue fails every run
  * until its close succeeds, whether or not that run tried it, so the job's
- * history shows it. Another process closing at the same time never closes the
- * same lender twice (SKIP LOCKED, and each close re-checks under its lock).
+ * history shows it; a public anonymous sandbox's, which its visitor's own
+ * synthetic data can cause, is only counted on the line. Another process
+ * closing at the same time never closes the same lender twice (SKIP LOCKED,
+ * and each close re-checks under its lock).
  */
 export async function runClosePassOnce(options: CloseRunOptions = {}, pass: (options: CloseRunOptions) => Promise<CloseRun> = runDueCloses): Promise<OneShotCloseRun> {
   const started = Date.now();
   try {
     const run = await pass({ ...options, budgetMs: options.budgetMs ?? ONE_SHOT_PASS_BUDGET_MS });
     const stopped = options.signal?.aborted === true;
-    const owed = Boolean(run.backlog?.failing || run.backlog?.overdue);
-    const exitCode = stopped ? 1 : run.failed.length || run.budgetSpent || owed ? 2 : 0;
-    const fields = { event: "close.one_shot", exitCode, runId: run.runId, durationMs: Date.now() - started, stopped, budgetSpent: run.budgetSpent, examined: run.examined, closed: run.closed.length, skipped: run.skipped.length, paused: run.paused.length, failed: run.failed.length, ...run.backlog };
+    // Public anonymous sandboxes' counts are on the line, apart: a visitor's own data never fails the job.
+    const counts = passCounts(run), owed = Boolean(run.backlog?.failing || run.backlog?.overdue);
+    const exitCode = stopped ? 1 : counts.failed || run.budgetSpent || owed ? 2 : 0;
+    const fields = { event: "close.one_shot", exitCode, runId: run.runId, durationMs: Date.now() - started, stopped, budgetSpent: run.budgetSpent, examined: run.examined, closed: run.closed.length, skipped: run.skipped.length, paused: run.paused.length, ...counts };
     if (exitCode === 0) options.log?.info(fields, "One-shot close pass finished");
     else options.log?.error(fields, stopped ? "One-shot close pass stopped before it finished; the lenders it did not reach are still due"
-      : run.budgetSpent ? `One-shot close pass ran out of time with lenders still due${run.failed.length ? ", and some closes failed" : ""}; the next run takes them up`
-      : run.failed.length ? "One-shot close pass finished, but some closes failed; each is retried by a later pass"
+      : run.budgetSpent ? `One-shot close pass ran out of time with lenders still due${counts.failed ? ", and some closes failed" : ""}; the next run takes them up`
+      : counts.failed ? "One-shot close pass finished, but some closes failed; each is retried by a later pass"
       : "One-shot close pass finished, but some lenders' closes are still failing or overdue; a later run takes each up");
     return { exitCode, run };
   } catch (error) {

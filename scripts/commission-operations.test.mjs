@@ -31,6 +31,10 @@ assert.equal(report.status, 'needs_configuration_or_repair');
 assert.deepEqual([report.blockers, report.observations.closeBacklog], [['scheduler_close_failed', 'scheduler_closes_overdue'], { overdue: 2, failing: 1 }]);
 report = commissioningReport({ ...probe, warnings: ['scheduler_backlog_not_reported'], observations: { ...probe.observations, closeBacklog: 'not_reported' } }, configured);
 assert.deepEqual([report.blockers, report.warnings], [['scheduler_backlog_not_reported'], ['scheduler_backlog_not_reported']], 'a build reporting only its last pass with work cannot evidence close failures');
+// Public anonymous sandboxes' own failing or overdue closes are warnings, never blockers.
+const visitors = { overdue: 0, failing: 0, publicSandboxes: { overdue: 1, failing: 1 } };
+report = commissioningReport({ ...probe, warnings: ['scheduler_public_sandbox_close_failed', 'scheduler_public_sandbox_closes_overdue'], observations: { ...probe.observations, closeBacklog: visitors } }, configured);
+assert.deepEqual([report.status, report.blockers, report.warnings, report.observations.closeBacklog], ['observations_passed_acceptance_required', [], ['scheduler_public_sandbox_close_failed', 'scheduler_public_sandbox_closes_overdue'], visitors], 'a visitor\'s sandbox never blocks commissioning');
 
 report = commissioningReport(probe, { ...configured, VALOPAY_OPERATIONS_HOST_MODE: 'autoscale' });
 assert.ok(report.blockers.includes('scheduler_stops_when_host_scales_down'), 'a current tick cannot commission an in-process timer on an idle Autoscale host');
@@ -77,4 +81,4 @@ try {
   assert.ok(directory.includes('valopay-commission-test-'));
   await rm(directory, { recursive: true, force: true });
 }
-console.log('Operational commissioning passed: scoped/redacted read-only evidence, configured versus observed versus accepted states, failing and overdue closes as counts, a build without them, Autoscale scheduling mismatch, unresolved external heartbeat, alert/recovery acceptance, private report replacement and actual CLI failure status.');
+console.log('Operational commissioning passed: scoped/redacted read-only evidence, configured versus observed versus accepted states, failing and overdue closes as counts, public sandboxes\' as warnings rather than blockers, a build without them, Autoscale scheduling mismatch, unresolved external heartbeat, alert/recovery acceptance, private report replacement and actual CLI failure status.');

@@ -331,6 +331,7 @@ export * from './saveRetentionPolicyParams';
 export * from './saveSourceManifestParams';
 export * from './saveSourceProfileParams';
 export * from './schedulerBacklog';
+export * from './schedulerPublicSandboxes';
 export * from './schedulerRun';
 export * from './schedulerStatus';
 export * from './schedulerStatusState';

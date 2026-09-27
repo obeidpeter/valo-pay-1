@@ -16,6 +16,10 @@ export const healthCheckResponseSchedulerBacklogOneOverdueMin = 0;
 
 export const healthCheckResponseSchedulerBacklogOneFailingMin = 0;
 
+export const healthCheckResponseSchedulerBacklogOnePublicSandboxesOverdueMin = 0;
+
+export const healthCheckResponseSchedulerBacklogOnePublicSandboxesFailingMin = 0;
+
 
 
 export const HealthCheckResponse = zod.object({
@@ -46,8 +50,12 @@ export const HealthCheckResponse = zod.object({
   "checkedAt": zod.string(),
   "overdue": zod.number().int().min(healthCheckResponseSchedulerBacklogOneOverdueMin),
   "failing": zod.number().int().min(healthCheckResponseSchedulerBacklogOneFailingMin),
-  "lateAfterMinutes": zod.number().int()
-}).describe('The lenders still owed a scheduled close, as the latest pass read them from the database, counted without naming any: overdue, those whose automatic close is on and whose pending close is more than lateAfterMinutes past its time; failing, those with a failed scheduled attempt at their pending time, which only that lender\'s own close, or a change to its schedule, ends: not other lenders\' closes, nor a restart. checkedAt is when the pass read them, on the API host\'s clock.'),zod.null()]).optional().describe('What the latest pass read from the database as still owed; null until this process\'s first pass has read it, and kept as last read while the scheduler is stopped or failing. Absent from builds before it was added, which report only lastRun.')
+  "lateAfterMinutes": zod.number().int(),
+  "publicSandboxes": zod.object({
+  "overdue": zod.number().int().min(healthCheckResponseSchedulerBacklogOnePublicSandboxesOverdueMin),
+  "failing": zod.number().int().min(healthCheckResponseSchedulerBacklogOnePublicSandboxesFailingMin)
+}).optional().describe('The same counts for public anonymous sandboxes, the synthetic lenders a visitor\'s sandbox is seeded with or creates, whose own data can make a close fail: counted apart from the lenders, so they never raise an incident or fail the one-shot close pass. Absent from builds before they were counted apart, which count them among the lenders.')
+}).describe('The lenders still owed a scheduled close, as the latest pass read them from the database, counted without naming any: overdue, those whose automatic close is on and whose pending close is more than lateAfterMinutes past its time; failing, those with a failed scheduled attempt at their pending time, which only that lender\'s own close, or a change to its schedule, ends: not other lenders\' closes, nor a restart. Neither counts public anonymous sandboxes, whose own counts are publicSandboxes. checkedAt is when the pass read them, on the API host\'s clock.'),zod.null()]).optional().describe('What the latest pass read from the database as still owed; null until this process\'s first pass has read it, and kept as last read while the scheduler is stopped or failing. Absent from builds before it was added, which report only lastRun.')
 }).describe('Whether closes are scheduled in this process, how often it looks, when it last looked, its last pass with work and what its latest pass read as still owed.')
 }).describe('The liveness answer: the build, when the process started, its uptime and what the close scheduler is doing.')
 

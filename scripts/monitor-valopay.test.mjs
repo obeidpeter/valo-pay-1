@@ -81,6 +81,14 @@ try {
   assert.deepEqual((await probeService({ origin: 'https://example.com', expectScheduler: 'on', now, fetchImpl: fake({ ...current, backlog: { failing: '1' } }) })).codes, ['scheduler_stale'], 'a backlog the monitor cannot read is no evidence');
   assert.deepEqual((await probeService({ origin: 'https://example.com', expectScheduler: 'on', now, fetchImpl: fake({ ...current, state: 'stopped' }) })).codes, ['scheduler_close_failed', 'scheduler_not_running'], 'a stopped scheduler keeps the failure it last read');
   assert.equal((await probeService({ origin: 'https://example.com', now, fetchImpl: fake(current) })).observations.closeBacklog, 'not_requested');
+  // Public anonymous sandboxes are counted apart from the lenders: a close a visitor's own data makes fail, or one
+  // overdue, is a warning with the sandboxes' own counts, never an incident; the lenders' counts alone raise the codes.
+  const withSandboxes = (lenders, failing, overdue) => ({ ...lenders, publicSandboxes: { overdue, failing } });
+  const visitors = await probeService({ origin: 'https://example.com', expectScheduler: 'on', now, fetchImpl: fake({ ...current, backlog: withSandboxes(backlog(0), 1, 2) }) });
+  assert.deepEqual([visitors.codes, visitors.warnings, visitors.observations.closeBacklog, visitors.observations.schedulerEvidence], [[], ['scheduler_public_sandbox_close_failed', 'scheduler_public_sandbox_closes_overdue'], { overdue: 0, failing: 0, publicSandboxes: { overdue: 2, failing: 1 } }, 'fresh_process_heartbeat'], 'a public sandbox whose own data makes its close fail is a warning, not an incident');
+  const lenderAndVisitor = await probeService({ origin: 'https://example.com', expectScheduler: 'on', now, fetchImpl: fake({ ...current, backlog: withSandboxes(backlog(1), 1, 0) }) });
+  assert.deepEqual([lenderAndVisitor.codes, lenderAndVisitor.warnings], [['scheduler_close_failed'], ['scheduler_public_sandbox_close_failed']], 'a lender failing beside a sandbox is still the incident');
+  assert.deepEqual((await probeService({ origin: 'https://example.com', expectScheduler: 'on', now, fetchImpl: fake({ ...current, backlog: withSandboxes(backlog(0), -1, 0) }) })).codes, ['scheduler_stale'], 'sandbox counts the monitor cannot read are no evidence either');
   // Two identical probes open the incident; a restart's first probe, before its first pass, neither ends nor repeats
   // it; the pass after the restart reads the lender again, and only that lender's close sends the recovery.
   const sent = [];
@@ -155,5 +163,5 @@ try {
   assert.equal(deliveryConfiguration({ VALOPAY_MONITOR_OWNER: 'Operator', VALOPAY_MONITOR_ALERT_URL: 'http://alerts.example/receiver' }).status, 'incomplete');
   assert.equal(deliveryConfiguration({ VALOPAY_MONITOR_OWNER: 'Operator', VALOPAY_ALERT_RESEND_KEY: 'synthetic-secret', VALOPAY_ALERT_FROM: 'alerts@example.com', VALOPAY_ALERT_TO: 'operations@example.test' }).status, 'configured');
   await assert.rejects(() => sendEmail(received[0], { apiKey: 'synthetic-secret', from: 'alerts@example.com', to: 'operations@example.test', fetchImpl: async () => { throw new Error('provider secret'); } }), error => !error.message.includes('provider secret'));
-  console.log('Operational monitor passed: real local HTTP probe/delivery, incident threshold, no repeat, recovery, failed-delivery retry, close failures that stay raised until the failing lender closes (across other lenders\' passes and a restart), overdue closes, schema readiness, scheduler mode versus execution evidence, explicit labelled delivery tests without incident-state changes, redacted failures.');
+  console.log('Operational monitor passed: real local HTTP probe/delivery, incident threshold, no repeat, recovery, failed-delivery retry, close failures that stay raised until the failing lender closes (across other lenders\' passes and a restart), overdue closes, public sandboxes\' counted apart as warnings, schema readiness, scheduler mode versus execution evidence, explicit labelled delivery tests without incident-state changes, redacted failures.');
 } finally { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); }

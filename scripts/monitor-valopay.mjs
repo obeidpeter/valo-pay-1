@@ -42,14 +42,30 @@ async function readJson(response, readiness = false) {
   } finally { await reader.cancel().catch(() => {}); }
 }
 
-/** The backlog a health answer's scheduler reports, as counts; undefined when it reports none the monitor can read. */
+/**
+ * The backlog a health answer's scheduler reports, as counts; undefined when it reports none the monitor can read. A
+ * build that counts public anonymous sandboxes apart reports theirs as publicSandboxes; one before it counts them among
+ * the lenders.
+ */
 function backlogCounts(scheduler) {
   const count = value => Number.isSafeInteger(value) && value >= 0;
-  const backlog = scheduler?.backlog;
-  return count(backlog?.overdue) && count(backlog?.failing) ? { overdue: backlog.overdue, failing: backlog.failing } : undefined;
+  const backlog = scheduler?.backlog, sandboxes = backlog?.publicSandboxes;
+  if (!count(backlog?.overdue) || !count(backlog?.failing)) return undefined;
+  if (sandboxes === undefined) return { overdue: backlog.overdue, failing: backlog.failing };
+  return count(sandboxes?.overdue) && count(sandboxes?.failing) ? { overdue: backlog.overdue, failing: backlog.failing, publicSandboxes: { overdue: sandboxes.overdue, failing: sandboxes.failing } } : undefined;
 }
 /** Whether a health answer's scheduler carries the backlog at all: builds before it report only their last pass with work. */
 const reportsBacklog = scheduler => scheduler !== null && typeof scheduler === 'object' && Object.hasOwn(scheduler, 'backlog');
+/**
+ * The lenders' failing and overdue closes are incidents; public anonymous sandboxes', which a visitor's own synthetic
+ * data can cause, are warnings, never incidents.
+ */
+function raiseBacklog(backlog, codes, warnings) {
+  if (backlog?.failing > 0) codes.push('scheduler_close_failed');
+  if (backlog?.overdue > 0) codes.push('scheduler_closes_overdue');
+  if (backlog?.publicSandboxes?.failing > 0) warnings.push('scheduler_public_sandbox_close_failed');
+  if (backlog?.publicSandboxes?.overdue > 0) warnings.push('scheduler_public_sandbox_closes_overdue');
+}
 
 /**
  * One probe, no customer records, no log bodies, no provider requests. `expectScheduler`: true or 'on' expects the
@@ -91,8 +107,7 @@ export async function probeService({ origin, expectScheduler = false, fetchImpl 
     if (reportsBacklog(scheduler)) {
       // Null until a restarted process's first pass, which the heartbeat checks above name; otherwise no evidence.
       if (!backlog && !codes.some(code => code.startsWith('scheduler_'))) codes.push('scheduler_stale');
-      if (backlog?.failing > 0) codes.push('scheduler_close_failed');
-      if (backlog?.overdue > 0) codes.push('scheduler_closes_overdue');
+      raiseBacklog(backlog, codes, warnings);
     } else if (scheduler !== null && typeof scheduler === 'object') {
       // A build from before the backlog: its last pass with work is kept across quiet ticks, but a later pass with work replaces it.
       warnings.push('scheduler_backlog_not_reported');
@@ -107,7 +122,7 @@ export async function probeService({ origin, expectScheduler = false, fetchImpl 
       schema: ready.status === 'fulfilled' && ['ok', 'indexes_missing', 'incomplete'].includes(ready.value?.checks?.schema?.status) ? ready.value.checks.schema.status : 'unverified',
       scheduler: schedulerStates.includes(health.value?.scheduler?.state) ? health.value.scheduler.state : 'unverified',
       schedulerEvidence: !expectScheduler ? 'not_requested' : expectScheduler === 'external' ? 'mode_only' : codes.some(code => code.startsWith('scheduler_')) || health.status !== 'fulfilled' ? 'failed' : 'fresh_process_heartbeat',
-      // Counts only, never a lender: what the scheduler's latest pass read as still owed.
+      // Counts only, never a lender: what the scheduler's latest pass read as still owed, public sandboxes apart.
       closeBacklog: !expectScheduler || expectScheduler === 'external' ? 'not_requested' : backlogCounts(health.value?.scheduler)
         ?? (health.status === 'fulfilled' && health.value?.scheduler !== null && typeof health.value?.scheduler === 'object' && !reportsBacklog(health.value.scheduler) ? 'not_reported' : 'unverified'),
     },

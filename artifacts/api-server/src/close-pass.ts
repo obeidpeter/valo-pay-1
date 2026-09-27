@@ -7,10 +7,12 @@ import { closeDatabase, watchDatabase } from "./lib/valopay-store";
 /**
  * The one-shot close pass: runs the scheduled daily closes that are due once
  * and exits with the pass's status (0 all done, 2 some closes failed and are
- * retried next time, or the budget ran out with lenders still due for the next
- * run, 1 it could not run or was stopped), for a host whose API
- * process runs no scheduler, such as Autoscale with VALOPAY_CLOSE_SCHEDULER=external
- * and a Replit Scheduled Deployment running `node artifacts/api-server/dist/close-pass.mjs`.
+ * retried next time, the budget ran out with lenders still due for the next
+ * run, or a lender's close is still failing or overdue, 1 it could not run or
+ * was stopped; a public anonymous sandbox's close never makes it 2), for a
+ * host whose API process runs no scheduler, such as Autoscale with
+ * VALOPAY_CLOSE_SCHEDULER=external and a Replit Scheduled Deployment running
+ * `node artifacts/api-server/dist/close-pass.mjs`.
  * A stop signal ends the pass after the lender close in progress.
  */
 watchDatabase(logger);

@@ -121,8 +121,8 @@ try {
   markSchedulerOff();
   assert.equal(schedulerStatus().state, "off");
   assert.equal(((await (await fetch(`${base}/api/healthz`)).json()) as { scheduler: { state: string } }).scheduler.state, "off", "the health answer says when closes are not scheduled here");
-  // What the latest pass read as still owed, as counts: the answer names no lender.
-  const owed = { checkedAt: "2026-09-26T06:01:00.000Z", overdue: 2, failing: 1, lateAfterMinutes: 30 };
+  // What the latest pass read as still owed, as counts: the answer names no lender, and counts public anonymous sandboxes apart.
+  const owed = { checkedAt: "2026-09-26T06:01:00.000Z", overdue: 2, failing: 1, lateAfterMinutes: 30, publicSandboxes: { overdue: 1, failing: 1 } };
   applySchedulerEvent({ type: "succeeded", at: owed.checkedAt, run: null, backlog: owed });
   assert.deepEqual(((await (await fetch(`${base}/api/healthz`)).json()) as { scheduler: { backlog: unknown } }).scheduler.backlog, owed, "the health answer carries the lenders still owed a close");
   checks += 12;

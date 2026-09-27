@@ -36,7 +36,17 @@ export interface SchedulerRun {
 }
 
 /**
- * The lenders still owed a scheduled close, as the latest pass read them from the database, counted without naming any: overdue, those whose automatic close is on and whose pending close is more than lateAfterMinutes past its time; failing, those with a failed scheduled attempt at their pending time, which only that lender's own close, or a change to its schedule, ends: not other lenders' closes, nor a restart. checkedAt is when the pass read them, on the API host's clock.
+ * The same counts for public anonymous sandboxes, the synthetic lenders a visitor's sandbox is seeded with or creates, whose own data can make a close fail: counted apart from the lenders, so they never raise an incident or fail the one-shot close pass. Absent from builds before they were counted apart, which count them among the lenders.
+ */
+export interface SchedulerPublicSandboxes {
+  /** @minimum 0 */
+  overdue: number;
+  /** @minimum 0 */
+  failing: number;
+}
+
+/**
+ * The lenders still owed a scheduled close, as the latest pass read them from the database, counted without naming any: overdue, those whose automatic close is on and whose pending close is more than lateAfterMinutes past its time; failing, those with a failed scheduled attempt at their pending time, which only that lender's own close, or a change to its schedule, ends: not other lenders' closes, nor a restart. Neither counts public anonymous sandboxes, whose own counts are publicSandboxes. checkedAt is when the pass read them, on the API host's clock.
  */
 export interface SchedulerBacklog {
   checkedAt: string;
@@ -45,6 +55,7 @@ export interface SchedulerBacklog {
   /** @minimum 0 */
   failing: number;
   lateAfterMinutes: number;
+  publicSandboxes?: SchedulerPublicSandboxes;
 }
 
 /**
