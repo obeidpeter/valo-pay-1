@@ -139,13 +139,15 @@ try {
   // No process stays young: probes that find nothing but a process too young to have read, for longer than one process
   // can be young (80 s at the deployed minute), mean the monitor keeps meeting new processes, a crash loop or an instance
   // each probe starts. From then on each counts as scheduler_stale, and two in a row open the incident; one restart does not.
+  let events = [];
   const timeline = async (expectScheduler, answers, minutesApart = 5) => {
     const delivered = [];
     let state;
+    events = [];
     for (const [index, answer] of answers.entries()) {
       const at = now + index * minutesApart * 60_000;
       const probe = await probeService({ origin: 'https://example.com', expectScheduler, now: at, fetchImpl: async url => new Response(JSON.stringify(url.endsWith('readyz') ? readiness() : answer(at))) });
-      state = (await deliverTransition(probe, state, async event => { delivered.push(`${event.kind}:${event.codes.join('|') || '-'}@${index}`); }, { owner: 'Synthetic rehearsal operator' })).state;
+      state = (await deliverTransition(probe, state, async event => { events.push(event); delivered.push(`${event.kind}:${event.codes.join('|') || '-'}@${index}`); }, { owner: 'Synthetic rehearsal operator' })).state;
     }
     return delivered;
   };
@@ -156,6 +158,7 @@ try {
     assert.deepEqual(crashLoop, ['incident:scheduler_stale@2'], `${expectScheduler}: a process that keeps restarting before its first read does not keep the monitor quiet`);
   }
   assert.deepEqual(await timeline('external', [2, 3, 2].map(uptimeSeconds => () => ({ status: 'ok', uptimeSeconds, scheduler: notRead.external })), 15), ['incident:scheduler_stale@2'], 'a monitor whose every probe starts an Autoscale instance is blind, and says so');
+  assert.deepEqual([events[0].warnings, events[0].firstReadWithinMs, events[0].observations.schedulerEvidence], [['scheduler_backlog_pending'], 80_000, 'failed'], 'its incident keeps the warning beside the code, so it can be told from an old read');
   const heartbeat = failing => at => ({ status: 'ok', uptimeSeconds: 600, scheduler: { ...notRead.on, lastSuccessAt: new Date(at).toISOString(), backlog: { checkedAt: new Date(at).toISOString(), overdue: 0, failing, lateAfterMinutes: 30 } } });
   assert.deepEqual(await timeline('on', [heartbeat(1), heartbeat(1), () => ({ status: 'ok', uptimeSeconds: 20, scheduler: notRead.on }), heartbeat(1), heartbeat(0)]), ['incident:scheduler_close_failed@1', 'recovery:-@4'], 'one young restart neither ends nor repeats the incident');
   assert.equal((await aged(deployedInterval, 75, 'external')).firstReadWithinMs, 80_000, 'the probe says how long its process can be young');
