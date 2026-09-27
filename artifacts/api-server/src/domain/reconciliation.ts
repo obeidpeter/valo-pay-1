@@ -1329,11 +1329,14 @@ function assertSamePayer(state: DomainState, payment: TypedRecord<"payments">, d
  * of the instalment its evidence names (`instalmentCustomer`, when that
  * instalment exists), or any customer's while it names none. Null when it takes
  * no allocation at all: it is in another currency than naira, its money went
- * back, or nothing of it is left to allocate. The allocation picker's list
- * applies it (`paymentId`).
+ * back, nothing of it is left to allocate, or reconciliation holds it for a
+ * renewed review of an earlier reversal decision (legacyReversalReviewIds; a
+ * hold not yet recorded is the action's alone to refuse). The allocation
+ * picker's list applies it (`paymentId`).
  */
 export function allocationPayer(payment: ValopayRecord, instalmentCustomer: string | undefined): { customerId?: string } | null {
-  if (currencyOf(payment) !== "NGN" || paymentMoneyReturned(payment) || paymentUnappliedKobo(payment) <= 0) return null;
+  const held = payment.data.legacyReversalReviewIds;
+  if (currencyOf(payment) !== "NGN" || paymentMoneyReturned(payment) || paymentUnappliedKobo(payment) <= 0 || (Array.isArray(held) && held.length > 0)) return null;
   if (payment.customerId) return { customerId: payment.customerId };
   return instalmentCustomer === undefined ? {} : { customerId: instalmentCustomer };
 }

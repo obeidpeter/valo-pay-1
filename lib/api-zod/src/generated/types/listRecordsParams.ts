@@ -46,7 +46,7 @@ customerId?: string;
  */
 id?: string;
 /**
- * Instalments (due-items) only. true lists just the instalments that can take an allocation now: those that still owe an amount, are not cancelled, closed or in dispute and are not held for a renewed review of an earlier reversal decision (a non-empty data.legacyReversalReviewIds, whatever their status), and with paymentId only those a manual allocation of that payment accepts, so total counts the choices. Omitted or false lists every instalment. Refused (400) for any other kind.
+ * Instalments (due-items) only. true lists just the instalments that can take an allocation now: those that still owe an amount, are not cancelled, closed or in dispute and are not held for a renewed review of an earlier reversal decision (a non-empty data.legacyReversalReviewIds, whatever their status), and with paymentId only those a manual allocation of that payment accepts (none for a payment held for a renewed reversal review, which takes no allocation), so total counts the choices. Omitted or false lists every instalment. Refused (400) for any other kind.
  */
 allocatable?: ListRecordsAllocatable;
 /**

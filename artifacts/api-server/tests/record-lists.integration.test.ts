@@ -98,9 +98,10 @@ try {
     ($1 || '-pay-named',$2,'payments','Instalment named','unallocated','PICK-PAY-2',1000000,'',jsonb_build_object('synthetic',true,'allocatedKobo',0,'dueItemId',$4::text),'2027-03-02','2027-03-02'),
     ($1 || '-pay-none',$2,'payments','Nothing named','unallocated','PICK-PAY-3',1000000,'','{"synthetic":true,"allocatedKobo":0}','2027-03-02','2027-03-02'),
     ($1 || '-pay-usd',$2,'payments','Dollars','unallocated','PICK-PAY-4',100000,$3,'{"synthetic":true,"allocatedKobo":0,"currency":"USD"}','2027-03-02','2027-03-02'),
-    ($1 || '-pay-back',$2,'payments','Reversed','returned','PICK-PAY-5',1000000,$3,'{"synthetic":true,"allocatedKobo":0,"reversalStatus":"reversed"}','2027-03-02','2027-03-02')`, [prefix, merchantId, payer, namedDue.id]);
+    ($1 || '-pay-back',$2,'payments','Reversed','returned','PICK-PAY-5',1000000,$3,'{"synthetic":true,"allocatedKobo":0,"reversalStatus":"reversed"}','2027-03-02','2027-03-02'),
+    ($1 || '-pay-held',$2,'payments','Held for review','unallocated','PICK-PAY-6',1000000,$3,'{"synthetic":true,"allocatedKobo":0,"legacyReversalReviewIds":["review-of-an-earlier-decision"]}','2027-03-02','2027-03-02')`, [prefix, merchantId, payer, namedDue.id]);
   const everyChoice = await inWorkspace(request(), response(), context => listRecords(context, merchantId, "due-items", { allocatable: "true" }));
-  for (const [suffix, customer] of [["payer", payer], ["named", other], ["none", undefined], ["usd", null], ["back", null]] as const) {
+  for (const [suffix, customer] of [["payer", payer], ["named", other], ["none", undefined], ["usd", null], ["back", null], ["held", null]] as const) {
     const paymentId = `${prefix}-pay-${suffix}`;
     for (const query of [{ allocatable: "true", paymentId, limit: 25 }, { allocatable: "true", paymentId, limit: 2, offset: 1 }, { allocatable: "true", paymentId, search: "loan", limit: 5 }, { allocatable: "true", paymentId, customerId: payer }] as ListQuery[]) {
       const actual = await inWorkspace(request(), response(), context => listRecords(context, merchantId, "due-items", query));
@@ -115,7 +116,7 @@ try {
   await assert.rejects(() => inWorkspace(request(), response(), context => listRecords(context, merchantId, "due-items", { allocatable: "true", paymentId: "missing" })), (error: any) => error.status === 404 && /Payment not found/.test(error.message), "a payment the lender does not have is a 404");
   await assert.rejects(() => inWorkspace(request(), response(), context => listRecords(context, merchantId, "due-items", { paymentId: `${prefix}-pay-payer` })), (error: any) => error.status === 400 && /allocatable=true/.test(error.message), "paymentId without allocatable=true is refused");
   // The payer may be the customer the scoped reads below compare with the baseline, which has none of these payments.
-  await pool.query("DELETE FROM valopay_records WHERE merchant_id = $1 AND id = ANY($2)", [merchantId, ["payer", "named", "none", "usd", "back"].map(suffix => `${prefix}-pay-${suffix}`)]);
+  await pool.query("DELETE FROM valopay_records WHERE merchant_id = $1 AND id = ANY($2)", [merchantId, ["payer", "named", "none", "usd", "back", "held"].map(suffix => `${prefix}-pay-${suffix}`)]);
   const timing: number[] = [];
   for (let i = 0; i < 5; i++) {
     const start = performance.now();
