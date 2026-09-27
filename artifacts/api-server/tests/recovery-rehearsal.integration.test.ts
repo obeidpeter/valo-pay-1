@@ -36,7 +36,7 @@ const runPg = (command: string, args: string[], database: string) => {
   const result = spawnSync(command, args, { env: pgEnv(database), encoding: 'utf8', timeout: 60_000 });
   if (result.error || result.status !== 0) throw new Error(`${command} failed during the disposable recovery rehearsal; no connection details are logged.`);
 };
-const tables = ['valopay_workspaces', 'valopay_merchants', 'valopay_records', 'valopay_idempotency', 'valopay_operations', 'valopay_teams', 'valopay_staff_memberships', 'valopay_staff_invitations', 'valopay_staff_events', 'valopay_staff_lender_access'];
+const tables = ['valopay_workspaces', 'valopay_merchants', 'valopay_records', 'valopay_idempotency', 'valopay_operations', 'valopay_teams', 'valopay_staff_memberships', 'valopay_staff_invitations', 'valopay_staff_events', 'valopay_staff_lender_access', 'valopay_export_cleanup'];
 let source: InstanceType<typeof Pool> | undefined, target: InstanceType<typeof Pool> | undefined;
 let sourceCreated = false, targetCreated = false;
 const directory = await mkdtemp(join(tmpdir(), 'valopay-recovery-'));
@@ -57,7 +57,7 @@ const fixtureProvider = (keys: Map<string, Buffer>): WrappingKeyProvider => ({
   },
 });
 const sourceKeys=new Map([[wrappingKeyId,wrappingKey]]), objectInventory: RecoveryObject[]=[];
-const configuration: RecoveryConfiguration={schemaVersion:'004_staff_lender_access',runtimeDatabaseRole:'valopay_runtime',staffMode:'staging',issuer:'https://recovery-fixture.clerk.accounts.dev',origins:['https://pilot.example.test'],encryptionKeyIds:[wrappingKeyId],privateObjectAccess:'authenticated_lender_scoped',schedulerEnabled:false,liveOperationsEnabled:false};
+const configuration: RecoveryConfiguration={schemaVersion:'013_export_cleanup',runtimeDatabaseRole:'valopay_runtime',staffMode:'staging',issuer:'https://recovery-fixture.clerk.accounts.dev',origins:['https://pilot.example.test'],encryptionKeyIds:[wrappingKeyId],privateObjectAccess:'authenticated_lender_scoped',schedulerEnabled:false,liveOperationsEnabled:false};
 let restoredWrappingKey: Buffer | undefined;
 try {
   await pool.query(`CREATE DATABASE ${identifier(sourceName)}`); sourceCreated = true;
@@ -102,6 +102,22 @@ try {
     await source.query('INSERT INTO valopay_staff_lender_access(membership_id,merchant_id,granted_by) VALUES($1,$2,$3)',[`member-${index}`,merchant.id,ctx.actor]);
     expectedStates.push(state);
   }
+  // These tombstones deliberately have no source lender or export row: workspace expiry already
+  // removed them. Recovery must retain deletion obligations, retry backoff and any claimed lease.
+  const cleanupNextAttemptAt = new Date(Date.parse(snapshotAt) + 5 * 60_000).toISOString();
+  const cleanupLeaseUntil = new Date(Date.parse(snapshotAt) + 60_000).toISOString();
+  for (const [id, attempts, leaseToken, leaseUntil] of [
+    ['restore-cleanup-retry', 2, null, null],
+    ['restore-cleanup-leased', 3, 'synthetic-cleanup-lease', cleanupLeaseUntil],
+  ] as const) {
+    await source.query(`INSERT INTO valopay_export_cleanup
+      (id,merchant_id,bucket,object_name,checksum,attempts,last_failure,next_attempt_at,lease_token,lease_until,created_at,updated_at)
+      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$11)`, [
+      id, 'expired-recovery-lender', 'synthetic-private', `exports/expired-recovery-lender/${id}.json`,
+      createHash('sha256').update(id).digest('hex'), attempts, 'storage_unavailable', cleanupNextAttemptAt,
+      leaseToken, leaseUntil, snapshotAt,
+    ]);
+  }
   // The fixture key vault is deliberately separate from the DB/object package.
   // Real KMS keys are not exportable; the equivalent real drill restores IAM and access to retained key versions.
   await writeFile(join(directory,'separate-fixture-vault.json'),JSON.stringify({id:wrappingKeyId,key:wrappingKey.toString('base64')}),{mode:0o600});
@@ -131,6 +147,17 @@ try {
     assert.deepEqual(restoredRows, sourceRows, `${table}: every restored value matches the snapshot`);
     counts[table] = restoredRows.length;
   }
+  assert.equal(counts.valopay_export_cleanup, 2, 'both orphan deletion obligations survive restoration');
+  const restoredCleanup = (await target.query(`SELECT c.* FROM valopay_export_cleanup c
+    LEFT JOIN valopay_merchants m ON m.id=c.merchant_id
+    LEFT JOIN valopay_records r ON r.id=c.id
+    WHERE m.id IS NULL AND r.id IS NULL ORDER BY c.id`)).rows;
+  assert.equal(restoredCleanup.length, 2, 'cleanup survives without a source lender or export');
+  const leasedCleanup = restoredCleanup.find(row => row.id === 'restore-cleanup-leased')!;
+  assert.equal(leasedCleanup.attempts, 3, 'restore does not reset retry history');
+  assert.equal(leasedCleanup.lease_token, 'synthetic-cleanup-lease', 'restore does not clear an in-flight claim');
+  assert.equal(leasedCleanup.lease_until.toISOString(), cleanupLeaseUntil);
+  assert.equal(leasedCleanup.next_attempt_at.toISOString(), cleanupNextAttemptAt, 'restore preserves retry backoff');
   const restoredObjectsDirectory=join(directory,'restored-objects');
   for(const object of objectInventory){const targetPath=join(restoredObjectsDirectory,object.storageKey);await mkdir(dirname(targetPath),{recursive:true});await copyFile(join(packageDirectory,object.storageKey),targetPath);await copyFile(`${join(packageDirectory,object.storageKey)}.metadata.json`,`${targetPath}.metadata.json`);}
   const measuredObjects=async()=>Promise.all(objectInventory.map(async object=>{
@@ -181,7 +208,7 @@ try {
   }
   assert.equal(Number((await target.query('SELECT count(*) AS n FROM valopay_idempotency WHERE id=$1',['post-snapshot-write'])).rows[0].n),0);
   const finalVerification=verifyRecoveryManifest(restoredManifest,restoredDatabaseBytes,await measuredObjects(),configuration);
-  const evidence = { version: 2, outcome: 'passed', scope: 'disposable synthetic PostgreSQL, private local object backups and an independently restored fixture wrapping-key provider', snapshotAt, databaseBackupMs:backupMs, completeBackupMs, databaseRestoreMs:restoreMs, completeRestoreMs:Math.round(performance.now()-restoreStart), recoverableSnapshotAgeMs:Date.now()-Date.parse(snapshotAt), simulatedWritesAfterSnapshot:1, observedDataLossRecords:1, totalMs: Math.round(performance.now() - started), counts, privateObjectsRestored:finalVerification.objects, checks: ['all ten application tables and settings', 'outstanding amounts and allocations', 'close snapshots', 'encrypted idempotency and recovery payloads', 'audit chains', 'lender-specific access grants and revocations', 'restored encrypted source files', 'retained wrapping-key access and missing-key refusal', 'wrong-lender envelope refusal', 'private export ownership and checksum inventory', 'missing/corrupt file refusal', 'reviewed issuer/origin/runtime-role/key manifest', 'post-snapshot data-loss measurement'], externalObjectStorageVerified: false, externalKeyCustodyVerified:false, productionRestoreVerified: false };
+  const evidence = { version: 2, outcome: 'passed', scope: 'disposable synthetic PostgreSQL, private local object backups and an independently restored fixture wrapping-key provider', snapshotAt, databaseBackupMs:backupMs, completeBackupMs, databaseRestoreMs:restoreMs, completeRestoreMs:Math.round(performance.now()-restoreStart), recoverableSnapshotAgeMs:Date.now()-Date.parse(snapshotAt), simulatedWritesAfterSnapshot:1, observedDataLossRecords:1, totalMs: Math.round(performance.now() - started), counts, privateObjectsRestored:finalVerification.objects, checks: ['all eleven application/service tables and settings', 'orphan export cleanup tombstones, retry history, backoff and lease state', 'outstanding amounts and allocations', 'close snapshots', 'encrypted idempotency and recovery payloads', 'audit chains', 'lender-specific access grants and revocations', 'restored encrypted source files', 'retained wrapping-key access and missing-key refusal', 'wrong-lender envelope refusal', 'private export ownership and checksum inventory', 'missing/corrupt file refusal', 'reviewed issuer/origin/runtime-role/key manifest', 'post-snapshot data-loss measurement'], externalObjectStorageVerified: false, externalKeyCustodyVerified:false, productionRestoreVerified: false };
   if (process.env.VALOPAY_REHEARSAL_REPORT) await writeFile(resolve(process.env.VALOPAY_REHEARSAL_REPORT), JSON.stringify(evidence, null, 2));
   console.log(JSON.stringify(evidence));
 } catch (error) {
