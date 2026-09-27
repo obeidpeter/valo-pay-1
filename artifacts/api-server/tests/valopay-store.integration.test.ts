@@ -431,13 +431,26 @@ try {
       const incomplete = await pingDatabase({ schema: scratch });
       assert.deepEqual([incomplete.status, incomplete.schema.status], ["ok", "incomplete"], "a database that answers but lacks a table or column the build uses is not ready");
       assert.deepEqual(incomplete.schema.missing, [
-        "column valopay_operations.receipt: apply lib/db/migrations/003_pilot_workflow.sql",
+        "column valopay_operations.receipt: add it from the Drizzle schema in lib/db",
         "table valopay_staff_events: apply lib/db/migrations/003_pilot_workflow.sql",
         `unique index valopay_one_inflight: ${guardSource}`,
         `check valopay_ticket_floor: ${guardSource}`,
         "index valopay_operations_pending: apply lib/db/migrations/007_journal_and_lender_indexes.sql",
         "index valopay_records_export_queue: apply lib/db/migrations/008_export_queue_index_and_foreign_key_names.sql",
       ], "and names each missing table, column, guard and index, with where it comes from");
+      // Each migration creates its tables whole (CREATE TABLE IF NOT EXISTS), and applying one again leaves a table that
+      // exists as it is: 003 builds the dropped table again, but not the dropped column, which is why the column's line
+      // does not name it.
+      const client = await pool.connect();
+      try {
+        await client.query(`SET search_path TO "${scratch}"`);
+        await client.query(await readFile(new URL("../../../lib/db/migrations/003_pilot_workflow.sql", import.meta.url), "utf8"));
+      } finally {
+        await client.query("RESET search_path");
+        client.release();
+      }
+      assert.deepEqual((await pingDatabase({ schema: scratch })).schema.missing.filter((line) => /^(table|column) /.test(line)),
+        ["column valopay_operations.receipt: add it from the Drizzle schema in lib/db"], "003 applied again builds the dropped table, not the dropped column");
     } finally {
       await pool.query(`DROP SCHEMA IF EXISTS "${scratch}" CASCADE`);
     }

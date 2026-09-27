@@ -2670,6 +2670,11 @@ const tableMigrations: Record<string, string> = {
   valopay_staff_invitations: "003_pilot_workflow.sql", valopay_staff_events: "003_pilot_workflow.sql", valopay_staff_lender_access: "004_staff_lender_access.sql",
 };
 const schemaSource = (table: string) => tableMigrations[table] ? `apply lib/db/migrations/${tableMigrations[table]}` : "create it from the Drizzle schema in lib/db";
+/**
+ * Where a missing column comes from: no migration adds one, since each creates its tables whole (CREATE TABLE IF NOT
+ * EXISTS) and applying it again leaves a table that exists as it is, so a column is added as the Drizzle schema declares it.
+ */
+const columnSource = "add it from the Drizzle schema in lib/db";
 /** Every table this build uses, with every column the Drizzle schema in lib/db gives it. */
 const requiredTables = [tables.workspaces, tables.merchants, tables.records, tables.idempotency, tables.operations, tables.teams, tables.staffMemberships, tables.staffInvitations, tables.staffEvents, tables.staffLenderAccess]
   .map((table) => { const config = getTableConfig(table); return { name: config.name, columns: config.columns.map((column) => column.name) }; });
@@ -2786,7 +2791,7 @@ function schemaGaps(catalogue: SchemaCatalogue): { required: string[]; indexes: 
   for (const table of requiredTables) {
     const columns = present.get(table.name);
     if (!columns) { required.push(`table ${table.name}: ${schemaSource(table.name)}`); continue; }
-    for (const column of table.columns) if (!columns.has(column)) required.push(`column ${table.name}.${column}: ${schemaSource(table.name)}`);
+    for (const column of table.columns) if (!columns.has(column)) required.push(`column ${table.name}.${column}: ${columnSource}`);
   }
   const valid = catalogue.indexes.filter((index) => index.valid);
   const defined = new Set(valid.map((index) => `${index.table} ${index.definition}`));

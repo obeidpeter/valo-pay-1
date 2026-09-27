@@ -73,7 +73,7 @@ checks += 18;
 // ---- Readiness: a database that answers but lacks a table or column this build needs is not ready; one that lacks only an index is ready and says so; names stay in the log ----
 const complete = readinessAnswer({ status: "ok", latencyMs: 3, schema: { status: "ok", missing: [] } });
 assert.deepEqual([complete.httpStatus, complete.body.status, complete.body.checks.schema], [200, "ok", { status: "ok" }]);
-const missingColumn = "column valopay_operations.receipt: apply lib/db/migrations/003_pilot_workflow.sql";
+const missingColumn = "column valopay_operations.receipt: add it from the Drizzle schema in lib/db";
 const incomplete = readinessAnswer({ status: "ok", latencyMs: 3, schema: { status: "incomplete", missing: [missingColumn] } });
 assert.deepEqual([incomplete.httpStatus, incomplete.body.status, incomplete.body.checks.database.status], [503, "degraded", "ok"], "an answering database without a table or column the build uses is not ready");
 assert.deepEqual(incomplete.body.checks.schema, { status: "incomplete" }, "and the public answer says only that, not what is missing");

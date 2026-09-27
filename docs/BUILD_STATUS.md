@@ -46,6 +46,8 @@ A review of the seven pull requests merged on 26 September found the defects bel
 These follow up the review fixes and are merged with the pull request that adds this subsection; none is deployed yet.
 
 - **Follow-up: PR #68 is recorded.** The [document register](document-register.md) and the list above name PR #68 and its merge, like PRs #65 to #67.
+- **Follow-up: the readiness log says how to restore a missing column.** For a missing column of a table that migration 003 or 004 creates, the `readiness.failed` line said to apply that migration, which cannot restore it: each migration creates its tables whole with `CREATE TABLE IF NOT EXISTS`, and applying one again leaves a table that exists as it is. The line now says to add the column from the Drizzle schema in `lib/db`, for every table, and `docs/database-migrations.md` says how; a missing table still names the migration that creates it, which is right. Pinned by `valopay-store.integration.test.ts`, which failed before and now also shows 003 applied again building a dropped table but not a dropped column.
+- **Follow-up: the console's recorded entry size is explained.** `docs/design/console.md` recorded the landing page and the shell as one entry file of 440.97 kB, while a build now reports an entry file of 168.81 kB. Nothing shrank: the same code arrives as two files that load together, the entry and a shared chunk of 275.28 kB the page shell preloads, 444.09 kB in all. A dated note says so, so a build report's entry file is not read as the first page's whole script.
 
 ## Earlier release notes
 
