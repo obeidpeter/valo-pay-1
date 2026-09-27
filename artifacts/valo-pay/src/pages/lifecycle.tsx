@@ -4,7 +4,7 @@ import { useSearchParams } from 'wouter';
 import { Archive, LockKeyhole, RefreshCw, ShieldCheck, Trash2 } from 'lucide-react';
 import { lifecycleViewSchema, lifecycleRunViewSchema, type LifecycleRunView, type LifecycleView, type RetentionPolicy, type LifecycleCandidate } from '@workspace/valopay-schema';
 import { useWorkspace } from '@/lib/workspace-context';
-import { outcomeIsUnconfirmed, requestClosed, useSafeMutation } from '@/lib/safe-mutations';
+import { outcomeIsUnconfirmed, requestClosed, submissionIdentity, useSafeMutation } from '@/lib/safe-mutations';
 import { useUnsavedChanges } from '@/lib/unsaved-changes';
 import { lenderPath, pilotRequest } from '@/lib/pilot';
 import { INCOMPLETE_CONFIRMATION } from '@/lib/answers';
@@ -66,7 +66,7 @@ function LifecycleControls() {
     const expectedRun = variables.path.match(/\/runs\/([^/]+)\/(approve|execute)$/)?.[1];
     if (expectedRun && (!('id' in result) || result.id !== expectedRun)) throw new Error('The response named a different retention run. Check the original request.');
     return result;
-  }, { mutation: { onSuccess: (result, variables) => {
+  }, { recovery: variables => submissionIdentity('POST', `/v1${variables.path}`, merchantId || '', variables.data), mutation: { onSuccess: (result, variables) => {
     // While execute (below) carries a run on, it says the outcome once the run stops; a recovered answer is said here.
     if ('candidates' in result) { setSelected(result); if (!(executing.current && variables.path.endsWith('/execute'))) setMessage(result.status === 'preview' ? 'Deletion preview saved. No source has been deleted.' : result.status === 'approved' ? 'The exact preview is approved. Execute it when ready; source versions and holds are checked again.' : result.status === 'completed' ? 'This run is complete. Inspect its saved deletion receipts below.' : 'Execution progress saved. Review any blocked items, then resume the run.'); }
     else setMessage(variables.path.endsWith('/policy') ? 'Retention policy saved. Saving a policy does not delete data.' : 'Retention hold updated. Every deletion checks current holds.');

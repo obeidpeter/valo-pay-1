@@ -21,6 +21,7 @@ import { parentPort, workerData } from "node:worker_threads";
 import { logger } from "./lib/logger";
 import { observeScheduler, runDailyAuditCheck, startBacklogWatch, startCloseScheduler } from "./lib/close-scheduler";
 import { startExportWorker } from "./lib/export-worker";
+import { startExportCleanupWorker } from "./lib/export-cleanup-worker";
 import { closeDatabase, watchDatabase } from "./lib/valopay-store";
 import type { BackgroundMessage, BackgroundOptions, BackgroundRequest } from "./lib/background-worker";
 
@@ -55,14 +56,16 @@ if (options.closes || options.backlog) observeScheduler((event) => post({ type: 
 const scheduler = options.closes ? startCloseScheduler({ ...options.closes, log: logger }) : undefined;
 const backlogWatch = options.backlog ? startBacklogWatch({ ...options.backlog, log: logger, queue: (read) => inTurn(read, true) }) : undefined;
 const exportWorker = options.exports ? startExportWorker({ ...options.exports, log: logger }) : undefined;
+const cleanupWorker = options.cleanup ? startExportCleanupWorker({ ...options.cleanup, log: logger }) : undefined;
 
 async function stop(): Promise<void> {
   try {
     scheduler?.stop();
     backlogWatch?.stop();
     exportWorker?.stop();
+    cleanupWorker?.stop();
     // The close, read or audit check in progress finishes and the stopped exports' hand-back writes are made before the pool ends.
-    await Promise.all([scheduler?.settle(), backlogWatch?.settle(), exportWorker?.settle(), closeConnection]);
+    await Promise.all([scheduler?.settle(), backlogWatch?.settle(), exportWorker?.settle(), cleanupWorker?.settle(), closeConnection]);
     await closeDatabase();
   } finally {
     // Nothing else holds the thread open, so it ends here.

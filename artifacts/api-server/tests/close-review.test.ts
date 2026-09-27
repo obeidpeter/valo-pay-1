@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { seedMerchant } from "../src/lib/valopay-seed";
 import { makeRecord } from "../src/domain/records";
 import { advanceRecordVersions } from "../src/lib/edit-versions";
-import { bindCloseReviewBasis, closeReviewBasis, closeReviewIssues, closeReviewCurrentProblem, closeReviewList, decideCloseReview, pilotProgress, prepareCloseReview, reviewIsCurrent } from "../src/domain/close-review";
+import { bindCloseReviewBasis, closeReviewBasis, closeReviewIssues, closeReviewCurrentProblem, closeReviewList, closeReviewHistory, closeReviewDetail, decideCloseReview, reassignCloseReview, pilotProgress, prepareCloseReview, reviewIsCurrent } from "../src/domain/close-review";
 import { personalWorkItems } from "../src/domain/personal-work";
 import type { Context, DomainState } from "../src/domain/types";
 
@@ -135,4 +135,54 @@ function ofKind(state: DomainState, kind: string) { return state.records.filter(
   customer.data.note = "Changed after the closes";
   assert.equal(closeReviewList(state).closes.every(item => item.problem?.startsWith("Records changed after this close")), true);
 }
-console.log("Close review: independent approval, exact snapshots, discrepancies, stale edits, evidence-led progress and one input digest a read passed.");
+{
+  const state = empty(), first = close(state), review = prepareCloseReview(state, ops, prepareInput(first), reviewers);
+  decideCloseReview(state, finance, review.id, { action: "return", expectedUpdatedAt: review.updatedAt, note: "Retain this decision in the historical record." });
+  for (let day = 1; day <= 31; day++) close(state, new Date(Date.parse(ops.now) + day * 86_400_000).toISOString());
+  const history = closeReviewHistory(state);
+  assert.equal(history.closes.length, 25);
+  assert.equal(history.total, 32);
+  assert.equal(history.closes.some(item => item.id === first.id), false);
+  assert.equal(closeReviewHistory(state, { offset: 25 }).closes.some(item => item.id === first.id), true);
+  assert.equal(closeReviewHistory(state, { search: finance.actor }).closes[0]!.id, first.id, "Reviewer search finds a close beyond the first page.");
+  const detail = closeReviewDetail(state, first.id);
+  assert.equal(detail.entry.reviews[0]!.data.decisionNote, "Retain this decision in the historical record.");
+  assert.deepEqual(detail.entry.close.data.report, first.data.report);
+  assert.equal(detail.events.length, 2);
+  assert.throws(() => closeReviewDetail(state, "different-lender-close"), /not found/);
+}
+{
+  const state = empty(), record = close(state), review = prepareCloseReview(state, ops, prepareInput(record), reviewers);
+  const admin = { ...ops, actor: "Clerk:administrator", principalId: "person-admin", role: "Admin", now: finance.now }, replacement = { ...finance, actor: "Clerk:replacement", principalId: "person-3" };
+  const input = { expectedUpdatedAt: review.updatedAt, reviewer: replacement.actor, reason: "The original reviewer is unavailable during leave." };
+  const roster = [...reviewers, replacement, { ...ops, role: "Finance" }, { actor: "Sandbox Finance", role: "Finance" }];
+  const snapshot = JSON.stringify(review.data.snapshot), digest = review.data.snapshotDigest;
+  assert.throws(() => reassignCloseReview(state, finance, review.id, input, roster), /administrator/);
+  assert.throws(() => reassignCloseReview(state, admin, "other-lender-review", input, roster), /not found/);
+  assert.throws(() => reassignCloseReview(state, admin, review.id, { ...input, expectedUpdatedAt: "2026-09-21T10:00:00.000Z" }, roster), /changed/);
+  assert.throws(() => reassignCloseReview(state, admin, review.id, input, reviewers), /active Finance/);
+  assert.throws(() => reassignCloseReview(state, admin, review.id, { ...input, reviewer: finance.actor }, roster), /different Finance/);
+  assert.throws(() => reassignCloseReview(state, admin, review.id, { ...input, reviewer: ops.actor }, roster), /different staff/);
+  assert.throws(() => reassignCloseReview(state, admin, review.id, { ...input, reviewer: "Sandbox Finance" }, roster), /independent review/);
+  reassignCloseReview(state, admin, review.id, input, roster);
+  assert.equal(review.status, "awaiting_review");
+  assert.equal(review.data.preparedBy, ops.actor);
+  assert.equal(JSON.stringify(review.data.snapshot), snapshot);
+  assert.equal(review.data.snapshotDigest, digest);
+  assert.equal(closeReviewDetail(state, record.id).events[0]!.data.previousReviewer, finance.actor);
+  assert.throws(() => decideCloseReview(state, finance, review.id, { action: "return", expectedUpdatedAt: review.updatedAt, note: "Original reviewer must no longer decide." }), /named Finance/);
+  close(state, "2026-09-22T11:00:00.000Z");
+  assert.throws(() => decideCloseReview(state, replacement, review.id, { action: "approve", expectedUpdatedAt: review.updatedAt, note: "Reassignment must never make old evidence current." }), /no longer current/);
+  decideCloseReview(state, replacement, review.id, { action: "return", expectedUpdatedAt: review.updatedAt, note: "Prepare the newer evidence before an independent approval." });
+  assert.throws(() => reassignCloseReview(state, admin, review.id, { ...input, expectedUpdatedAt: review.updatedAt }, roster), /pending review/);
+}
+{
+  const state = empty(), record = close(state);
+  const proposal = makeRecord(state, "import-corrections", { status: "proposed", name: "Correct receipt amount", data: { batchId: "batch-history", preview: { financial: true } as any } });
+  makeRecord(state, "import-correction-events", { status: "recorded", data: { proposalId: proposal.id, action: "reassign" } as any });
+  assert.equal(closeReviewDetail(state, record.id).entry.pendingFinancialCorrections, 1, "Reassignment is not a correction decision.");
+  assert.equal(closeReviewDetail(state, record.id).pendingCorrections[0]!.batchId, "batch-history");
+  makeRecord(state, "import-correction-events", { status: "recorded", data: { proposalId: proposal.id, action: "reject" } as any });
+  assert.equal(closeReviewDetail(state, record.id).entry.pendingFinancialCorrections, 0);
+}
+console.log("Close review: independent approval, exact snapshots, historical paging, admin reassignment, immutable evidence and stale refusal passed.");

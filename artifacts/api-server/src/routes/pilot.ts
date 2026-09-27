@@ -17,6 +17,8 @@ import {
   merchantSchema,
   messageSchema,
   operationListSchema,
+  operationLookupInputSchema,
+  operationLookupSchema,
   pathId,
   pendingOperationsSchema,
   pilotJourneySchema,
@@ -30,6 +32,8 @@ import {
   listOperations,
   countPendingOperations,
   cancelOperation,
+  lookupOwnOperation,
+  cancelOwnOperation,
   caseAssignees,
   staffDirectory,
   inviteStaff,
@@ -97,6 +101,15 @@ router.get("/v1/operations/pending", async (req, res) => {
       "read",
     ),
   );
+});
+// POST keeps the opaque original key out of URLs and access logs. This route only reads the caller's own journal.
+router.post('/v1/operations/lookup', async (req, res) => {
+  const q = lenderQuery(req), input = operationLookupInputSchema.parse(req.body);
+  res.json(await inWorkspace(req, res, async ctx => contractAnswer(operationLookupSchema, await lookupOwnOperation(ctx, q.merchantId, input)), 'read'));
+});
+router.post('/v1/operations/cancel-unreceived', async (req, res) => {
+  const q = lenderQuery(req), input = operationLookupInputSchema.parse(req.body);
+  res.json(await inWorkspace(req, res, async ctx => contractAnswer(messageSchema, await cancelOwnOperation(ctx, q.merchantId, input))));
 });
 router.post("/v1/operations/:id/cancel", async (req, res) => {
   const q = lenderQuery(req),

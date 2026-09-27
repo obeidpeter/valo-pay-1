@@ -251,10 +251,10 @@ export async function prepareOperation(ctx: StoreContext, merchantId: string, ke
     // A cancelled entry's receipt holds the refusal its answer repeats; no other part of the entry is read.
     const prior = (await session.client.query<PriorEntry>("SELECT id,actor,role,status,request_hash,CASE WHEN status='cancelled' THEN receipt END AS receipt FROM valopay_operations WHERE id=$1 AND merchant_id=$2 AND owner=$3", [id, merchantId, owner])).rows[0];
     if (!prior) return undefined;
-    if (prior.request_hash !== hash) fail('This request key belongs to a different request. Recover the original request first.', 409);
     // A cancelled entry is final (completeOperation refuses it), whatever the role now: the answer says so, and the
     // person who sent it hears the original reason.
     if (prior.status === 'cancelled') throw markOperationClosed(Object.assign(new Error(await cancelledRefusal(ctx, merchantId, prior)), { status: 409 }));
+    if (prior.request_hash !== hash) fail('This request key belongs to a different request. Recover the original request first.', 409);
     if (prior.actor !== ctx.actor || prior.role !== ctx.role) fail('Return to the original role before checking this request.', 403);
     return { id: prior.id, created: false };
   };
@@ -365,6 +365,33 @@ export async function cancelOperation(ctx: StoreContext, merchantId: string, id:
   if (await receiptStored(session.client, merchantId, row.request_key, row.id)) fail('A receipt already exists for this request. Check the original request to recover it.', 409);
   await session.client.query("UPDATE valopay_operations SET status='cancelled',updated_at=$4 WHERE id=$1 AND merchant_id=$2 AND owner=$3 AND status='pending'", [id, merchantId, session.owner || session.principal, ctx.now]);
   return { message: 'The server confirmed this request has not completed and cancelled it. It cannot run again.' };
+}
+/** Resolve only this person's exact key and original role, without returning its private request body. */
+export async function lookupOwnOperation(ctx: StoreContext, merchantId: string, input: { key: string; method: 'POST' | 'PATCH'; path: string }) {
+  const session = sessionFor(ctx); await readMerchant(ctx, merchantId, 'none');
+  const owner = session.owner || session.principal, id = digest(`operation:${merchantId}:${owner}:${input.key}`);
+  const query = OPERATION_LIST.replace('WHERE merchant_id=$1 AND owner=$2 ORDER BY created_at DESC,id DESC LIMIT 25 OFFSET $3',
+    'WHERE merchant_id=$1 AND owner=$2 AND id=$3 AND actor=$4 AND role=$5');
+  const row = (await session.client.query<OperationListRow>(query, [merchantId, owner, id, ctx.actor, ctx.role])).rows[0];
+  return { operation: row ? operationView(row) : null };
+}
+/** Fence a key even when its original request has not arrived yet. Absence alone is never permission to resubmit.
+ * The journal-creation lock orders this fence against prepareOperation; the lender lock then waits for any write
+ * already running. Both locks last through commit. A delayed request sees the terminal entry and cannot execute. */
+export async function cancelOwnOperation(ctx: StoreContext, merchantId: string, input: { key: string; method: 'POST' | 'PATCH'; path: string }) {
+  const session = sessionFor(ctx); await readMerchant(ctx, merchantId, 'none');
+  if (ctx.role === 'Read-only') fail('Your read-only role cannot cancel operations.', 403);
+  const owner = session.owner || session.principal, id = digest(`operation:${merchantId}:${owner}:${input.key}`);
+  await session.client.query("SELECT pg_advisory_xact_lock(hashtextextended('valopay.operations:' || $1 || ':' || $2, 0))", [merchantId, owner]);
+  await readMerchant(ctx, merchantId, 'update');
+  const found = (await session.client.query('SELECT id FROM valopay_operations WHERE id=$1 AND merchant_id=$2 AND owner=$3', [id, merchantId, owner])).rows[0];
+  if (found) return cancelOperation(ctx, merchantId, id);
+  if (await receiptStored(session.client, merchantId, input.key, id)) fail('A receipt already exists for this request. Check the original request to recover it.', 409);
+  const fence = { method: input.method, path: input.path, body: null, cancelledBeforeReceipt: true };
+  await session.client.query(`INSERT INTO valopay_operations(id,merchant_id,owner,actor,role,request_key,request_hash,request,label,status,created_at,updated_at)
+    VALUES($1,$2,$3,$4,$5,$6,$7,$8,'Cancelled interrupted submission','cancelled',$9,$9)`,
+  [id, merchantId, owner, ctx.actor, ctx.role, input.key, requestFingerprint(fence), await protectStored(fence, { lender: merchantId, record: id, field: 'request' }), ctx.now]);
+  return { message: 'The server cancelled this request key. Even if the original request arrives later, it cannot run. You can now prepare a new submission.' };
 }
 /**
  * After a request bound to a journal entry was refused or failed, closes the
@@ -1326,7 +1353,7 @@ async function readAuditChain(session: Session, merchantId: string, settings: Re
   return { chain: { ...head, verified, ...(valid ? {} : { broken: { sequence: verified.sequence + 1 } }), ...stamp } as AuditChain, verification: { valid, count: walk.count, headHash: walk.headHash } };
 }
 
-export async function loadState(context: StoreContext, merchantId: string, lock: Exclude<MerchantLock, "none"> = "update", options: { wholeCloses?: number } = {}): Promise<DomainState> {
+export async function loadState(context: StoreContext, merchantId: string, lock: Exclude<MerchantLock, "none"> = "update", options: { wholeCloses?: number; wholeCloseIds?: string[]; closeReviewIds?: string[] } = {}): Promise<DomainState> {
   const session = sessionFor(context);
   const merchant = await readMerchant(context, merchantId, lock);
   // Every load has earlier closes as summaries: each stored report is about
@@ -1336,18 +1363,20 @@ export async function loadState(context: StoreContext, merchantId: string, lock:
   // opens one); saveState refuses to change them. The audit chain is never
   // loaded: a write continues it from the head in the lender's settings.
   const whole = Math.max(0, Math.floor(options.wholeCloses ?? 0));
+  if ((options.wholeCloseIds?.length ?? 0) > 1 || (options.closeReviewIds?.length ?? 0) > 1) fail('Open one historical close at a time.', 400);
   const rows = (await session.client.query<RecordRow & { summarised: boolean }>(
     `WITH recent AS (SELECT least(max(created_at) - make_interval(days => $4), CASE WHEN $5::int > 0 THEN
          (SELECT created_at FROM valopay_records WHERE merchant_id=$1 AND kind='closes' ORDER BY created_at DESC OFFSET $5::int - 1 LIMIT 1) END) AS cutoff
        FROM valopay_records WHERE merchant_id=$1 AND kind='closes'),
-     loaded AS (SELECT r.*, (r.kind='closes' AND r.created_at < recent.cutoff) AS summarised
+     loaded AS (SELECT r.*, (r.kind='closes' AND r.created_at < recent.cutoff AND NOT (r.id=ANY($6::text[]) OR r.id IN
+       (SELECT data->>'closeId' FROM valopay_records WHERE merchant_id=$1 AND kind='close-reviews' AND id=ANY($7::text[])))) AS summarised
        FROM valopay_records r JOIN valopay_merchants m ON m.id=r.merchant_id
        JOIN valopay_workspaces w ON w.id=m.workspace_id CROSS JOIN recent
        WHERE r.merchant_id=$1 AND m.workspace_id=$2 AND w.id=$2 AND w.principal_hash=$3 AND r.kind<>'audit')
      SELECT r.id,r.merchant_id,r.kind,r.name,r.status,r.reference,r.amount_kobo,r.customer_id,
        CASE WHEN r.summarised THEN ${closeSummarySql} ELSE r.data END AS data,r.created_at,r.updated_at,r.summarised
      FROM loaded r ORDER BY r.created_at,r.id`,
-    [merchantId, session.workspace.id, session.principal, FULL_CLOSE_DAYS, whole],
+    [merchantId, session.workspace.id, session.principal, FULL_CLOSE_DAYS, whole, options.wholeCloseIds ?? [], options.closeReviewIds ?? []],
   )).rows;
   // Protected source rows stay sealed: only the views that show or use them open them (revealImportPayloads).
   const state: DomainState = { merchant: merchant.info, settings: merchant.settings, records: rows.map(rowToRecord) };
@@ -2063,8 +2092,17 @@ export function assertFinalState(snapshot: DomainState, state: DomainState, merc
     if (before.kind === 'import-batches' && before.status === 'committed' && !sameJson(present, before)&&!retentionChange()) conflict('Committed source batches are immutable.');
     if(before.kind==='close-reviews'&&!sameJson(present,before)){
       const expected=structuredClone(before);expected.status=present.status;expected.updatedAt=present.updatedAt;
-      for(const field of ['decidedBy','decidedPrincipal','decidedAt','decisionNote','sourceExceptions'])expected.data[field]=present.data[field];
-      if(before.status!=='awaiting_review'||!['approved','changes_requested'].includes(present.status)||!sameJson(expected,present))conflict('The prepared close snapshot and recorded decision are immutable.');
+      if (before.status === 'awaiting_review' && present.status === 'awaiting_review') {
+        expected.data.reviewer = present.data.reviewer;
+        const evidence = state.records.some(event => !original.has(event.id) && event.kind === 'close-review-events' && event.status === 'recorded'
+          && event.data.action === 'reassign' && event.data.reviewId === before.id && event.data.closeId === before.data.closeId
+          && event.data.previousReviewer === before.data.reviewer && event.data.reviewer === present.data.reviewer
+          && event.data.snapshotDigest === before.data.snapshotDigest && typeof event.data.note === 'string' && event.data.note.trim().length >= 10);
+        if (before.data.reviewer === present.data.reviewer || !evidence || !sameJson(expected, present)) conflict('Reassignments must retain the prepared snapshot and append their reason to the review history.');
+      } else {
+        for(const field of ['decidedBy','decidedPrincipal','decidedAt','decisionNote','sourceExceptions'])expected.data[field]=present.data[field];
+        if(before.status!=='awaiting_review'||!['approved','changes_requested'].includes(present.status)||!sameJson(expected,present))conflict('The prepared close snapshot and recorded decision are immutable.');
+      }
     }
     if(before.kind==='retention-runs'&&['candidates','previewDigest','policyRevision','expiresAt','preparedBy'].some(key=>!sameJson(before.data[key],present.data[key])))conflict('The approved retention manifest is immutable.');
     if (before.data.importIdentity && !sameJson(present.data.importIdentity, before.data.importIdentity)) conflict('Source row provenance is immutable.');
@@ -2379,7 +2417,9 @@ export async function executeLifecycleRun(context:StoreContext,state:DomainState
  * for a later sweep. Deleting the records first and then waiting for such a
  * lender deadlocked with a close that saved it. Each sandbox is locked in a
  * savepoint of its own and a busy one is undone at once, so its free lenders
- * and its row are not held for the rest of the caller's transaction.
+ * and its row are not held for the rest of the caller's transaction. An export
+ * renders and uploads outside that lock: any running export, even one with an
+ * expired lease, keeps its workspace until the worker settles or recovers it.
  *
  * Answers the swept sandboxes' export files, read before their records go:
  * private storage is not part of the transaction, so the caller removes them
@@ -2403,7 +2443,12 @@ export async function sweepExpiredWorkspaces(client: PoolClient, limit: number):
     // The workspace row, once locked, keeps the lender list fixed: adding a lender needs its workspace.
     const lenders = still ? (await client.query<{ total: number }>("SELECT count(*)::int AS total FROM valopay_merchants WHERE workspace_id=$1", [id])).rows[0]!.total : 0;
     const locked = still ? (await client.query("SELECT id FROM valopay_merchants WHERE workspace_id=$1 ORDER BY id FOR UPDATE SKIP LOCKED", [id])).rowCount || 0 : 0;
-    if (still && locked === lenders) { await client.query("RELEASE SAVEPOINT expired_workspace"); expired.push(id); }
+    // Recheck only after every lender is locked. A claim cannot start between
+    // this check and deletion, and an upload in progress retains its job and
+    // future cleanup identity even when its database lease has expired.
+    const uploading = still && locked === lenders && rowsAffected(await client.query(`SELECT 1 FROM valopay_records r
+      JOIN valopay_merchants m ON m.id=r.merchant_id WHERE m.workspace_id=$1 AND r.kind='exports' AND r.status='running' LIMIT 1`, [id]));
+    if (still && locked === lenders && !uploading) { await client.query("RELEASE SAVEPOINT expired_workspace"); expired.push(id); }
     else await client.query("ROLLBACK TO SAVEPOINT expired_workspace");
   }
   if (!expired.length) return { workspaces: 0, files: [] };
@@ -2414,6 +2459,21 @@ export async function sweepExpiredWorkspaces(client: PoolClient, limit: number):
      WHERE m.workspace_id = ANY($1::text[]) AND r.kind='exports' AND coalesce(r.data->>'bucket','') <> '' AND coalesce(r.data->>'objectName','') <> ''
        AND coalesce(r.data->>'fileDeletedAt','') = '' ORDER BY r.merchant_id, r.id`, [expired],
   )).rows.map((row): SweptExportFile => ({ merchantId: row.merchant_id, exportId: row.id, bucket: row.bucket, objectName: row.object_name, ...(row.checksum ? { checksum: row.checksum } : {}) }));
+  // Written in the same transaction, before their source records disappear. A rolled-back sweep leaves no cleanup
+  // work; a committed sweep keeps every remaining private file identifiable through outages and process restarts.
+  // An interrupted upload may have lost its answer just before its job became
+  // failed or queued. Retain that tombstone for five minutes before the first
+  // storage check, covering the bounded four-minute attempt and one-minute
+  // storage request. This is a quiescence allowance, not proof that an external
+  // provider can never commit arbitrarily late after a client cancellation.
+  if (files.length) await client.query(`INSERT INTO valopay_export_cleanup(id,merchant_id,bucket,object_name,checksum,next_attempt_at)
+    SELECT r.id,r.merchant_id,r.data->>'bucket',r.data->>'objectName',r.data->>'checksum',
+      CASE WHEN r.status<>'ready' AND CASE WHEN jsonb_typeof(r.data->'attempts')='number' THEN (r.data->>'attempts')::numeric>0 ELSE false END
+        THEN now()+interval '5 minutes' ELSE now() END
+    FROM valopay_records r JOIN valopay_merchants m ON m.id=r.merchant_id
+    WHERE m.workspace_id=ANY($1::text[]) AND r.kind='exports' AND coalesce(r.data->>'bucket','')<>'' AND coalesce(r.data->>'objectName','')<>''
+      AND coalesce(r.data->>'fileDeletedAt','')='' ORDER BY r.merchant_id,r.id
+    ON CONFLICT (id) DO NOTHING`, [expired]);
   await client.query("DELETE FROM valopay_idempotency WHERE merchant_id IN (SELECT id FROM valopay_merchants WHERE workspace_id = ANY($1::text[]))", [expired]);
   await client.query("DELETE FROM valopay_records WHERE merchant_id IN (SELECT id FROM valopay_merchants WHERE workspace_id = ANY($1::text[]))", [expired]);
   await client.query("DELETE FROM valopay_merchants WHERE workspace_id = ANY($1::text[])", [expired]);
@@ -2438,21 +2498,58 @@ export function overrideSweptExportRemoval(remove: typeof removeSweptFile): () =
  * Removes the export files of the sandboxes a sweep deleted, one at a time.
  * inWorkspace calls it once that deletion has committed, so a sweep that was
  * undone keeps its files with its records. It never throws, so it never fails
- * the request or undoes the sweep: a file private storage could not remove, or
- * one not reached within the budget, is named in the log
- * (`workspace.sweep_file_left`, with its bucket and object name) so that an
- * operator can remove it, since nothing else refers to it any more.
+ * the request or undoes the sweep. A file not removed within the budget stays
+ * in the durable queue, whose background worker retries after outages and
+ * restarts. Logs identify only the job; private storage paths stay in the queue.
  */
 export async function removeSweptExportFiles(files: SweptExportFile[], log?: SweepLog, budgetMs = SWEPT_FILE_BUDGET_MS): Promise<void> {
-  const started = performance.now();
-  for (const file of files) {
-    let problem: { reason: "failed"; err: unknown } | { reason: "time_limit" } | undefined;
-    if (performance.now() - started >= budgetMs) problem = { reason: "time_limit" };
-    else try { await removeSweptFile(file); } catch (error) { problem = { reason: "failed", err: error }; }
-    if (!problem) continue;
-    const { checksum: _checksum, ...named } = file;
-    try { log?.warn?.({ event: "workspace.sweep_file_left", ...named, ...problem }, "A swept sandbox's export file was left in private storage"); } catch { /* a log that fails never fails the request */ }
+  try { await runExportCleanupPass({ ids: files.map(file => file.exportId), limit: files.length, budgetMs, log }); }
+  catch { try { log?.warn?.({ event: 'workspace.sweep_cleanup_deferred' }, 'Private export cleanup remains queued for retry'); } catch { /* logging cannot fail a bootstrap */ } }
+}
+
+/** Claim one tombstone atomically. No connection is held during storage I/O; crashed claims become available after
+ * two minutes. The token prevents a late worker from removing a newer worker's claim. Restricted tenant runtimes
+ * neither read this global queue nor receive its database privileges. */
+export async function runExportCleanupPass(options: { ids?: string[]; limit?: number; budgetMs?: number; stopped?: () => boolean; log?: SweepLog } = {}) {
+  if (runtimeIsolationEnabled()) return { attempted: 0, removed: 0, deferred: 0 };
+  const started = performance.now(), result = { attempted: 0, removed: 0, deferred: 0 };
+  const limit = Math.max(0, Math.min(20, Math.floor(options.limit ?? 5)));
+  for (let n = 0; n < limit && performance.now() - started < (options.budgetMs ?? 10_000) && !options.stopped?.(); n++) {
+    const token = randomUUID();
+    const row = await runtimeServiceRead(async client => (await client.query<{ id: string; merchant_id: string; bucket: string; object_name: string; checksum: string | null; attempts: number }>(`WITH candidate AS (
+      SELECT id FROM valopay_export_cleanup WHERE next_attempt_at<=now() AND (lease_until IS NULL OR lease_until<=now())
+        AND ($2::text[] IS NULL OR id=ANY($2::text[])) ORDER BY next_attempt_at,id FOR UPDATE SKIP LOCKED LIMIT 1)
+      UPDATE valopay_export_cleanup q SET lease_token=$1,lease_until=now()+interval '2 minutes',attempts=least(q.attempts::bigint+1,2147483647)::int,updated_at=now()
+      FROM candidate c WHERE q.id=c.id RETURNING q.id,q.merchant_id,q.bucket,q.object_name,q.checksum,q.attempts`, [token, options.ids ?? null])).rows[0]);
+    if (!row) break;
+    result.attempted++;
+    const file: SweptExportFile = { exportId: row.id, merchantId: row.merchant_id, bucket: row.bucket, objectName: row.object_name, ...(row.checksum ? { checksum: row.checksum } : {}) };
+    try {
+      await removeSweptFile(file);
+      await runtimeServiceRead(client => client.query('DELETE FROM valopay_export_cleanup WHERE id=$1 AND lease_token=$2', [row.id, token]));
+      result.removed++;
+    } catch (error) {
+      result.deferred++;
+      // A bounded code, never a storage response, private path or credential. Retry retains the ownership guard;
+      // an object whose identity changed remains queued for an operator to investigate, never deleted by force.
+      const retrySeconds = Math.min(3600, 30 * 2 ** Math.min(row.attempts - 1, 7));
+      await runtimeServiceRead(client => client.query(`UPDATE valopay_export_cleanup SET lease_token=NULL,lease_until=NULL,last_failure='storage_or_queue_unavailable',
+        next_attempt_at=now()+make_interval(secs=>$3),updated_at=now() WHERE id=$1 AND lease_token=$2`, [row.id, token, retrySeconds]));
+      try { options.log?.warn?.({ event: 'workspace.sweep_file_left', exportId: row.id, merchantId: row.merchant_id, reason: 'failed', retrySeconds }, 'Private export cleanup failed and remains queued for retry'); } catch { /* no effect on work */ }
+    }
   }
+  return result;
+}
+
+/** Operator-only aggregate status. No export payload, customer identifier or private storage path is returned. */
+export async function exportCleanupStatus() {
+  if (runtimeIsolationEnabled()) fail('Export cleanup is owned by the sandbox service, outside restricted tenant runtimes.', 403);
+  const row = await runtimeServiceRead(async client => (await client.query(`SELECT count(*)::int AS pending,
+    count(*) FILTER (WHERE lease_until>now())::int AS leased,
+    count(*) FILTER (WHERE next_attempt_at<=now() AND (lease_until IS NULL OR lease_until<=now()))::int AS ready,
+    count(*) FILTER (WHERE attempts>0)::int AS retried,
+    min(created_at) AS oldest FROM valopay_export_cleanup`)).rows[0]);
+  return { ...row, oldest: row.oldest?.toISOString() ?? null };
 }
 
 async function seedWorkspace(client: PoolClient, workspace: WorkspaceRow, principal: string, anonymous: boolean, now: string) {
@@ -2677,6 +2774,7 @@ export async function initialiseCloseCursors(): Promise<number> {
 const tableMigrations: Record<string, string> = {
   valopay_operations: "003_pilot_workflow.sql", valopay_teams: "003_pilot_workflow.sql", valopay_staff_memberships: "003_pilot_workflow.sql",
   valopay_staff_invitations: "003_pilot_workflow.sql", valopay_staff_events: "003_pilot_workflow.sql", valopay_staff_lender_access: "004_staff_lender_access.sql",
+  valopay_export_cleanup: '013_export_cleanup.sql',
 };
 const schemaSource = (table: string) => tableMigrations[table] ? `apply lib/db/migrations/${tableMigrations[table]}` : "create it from the Drizzle schema in lib/db";
 /**
@@ -2685,7 +2783,7 @@ const schemaSource = (table: string) => tableMigrations[table] ? `apply lib/db/m
  */
 const columnSource = "add it from the Drizzle schema in lib/db";
 /** Every table this build uses, with every column the Drizzle schema in lib/db gives it. */
-const requiredTables = [tables.workspaces, tables.merchants, tables.records, tables.idempotency, tables.operations, tables.teams, tables.staffMemberships, tables.staffInvitations, tables.staffEvents, tables.staffLenderAccess]
+const requiredTables = [tables.workspaces, tables.merchants, tables.records, tables.idempotency, tables.operations, tables.teams, tables.staffMemberships, tables.staffInvitations, tables.staffEvents, tables.staffLenderAccess, tables.exportCleanup]
   .map((table) => { const config = getTableConfig(table); return { name: config.name, columns: config.columns.map((column) => column.name) }; });
 /**
  * The integrity guards the Drizzle schema in lib/db declares: every unique
@@ -2723,6 +2821,8 @@ export const integrityGuards = [
   { type: "check", name: "valopay_invitation_status", table: "valopay_staff_invitations", definition: "CHECK ((status = ANY (ARRAY['pending'::text, 'accepted'::text, 'revoked'::text])))" },
   { type: "unique index", name: "valopay_staff_events_pkey", table: "valopay_staff_events", definition: "USING btree (id)" },
   { type: "unique index", name: "valopay_staff_lender_access_membership_id_merchant_id_pk", table: "valopay_staff_lender_access", definition: "USING btree (membership_id, merchant_id)" },
+  { type: 'unique index', name: 'valopay_export_cleanup_pkey', table: 'valopay_export_cleanup', definition: 'USING btree (id)' },
+  { type: 'check', name: 'valopay_export_cleanup_attempts', table: 'valopay_export_cleanup', definition: 'CHECK ((attempts >= 0))' },
 ] as const;
 /**
  * The migration in lib/db/migrations that builds an integrity guard again
@@ -2753,6 +2853,7 @@ export const supersededGuards = [
  * carry generated names.
  */
 const requiredIndexes = [
+  { name: 'valopay_export_cleanup_due', table: 'valopay_export_cleanup', definition: 'USING btree (next_attempt_at, id)', migration: '013_export_cleanup.sql' },
   { name: "valopay_records_lender_kind_page", table: "valopay_records", definition: "USING btree (merchant_id, kind, created_at, id)", migration: "002_record_list_indexes.sql" },
   { name: "valopay_records_lender_kind_status_page", table: "valopay_records", definition: "USING btree (merchant_id, kind, status, created_at, id)", migration: "002_record_list_indexes.sql" },
   { name: "valopay_records_lender_customer", table: "valopay_records", definition: "USING btree (merchant_id, customer_id, created_at, id)", migration: "002_record_list_indexes.sql" },
@@ -2798,6 +2899,7 @@ function schemaGaps(catalogue: SchemaCatalogue): { required: string[]; indexes: 
   const present = new Map<string, Set<string>>(), required: string[] = [], indexes: string[] = [];
   for (const { table, column } of catalogue.columns) present.set(table, (present.get(table) ?? new Set<string>()).add(column));
   for (const table of requiredTables) {
+    if (table.name === 'valopay_export_cleanup' && runtimeIsolationEnabled()) continue;
     const columns = present.get(table.name);
     if (!columns) { required.push(`table ${table.name}: ${schemaSource(table.name)}`); continue; }
     for (const column of table.columns) if (!columns.has(column)) required.push(`column ${table.name}.${column}: ${columnSource}`);

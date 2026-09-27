@@ -23,6 +23,14 @@ export const decideCloseReviewSchema = z.object({
 export type PrepareCloseReviewInput = z.infer<typeof prepareCloseReviewSchema>;
 /** Validated approval or request-for-changes fields. */
 export type DecideCloseReviewInput = z.input<typeof decideCloseReviewSchema>;
+/** An administrator can replace a pending reviewer without changing the evidence or deciding it. */
+export const reassignCloseReviewSchema = z.object({ expectedUpdatedAt: instantInputSchema, reviewer: z.string().trim().min(1).max(200), reason: note }).strict();
+/** Validated replacement of a pending Finance reviewer. */
+export type ReassignCloseReviewInput = z.infer<typeof reassignCloseReviewSchema>;
+/** Bounded searchable close history; direct links are independent of the current page. */
+export const closeReviewHistoryQuerySchema = z.object({ search: z.string().trim().max(200).default(""), offset: z.coerce.number().int().min(0).max(1000000).default(0), limit: z.coerce.number().int().min(1).max(25).default(25) }).strip();
+/** Validated search and paging fields for Finance close history. */
+export type CloseReviewHistoryQuery = z.infer<typeof closeReviewHistoryQuerySchema>;
 
 /** Progress states distinguish evidence, missing work and blocked decisions. */
 export const pilotProgressStates = ["not_started", "in_progress", "awaiting_review", "completed", "blocked"] as const;
@@ -44,3 +52,7 @@ export const closeReviewRecordSchema = valopayRecordSchema.extend({ current: z.b
 export const closeReviewEntrySchema = z.object({ close: valopayRecordSchema, issues: z.array(closeReviewIssueSchema), problem: z.string().nullable(), pendingFinancialCorrections: z.number().int().min(0), reviews: z.array(closeReviewRecordSchema) }).strict();
 /** The 25 newest closes with their reviews, the Finance reviewers available and who the caller is, so the console can enforce separation of duties. */
 export const closeReviewListSchema = z.object({ closes: z.array(closeReviewEntrySchema).max(25), total: z.number().int().min(0), actor: z.string(), reviewers: z.array(assigneeSchema), accessMode: z.enum(["sandbox", "staff"]), ownPrincipal: z.string() }).strict();
+/** A small history row carries no full reports or frozen review snapshots. */
+export const closeReviewHistorySchema = z.object({ closes: z.array(z.object({ id: id, name: z.string(), reference: z.string(), createdAt: z.string(), businessDate: z.string().nullable(), reviewStatus: z.string().nullable(), latest: z.boolean() }).strict()).max(25), total: z.number().int().min(0), offset: z.number().int().min(0), limit: z.number().int().min(1).max(25) }).strict();
+/** One lender-scoped historical close with complete recorded evidence, decisions and assignment history. */
+export const closeReviewDetailSchema = z.object({ entry: closeReviewEntrySchema, events: z.array(valopayRecordSchema), actor: z.string(), reviewers: z.array(assigneeSchema), accessMode: z.enum(["sandbox", "staff"]), ownPrincipal: z.string(), pendingCorrections: z.array(z.object({ id, batchId: id, name: z.string() }).strict()) }).strict();

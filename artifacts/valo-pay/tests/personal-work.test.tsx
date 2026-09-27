@@ -6,6 +6,8 @@ import WorkPage from '@/pages/work';
 import { seedMerchant } from '../../api-server/src/lib/valopay-seed';
 import { makeRecord } from '../../api-server/src/domain/records';
 import { derivePersonalWork, recordWorkReceipt } from '../../api-server/src/domain/personal-work';
+import { saveImportBatch, commitImportBatch } from '../../api-server/src/domain/pilot-workflow';
+import { previewImportCorrection, proposeImportCorrection } from '../../api-server/src/domain/import-corrections';
 import type { DomainState } from '../../api-server/src/domain/types';
 
 const context = vi.hoisted(() => ({ merchantId: 'work-ui', actor: 'Clerk:alice', role: 'Operations' }));
@@ -52,6 +54,26 @@ function mount() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   return render(<QueryClientProvider client={client}><WorkPage /></QueryClientProvider>);
 }
+
+it('includes pending import corrections in Finance reviews with age and an exact source link', async () => {
+  const proposer = { actor: 'Clerk:alice', role: 'Operations', now: '2026-09-24T09:00:00.000Z' };
+  const batch = saveImportBatch(state, proposer, { name: 'Work queue sample', source: 'pilot-lms', sourceBatchId: 'work-source', kind: 'customers', csv: 'source_row_id,name,reference,consentProvenance\nqueue-1,Sample payer,WORK-COR-C1,Synthetic consent', identityColumn: 'source_row_id', amountUnit: 'naira', mapping: {}, syntheticOnly: true });
+  commitImportBatch(state, proposer, batch.id, batch.updatedAt);
+  const target = state.records.find(record => record.data.importIdentity?.batchId === batch.id)!;
+  const input = { batchId: batch.id, targetId: target.id, expectedUpdatedAt: target.updatedAt, changes: { name: 'Corrected sample payer' }, syntheticOnly: true as const };
+  const preview = previewImportCorrection(state, proposer, input);
+  const proposal = proposeImportCorrection(state, proposer, { ...input, previewDigest: preview.previewDigest, reviewer: 'Clerk:bob', reason: 'Correct the name in the source file.', evidence: 'SOURCE-CORRECTION-QUEUE' }, people);
+  context.actor = 'Clerk:bob'; context.role = 'Finance';
+  const user = userEvent.setup(); mount();
+  await screen.findByRole('heading', { name: 'Import correction awaiting review' });
+  expect(screen.getByRole('link', { name: 'Review import correction' }).getAttribute('href')).toBe(`/imports?batch=${batch.id}&correction=${proposal.id}`);
+  expect(screen.getByText(/Awaiting decision since/)).toBeTruthy();
+  await user.selectOptions(screen.getByRole('combobox', { name: 'Show' }), 'review');
+  expect(await screen.findByRole('heading', { name: 'Import correction awaiting review' })).toBeTruthy();
+  await user.click(screen.getByRole('button', { name: 'Mark as read' }));
+  await screen.findByText(/Notification marked as read/);
+  expect(state.records.filter(record => record.kind === 'import-correction-events')).toHaveLength(0);
+});
 
 it('defaults to own current-lender work and exposes genuine filters and empty states', async () => {
   assigned('Clerk:alice', 'Alice sample case'); assigned('Clerk:bob', 'Bob private assignment');

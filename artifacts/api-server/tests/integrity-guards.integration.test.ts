@@ -2,7 +2,7 @@
 // that serves now may not check integrity guards at all, so its readiness cannot show a guard the new build needs.
 // The query must name exactly the unique indexes and check constraints of integrityGuards (lib/valopay-store.ts)
 // that the database lacks, and any superseded guard (supersededGuards) it still holds, as the new build's readiness
-// does. It runs against this suite's pushed database, then against a copy of the ten tables in a scratch schema, read
+// does. It runs against this suite's pushed database, then against a copy of the eleven service tables in a scratch schema, read
 // through the search path as the document says for a runtime schema, from which guards are taken away: dropped,
 // rebuilt without their condition, added back without validation; and to which the provider event guard migration
 // 009 replaces is added under a generated name, then left ready but not valid by an interrupted concurrent drop. Only
@@ -24,7 +24,7 @@ const blocks = [...documented.matchAll(/```sql\n([\s\S]*?)```/g)].map((match) =>
 assert.equal(blocks.length, 1, "docs/database-migrations.md holds one SQL block, the guard query");
 const query = blocks[0]!;
 const tables = [...new Set(integrityGuards.map((guard) => guard.table))];
-assert.equal(tables.length, 10, "every application table has a guard");
+assert.equal(tables.length, 11, "every application table has a guard");
 const scratch = `valopay_guard_check_${randomBytes(6).toString("hex")}`;
 const named = (guards: readonly Guard[]) => guards.map((guard) => `${guard.type} ${guard.name}`).sort();
 const guardsNamed = (...names: string[]) => integrityGuards.filter((guard) => names.includes(guard.name));
@@ -45,7 +45,7 @@ try {
   assert.deepEqual(await listed(), [], "on a pushed database the query lists nothing");
   assert.deepEqual((await readinessMissing()).guards, []);
 
-  // ---- A copy of the ten tables, read through the search path: the query and readiness name the same guards ----
+  // ---- A copy of the eleven service tables, read through the search path: the query and readiness name the same guards ----
   await client.query(`CREATE SCHEMA "${scratch}"`);
   created = true;
   for (const table of tables) await client.query(`CREATE TABLE "${scratch}".${table} (LIKE public.${table} INCLUDING ALL)`);

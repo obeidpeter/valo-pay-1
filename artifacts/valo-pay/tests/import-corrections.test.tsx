@@ -9,6 +9,7 @@ import {
 } from "../../api-server/src/domain/pilot-workflow";
 import { makeRecord } from "../../api-server/src/domain/records";
 import { saveSourceManifest } from "../../api-server/src/domain/source-completeness";
+import { previewImportCorrection, proposeImportCorrection } from "../../api-server/src/domain/import-corrections";
 let api: FakeApi;
 beforeEach(() => {
   api = installFakeApi();
@@ -110,6 +111,38 @@ it("preserves the original batch, shows before/after, and requires a different p
   expect(
     api.state().records.filter((r) => r.kind === "import-correction-events"),
   ).toHaveLength(1);
+});
+it('opens the exact linked correction and lets an administrator recover its reviewer without changing the source', async () => {
+  const { batchId, targetId } = arrange();
+  const proposal = api.mutate((state, ctx) => {
+    const target = state.records.find(record => record.id === targetId)!;
+    const input = { batchId, targetId, expectedUpdatedAt: target.updatedAt, changes: { name: 'Corrected sample customer' }, syntheticOnly: true as const };
+    const preview = previewImportCorrection(state, ctx, input);
+    return proposeImportCorrection(state, ctx, { ...input, previewDigest: preview.previewDigest, reviewer: 'Departed Finance', reason: 'Correct spelling against the source file', evidence: 'SOURCE-CORRECT-RECOVERY' }, [{ actor: 'Departed Finance', role: 'Finance' }]);
+  });
+  const original = JSON.stringify(api.state().records.find(record => record.id === proposal.id));
+  const user = userEvent.setup();
+  renderApp(`/imports?batch=${batchId}&correction=${proposal.id}`);
+  const card = await screen.findByRole('article', { name: 'Correction c-1' });
+  await waitFor(() => expect(document.activeElement).toBe(card));
+  await user.click(screen.getByText('Recover reviewer assignment'));
+  await user.selectOptions(screen.getByLabelText('Replacement Finance reviewer'), 'Sandbox Finance');
+  expect((screen.getByRole('button', { name: 'Reassign correction reviewer' }) as HTMLButtonElement).disabled).toBe(true);
+  await user.type(screen.getByLabelText('Reassignment reason'), 'The named reviewer no longer has access to this lender.');
+  await user.click(screen.getByRole('button', { name: 'Reassign correction reviewer' }));
+  await screen.findByText('Reviewer assignment history');
+  expect(screen.getByRole('heading', { name: 'Awaiting review' })).toBeTruthy();
+  expect(api.state().records.find(record => record.id === targetId)!.name).toBe('Original sample customer');
+  expect(JSON.stringify(api.state().records.find(record => record.id === proposal.id))).toBe(original);
+  expect(api.state().records.filter(record => record.kind === 'import-correction-events').map(record => record.data.action)).toEqual(['reassign']);
+  cleanup(); queryClient.clear(); api.role = 'Finance'; api.principalId = 'independent-replacement-person';
+  renderApp(`/imports?batch=${batchId}&correction=${proposal.id}`);
+  expect(await screen.findByRole('button', { name: 'Approve and apply correction' })).toBeTruthy();
+  expect(screen.queryByText('Recover reviewer assignment')).toBeNull();
+  await user.type(screen.getByLabelText('Decision reason'), 'Independently checked the unchanged source comparison.');
+  await user.click(screen.getByRole('button', { name: 'Approve and apply correction' }));
+  await screen.findByRole('heading', { name: 'Approved' });
+  expect(api.state().records.find(record => record.id === targetId)!.name).toBe('Corrected sample customer');
 });
 it("names the compared fields as the mapping on the same page does", async () => {
   const { batchId, targetId } = arrange();

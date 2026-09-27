@@ -14,6 +14,7 @@ import { SandboxGuide } from './sandbox-guide';
 import { PresentationGuide, usePresentation } from './presentation-guide';
 import { useQueuePosition } from '@/lib/queue-position';
 import { WorkspaceRefreshProblem } from './workspace-unavailable';
+import { SubmissionRecoveryNotice } from './submission-recovery-notice';
 import { getCountPendingOperationsQueryKey, useCountPendingOperations } from '@workspace/api-client-react';
 
 type NavItem = { href: string; label: string; icon: LucideIcon };
@@ -312,6 +313,7 @@ export function Layout({ children }: { children: ReactNode }) {
             </div>
             {/* A refresh that failed keeps the pages, their forms and dialogs, and says so above them. */}
             {refreshFailure && <WorkspaceRefreshProblem failure={refreshFailure} staff={workspace?.accessMode === 'staff'} />}
+            <SubmissionRecoveryNotice />
             {/* Until the workspace arrives the pages have no lender to show, so the page area says what is happening instead,
                 as its heading. A page that stops working keeps the sidebar and the lender selector as the way out. */}
             {isLoading && !workspace

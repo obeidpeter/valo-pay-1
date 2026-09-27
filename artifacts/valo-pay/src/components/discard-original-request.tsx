@@ -4,7 +4,7 @@ import { Button } from "./ui/button";
 
 /** Said before a person discards a request whose outcome is unknown: it may have been saved, and it is not cancelled. */
 export const DISCARD_ORIGINAL_WARNING =
-  "The original request may already have been saved. Discarding it here does not cancel it, and a new submission will not be recognised as a repeat. Check Operations or the records before you submit again. Discard the original request?";
+  "The original request may already have been saved. Discarding this form does not cancel it. Check Operations or the interrupted-request notice before you submit again; a journaled request stays protected until its outcome is confirmed or the server cancels it. Discard the original form?";
 
 const controls = "a[href], button, input:not([type='hidden']), select, textarea, summary, [tabindex]";
 /**
@@ -35,8 +35,10 @@ function nextControl(button: HTMLElement, named?: () => HTMLElement | null | und
 
 /**
  * The way out of an unconfirmed request that cannot be recovered: after the
- * warning, the console forgets the original and its key, and the form is free
- * again. Retrying the original stays the first choice on every recovery notice.
+ * warning, the console forgets the form's private fields and in-memory attempt.
+ * Its opaque journal identity stays in the interrupted-request notice for a
+ * server check or cancellation before another submission. Retrying the
+ * original stays the first choice on every recovery notice.
  * The notice goes with the discard, so focus then moves on to the next
  * sensible control (`next`, when the page names the control that sent the
  * request) rather than falling to the page; a key or pointer press before the

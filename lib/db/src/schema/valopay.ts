@@ -1,4 +1,4 @@
-import { pgTable, text, jsonb, timestamp, bigint, uniqueIndex, index, check, primaryKey, foreignKey } from "drizzle-orm/pg-core";
+import { pgTable, text, jsonb, timestamp, bigint, integer, uniqueIndex, index, check, primaryKey, foreignKey } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 
@@ -63,6 +63,17 @@ export const idempotency = pgTable("valopay_idempotency", {
 },t=>[uniqueIndex("valopay_idempotency_tenant_key").on(t.merchantId,t.id)]);
 export const insertValopayRecordSchema = createInsertSchema(records);
 export type ValopayRecordRow = typeof records.$inferSelect;
+
+/** Service-only deletion tombstones survive the sandbox they belong to. Never grant this table to tenant runtimes. */
+export const exportCleanup = pgTable('valopay_export_cleanup', {
+  id: text('id').primaryKey(), merchantId: text('merchant_id').notNull(), bucket: text('bucket').notNull(),
+  objectName: text('object_name').notNull(), checksum: text('checksum'),
+  attempts: integer('attempts').notNull().default(0), lastFailure: text('last_failure'),
+  nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }).notNull().defaultNow(),
+  leaseToken: text('lease_token'), leaseUntil: timestamp('lease_until', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, t => [index('valopay_export_cleanup_due').on(t.nextAttemptAt, t.id), check('valopay_export_cleanup_attempts', sql`${t.attempts} >= 0`)]);
 
 /** Private recovery requests are never exposed through the generic records API. */
 export const operations = pgTable('valopay_operations', {

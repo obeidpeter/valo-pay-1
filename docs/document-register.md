@@ -1,6 +1,6 @@
 # Valo Pay document register
 
-Version 1.0 · Reviewed 26 September 2026
+Version 1.1 · Release status updated 27 September 2026
 
 This register identifies the current core planning documents, repository guidance and dated supporting evidence. It distinguishes product intentions, implemented synthetic behaviour, deployed behaviour and outstanding acceptance. It covers the four supplied core documents and the repository documentation reviewed for this refresh, plus the supporting artifacts named below. It is not a claim that every historical download or external document has been reviewed.
 
@@ -16,12 +16,14 @@ This register identifies the current core planning documents, repository guidanc
 
 | Reference | Status at this review | Evidence and limit |
 | --- | --- | --- |
-| PR #64, merge `d8a6e7b9d7264b9d7d6e4237666053c76c848d04` | Latest verified deployed release | [Deployment record](BUILD_STATUS.md), checked 26 September 2026 at 14:30 UTC on [Valo Pay — Stage 1](https://valo-pay.replit.app). A dated check, not continuous monitoring. |
-| PR #65, merge `253eb90dc747d0e35b9b18d3a5502f7bd6b71a07` | Merged to `main`, not deployed | [PR #65](https://github.com/obeidpeter/valo-pay/pull/65): state clarity, invitation recovery, role guidance and release/migration documentation. |
-| PR #66, merge `99eac2525869ddf5e9329b07e60adf1da5122171` | Merged to `main`, not deployed | [PR #66](https://github.com/obeidpeter/valo-pay/pull/66): draft preservation, dialog focus and readiness-failure classification. |
-| PR #67, merge `0b556f5854f90ae0a687bc2918894936c0ce20cb` | Merged to `main`, not deployed | [PR #67](https://github.com/obeidpeter/valo-pay/pull/67): this documentation refresh. It changes no acceptance gate, permission or live integration. |
-| PR #68, merge `e52b1c32cb4bcb08fc3f0b5319e7039806aecbcb` | Merged to `main`, not deployed | [PR #68](https://github.com/obeidpeter/valo-pay/pull/68): the review fixes for PRs #61 to #67, with the steps before and after deploying it that [build status](BUILD_STATUS.md) lists. |
-| PR #69, merge `755334623ff3098262b82ed48ddc1185673bb0c4` | Merged to `main`, not deployed | [PR #69](https://github.com/obeidpeter/valo-pay/pull/69): the follow-ups to PR #68, which count public sandboxes apart from lenders in the close backlog, report the backlog where a scheduled job runs the closes and correct the readiness log's advice for a missing column; its pull request lists the steps before deploying it. |
+| PR #64, merge `d8a6e7b9d7264b9d7d6e4237666053c76c848d04` | Earlier verified deployed release | [Deployment record](BUILD_STATUS.md), checked 26 September 2026 at 14:30 UTC on [Valo Pay — Stage 1](https://valo-pay.replit.app). A dated check, not continuous monitoring. |
+| PR #65, merge `253eb90dc747d0e35b9b18d3a5502f7bd6b71a07` | Included in deployed PR #70 | [PR #65](https://github.com/obeidpeter/valo-pay/pull/65): state clarity, invitation recovery, role guidance and release/migration documentation. |
+| PR #66, merge `99eac2525869ddf5e9329b07e60adf1da5122171` | Included in deployed PR #70 | [PR #66](https://github.com/obeidpeter/valo-pay/pull/66): draft preservation, dialog focus and readiness-failure classification. |
+| PR #67, merge `0b556f5854f90ae0a687bc2918894936c0ce20cb` | Included in deployed PR #70 | [PR #67](https://github.com/obeidpeter/valo-pay/pull/67): this documentation refresh. It changes no acceptance gate, permission or live integration. |
+| PR #68, merge `e52b1c32cb4bcb08fc3f0b5319e7039806aecbcb` | Included in deployed PR #70 | [PR #68](https://github.com/obeidpeter/valo-pay/pull/68): the review fixes for PRs #61 to #67, with the steps before and after deploying it that [build status](BUILD_STATUS.md) lists. |
+| PR #69, merge `755334623ff3098262b82ed48ddc1185673bb0c4` | Included in deployed PR #70 | [PR #69](https://github.com/obeidpeter/valo-pay/pull/69): the follow-ups to PR #68, which count public sandboxes apart from lenders in the close backlog, report the backlog where a scheduled job runs the closes and correct the readiness log's advice for a missing column; its pull request lists the steps before deploying it. |
+| PR #70, merge `9715c265abde2c7f10555a6a5281ccf8e8633ca3` | Latest verified deployed release | [Deployment record](BUILD_STATUS.md), verified 27 September 2026 at approximately 12:01 UTC; scheduler off and external commissioning incomplete. |
+| Workflow recovery branch | Implemented, awaiting deployment | Pending correction work, audited reviewer reassignment, historical statements, reload recovery and durable export cleanup. Migration 013 is required on the sandbox service schema; acceptance and live gates are unchanged. |
 
 The deployed application remains a synthetic sandbox. The complete rehearsable pilot journey is lender setup → saved import batches → reconciliation → coordinated exceptions/cases → independent close review → evidence export, supported by a persistent request journal and recovery checks. Pay-by-bank, Credit Desk, Cash Desk and purpose-specific permissions also have persisted synthetic workflows. These are narrower than the planned live products.
 

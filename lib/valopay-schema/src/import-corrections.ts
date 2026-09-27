@@ -60,10 +60,18 @@ export const importCorrectionProposalInputSchema =
 export const importCorrectionDecisionInputSchema = z
   .object({
     proposalDigest: z.string().regex(/^[a-f0-9]{64}$/),
+    assignmentEventId: z.string().min(1).max(100).nullable().optional(),
     action: z.enum(["approve", "reject", "withdraw"]),
     reason: z.string().trim().min(10).max(1000),
   })
   .strict();
+/** An administrator changes only the assignment, against the version they inspected. */
+export const importCorrectionRecoveryInputSchema = z.object({
+  proposalDigest: z.string().regex(/^[a-f0-9]{64}$/),
+  expectedAssignmentEventId: z.string().min(1).max(100).nullable(),
+  reviewer: z.string().min(1).max(180),
+  reason: z.string().trim().min(10).max(1000),
+}).strict();
 /** Before/after display; source row provenance itself never changes. */
 export const importCorrectionDifferenceSchema = z
   .object({
@@ -110,6 +118,13 @@ export const importCorrectionViewSchema = z
     proposedBy: z.string(),
     proposedPrincipal: z.string(),
     reviewer: z.string(),
+    originalReviewer: z.string().optional(),
+    assignmentEventId: z.string().nullable().default(null),
+    assignmentUpdatedAt: z.string().optional(),
+    assignmentHistory: z.array(z.object({
+      id: z.string(), fromReviewer: z.string(), reviewer: z.string(),
+      actor: z.string(), reason: z.string(), at: z.string(),
+    }).strict()).default([]),
     reason: z.string(),
     evidence: z.string(),
     proposalDigest: z.string(),
@@ -171,3 +186,5 @@ export type ImportCorrectionProposalInput = z.infer<
 export type ImportCorrectionDecisionInput = z.infer<
   typeof importCorrectionDecisionInputSchema
 >;
+/** Validated administrator reassignment request. */
+export type ImportCorrectionRecoveryInput = z.infer<typeof importCorrectionRecoveryInputSchema>;

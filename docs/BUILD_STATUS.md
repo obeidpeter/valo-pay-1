@@ -1,6 +1,18 @@
 # Valo Pay — build status
 
-## Latest deployed release · PR #64 · 26 September 2026
+## Latest deployed release · PR #70 · 27 September 2026
+
+[PR #70](https://github.com/obeidpeter/valo-pay/pull/70), merged as `9715c265abde2c7f10555a6a5281ccf8e8633ca3`, was published to [Valo Pay — Stage 1](https://valo-pay.replit.app). Checks at approximately 12:01 UTC on 27 September observed build `9715c26 2026-09-27T11:57:14.310Z`, 148 seconds after startup: API, database and schema healthy; landing, sign-in and team invitation routes answered 200. All eight post-merge CI jobs passed, and the publishing host passed 717 UI tests in 93 files. These are dated checks, not continuous monitoring.
+
+PRs #65–#70 are included. The host's development and production databases are separate. Read-only production inspection found the new migration 009 guards valid, the obsolete guard absent, no restricted runtime schemas and no settlement/reversal repair candidates, so no migration or financial repair was run. The matching monitor's local dry run passed. Commissioning remains blocked on missing independent monitoring state, alert delivery and scheduler expectations; the scheduler is off. No Paystack account/test key, hosted restore acceptance or independent operator acceptance was established.
+
+## Implemented workflow recovery release · awaiting deployment
+
+The current branch adds import-correction work items and exact blocker links; audited administrator reassignment of pending correction and close reviewers; searchable close history and direct complete historical reports; a readable financial statement; same-form recovery after reload with an opaque browser marker and server cancellation fence; and durable retryable cleanup of expired sandboxes' private exports. Independent approval, tenant scope and current-evidence checks remain enforced.
+
+Before deployment, apply `lib/db/migrations/013_export_cleanup.sql` to the sandbox service schema with the owner login. It creates the service-only cleanup queue, which must remain in place if the application version is rolled back and is never granted to restricted tenant runtimes. Keep migrations 010–012 confined to their existing rehearsals. After deployment, verify readiness, a synthetic interrupted submission and Finance review, and `pnpm run check:export-cleanup`. A running export keeps its entire workspace out of the expiry sweep, even after its lease expires; previously attempted, non-ready exports wait five minutes before the first cleanup attempt. Existing private files whose locations an older sweep already lost cannot be reconstructed automatically; an operator must review historical storage inventory separately.
+
+## Earlier deployed release · PR #64 · 26 September 2026
 
 [PR #64](https://github.com/obeidpeter/valo-pay/pull/64), **Prepare operational commissioning and financial recovery**, was merged as `d8a6e7b9d7264b9d7d6e4237666053c76c848d04` and deployed to [Valo Pay — Stage 1](https://valo-pay.replit.app). Verification at 14:30 UTC on 26 September 2026 found that revision serving: health, database and schema readiness were healthy, landing and sign-in pages answered successfully, and the corrected lender-onboarding guidance was present in the published frontend. This is a dated deployment record, not continuous monitoring.
 
@@ -15,9 +27,9 @@ The [CI run for the reviewed source](https://github.com/obeidpeter/valo-pay/acti
 
 At deployment, financial staging remained disabled and the scheduler reported **off**. An external scheduler, outbound alert delivery, a hosted restore rehearsal with independently verified object/key custody and an independent human operator session remain uncommissioned. Paystack still has no configured account or test key. No provider call, alert delivery, staging migration or live financial activation was performed by this release. The [migration catalogue](database-migrations.md) separates required application changes from these optional rehearsals.
 
-## Merged changes awaiting deployment · 26 and 27 September 2026
+## Changes included in the PR #70 deployment · 26 and 27 September 2026
 
-These changes are merged into `main` after the deployed PR #64 record above. None of them is deployed yet; record the deployed revision and fresh verification separately when they are.
+These changes followed PR #64 and are included in the verified PR #70 deployment above. The following records retain their original test and migration evidence.
 
 - [PR #65](https://github.com/obeidpeter/valo-pay/pull/65), merged as `253eb90dc747d0e35b9b18d3a5502f7bd6b71a07`, improves loading, error and empty states, invitation recovery, role-specific guidance and the migration/release documentation. Its [CI run](https://github.com/obeidpeter/valo-pay/actions/runs/36250247528) passed all eight jobs, including 684 UI tests.
 - [PR #66](https://github.com/obeidpeter/valo-pay/pull/66), merged as `99eac2525869ddf5e9329b07e60adf1da5122171`, protects close-review and case follow-up drafts, restores dialog focus and corrects monitor classification of schema-readiness failures. Its [CI run](https://github.com/obeidpeter/valo-pay/actions/runs/36253528763) passed all eight jobs, including 698 UI tests in 92 files.
@@ -44,7 +56,7 @@ A review of the seven pull requests merged on 26 September found the defects bel
 
 ### Follow-ups after PR #68
 
-These follow up the review fixes and were merged with [PR #69](https://github.com/obeidpeter/valo-pay/pull/69); none is deployed yet.
+These follow up the review fixes, were merged with [PR #69](https://github.com/obeidpeter/valo-pay/pull/69), and are included in the verified PR #70 deployment recorded above.
 
 - **Follow-up: PR #68 is recorded.** The [document register](document-register.md) and the list above name PR #68 and its merge, like PRs #65 to #67.
 - **Follow-up: the readiness log says how to restore a missing column.** For a missing column of a table that migration 003 or 004 creates, the `readiness.failed` line said to apply that migration, which cannot restore it: each migration creates its tables whole with `CREATE TABLE IF NOT EXISTS`, and applying one again leaves a table that exists as it is. The line now says to add the column from the Drizzle schema in `lib/db`, for every table, and `docs/database-migrations.md` says how; a missing table still names the migration that creates it, which is right. Pinned by `valopay-store.integration.test.ts`, which failed before and now also shows 003 applied again building a dropped table but not a dropped column.
@@ -54,7 +66,7 @@ These follow up the review fixes and were merged with [PR #69](https://github.co
 
 ### Follow-ups after PR #69
 
-These are merged with the pull request that adds this subsection; none is deployed yet.
+These were merged with [PR #70](https://github.com/obeidpeter/valo-pay/pull/70) and are included in its verified deployment recorded above. The workflow recovery release at the top of this document remains awaiting deployment.
 
 - **Follow-up: PR #69 is recorded.** The [document register](document-register.md) and the list above name PR #69 and its merge, like PR #68.
 - **Follow-up: a read of the close backlog waits for one audit check at most.** With `VALOPAY_CLOSE_SCHEDULER=external`, a web instance's reads of what is still owed and the daily audit checks a person's closes ask for take the background thread's close connection one at a time, and a read waited behind every check asked before it: a run of such checks lasting some two to three minutes, such as 25 to 36 lenders each held to a check's 5-second wait for its lender, would have aged the last read into `scheduler_stale` with nothing wrong, since the last read could already be nearly a minute old when they began. A read now goes ahead of the checks still waiting, never ahead of the one in progress, so it waits for that check at most; the waiting checks run after it, in the order asked for, and the connection still serves one thing at a time. Pinned by `close-scheduler.integration.test.ts`, which failed before the change: with three lenders held whose checks are asked for, no read is made while the first check waits, and once that lender is free a read comes before the two checks still waiting, the earlier of which then runs while the later waits its turn.

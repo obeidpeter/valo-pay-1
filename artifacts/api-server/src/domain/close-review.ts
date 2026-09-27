@@ -1,4 +1,4 @@
-import { counted, hasFeeSchedule, moneyText, otherCurrenciesText, prepareCloseReviewSchema, decideCloseReviewSchema, legacyCollatedCompare, type PrepareCloseReviewInput, type DecideCloseReviewInput, type PilotProgressStep } from "@workspace/valopay-schema";
+import { counted, hasFeeSchedule, moneyText, otherCurrenciesText, prepareCloseReviewSchema, decideCloseReviewSchema, reassignCloseReviewSchema, closeReviewHistoryQuerySchema, legacyCollatedCompare, type PrepareCloseReviewInput, type DecideCloseReviewInput, type ReassignCloseReviewInput, type CloseReviewHistoryQuery, type PilotProgressStep } from "@workspace/valopay-schema";
 import type { Context, DomainState, ValopayRecord } from "./types";
 import { makeRecord, touch } from "./records";
 import { assertRecordVersion } from "../lib/edit-versions";
@@ -36,7 +36,7 @@ export function closeReviewBasisOnce(state: DomainState): () => string {
   return () => (basis ??= closeReviewBasis(state));
 }
 const pendingFinancialCorrections = (state: DomainState) => {
-  const decided = new Set(ofKind(state, "import-correction-events").map(event => event.data.proposalId));
+  const decided = new Set(ofKind(state, "import-correction-events").filter(event => ["approve", "reject", "withdraw"].includes(String(event.data.action))).map(event => event.data.proposalId));
   return ofKind(state, "import-corrections").filter(record => record.data.preview?.financial && !decided.has(record.id));
 };
 export interface CloseReviewIssue { id: string; label: string; detail: string; unresolved: boolean; }
@@ -57,13 +57,13 @@ export function closeReviewIssues(close: ValopayRecord): CloseReviewIssue[] {
   // Each batch in its own currency (a close before currencies were kept lists naira batches only); fees are checked in naira alone.
   for (const batch of report.variances?.batches || []) issues.push({ id: `variance:${batch.batchId}`, label: `Settlement difference · ${batch.reference || batch.batchId}`, detail: `${hasFeeSchedule(batch.currency || "NGN") ? `Fee difference: ${batch.feeVarianceKobo || 0} kobo.` : `Fees not checked: there is no fee schedule for ${batch.currency}. Net total: ${moneyText(Number(batch.netKobo || 0), batch.currency)}.`} Compare the provider and statement totals.`, unresolved: false });
   if (report.variances?.count && !report.variances.batches?.length) issues.push({ id: "settlement-variance", label: "Settlement differences", detail: `${counted(Number(report.variances.count), "difference was", "differences were")} recorded.`, unresolved: false });
-  for (const mismatch of report.positionRebuild?.mismatches || []) issues.push({ id: `position:${mismatch.dueItemId}`, label: `Customer total difference · ${mismatch.reference || mismatch.dueItemId}`, detail: `Stored outstanding: ${mismatch.storedOutstandingKobo} kobo; rebuilt: ${mismatch.rebuiltOutstandingKobo} kobo.`, unresolved: false });
+  for (const mismatch of report.positionRebuild?.mismatches || []) issues.push({ id: `position:${mismatch.dueItemId}`, label: `Customer total difference · ${mismatch.reference || mismatch.dueItemId}`, detail: `Stored outstanding: ${moneyText(mismatch.storedOutstandingKobo, 'NGN')}; rebuilt: ${moneyText(mismatch.rebuiltOutstandingKobo, 'NGN')}.`, unresolved: false });
   for (const [key, label] of [["unallocated", "Unallocated payments"], ["proposed", "Payment matches awaiting confirmation"], ["possibleDuplicates", "Possible duplicate payments"]]) {
     // The kobo is naira only; money in another currency is named beside it, in its own currency.
     const elsewhere = Object.keys(report[key]?.otherCurrencies ?? {}).length ? ` and ${otherCurrenciesText(report[key].otherCurrencies)}` : "";
-    if (Number(report[key]?.count) > 0) issues.push({ id: key, label, detail: `${counted(Number(report[key].count), "item")} totalling ${report[key].kobo || 0} kobo${elsewhere} ${Number(report[key].count) === 1 ? "remains" : "remain"} at this close.`, unresolved: true });
+    if (Number(report[key]?.count) > 0) issues.push({ id: key, label, detail: `${counted(Number(report[key].count), "item")} totalling ${moneyText(Number(report[key].kobo || 0), 'NGN')}${elsewhere} ${Number(report[key].count) === 1 ? "remains" : "remain"} at this close.`, unresolved: true });
   }
-  for (const item of close.data.reviewBasis?.unresolved || []) issues.push({ id: `item:${item.id}`, label: `${item.kind === "exceptions" ? "Open exception" : item.kind === "payments" ? "Unapplied payment amount" : "Unresolved payment evidence"} · ${item.name || item.reference}`, detail: `${item.reference} · ${item.status}. Record the owner, next step and why the item may remain open.`, unresolved: true });
+  for (const item of close.data.reviewBasis?.unresolved || []) issues.push({ id: `item:${item.id}`, label: `${item.kind === "exceptions" ? "Open exception" : item.kind === "payments" ? "Unapplied payment amount" : "Unresolved payment evidence"} · ${item.name || item.reference}`, detail: `${[item.reference, String(item.status).replaceAll('_', ' ')].filter(Boolean).join(' · ')}. Record the owner, next step and why the item may remain open.`, unresolved: true });
   for (const issue of close.data.reviewBasis?.sourceCompleteness?.issues || []) issues.push({ ...issue, unresolved: true });
   return issues;
 }
@@ -130,6 +130,39 @@ export function decideCloseReview(state: DomainState, ctx: Context, id: string, 
 export function closeReviewList(state: DomainState) {
   const reviews = newest(ofKind(state, "close-reviews")), basis = closeReviewBasisOnce(state);
   return { closes: newest(ofKind(state, "closes")).slice(0, 25).map(close => ({ close, issues: closeReviewIssues(close), problem: closeReviewCurrentProblem(state, close, basis), pendingFinancialCorrections: pendingFinancialCorrections(state).length, reviews: reviews.filter(r => r.data.closeId === close.id).map(review => ({ ...review, current: reviewIsCurrent(state, review, basis) })) })), total: ofKind(state, "closes").length };
+}
+/** History paging never needs the large report or each review's frozen snapshot. */
+export function closeReviewHistory(state: DomainState, value: Partial<CloseReviewHistoryQuery> = {}) {
+  const query = closeReviewHistoryQuerySchema.parse(value), all = newest(ofKind(state, "closes")), reviews = newest(ofKind(state, "close-reviews"));
+  const byClose = new Map<string, ValopayRecord[]>();
+  for (const review of reviews) { const key = String(review.data.closeId), group = byClose.get(key) || []; group.push(review); byClose.set(key, group); }
+  const search = query.search.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const matches = all.filter(close => [close.name, close.reference, close.createdAt, closeBusinessDate(close) || "", ...(byClose.get(close.id) || []).flatMap(review => [review.data.preparedBy, review.data.reviewer, review.status])].join(" ").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().includes(search));
+  const offset = Math.min(query.offset, Math.max(0, Math.ceil(matches.length / query.limit) - 1) * query.limit);
+  return { closes: matches.slice(offset, offset + query.limit).map(close => ({ id: close.id, name: close.name, reference: close.reference, createdAt: close.createdAt, businessDate: closeBusinessDate(close) || null, reviewStatus: byClose.get(close.id)?.[0]?.status || null, latest: close.id === all[0]?.id })), total: matches.length, offset, limit: query.limit };
+}
+/** The caller supplies the complete, lender-scoped close read in the same transaction. */
+export function closeReviewDetail(state: DomainState, id: string) {
+  const close = ofKind(state, "closes").find(record => record.id === id);
+  if (!close) refuse("Close not found in this lender.", 404);
+  const basis = closeReviewBasisOnce(state), reviews = newest(ofKind(state, "close-reviews").filter(review => review.data.closeId === id));
+  return { entry: { close, issues: closeReviewIssues(close), problem: closeReviewCurrentProblem(state, close, basis), pendingFinancialCorrections: pendingFinancialCorrections(state).length, reviews: reviews.map(review => ({ ...review, current: reviewIsCurrent(state, review, basis) })) }, events: newest(ofKind(state, "close-review-events").filter(event => event.data.closeId === id)), pendingCorrections: pendingFinancialCorrections(state).map(record => ({ id: record.id, batchId: String(record.data.batchId || record.data.preview?.batchId), name: record.name })) };
+}
+/** Reassignment changes only the pending assignee; the original snapshot and every event remain available. */
+export function reassignCloseReview(state: DomainState, ctx: Context, id: string, value: ReassignCloseReviewInput, reviewers: Array<{ actor: string; role: string }>) {
+  if (ctx.role !== "Admin") refuse("An administrator must reassign a Finance review.", 403);
+  const input = reassignCloseReviewSchema.parse(value), review = ofKind(state, "close-reviews").find(record => record.id === id);
+  if (!review) refuse("Close review not found in this lender.", 404);
+  assertRecordVersion(review, input.expectedUpdatedAt);
+  if (review.status !== "awaiting_review") refuse("Only a pending review can be reassigned. The recorded decision is unchanged.", 409);
+  if (!reviewers.some(person => person.actor === input.reviewer && person.role === "Finance")) refuse("Choose an active Finance reviewer with access to this lender.", 403);
+  if (input.reviewer === review.data.reviewer) refuse("Choose a different Finance reviewer.", 409);
+  if (input.reviewer === review.data.preparedBy || input.reviewer.startsWith("Sandbox ")) refuse("Choose a different staff person from the preparer. Demo roles cannot provide independent review.", 403);
+  const previousReviewer = review.data.reviewer;
+  review.data.reviewer = input.reviewer;
+  touch(review, ctx.now);
+  makeRecord(state, "close-review-events", { name: "Administrator reassigned the Finance review", status: "recorded", createdAt: ctx.now, data: { reviewId: review.id, closeId: review.data.closeId, action: "reassign", actor: ctx.actor, previousReviewer, reviewer: input.reviewer, note: input.reason, snapshotDigest: review.data.snapshotDigest } });
+  return review;
 }
 export function reviewedCloseEvidence(state: DomainState, id: string, requireCurrent = false) {
   const review = ofKind(state, 'close-reviews').find(r => r.id === id);

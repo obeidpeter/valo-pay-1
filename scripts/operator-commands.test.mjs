@@ -26,6 +26,14 @@ function run(script, args, env = {}) {
 }
 
 // ---- pnpm run check:operations ----
+// Cleanup's operator entry must refuse malformed options and missing configuration before reaching any service.
+const cleanup = 'scripts/src/export-cleanup.ts';
+const badCleanup = await run(cleanup, ['--', '--retry=synthetic-secret']);
+assert.equal(badCleanup.status, 1); assert.ok(!badCleanup.output.includes('synthetic-secret'));
+assert.match(badCleanup.stderr, /Use: pnpm run check:export-cleanup/);
+const noCleanupDatabase = await run(cleanup, ['--']);
+assert.equal(noCleanupDatabase.status, 1); assert.match(noCleanupDatabase.stderr, /DATABASE_URL is required/);
+
 const monitor = "scripts/monitor-valopay.mjs";
 let result = await run(monitor, ["--"], { VALOPAY_MONITOR_ORIGIN: "https://127.0.0.1:1" });
 assert.equal(result.status, 0, result.output);

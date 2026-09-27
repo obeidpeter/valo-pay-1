@@ -4,6 +4,7 @@ import {
   importCorrectionPreviewInputSchema,
   importCorrectionProposalInputSchema,
   importCorrectionDecisionInputSchema,
+  importCorrectionRecoveryInputSchema,
   importCorrectionPreviewSchema,
   importCorrectionViewSchema,
   importCorrectionsResponseSchema,
@@ -17,6 +18,7 @@ import {
   previewImportCorrection,
   proposeImportCorrection,
   decideImportCorrection,
+  reassignImportCorrection,
 } from "../domain/import-corrections";
 import { routerOptions } from "./router-options";
 const router: IRouter = Router(routerOptions);
@@ -81,5 +83,13 @@ router.post("/v1/pilot/import-corrections/:id/decision", async (req, res) => {
       { reason: input.reason },
     ),
   );
+});
+router.post("/v1/pilot/import-corrections/:id/recovery", async (req, res) => {
+  requiredKey(req);
+  const id = pathId(req.params.id), input = importCorrectionRecoveryInputSchema.parse(req.body);
+  res.json(await withState(req, res,
+    async (state, ctx) => reassignImportCorrection(state, ctx, id, input, await caseAssignees(ctx)),
+    true, importCorrectionViewSchema, { reason: input.reason },
+  ));
 });
 export default router;

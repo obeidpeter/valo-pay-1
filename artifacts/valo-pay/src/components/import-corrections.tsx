@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Link } from "wouter";
+import { Link, useSearch } from "wouter";
 import { z } from "zod";
 import {
   importCorrectionsResponseSchema,
@@ -431,30 +431,38 @@ function CorrectionEditor({
 function ProposalCard({
   proposal,
   workbench,
+  highlighted,
 }: {
   proposal: Proposal;
   workbench: Workbench;
+  highlighted: boolean;
 }) {
   const [reason, setReason] = useState("");
+  const [recoveryReason, setRecoveryReason] = useState(""), [replacement, setReplacement] = useState("");
+  const card = useRef<HTMLElement>(null);
+  useEffect(() => { if (highlighted) { card.current?.focus(); card.current?.scrollIntoView?.({ block: 'center' }); } }, [highlighted]);
   const mutation = usePilotMutation(() => setReason(""));
+  const recovery = usePilotMutation(() => { setRecoveryReason(""); setReplacement(""); });
   const own = proposal.proposedPrincipal === workbench.ownPrincipal;
   const reviewer =
     workbench.role === "Finance" &&
     workbench.actor === proposal.reviewer &&
     !own;
   const pending = proposal.status === "awaiting_review",
-    busy = mutation.isPending || mutation.hasUnconfirmedOutcome;
+    busy = mutation.isPending || mutation.hasUnconfirmedOutcome || recovery.isPending || recovery.hasUnconfirmedOutcome;
   useUnsavedChanges(
-    pending && !mutation.hasUnconfirmedOutcome && Boolean(reason),
+    pending && !mutation.hasUnconfirmedOutcome && !recovery.hasUnconfirmedOutcome && Boolean(reason || recoveryReason || replacement),
   );
   const decide = (action: "approve" | "reject" | "withdraw") =>
     mutation.mutate({
       path: `/pilot/import-corrections/${proposal.id}/decision`,
-      data: { proposalDigest: proposal.proposalDigest, action, reason },
+      data: { proposalDigest: proposal.proposalDigest, assignmentEventId: proposal.assignmentEventId, action, reason },
     });
   return (
     <article
-      className="space-y-3 rounded-xl border p-4"
+      ref={card}
+      tabIndex={highlighted ? -1 : undefined}
+      className={`space-y-3 rounded-xl border p-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring ${highlighted ? 'border-primary' : ''}`}
       aria-label={`Correction ${proposal.preview.rowId}`}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -532,11 +540,39 @@ function ProposalCard({
           · {proposal.decision.reason}
         </p>
       )}
+      {!!proposal.assignmentHistory.length && <details className="rounded-lg border p-3 text-sm">
+        <summary className="cursor-pointer font-medium">Reviewer assignment history</summary>
+        <p className="mt-2 text-muted-foreground">Original reviewer: {proposal.originalReviewer}. The original proposal and comparison remain unchanged.</p>
+        <ol className="mt-2 space-y-2">{proposal.assignmentHistory.map(event => <li key={event.id}>
+          <p>{event.fromReviewer} → {event.reviewer}</p><p className="text-xs text-muted-foreground">{event.actor} · {formatDate(event.at)}</p><p>{event.reason}</p>
+        </li>)}</ol>
+      </details>}
+      {pending && workbench.role === 'Admin' && <details className="rounded-lg border p-3 text-sm">
+        <summary className="cursor-pointer font-medium">Recover reviewer assignment</summary>
+        <div className="mt-3 space-y-3">
+          <p>If the reviewer is unavailable, assign another active Finance reviewer. This records the reason and preserves the original evidence. It does not approve or apply the correction.</p>
+          <label className="block space-y-1 font-medium">Replacement Finance reviewer
+            <select className={pilotField} value={replacement} disabled={busy} onChange={event => setReplacement(event.target.value)}>
+              <option value="">Choose an independent reviewer</option>
+              {workbench.reviewers.filter(person => person.actor !== proposal.reviewer && person.actor !== proposal.proposedBy && person.actor !== `Clerk:${proposal.proposedPrincipal}`).map(person => <option key={person.actor} value={person.actor}>{person.name}</option>)}
+            </select>
+          </label>
+          <p className="text-xs text-muted-foreground">If no eligible reviewer is listed, grant another person Finance access in Team first. The new reviewer may reject stale evidence so a fresh proposal can be prepared.</p>
+          <label className="block space-y-1 font-medium">Reassignment reason
+            <textarea className={pilotField} minLength={10} maxLength={1000} value={recoveryReason} disabled={busy} onChange={event => setRecoveryReason(event.target.value)} />
+          </label>
+          <Button variant="outline" disabled={busy || !replacement || recoveryReason.trim().length < 10} onClick={() => recovery.mutate({
+            path: `/pilot/import-corrections/${proposal.id}/recovery`, data: { proposalDigest: proposal.proposalDigest, expectedAssignmentEventId: proposal.assignmentEventId, reviewer: replacement, reason: recoveryReason },
+          })}>Reassign correction reviewer</Button>
+        </div>
+      </details>}
       <RecoveryNotice mutation={mutation} />
+      <RecoveryNotice mutation={recovery} />
     </article>
   );
 }
 export function ImportCorrections({ batchId }: { batchId: string }) {
+  const requestedCorrection = new URLSearchParams(useSearch()).get('correction');
   const query = usePilotQuery(
     `/pilot/import-corrections?batchId=${encodeURIComponent(batchId)}`,
     importCorrectionsResponseSchema,
@@ -595,9 +631,10 @@ export function ImportCorrections({ batchId }: { batchId: string }) {
             />
           )}
           <h4 className="pt-2 font-semibold">Correction history</h4>
+          {requestedCorrection && !data.proposals.some(proposal => proposal.id === requestedCorrection) && <p role="status" className="rounded-lg border p-3 text-sm">The linked correction was not found in this batch. Check the selected lender and open the assignment again from My work.</p>}
           {data.proposals.length ? (
             data.proposals.map((p) => (
-              <ProposalCard key={p.id} proposal={p} workbench={data} />
+              <ProposalCard key={`${p.id}:${p.assignmentEventId || 'original'}`} proposal={p} workbench={data} highlighted={p.id === requestedCorrection} />
             ))
           ) : (
             <p className="text-sm text-muted-foreground">

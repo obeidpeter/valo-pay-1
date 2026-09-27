@@ -2,11 +2,13 @@ import {
   importCorrectionPreviewInputSchema,
   importCorrectionProposalInputSchema,
   importCorrectionDecisionInputSchema,
+  importCorrectionRecoveryInputSchema,
   importCorrectionPreviewSchema,
   importCorrectionViewSchema,
   type ImportCorrectionPreviewInput,
   type ImportCorrectionProposalInput,
   type ImportCorrectionDecisionInput,
+  type ImportCorrectionRecoveryInput,
   fromImportBatch,
   legacyCollatedCompare,
   sameJson,
@@ -238,25 +240,40 @@ function proposalOf(state: DomainState, id: string) {
 }
 function decisionOf(state: DomainState, id: string) {
   return state.records.find(
-    (r) => r.kind === "import-correction-events" && r.data.proposalId === id,
+    (r) => r.merchantId === state.merchant.id && r.kind === "import-correction-events" && r.data.proposalId === id && ["approve", "reject", "withdraw"].includes(r.data.action),
   );
+}
+/** Reassignment never rewrites the proposal. Follow its versioned event chain; ambiguous history fails closed. */
+export function importCorrectionAssignment(state: DomainState, proposal: ValopayRecord) {
+  const events = state.records.filter(r => r.merchantId === state.merchant.id && r.kind === "import-correction-events" && r.data.proposalId === proposal.id && r.data.action === "reassign");
+  let reviewer = String(proposal.data.reviewer), eventId: string | null = null, updatedAt = proposal.createdAt;
+  const history: Array<{ id: string; fromReviewer: string; reviewer: string; actor: string; reason: string; at: string }> = [];
+  while (history.length < events.length) {
+    const next = events.filter(r => r.data.previousAssignmentEventId === eventId);
+    if (next.length !== 1 || next[0]!.data.fromReviewer !== reviewer || next[0]!.data.proposalDigest !== proposal.data.proposalDigest || history.some(r => r.id === next[0]!.id))
+      refuse("This correction has inconsistent assignment history. Ask an administrator to investigate the recorded events.");
+    const event = next[0]!;
+    history.push({ id: event.id, fromReviewer: reviewer, reviewer: event.data.reviewer, actor: event.data.actor, reason: event.data.reason, at: event.createdAt });
+    reviewer = event.data.reviewer; eventId = event.id; updatedAt = event.createdAt;
+  }
+  return { reviewer, eventId, updatedAt, history };
 }
 export function importCorrectionView(
   state: DomainState,
   ctx: Context,
   proposal: ValopayRecord,
 ) {
-  const decision = decisionOf(state, proposal.id);
+  const decision = decisionOf(state, proposal.id), assignment = importCorrectionAssignment(state, proposal);
   let current = false;
   try {
-    current =
-      calculate(
+    const comparison = calculate(
         state,
         ctx,
         proposal.data.input,
         proposal.createdAt,
         proposerRole(proposal),
-      ).preview.previewDigest === proposal.data.preview.previewDigest;
+      ).preview;
+    current = comparison.blockers.length === 0 && comparison.previewDigest === proposal.data.preview.previewDigest;
   } catch {
     /* changed source or dependencies */
   }
@@ -266,7 +283,11 @@ export function importCorrectionView(
     createdAt: proposal.createdAt,
     proposedBy: proposal.data.proposedBy,
     proposedPrincipal: proposal.data.proposedPrincipal,
-    reviewer: proposal.data.reviewer,
+    reviewer: assignment.reviewer,
+    originalReviewer: proposal.data.reviewer,
+    assignmentEventId: assignment.eventId,
+    assignmentUpdatedAt: assignment.updatedAt,
+    assignmentHistory: assignment.history,
     reason: proposal.data.reason,
     evidence: proposal.data.evidence,
     proposalDigest: proposal.data.proposalDigest,
@@ -323,7 +344,7 @@ export function listImportCorrections(
       })),
     proposals: state.records
       .filter(
-        (r) => r.kind === "import-corrections" && r.data.batchId === batchId,
+        (r) => r.merchantId === state.merchant.id && r.kind === "import-corrections" && r.data.batchId === batchId,
       )
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
       .map((r) => importCorrectionView(state, ctx, r)),
@@ -396,6 +417,28 @@ export function proposeImportCorrection(
   });
   return importCorrectionView(state, ctx, proposal);
 }
+/** Recover an unavailable reviewer without changing evidence or granting the administrator approval authority. */
+export function reassignImportCorrection(
+  state: DomainState, ctx: Context, id: string, raw: ImportCorrectionRecoveryInput,
+  reviewers: Array<{ actor: string; role: string }>,
+) {
+  if (ctx.role !== "Admin") refuse("Only an administrator can reassign an import correction.", 403);
+  const input = importCorrectionRecoveryInputSchema.parse(raw), proposal = proposalOf(state, id);
+  if (decisionOf(state, id)) refuse("This correction already has a decision. Its history is preserved.");
+  const assignment = importCorrectionAssignment(state, proposal);
+  if (input.proposalDigest !== proposal.data.proposalDigest || input.expectedAssignmentEventId !== assignment.eventId)
+    refuse("This correction or its assignment changed. Refresh it before reassigning the reviewer.");
+  if (input.reviewer === assignment.reviewer) refuse("Choose a different active Finance reviewer.");
+  if (input.reviewer === proposal.data.proposedBy || input.reviewer === `Clerk:${proposal.data.proposedPrincipal}` || !reviewers.some(r => r.actor === input.reviewer && r.role === "Finance"))
+    refuse("Choose another active Finance reviewer with access to this lender, independent of the proposer.", 403);
+  makeRecord(state, "import-correction-events", {
+    name: "Import correction reviewer reassigned", status: "recorded", createdAt: ctx.now, updatedAt: ctx.now,
+    data: { proposalId: id, targetId: proposal.data.targetId, batchId: proposal.data.batchId, proposalDigest: proposal.data.proposalDigest,
+      action: "reassign", actor: ctx.actor, principalId: principal(ctx), reason: input.reason,
+      previousAssignmentEventId: assignment.eventId, fromReviewer: assignment.reviewer, reviewer: input.reviewer, synthetic: true },
+  });
+  return importCorrectionView(state, ctx, proposal);
+}
 export function decideImportCorrection(
   state: DomainState,
   ctx: Context,
@@ -411,6 +454,9 @@ export function decideImportCorrection(
     );
   if (decisionOf(state, id))
     refuse("This correction already has a decision. Its history is preserved.");
+  const assignment = importCorrectionAssignment(state, proposal);
+  if ((input.assignmentEventId ?? null) !== assignment.eventId)
+    refuse("This correction was reassigned. Refresh its current reviewer before recording a decision.");
   if (input.action === "withdraw") {
     writer(ctx);
     if (principal(ctx) !== proposal.data.proposedPrincipal)
@@ -418,7 +464,7 @@ export function decideImportCorrection(
   } else {
     if (
       ctx.role !== "Finance" ||
-      ctx.actor !== proposal.data.reviewer ||
+      ctx.actor !== assignment.reviewer ||
       !reviewers.some((r) => r.actor === ctx.actor && r.role === "Finance")
     )
       refuse(
@@ -469,6 +515,7 @@ export function decideImportCorrection(
       batchId: proposal.data.batchId,
       proposalDigest: proposal.data.proposalDigest,
       action: input.action,
+      assignmentEventId: assignment.eventId,
       actor: ctx.actor,
       principalId: principal(ctx),
       reason: input.reason,
@@ -511,7 +558,8 @@ export function assertImportedCorrectionChange(
     !proposal ||
     decisionOf(snapshot, proposal.id) ||
     proposal.data.proposedPrincipal === event!.data.principalId ||
-    proposal.data.reviewer !== event!.data.actor ||
+    importCorrectionAssignment(snapshot, proposal).reviewer !== event!.data.actor ||
+    importCorrectionAssignment(snapshot, proposal).eventId !== (event!.data.assignmentEventId ?? null) ||
     proposal.data.proposalDigest !== event!.data.proposalDigest ||
     !sameJson(proposal.data.before, before) ||
     !sameJson({ ...proposal.data.after, updatedAt: after.updatedAt }, after)

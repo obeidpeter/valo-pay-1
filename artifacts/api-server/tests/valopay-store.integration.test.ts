@@ -386,7 +386,7 @@ try {
   {
     const ready = await pingDatabase();
     assert.deepEqual([ready.status, ready.schema], ["ok", { status: "ok", missing: [] }], "the pushed schema is complete");
-    const tables = ["valopay_workspaces", "valopay_merchants", "valopay_records", "valopay_idempotency", "valopay_operations", "valopay_teams", "valopay_staff_memberships", "valopay_staff_invitations", "valopay_staff_events", "valopay_staff_lender_access"];
+    const tables = ["valopay_workspaces", "valopay_merchants", "valopay_records", "valopay_idempotency", "valopay_operations", "valopay_teams", "valopay_staff_memberships", "valopay_staff_invitations", "valopay_staff_events", "valopay_staff_lender_access", "valopay_export_cleanup"];
     // The guards readiness requires are exactly the unique indexes and check constraints the pushed schema holds, so
     // one the Drizzle schema gains or loses fails here until the catalogue follows.
     const held = (await pool.query<{ table: string; type: string; definition: string }>(`SELECT t.relname AS table,'unique index' AS type,regexp_replace(pg_get_indexdef(i.indexrelid),'^CREATE UNIQUE INDEX \\S+ ON \\S+ ','') AS definition

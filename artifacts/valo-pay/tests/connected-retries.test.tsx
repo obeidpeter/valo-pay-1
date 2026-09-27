@@ -4,10 +4,12 @@ import { renderApp, screen, userEvent, waitFor } from "./harness";
 import { connectedRevision } from "../../api-server/src/domain/connected";
 import { queryClient } from "@/App";
 import type { ConnectedView } from "@/lib/connected";
+import { cancelInterrupted, unreceivedRecovery } from './unreceived-recovery';
 
 let api: FakeApi;
 beforeEach(() => {
   api = installFakeApi({ now: "2026-09-21T10:00:00.000Z" });
+  unreceivedRecovery(api);
 });
 afterEach(() => api.uninstall());
 /** Another user's change to something the workspace shows (a customer's name), so a form reviewed before it is stale. */
@@ -411,7 +413,7 @@ it("a refusal the service marks as cancelled releases the held action", async ()
   ).toHaveLength(1);
 });
 
-it("offers a deliberate discard of the original request", async () => {
+it("offers a deliberate discard of the form, retaining its request until the server cancels it", async () => {
   const submissions = loseFirstAction();
   const user = userEvent.setup();
   await startAssessment(user);
@@ -435,6 +437,7 @@ it("offers a deliberate discard of the original request", async () => {
     screen.getByLabelText("Reason for this assessment").closest("fieldset")
       ?.disabled,
   ).toBe(false);
+  await cancelInterrupted(user);
   await user.click(
     screen.getByRole("button", { name: /Run sample assessment/ }),
   );

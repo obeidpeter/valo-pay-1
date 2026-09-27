@@ -5,9 +5,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { installFakeApi, type FakeApi } from "./fake-api";
 import { renderApp, screen, userEvent, waitFor, within } from "./harness";
 import { queueExport } from "../../api-server/src/lib/export-jobs";
+import { cancelInterrupted, unreceivedRecovery } from './unreceived-recovery';
 
 let api: FakeApi;
-beforeEach(() => { api = installFakeApi(); });
+beforeEach(() => { api = installFakeApi(); unreceivedRecovery(api); });
 afterEach(() => api.uninstall());
 
 const KEPT = "If the service received the request, it stays in Operations after you close this form or reload the page, where you can check it.";
@@ -174,6 +175,7 @@ describe("unconfirmed changes the journal records point to Operations", () => {
       await user.click(within(alert).getByRole("button", { name: "Discard original request" }));
       await waitFor(() => expect(screen.queryByText(notice)).toBeNull());
     }
+    await cancelInterrupted(user);
     await user.type(screen.getByLabelText("Reason for changing the emergency stop"), "Stop sample operations for a review");
     api.failNext(/^\/v1\/actions$/, "offline", "POST");
     await user.click(screen.getByRole("button", { name: "Activate emergency stop" }));

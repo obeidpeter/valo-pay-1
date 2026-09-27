@@ -22,6 +22,7 @@
     "test": "node scripts/run-tests.mjs",
     "check:paystack": "pnpm --filter @workspace/scripts exec tsx ./src/check-paystack.ts",
     "check:operations": "node scripts/monitor-valopay.mjs",
+    "check:export-cleanup": "pnpm --filter @workspace/scripts exec tsx ./src/export-cleanup.ts",
     "check:effect-boundaries": "node scripts/check-effect-boundaries.mjs",
     "verify:paystack-event": "pnpm --filter @workspace/scripts exec tsx ./src/verify-paystack-event.ts",
     "check:commissioning": "node scripts/commission-operations.mjs",

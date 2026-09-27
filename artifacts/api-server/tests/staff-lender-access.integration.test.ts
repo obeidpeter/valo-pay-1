@@ -49,10 +49,14 @@ try {
   for (const who of ["finance", "admin"]) assert.equal((await call(`/v1/records/customers/${foreign.id}?merchantId=${a.id}`, who, "PATCH", { name: "Reached across lenders", expectedUpdatedAt: foreign.updatedAt })).status, 404, who);
   assert.equal((await call(`/v1/team/members/${memberId}/lenders`, "admin", "PATCH", grant)).status, 409);
   assert.equal((await call(`/v1/team/members/${memberId}/lenders`, "admin", "PATCH", { ...grant, expectedUpdatedAt: allowed.updatedAt, lenderIds: ["outside-this-workspace"] })).status, 404);
-  assert.equal(ok(await call(`/v1/pilot/close-reviews?merchantId=${a.id}`)).reviewers.length, 1);
-  assert.equal(ok(await call(`/v1/pilot/close-reviews?merchantId=${b.id}`)).reviewers.length, 0, "Finance cannot be assigned to a close for an unpermitted lender.");
   ok(await call(`/v1/actions?merchantId=${a.id}`, "admin", "POST", { action: "daily_close" }));
-  const savedItem = ok(await call(`/v1/pilot/close-reviews?merchantId=${a.id}`)).closes[0], savedClose = savedItem.close;
+  ok(await call(`/v1/actions?merchantId=${b.id}`, "admin", "POST", { action: "daily_close" }));
+  const savedId = ok(await call(`/v1/pilot/close-reviews?merchantId=${a.id}`)).closes[0].id, otherCloseId = ok(await call(`/v1/pilot/close-reviews?merchantId=${b.id}`)).closes[0].id;
+  const savedDetail = ok(await call(`/v1/pilot/close-reviews/${savedId}?merchantId=${a.id}`));
+  assert.equal(savedDetail.reviewers.length, 1);
+  assert.equal(ok(await call(`/v1/pilot/close-reviews/${otherCloseId}?merchantId=${b.id}`)).reviewers.length, 0, "Finance cannot be assigned to a close for an unpermitted lender.");
+  assert.equal((await call(`/v1/pilot/close-reviews/${savedId}?merchantId=${b.id}`)).status, 404);
+  const savedItem = savedDetail.entry, savedClose = savedItem.close;
   const review = ok(await call(`/v1/pilot/close-reviews/prepare?merchantId=${a.id}`, "admin", "POST", { closeId: savedClose.id, expectedUpdatedAt: savedClose.updatedAt, reviewer: `Clerk:${finance}`, preparationNote: "Verified the synthetic zero-activity close and its source scope.", discrepancyResponses: savedItem.issues.map((issue:any)=>({issueId:issue.id,explanation:"This synthetic access rehearsal has no external source deliveries."})), unresolvedAcceptance: "Finance will record the limited scope of this synthetic access rehearsal." }));
   const sourceExceptions = savedClose.data.reviewBasis.sourceCompleteness.issues.map((issue:any)=>({issueId:issue.id,reason:"The synthetic zero-activity access rehearsal has no external source deliveries.",evidence:"Access rehearsal scope TEST-1."}));
   const decisions = await Promise.all(["First independent check.", "Second concurrent check."].map(note => call(`/v1/pilot/close-reviews/${review.id}/decision?merchantId=${a.id}`, "finance", "POST", { action: "approve", expectedUpdatedAt: review.updatedAt, note, sourceExceptions })));
