@@ -663,13 +663,16 @@ const decidedAt = (exception: TypedRecord<"exceptions">): string => String(excep
  * The resolution confirming a held batch's identity (providerIdentityConfirmedCode), recorded on its hold's exception
  * or on a renewed review of it (providerIdentityOf) since its current hold began (latestHoldAt), while it names one of
  * the identities the batch was held for and, for a batch that records its identity, that one (heldBatchToConfirm). A
- * confirmation of an earlier hold does not decide a later one.
+ * confirmation of an earlier hold does not decide a later one. Of several, the latest decided is Finance's decision, as
+ * keepHoldException reads it: one an earlier build recorded although another batch claimed its identity, which this pass
+ * skips, does not outlast a later confirmation of another identity.
  */
 function identityConfirmation(state: DomainState, batch: TypedRecord<"settlement-batches">): TypedRecord<"exceptions"> | undefined {
   const identities = (batch.data.providerIdentityReview as { identities?: string[] }).identities ?? [], since = latestHoldAt(batch);
-  return recordsWhere(state, "exceptions", "data.linkedRecordId", batch.id).find((item) => identityExceptionOf(item, batch.id) && !isOpenException(item.status) && decidedAt(item) >= since
+  return recordsWhere(state, "exceptions", "data.linkedRecordId", batch.id).filter((item) => identityExceptionOf(item, batch.id) && !isOpenException(item.status) && decidedAt(item) >= since
     && item.data.resolutionCode === providerIdentityConfirmedCode && identities.includes(String(item.data.confirmedProviderIdentity))
-    && (!batch.data.providerIdentityKey || batch.data.providerIdentityKey === item.data.confirmedProviderIdentity));
+    && (!batch.data.providerIdentityKey || batch.data.providerIdentityKey === item.data.confirmedProviderIdentity))
+    .sort((a, b) => decidedAt(b).localeCompare(decidedAt(a)))[0];
 }
 
 /** Whether the settlement batch a provider identity exception names (providerIdentityOf) is still held for its provider identity. */

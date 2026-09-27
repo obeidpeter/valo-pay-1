@@ -405,10 +405,16 @@ export function validateRecord(
     if (!isUpdate && input.status !== (defaultStatus["settlement-batches"] ?? "pending")) throw new Error("New settlement batches must start as pending. Reconciliation updates their status.");
     // FIN-03: a batch Finance adds or corrects by hand takes no reference another batch has, whether the reference or only the
     // batch reference is given, so two batches never become one payout; reconciliation alone keeps one batch per connection
-    // under a reference. An edit that keeps the batch's references is not checked.
+    // under a reference. An edit that keeps the batch's references is not checked. A copy an earlier build let an API
+    // client create with only its batch reference carries the other batch's reference in both fields, and the console's
+    // Edit changes the reference only: correcting such a duplicate carries its batch reference over, as the repair a
+    // refused confirmation asks for. Every other edit keeps its batch reference, the key the provider's lines match by.
+    const others = state.records.filter((record) => record.kind === "settlement-batches" && record.id !== existing?.id);
+    if (existing && typeof input.reference === "string" && input.reference && input.reference !== existing.reference && data.batchReference === existing.data.batchReference
+      && existing.data.batchReference === existing.reference && others.some((record) => record.reference === existing.reference || record.data.batchReference === existing.reference)) data.batchReference = input.reference;
     const references = [input.reference, data.batchReference].filter((value): value is string => typeof value === "string" && !!value);
     if ((!existing || input.reference !== existing.reference || data.batchReference !== existing.data.batchReference)
-      && state.records.some((record) => record.kind === "settlement-batches" && record.id !== existing?.id && (references.includes(record.reference) || references.includes(String(record.data.batchReference ?? ""))))) {
+      && others.some((record) => references.includes(record.reference) || references.includes(String(record.data.batchReference ?? "")))) {
       throw Object.assign(new Error("Another settlement batch already has this reference. A batch is one provider connection's payout: record this one under its own reference, or correct the other batch."), { status: 409 });
     }
     // Decision on currencies: a batch holds one currency, naira unless given, and its amounts are in its smallest unit.
