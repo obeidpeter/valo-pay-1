@@ -320,9 +320,10 @@ describe("exceptions", () => {
   // an administrator now resolves its exception as provider identity confirmed, choosing one of the identities it was held
   // for, and that is the only outcome it offers: any other would close it while the batch stays held.
   const identities = [JSON.stringify(['connection-a', 'SHARED']), JSON.stringify(['connection-b', 'SHARED'])];
-  const heldBatch = (review = false) => api.mutate((state, ctx) => {
-    const batch = makeRecord(state, 'settlement-batches', { name: 'Settlement batch SHARED', status: 'variance', reference: 'SHARED', data: { batchReference: 'SHARED', provider: 'connection-a', providerConnection: 'connection-a', currency: 'NGN', lineObservationIds: [], linePaymentIds: [], grossKobo: 0, feeKobo: 0, netKobo: 0, providerIdentityReview: { detectedAt: api.now, identities, observationIds: [], previous: { status: 'reconciled', grossKobo: 0, feeKobo: 0, netKobo: 0, currency: 'NGN', statementObservationId: null, statementNetKobo: null } } } });
+  const heldBatch = (review = false, extra: Record<string, unknown> = {}, carried?: string[]) => api.mutate((state, ctx) => {
+    const batch = makeRecord(state, 'settlement-batches', { name: 'Settlement batch SHARED', status: 'variance', reference: 'SHARED', data: { batchReference: 'SHARED', provider: 'connection-a', providerConnection: 'connection-a', currency: 'NGN', lineObservationIds: [], linePaymentIds: [], grossKobo: 0, feeKobo: 0, netKobo: 0, providerIdentityReview: { detectedAt: api.now, identities, observationIds: [], previous: { status: 'reconciled', grossKobo: 0, feeKobo: 0, netKobo: 0, currency: 'NGN', statementObservationId: null, statementNetKobo: null } }, ...extra } });
     const hold = raiseException(state, ctx, 'settlement_variance', { linkedRecordId: batch.id, notes: 'Historical settlement evidence mixes or conflicts with provider connections.', condition: `settlement_variance:${batch.id}:provider_identity` });
+    if (carried) hold.data.countedTwice = carried;
     if (!review) return hold;
     // An earlier build resolved the hold with another code; reconciliation raises a renewed review of that decision.
     Object.assign(hold, { status: 'resolved' });
@@ -404,6 +405,44 @@ describe("exceptions", () => {
     await user.click(within(dialog).getByRole('button', { name: 'Resolve exception' }));
     await screen.findByRole('status', { name: 'Resolution recorded' });
     expect(api.state().records.find(record => record.id === hold.id)!.data.resolutionCode).toBe('accepted_variance');
+  });
+
+  // Re-review fix: a confirmation settles which connection's payout a batch is, not a collision between two batches. The
+  // dialog offers only the connections no other batch records or claims, as the service accepts, or says why none can be.
+  it('offers only the connections no other batch records or claims, and says why none can be confirmed when each is claimed', async () => {
+    const user = userEvent.setup();
+    api.role = 'Finance';
+    const claim = (identity: string) => ({ identity, batchId: 'other-batch', reference: 'SHARED', handEntered: true });
+    const partly = heldBatch(false, { providerIdentityClaimedBy: [claim(identities[0]!)] });
+    const { unmount } = renderApp(`/exceptions?record=${partly.id}`);
+    await user.click(await screen.findByRole('button', { name: 'Resolve' }));
+    let dialog = await screen.findByRole('dialog', { name: 'Resolve exception' });
+    const identity = await within(dialog).findByLabelText(/Connection whose payout this batch is/);
+    await waitFor(() => expect(within(identity).getAllByRole('option').map(option => option.textContent)).toEqual(['Choose an option', 'connection-b (batch SHARED)']));
+    unmount();
+    const fully = heldBatch(false, { providerIdentityClaimedBy: identities.map(claim) });
+    renderApp(`/exceptions?record=${fully.id}`);
+    await user.click(await screen.findByRole('button', { name: 'Resolve' }));
+    dialog = await screen.findByRole('dialog', { name: 'Resolve exception' });
+    const box = () => within(dialog).getByText('Record an outcome after reviewing the evidence.').parentElement!.textContent!;
+    await waitFor(() => expect(box()).toContain('No connection can be confirmed for this settlement batch now: settlement batch SHARED, entered by hand, also records or claims connection-a (batch SHARED); settlement batch SHARED, entered by hand, also records or claims connection-b (batch SHARED). A confirmation settles which connection\'s payout a batch is, not a collision between two batches: the data owner corrects the duplicate batch\'s reference or provider, and the next reconciliation then releases the genuine batch and closes this exception.'));
+    expect(within(within(dialog).getByLabelText(/How was this resolved/)).getAllByRole('option').map(option => option.textContent)).toEqual(['Choose an option']);
+    expect(within(dialog).queryByLabelText(/Connection whose payout this batch is/)).toBeNull();
+  });
+
+  // Re-review fix: confirming whose payout a held batch is settles no report its exception carries; the report comes back.
+  it('says a confirmation settles no report a held batch\'s exception carries, which comes back on its own after the release', async () => {
+    const user = userEvent.setup();
+    api.role = 'Finance';
+    const hold = heldBatch(false, {}, ['settlement_variance:batch:counted:payment-1']);
+    renderApp(`/exceptions?record=${hold.id}`);
+    await user.click(await screen.findByRole('button', { name: 'Resolve' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Resolve exception' });
+    await user.selectOptions(within(dialog).getByLabelText(/How was this resolved/), 'provider_identity_confirmed');
+    await waitFor(() => expect(within(dialog).getByText(/^Record outcome:/).parentElement!.textContent).toContain('This exception also carries the provider\'s report of a collection counted in two settlement batches. Confirming whose payout the batch is settles no report: after the release, the report comes back as an exception of its own, to resolve once you have checked with the provider.'));
+    const box = within(dialog).getByText(/^Record outcome:/).parentElement!.textContent!;
+    expect(box).not.toContain('Resolving it settles that report too');
+    expect(box).toContain('the batch\'s gross, fee and net leave out the lines that move, unless they were typed by hand, and its expected fee always does.');
   });
 
   for (const review of [false, true]) {

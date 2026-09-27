@@ -481,9 +481,14 @@ function runAction(state: DomainState, ctx: Context, input: ActionInput, audit?:
     // Codes that apply to this exception as it stands now: held evidence is re-derived first, so joining it to its payment is
     // accepted only while it is held for its connection alone, whatever condition an earlier state or build recorded.
     if (resolveExceptionType(item.data.type) === "suspected_duplicate") refreshHeldEvidence(state, ctx, item);
+    // A confirmation is checked against the batch as it stands now, before the codes: a batch no longer held, as when it was
+    // released while the dialog was open, answers 409 so the person refreshes, and so does an identity another batch records
+    // or claims, a collision only the data owner settles; an identity the batch was not held for answers 400.
+    const identity = typeof data.confirmedProviderIdentity === "string" && data.confirmedProviderIdentity.trim() ? data.confirmedProviderIdentity : undefined;
+    const heldBatch = identityHold && data.resolutionCode === providerIdentityConfirmedCode ? heldBatchToConfirm(state, item, identity) : undefined;
     // While its batch is held, any other code would close the exception while the batch stays held with its evidence
     // uncounted, with no way out. Once it is not, an earlier build's hold exception stays open only for the reports it carries.
-    const identityHeldNow = identityHold && identityExceptionHeld(state, item);
+    const identityHeldNow = identityHold && (heldBatch !== undefined || identityExceptionHeld(state, item));
     if (identityHeldNow && data.resolutionCode !== providerIdentityConfirmedCode) throw new Error(`Resolution code must be ${providerIdentityConfirmedCode}: a settlement batch held for its provider identity is released only when Finance or an administrator confirms whose payout it is. If the providers cannot attribute the payout to one connection, leave this exception open until the data owner repairs the evidence; the next reconciliation then releases the batch and closes the exception.`);
     const allowed = resolutionCodesForException(item, { identityHeld: identityHeldNow });
     if (!allowed.includes(String(data.resolutionCode))) throw new Error(`Resolution code must be one of: ${allowed.join(", ")}.`);
@@ -499,9 +504,7 @@ function runAction(state: DomainState, ctx: Context, input: ActionInput, audit?:
       if (evidenceReference && data.resolutionCode !== "resolved_succeeded") throw new Error("An evidence reference is recorded only when the payment is confirmed as received.");
     } else if (evidenceReference) throw new Error("An evidence reference is recorded only when a pay-by-bank payment whose outcome stayed unknown is confirmed as received.");
     // FIN-03: only Finance, or an administrator, confirms whose payout a batch held for its provider identity is, naming one of the identities it was held for.
-    const identity = typeof data.confirmedProviderIdentity === "string" && data.confirmedProviderIdentity.trim() ? data.confirmedProviderIdentity : undefined;
     if (data.resolutionCode !== providerIdentityConfirmedCode && identity !== undefined) throw new Error("A provider identity is confirmed only when a settlement batch held for its provider identity is resolved as provider identity confirmed.");
-    const heldBatch = data.resolutionCode === providerIdentityConfirmedCode ? heldBatchToConfirm(state, item, identity) : undefined;
     const confirmedCode = data.confirmedFailureCode === undefined || data.confirmedFailureCode === null || data.confirmedFailureCode === "" ? undefined : data.confirmedFailureCode;
     if (confirmedCode !== undefined) {
       if (type !== "unknown_outcome" || data.resolutionCode !== "resolved_failed") throw new Error("A confirmed failure code is recorded only when an unknown outcome is resolved as failed.");
