@@ -15,7 +15,7 @@ The [CI run for the reviewed source](https://github.com/obeidpeter/valo-pay/acti
 
 At deployment, financial staging remained disabled and the scheduler reported **off**. An external scheduler, outbound alert delivery, a hosted restore rehearsal with independently verified object/key custody and an independent human operator session remain uncommissioned. Paystack still has no configured account or test key. No provider call, alert delivery, staging migration or live financial activation was performed by this release. The [migration catalogue](database-migrations.md) separates required application changes from these optional rehearsals.
 
-## Merged changes awaiting deployment · 26 September 2026
+## Merged changes awaiting deployment · 26 and 27 September 2026
 
 These changes are merged into `main` after the deployed PR #64 record above. None of them is deployed yet; record the deployed revision and fresh verification separately when they are.
 
@@ -57,7 +57,7 @@ These follow up the review fixes and were merged with [PR #69](https://github.co
 These are merged with the pull request that adds this subsection; none is deployed yet.
 
 - **Follow-up: PR #69 is recorded.** The [document register](document-register.md) and the list above name PR #69 and its merge, like PR #68.
-- **Follow-up: a read of the close backlog waits for one audit check at most.** With `VALOPAY_CLOSE_SCHEDULER=external`, a web instance's reads of what is still owed and the daily audit checks a person's closes ask for take the background thread's close connection one at a time, and a read waited behind every check asked before it: a run of such checks lasting some three minutes, such as 36 lenders each held to a check's 5-second wait for its lender, would have aged the last read into `scheduler_stale` with nothing wrong. A read now goes ahead of the checks still waiting, never ahead of the one in progress, so it waits for that check at most; the waiting checks run after it, in the order asked for, and the connection still serves one thing at a time. Pinned by `close-scheduler.integration.test.ts`, which failed before the change: with two lenders held whose checks are asked for, no read is made while the first check waits, and once that lender is free a read comes while the second check still waits, which then runs.
+- **Follow-up: a read of the close backlog waits for one audit check at most.** With `VALOPAY_CLOSE_SCHEDULER=external`, a web instance's reads of what is still owed and the daily audit checks a person's closes ask for take the background thread's close connection one at a time, and a read waited behind every check asked before it: a run of such checks lasting some two to three minutes, such as 25 to 36 lenders each held to a check's 5-second wait for its lender, would have aged the last read into `scheduler_stale` with nothing wrong, since the last read could already be nearly a minute old when they began. A read now goes ahead of the checks still waiting, never ahead of the one in progress, so it waits for that check at most; the waiting checks run after it, in the order asked for, and the connection still serves one thing at a time. Pinned by `close-scheduler.integration.test.ts`, which failed before the change: with three lenders held whose checks are asked for, no read is made while the first check waits, and once that lender is free a read comes before the two checks still waiting, the earlier of which then runs while the later waits its turn.
 
 ## Earlier release notes
 
