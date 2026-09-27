@@ -101,7 +101,7 @@ function sourceWorker(entry: URL, options: WorkerOptions): Worker | undefined {
  */
 export function startBackgroundWorker(options: BackgroundOptions & { log: Logger; entry?: URL; restartMs?: number; maxRestartMs?: number; steadyMs?: number }): BackgroundWorker {
   const { log } = options, entry = options.entry ?? backgroundEntry();
-  const workerData: BackgroundOptions & { thread: "background" } = { thread: "background", closes: options.closes, backlog: options.backlog ?? null, exports: options.exports };
+  const workerData: BackgroundOptions & { thread: "background" } = { thread: "background", closes: options.closes, backlog: options.backlog ?? null, exports: options.exports, cleanup: options.cleanup ?? null };
   // The database module sizes its pool from this setting when the thread loads it: the thread's pool, not the requests'.
   const settings: WorkerOptions = { workerData, env: { ...process.env, VALOPAY_DATABASE_POOL_SIZE: String(BACKGROUND_POOL_SIZE) } };
   let current: Worker | undefined, restart: ReturnType<typeof setTimeout> | undefined;
@@ -147,7 +147,7 @@ export function startBackgroundWorker(options: BackgroundOptions & { log: Logger
       else log.info({ event: "background.stopped", durationMs: Date.now() - startedAt }, "Background worker thread stopped");
       ended();
     });
-    log.info({ event: "background.started", threadId: worker.threadId, closes: options.closes !== null, backlog: Boolean(options.backlog), exports: options.exports !== null, poolSize: BACKGROUND_POOL_SIZE, crashes }, "Background worker thread started");
+    log.info({ event: "background.started", threadId: worker.threadId, closes: options.closes !== null, backlog: Boolean(options.backlog), exports: options.exports !== null, cleanup: Boolean(options.cleanup), poolSize: BACKGROUND_POOL_SIZE, crashes }, "Background worker thread started");
   }
   spawn();
 

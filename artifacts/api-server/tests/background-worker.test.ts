@@ -4,8 +4,8 @@
 // waits again; its crash marks the scheduler failed without touching the
 // process; its log lines and scheduler changes reach the main thread; a stop
 // ends the thread, or cancels a start still waiting; the real thread
-// (background.ts) runs the close scheduler and the export worker against an
-// unreachable database, reports both through the main thread and stops
+// (background.ts) runs the close scheduler, export worker and enabled cleanup against an
+// unreachable database, reports their failures through the main thread and stops
 // cleanly; and where a scheduled job runs the closes, the thread's reads of
 // what is still owed reach the main thread, and a read that fails is logged
 // and keeps the last one. The fixture threads are data: modules; nothing
@@ -100,21 +100,28 @@ try {
   assert.equal(events("background.started").length, 0, "a thread that never started is not logged as started");
   checks += 2;
 
-  // ---- The real thread: the scheduler and the export worker against an unreachable database, reported here, stopped cleanly ----
+  // ---- The real thread: scheduler, exports and cleanup run, report failures and stop cleanly ----
   mark();
   const before = schedulerStatus();
-  const real = startBackgroundWorker({ log: logger, closes: { intervalMs: 60_000, firstDelayMs: 10 }, exports: { intervalMs: 50, maxBackoffMs: 400 } });
-  await waitFor(() => events("close.tick_failed").length > 0 && events("export.queue_error").length > 0, "the real thread's first close pass and queue look", 30_000);
-  await waitFor(() => schedulerStatus().ticks > before.ticks && schedulerStatus().lastErrorAt !== before.lastErrorAt, "the relayed failed pass");
-  assert.equal(schedulerStatus().state, "running");
-  real.stop();
-  await real.settle();
+  const real = startBackgroundWorker({ log: logger, closes: { intervalMs: 60_000, firstDelayMs: 10 }, exports: { intervalMs: 50, maxBackoffMs: 400 }, cleanup: { intervalMs: 50 } });
+  try {
+    await waitFor(() => events("close.tick_failed").length > 0 && events("export.queue_error").length > 0, "the real thread's first close pass and queue look", 30_000);
+    // Two failures prove background.ts started cleanup and received its short test interval. A missing
+    // workerData option starts nothing; losing intervalMs leaves the second pass a minute away.
+    await waitFor(() => events("workspace.sweep_cleanup_unavailable").length >= 2, "the real cleanup worker's first pass and retry", 10_000);
+    await waitFor(() => schedulerStatus().ticks > before.ticks && schedulerStatus().lastErrorAt !== before.lastErrorAt, "the relayed failed pass");
+    assert.equal(schedulerStatus().state, "running");
+  } finally {
+    real.stop();
+    await real.settle();
+  }
   const thread = lines().filter((line) => line.thread === "background");
-  assert.deepEqual(["scheduler.started", "close.tick_failed", "export.queue_error"].map((event) => thread.some((line) => line.event === event)), [true, true, true], "the thread's events are its own lines, written by the main thread");
+  assert.deepEqual(["scheduler.started", "close.tick_failed", "export.queue_error", "workspace.sweep_cleanup_unavailable"].map((event) => thread.some((line) => line.event === event)), [true, true, true, true], "the thread's events are its own lines, written by the main thread");
+  assert.deepEqual(events("background.started").map((line) => line.cleanup), [true], "service cleanup is visible in the worker start record");
   assert.ok(thread.every((line) => line.service === "valopay-api" && line.pid === process.pid), "with the logger's base fields");
   assert.equal(schedulerStatus().state, "stopped", "the thread's scheduler reported its stop");
   assert.deepEqual(lines().filter((line) => line.event?.startsWith("background.")).map((line) => line.event), ["background.started", "background.stopped"], "it stopped when asked, without a crash");
-  checks += 5;
+  checks += 6;
 
   // ---- External mode: no pass runs here, so the thread reads what is still owed itself, and each read reaches the main thread ----
   mark();
@@ -131,7 +138,7 @@ try {
   // ---- The real thread in external mode, against an unreachable database: a read that fails is logged and keeps the last one ----
   mark();
   const lastRead = schedulerStatus();
-  const reader = startBackgroundWorker({ log: logger, closes: null, backlog: { intervalMs: 60_000, firstDelayMs: 10 }, exports: null });
+  const reader = startBackgroundWorker({ log: logger, closes: null, backlog: { intervalMs: 60_000, firstDelayMs: 10 }, exports: null, cleanup: null });
   await waitFor(() => events("close.backlog_failed").length > 0, "the real thread's first read", 30_000);
   reader.stop();
   await reader.settle();
@@ -140,10 +147,12 @@ try {
   const afterFailedRead = schedulerStatus();
   assert.deepEqual([afterFailedRead.state, afterFailedRead.intervalMs, afterFailedRead.backlog, afterFailedRead.lastErrorAt, afterFailedRead.ticks], ["external", 60_000, lastRead.backlog, lastRead.lastErrorAt, lastRead.ticks], "it keeps the last read, whose checkedAt ages, and is not a failed pass");
   assert.deepEqual(events("background.started").map((line) => [line.closes, line.backlog, line.exports]), [[false, true, false]], "the thread reads the backlog and schedules no close");
+  assert.deepEqual(events("background.started").map((line) => line.cleanup), [false]);
+  assert.equal(events("workspace.sweep_cleanup_unavailable").length, 0, "an explicit null leaves service cleanup disabled");
   assert.deepEqual(lines().filter((line) => line.event?.startsWith("background.")).map((line) => line.event), ["background.started", "background.stopped"], "and stops when asked, without a crash");
-  checks += 4;
+  checks += 6;
 
-  console.log(`Background worker tests passed (${checks} checks): crashes, unasked ends and refused starts logged and the thread started again after doubling waits, reset after a steady run; the scheduler marked failed meanwhile; log lines and scheduler changes relayed to the main thread; a stop that ends the thread or cancels a waiting start; the real thread running both jobs and stopping cleanly; and in external mode the thread's reads of what is still owed relayed, a failed read logged and the last read kept.`);
+  console.log(`Background worker tests passed (${checks} checks): crashes, unasked ends and refused starts logged and the thread started again after doubling waits, reset after a steady run; the scheduler marked failed meanwhile; log lines and scheduler changes relayed to the main thread; a stop that ends the thread or cancels a waiting start; the real thread running scheduler, exports and enabled cleanup with retry and stopping cleanly; explicit null disabling cleanup; and in external mode the thread's reads of what is still owed relayed, a failed read logged and the last read kept.`);
 } finally {
   rmSync(logFile, { force: true });
 }
