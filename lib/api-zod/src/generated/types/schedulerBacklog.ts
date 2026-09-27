@@ -5,9 +5,10 @@
  * Valo Pay collections and connected banking sandbox API. All monetary fields are integer minor units (NGN kobo). Real data and all outbound provider instructions are disabled in connected modules.
  * OpenAPI spec version: 1.1.0
  */
+import type { SchedulerPublicSandboxes } from './schedulerPublicSandboxes';
 
 /**
- * The lenders still owed a scheduled close, as the latest pass read them from the database, counted without naming any: overdue, those whose automatic close is on and whose pending close is more than lateAfterMinutes past its time; failing, those with a failed scheduled attempt at their pending time, which only that lender's own close, or a change to its schedule, ends: not other lenders' closes, nor a restart. checkedAt is when the pass read them, on the API host's clock.
+ * The lenders still owed a scheduled close, as this process last read them from the database, counted without naming any: overdue, those whose automatic close is on and whose pending close is more than lateAfterMinutes past its time; failing, those with a failed scheduled attempt at their pending time, which only that lender's own close, or a change to its schedule, ends: not other lenders' closes, nor a restart. Neither counts public anonymous sandboxes, whose own counts are publicSandboxes. checkedAt is when they were read, on the API host's clock.
  */
 export interface SchedulerBacklog {
   checkedAt: string;
@@ -16,4 +17,5 @@ export interface SchedulerBacklog {
   /** @minimum 0 */
   failing: number;
   lateAfterMinutes: number;
+  publicSandboxes?: SchedulerPublicSandboxes;
 }

@@ -58,7 +58,7 @@ try {
   assert.equal(received.at(-1).kind, 'recovery');
   assert.deepEqual((await probeService({ origin, expectScheduler: true, allowLocal: true })).codes, ['scheduler_not_running']);
   const now = Date.now();
-  const fake = (scheduler, schema = 'ok') => async url => new Response(JSON.stringify(url.endsWith('readyz') ? readiness('ok', schema) : { status: 'ok', scheduler }), { status: url.endsWith('readyz') && schema === 'incomplete' ? 503 : 200 });
+  const fake = (scheduler, schema = 'ok', uptimeSeconds) => async url => new Response(JSON.stringify(url.endsWith('readyz') ? readiness('ok', schema) : { status: 'ok', ...(uptimeSeconds === undefined ? {} : { uptimeSeconds }), scheduler }), { status: url.endsWith('readyz') && schema === 'incomplete' ? 503 : 200 });
   assert.deepEqual((await probeService({ origin: 'https://example.com', expectScheduler: true, now, fetchImpl: fake({ state: 'running', intervalMs: 1000, lastSuccessAt: new Date(now - 4000).toISOString() }) })).codes, ['scheduler_stale']);
   // A host whose closes run from a scheduled job (VALOPAY_CLOSE_SCHEDULER=external) must say so: reporting off would
   // hide missed closes again, and running would run them in the web instances too.
@@ -81,18 +81,60 @@ try {
   assert.deepEqual((await probeService({ origin: 'https://example.com', expectScheduler: 'on', now, fetchImpl: fake({ ...current, backlog: { failing: '1' } }) })).codes, ['scheduler_stale'], 'a backlog the monitor cannot read is no evidence');
   assert.deepEqual((await probeService({ origin: 'https://example.com', expectScheduler: 'on', now, fetchImpl: fake({ ...current, state: 'stopped' }) })).codes, ['scheduler_close_failed', 'scheduler_not_running'], 'a stopped scheduler keeps the failure it last read');
   assert.equal((await probeService({ origin: 'https://example.com', now, fetchImpl: fake(current) })).observations.closeBacklog, 'not_requested');
+  // Public anonymous sandboxes are counted apart from the lenders: a close a visitor's own data makes fail, or one
+  // overdue, is a warning with the sandboxes' own counts, never an incident; the lenders' counts alone raise the codes.
+  const withSandboxes = (lenders, failing, overdue) => ({ ...lenders, publicSandboxes: { overdue, failing } });
+  const visitors = await probeService({ origin: 'https://example.com', expectScheduler: 'on', now, fetchImpl: fake({ ...current, backlog: withSandboxes(backlog(0), 1, 2) }) });
+  assert.deepEqual([visitors.codes, visitors.warnings, visitors.observations.closeBacklog, visitors.observations.schedulerEvidence], [[], ['scheduler_public_sandbox_close_failed', 'scheduler_public_sandbox_closes_overdue'], { overdue: 0, failing: 0, publicSandboxes: { overdue: 2, failing: 1 } }, 'fresh_process_heartbeat'], 'a public sandbox whose own data makes its close fail is a warning, not an incident');
+  const lenderAndVisitor = await probeService({ origin: 'https://example.com', expectScheduler: 'on', now, fetchImpl: fake({ ...current, backlog: withSandboxes(backlog(1), 1, 0) }) });
+  assert.deepEqual([lenderAndVisitor.codes, lenderAndVisitor.warnings], [['scheduler_close_failed'], ['scheduler_public_sandbox_close_failed']], 'a lender failing beside a sandbox is still the incident');
+  assert.deepEqual((await probeService({ origin: 'https://example.com', expectScheduler: 'on', now, fetchImpl: fake({ ...current, backlog: withSandboxes(backlog(0), -1, 0) }) })).codes, ['scheduler_stale'], 'sandbox counts the monitor cannot read are no evidence either');
+  // A host whose closes run from a scheduled job (VALOPAY_CLOSE_SCHEDULER=external): each web instance reads what is
+  // still owed at the scheduler's interval and reports it, so the same codes apply, a job that has stopped running shows
+  // as overdue closes, and a read missing or older than three intervals is no evidence.
+  const external = (owed, at = now) => ({ state: 'external', intervalMs: 1000, ticks: 0, lastTickAt: null, lastSuccessAt: null, lastErrorAt: null, lastRun: null, backlog: owed && { ...owed, checkedAt: new Date(at).toISOString() } });
+  const probeExternal = scheduler => probeService({ origin: 'https://example.com', expectScheduler: 'external', now, fetchImpl: fake(scheduler) });
+  const jobStopped = await probeExternal(external(backlog(0, 1)));
+  assert.deepEqual([jobStopped.codes, jobStopped.warnings, jobStopped.observations.schedulerEvidence, jobStopped.observations.closeBacklog], [['scheduler_closes_overdue'], [], 'failed', { overdue: 1, failing: 0 }], 'a scheduled job that stopped running shows as overdue closes');
+  assert.deepEqual((await probeExternal(external(backlog(2)))).codes, ['scheduler_close_failed'], 'a failing close is raised as on a host that runs its own');
+  const quiet = await probeExternal(external(withSandboxes(backlog(0), 0, 1)));
+  assert.deepEqual([quiet.codes, quiet.warnings, quiet.observations.schedulerEvidence, quiet.observations.closeBacklog], [[], ['scheduler_public_sandbox_closes_overdue'], 'mode_and_fresh_backlog', { overdue: 0, failing: 0, publicSandboxes: { overdue: 1, failing: 0 } }], 'the monitor saw the backlog, not only the mode');
+  assert.deepEqual((await probeExternal(external(backlog(0), now - 4000))).codes, ['scheduler_stale'], 'a read older than three intervals is no evidence');
+  const unread = await probeExternal(external(null));
+  assert.deepEqual([unread.codes, unread.observations.closeBacklog], [['scheduler_stale'], 'unverified'], 'nor is a missing one from a process that does not say it is too young to have read');
+  // A build from before this reports no backlog in external mode, null or absent: the mode alone, as before, with a warning.
+  for (const older of [{ state: 'external', intervalMs: null, ticks: 0, lastTickAt: null, lastRun: null, backlog: null }, { state: 'external', intervalMs: null, ticks: 0, lastTickAt: null, lastRun: null }]) {
+    const before = await probeExternal(older);
+    assert.deepEqual([before.codes, before.warnings, before.observations.schedulerEvidence, before.observations.closeBacklog], [[], ['scheduler_backlog_not_reported'], 'mode_only', 'not_reported'], 'an older build is the mode alone');
+  }
+  // A process younger than its first read could be (its first-read delay, one interval and a margin: 17 s at a
+  // one-second interval) has no evidence yet, whether it runs its own closes or reads the backlog for a scheduled job: a
+  // warning, not an incident. A missing read from an older process, and an old read or heartbeat at any age, are stale.
+  const young = 10, old = 600;
+  const aged = (scheduler, uptimeSeconds, expectScheduler) => probeService({ origin: 'https://example.com', expectScheduler, now, fetchImpl: fake(scheduler, 'ok', uptimeSeconds) });
+  const beforeFirstPass = { state: 'running', intervalMs: 1000, ticks: 1, lastTickAt: new Date(now).toISOString(), lastSuccessAt: null, lastErrorAt: null, lastRun: null, backlog: null };
+  const oldPass = { ...current, lastSuccessAt: new Date(now - 4000).toISOString(), backlog: { ...backlog(0), checkedAt: new Date(now - 4000).toISOString() } };
+  for (const [expectScheduler, unreadAnswer, oldRead] of [['on', beforeFirstPass, oldPass], ['external', external(null), external(backlog(0), now - 4000)]]) {
+    const pending = await aged(unreadAnswer, young, expectScheduler);
+    assert.deepEqual([pending.codes, pending.warnings, pending.observations.schedulerEvidence, pending.observations.closeBacklog], [[], ['scheduler_backlog_pending'], 'first_read_pending', 'pending'], `${expectScheduler}: a young process with no read yet is a warning, not an incident`);
+    assert.deepEqual((await aged(unreadAnswer, old, expectScheduler)).codes, ['scheduler_stale'], `${expectScheduler}: one up long enough to have read, with no read, is stale`);
+    assert.deepEqual((await aged(oldRead, young, expectScheduler)).codes, ['scheduler_stale'], `${expectScheduler}: an old read is stale whatever the uptime`);
+  }
+  const deployedInterval = { ...external(null), intervalMs: 60_000 };
+  assert.deepEqual([(await aged(deployedInterval, 75, 'external')).codes, (await aged(deployedInterval, 85, 'external')).codes], [[], ['scheduler_stale']], 'at the deployed minute a process is young for 80 s: five seconds, one interval and the margin');
   // Two identical probes open the incident; a restart's first probe, before its first pass, neither ends nor repeats
   // it; the pass after the restart reads the lender again, and only that lender's close sends the recovery.
   const sent = [];
   let incident;
-  const watch = async (scheduler) => {
-    const result = await deliverTransition(await probeService({ origin: 'https://example.com', expectScheduler: 'on', now, fetchImpl: fake(scheduler) }), incident, async event => { sent.push(event); }, { owner: 'Synthetic rehearsal operator' });
+  const watch = async (scheduler, uptimeSeconds) => {
+    const result = await deliverTransition(await probeService({ origin: 'https://example.com', expectScheduler: 'on', now, fetchImpl: fake(scheduler, 'ok', uptimeSeconds) }), incident, async event => { sent.push(event); }, { owner: 'Synthetic rehearsal operator' });
     incident = result.state;
     return result.delivered;
   };
   assert.deepEqual([await watch(current), await watch({ ...current, lastRun: { failed: 0, closed: 1 } })], [false, true], 'two probes open the incident while other lenders close');
   const restarted = { state: 'running', intervalMs: 1000, ticks: 0, lastTickAt: null, lastSuccessAt: null, lastErrorAt: null, lastRun: null, backlog: null };
-  assert.deepEqual([await watch(restarted), await watch({ ...restarted, lastSuccessAt: new Date(now).toISOString(), backlog: backlog(1) })], [false, false], 'a restart neither ends nor repeats the incident');
+  assert.deepEqual([await watch(restarted, young), await watch({ ...restarted, lastSuccessAt: new Date(now).toISOString(), backlog: backlog(1) }, young)], [false, false], 'a young restarted process\'s warning is no evidence either way: it neither ends nor repeats the incident');
+  assert.deepEqual([await watch(restarted), await watch({ ...restarted, lastSuccessAt: new Date(now).toISOString(), backlog: backlog(1) })], [false, false], 'nor does an older one\'s stale probe');
   assert.deepEqual([await watch({ ...current, backlog: backlog(0) }), sent.map(event => [event.kind, event.codes.join()])], [true, [['incident', 'scheduler_close_failed'], ['recovery', '']]], 'the failing lender closing ends it');
   assert.deepEqual((await probeService({ origin: 'https://example.com', now, fetchImpl: fake({ state: 'off' }, 'incomplete') })).codes, ['schema_unready']);
   for (const [label, status, body] of [
@@ -155,5 +197,5 @@ try {
   assert.equal(deliveryConfiguration({ VALOPAY_MONITOR_OWNER: 'Operator', VALOPAY_MONITOR_ALERT_URL: 'http://alerts.example/receiver' }).status, 'incomplete');
   assert.equal(deliveryConfiguration({ VALOPAY_MONITOR_OWNER: 'Operator', VALOPAY_ALERT_RESEND_KEY: 'synthetic-secret', VALOPAY_ALERT_FROM: 'alerts@example.com', VALOPAY_ALERT_TO: 'operations@example.test' }).status, 'configured');
   await assert.rejects(() => sendEmail(received[0], { apiKey: 'synthetic-secret', from: 'alerts@example.com', to: 'operations@example.test', fetchImpl: async () => { throw new Error('provider secret'); } }), error => !error.message.includes('provider secret'));
-  console.log('Operational monitor passed: real local HTTP probe/delivery, incident threshold, no repeat, recovery, failed-delivery retry, close failures that stay raised until the failing lender closes (across other lenders\' passes and a restart), overdue closes, schema readiness, scheduler mode versus execution evidence, explicit labelled delivery tests without incident-state changes, redacted failures.');
+  console.log('Operational monitor passed: real local HTTP probe/delivery, incident threshold, no repeat, recovery, failed-delivery retry, close failures that stay raised until the failing lender closes (across other lenders\' passes and a restart), overdue closes, public sandboxes\' counted apart as warnings, a process too young to have read giving a warning that neither ends nor repeats an incident, schema readiness, scheduler mode versus execution evidence, the backlog an external host\'s web instances read, explicit labelled delivery tests without incident-state changes, redacted failures.');
 } finally { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); }

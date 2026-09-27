@@ -121,11 +121,18 @@ try {
   markSchedulerOff();
   assert.equal(schedulerStatus().state, "off");
   assert.equal(((await (await fetch(`${base}/api/healthz`)).json()) as { scheduler: { state: string } }).scheduler.state, "off", "the health answer says when closes are not scheduled here");
-  // What the latest pass read as still owed, as counts: the answer names no lender.
-  const owed = { checkedAt: "2026-09-26T06:01:00.000Z", overdue: 2, failing: 1, lateAfterMinutes: 30 };
+  // What the latest pass read as still owed, as counts: the answer names no lender, and counts public anonymous sandboxes apart.
+  const owed = { checkedAt: "2026-09-26T06:01:00.000Z", overdue: 2, failing: 1, lateAfterMinutes: 30, publicSandboxes: { overdue: 1, failing: 1 } };
   applySchedulerEvent({ type: "succeeded", at: owed.checkedAt, run: null, backlog: owed });
   assert.deepEqual(((await (await fetch(`${base}/api/healthz`)).json()) as { scheduler: { backlog: unknown } }).scheduler.backlog, owed, "the health answer carries the lenders still owed a close");
-  checks += 12;
+  // With external no pass runs here: the process reads what is still owed itself, every interval, and the answer
+  // carries each read, which is not a pass: the heartbeat fields stay as they were.
+  applySchedulerEvent({ type: "external", intervalMs: 60_000 });
+  const read = { ...owed, checkedAt: "2026-09-26T06:02:00.000Z", overdue: 0, publicSandboxes: { overdue: 0, failing: 1 } };
+  applySchedulerEvent({ type: "backlog", backlog: read });
+  const external = ((await (await fetch(`${base}/api/healthz`)).json()) as { scheduler: Record<string, unknown> }).scheduler;
+  assert.deepEqual([external["state"], external["intervalMs"], external["backlog"], external["lastSuccessAt"], external["ticks"]], ["external", 60_000, read, owed.checkedAt, 0], "an external host's health answer carries its own read of the backlog");
+  checks += 13;
 
   const started = Date.now();
   const ready = await fetch(`${base}/api/readyz`);

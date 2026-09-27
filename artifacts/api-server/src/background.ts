@@ -1,9 +1,11 @@
 /**
  * The background worker thread: the scheduled daily close and the export
  * worker, off the event loop that answers requests and health probes, so a
- * month-end close or a large export never holds them up. The main thread
- * starts it, starts it again after a crash and stops it on shutdown
- * (lib/background-worker.ts). It has its own database pool, which the main
+ * month-end close or a large export never holds them up. Where a scheduled
+ * job runs the closes (VALOPAY_CLOSE_SCHEDULER=external), the thread reads
+ * what is still owed at the scheduler's interval instead, for /api/healthz.
+ * The main thread starts it, starts it again after a crash and stops it on
+ * shutdown (lib/background-worker.ts). It has its own database pool, which the main
  * thread sizes (BACKGROUND_POOL_SIZE), and it keeps to the same repository
  * modules and limits as before; its log lines go through the main thread
  * (lib/logger.ts), and it posts each change of the scheduler's state there,
@@ -16,7 +18,7 @@
  */
 import { parentPort, workerData } from "node:worker_threads";
 import { logger } from "./lib/logger";
-import { observeScheduler, runDailyAuditCheck, startCloseScheduler } from "./lib/close-scheduler";
+import { observeScheduler, runDailyAuditCheck, startBacklogWatch, startCloseScheduler } from "./lib/close-scheduler";
 import { startExportWorker } from "./lib/export-worker";
 import { closeDatabase, watchDatabase } from "./lib/valopay-store";
 import type { BackgroundMessage, BackgroundOptions, BackgroundRequest } from "./lib/background-worker";
@@ -27,8 +29,9 @@ const post = (message: BackgroundMessage) => port.postMessage(message);
 
 // As on the main thread: an idle connection that fails is a log line, not the end of the thread.
 watchDatabase(logger);
-if (options.closes) observeScheduler((event) => post({ type: "scheduler", event }));
+if (options.closes || options.backlog) observeScheduler((event) => post({ type: "scheduler", event }));
 const scheduler = options.closes ? startCloseScheduler({ ...options.closes, log: logger }) : undefined;
+const backlogWatch = options.backlog ? startBacklogWatch({ ...options.backlog, log: logger }) : undefined;
 const exportWorker = options.exports ? startExportWorker({ ...options.exports, log: logger }) : undefined;
 // Without a scheduler, the daily audit checks a person's closes ask for run here, one at a time on the close's connection.
 let auditChecks: Promise<void> = Promise.resolve();
@@ -37,9 +40,10 @@ let stopping: Promise<void> | undefined;
 async function stop(): Promise<void> {
   try {
     scheduler?.stop();
+    backlogWatch?.stop();
     exportWorker?.stop();
-    // The close or audit check in progress finishes and the stopped exports' hand-back writes are made before the pool ends.
-    await Promise.all([scheduler?.settle(), exportWorker?.settle(), auditChecks]);
+    // The close, read or audit check in progress finishes and the stopped exports' hand-back writes are made before the pool ends.
+    await Promise.all([scheduler?.settle(), backlogWatch?.settle(), exportWorker?.settle(), auditChecks]);
     await closeDatabase();
   } finally {
     // Nothing else holds the thread open, so it ends here.

@@ -215,7 +215,9 @@ try {
   ok(await call(q(`/v1/customers/${record.id}/history`)));
   ok(await call(q("/v1/imports"), "POST", { kind: "customers", csv: "name,reference,consentProvenance\nImported contract customer,CONTRACT-I001,Synthetic consent", identityColumn: "reference", syntheticOnly: true, commit: false, amountUnit: "kobo" }));
   const settings = ok(await call(q("/v1/settings")));
-  ok(await call(q("/v1/settings"), "PATCH", { closeTime: "07:00", expectedRevision: settings.revision }, { key: key() }));
+  // Whether a lender is a public anonymous sandbox is set where its sandbox is seeded or creates it, never by a settings change.
+  ok(await call(q("/v1/settings"), "PATCH", { closeTime: "07:00", anonymousWorkspace: false, expectedRevision: settings.revision }, { key: key() }));
+  assert.equal((await pool.query("SELECT settings->>'anonymousWorkspace' AS flag FROM valopay_merchants WHERE id=$1", [lender])).rows[0].flag, "true", "a settings change cannot make a visitor's sandbox a lender");
   const job = ok(await call(q("/v1/exports"), "POST", { kind: "customers", format: "json" }, { key: key() }));
   ok(await call(q(`/v1/exports/${job.id}`)));
   ok(await call(q(`/v1/exports/${job.id}/retry`), "POST"));

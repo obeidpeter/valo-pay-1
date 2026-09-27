@@ -9,12 +9,16 @@ import * as zod from 'zod';
 
 
 /**
- * Never touches the database, so a database outage does not read as a dead process: the scheduler's backlog is what its latest pass read, counted without naming a lender. Needs no sandbox or sign-in, and answers whether or not Clerk is configured. At most 120 health checks a minute per client network, both health addresses together (an IPv6 client's network is its /64).
+ * Never touches the database, so a database outage does not read as a dead process: the scheduler's backlog is what the process last read, at the end of a pass or, where a scheduled job runs the closes, at the scheduler's interval, counted without naming a lender. Needs no sandbox or sign-in, and answers whether or not Clerk is configured. At most 120 health checks a minute per client network, both health addresses together (an IPv6 client's network is its /64).
  * @summary Liveness: the process answers, with its build, uptime and scheduler state
  */
 export const healthCheckResponseSchedulerBacklogOneOverdueMin = 0;
 
 export const healthCheckResponseSchedulerBacklogOneFailingMin = 0;
+
+export const healthCheckResponseSchedulerBacklogOnePublicSandboxesOverdueMin = 0;
+
+export const healthCheckResponseSchedulerBacklogOnePublicSandboxesFailingMin = 0;
 
 
 
@@ -24,8 +28,8 @@ export const HealthCheckResponse = zod.object({
   "startedAt": zod.string(),
   "uptimeSeconds": zod.number().int(),
   "scheduler": zod.object({
-  "state": zod.enum(['not_started', 'running', 'off', 'external', 'stopped']).describe('running: this process schedules the daily closes. off: it schedules none (VALOPAY_CLOSE_SCHEDULER=off). external: it schedules none because a separate scheduled job runs them with the one-shot close pass (VALOPAY_CLOSE_SCHEDULER=external), which this process cannot observe. not_started and stopped: the scheduler has not started yet, or has stopped.'),
-  "intervalMs": zod.number().int().nullable(),
+  "state": zod.enum(['not_started', 'running', 'off', 'external', 'stopped']).describe('running: this process schedules the daily closes. off: it schedules none (VALOPAY_CLOSE_SCHEDULER=off). external: it schedules none because a separate scheduled job runs them with the one-shot close pass (VALOPAY_CLOSE_SCHEDULER=external), whose runs this process cannot observe; it reads the lenders still owed a close itself instead, every intervalMs (backlog). not_started and stopped: the scheduler has not started yet, or has stopped.'),
+  "intervalMs": zod.number().int().nullable().describe('How often this process looks: its scheduler\'s tick, or with external how often it reads the backlog; null in a process that does neither. Builds before the external read report null with external.'),
   "ticks": zod.number().int(),
   "lastTickAt": zod.string().nullable(),
   "lastRun": zod.union([zod.object({
@@ -46,9 +50,13 @@ export const HealthCheckResponse = zod.object({
   "checkedAt": zod.string(),
   "overdue": zod.number().int().min(healthCheckResponseSchedulerBacklogOneOverdueMin),
   "failing": zod.number().int().min(healthCheckResponseSchedulerBacklogOneFailingMin),
-  "lateAfterMinutes": zod.number().int()
-}).describe('The lenders still owed a scheduled close, as the latest pass read them from the database, counted without naming any: overdue, those whose automatic close is on and whose pending close is more than lateAfterMinutes past its time; failing, those with a failed scheduled attempt at their pending time, which only that lender\'s own close, or a change to its schedule, ends: not other lenders\' closes, nor a restart. checkedAt is when the pass read them, on the API host\'s clock.'),zod.null()]).optional().describe('What the latest pass read from the database as still owed; null until this process\'s first pass has read it, and kept as last read while the scheduler is stopped or failing. Absent from builds before it was added, which report only lastRun.')
-}).describe('Whether closes are scheduled in this process, how often it looks, when it last looked, its last pass with work and what its latest pass read as still owed.')
+  "lateAfterMinutes": zod.number().int(),
+  "publicSandboxes": zod.object({
+  "overdue": zod.number().int().min(healthCheckResponseSchedulerBacklogOnePublicSandboxesOverdueMin),
+  "failing": zod.number().int().min(healthCheckResponseSchedulerBacklogOnePublicSandboxesFailingMin)
+}).optional().describe('The same counts for public anonymous sandboxes, the synthetic lenders a visitor\'s sandbox is seeded with or creates, whose own data can make a close fail: counted apart from the lenders, so they never raise an incident or fail the one-shot close pass. Absent from builds before they were counted apart, which count them among the lenders.')
+}).describe('The lenders still owed a scheduled close, as this process last read them from the database, counted without naming any: overdue, those whose automatic close is on and whose pending close is more than lateAfterMinutes past its time; failing, those with a failed scheduled attempt at their pending time, which only that lender\'s own close, or a change to its schedule, ends: not other lenders\' closes, nor a restart. Neither counts public anonymous sandboxes, whose own counts are publicSandboxes. checkedAt is when they were read, on the API host\'s clock.'),zod.null()]).optional().describe('What this process last read from the database as still owed: at the end of each pass or, with external, every intervalMs; null until its first read, and kept as last read while the scheduler is stopped or failing, or a read fails, so its checkedAt ages. Absent from builds before it was added, which report only lastRun; builds before the external read report null with external.')
+}).describe('Whether closes are scheduled in this process, how often it looks, when it last looked, its last pass with work and what it last read as still owed.')
 }).describe('The liveness answer: the build, when the process started, its uptime and what the close scheduler is doing.')
 
 

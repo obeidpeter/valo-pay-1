@@ -10,12 +10,15 @@ import type { SchedulerRun } from './schedulerRun';
 import type { SchedulerStatusState } from './schedulerStatusState';
 
 /**
- * Whether closes are scheduled in this process, how often it looks, when it last looked, its last pass with work and what its latest pass read as still owed.
+ * Whether closes are scheduled in this process, how often it looks, when it last looked, its last pass with work and what it last read as still owed.
  */
 export interface SchedulerStatus {
-  /** running: this process schedules the daily closes. off: it schedules none (VALOPAY_CLOSE_SCHEDULER=off). external: it schedules none because a separate scheduled job runs them with the one-shot close pass (VALOPAY_CLOSE_SCHEDULER=external), which this process cannot observe. not_started and stopped: the scheduler has not started yet, or has stopped. */
+  /** running: this process schedules the daily closes. off: it schedules none (VALOPAY_CLOSE_SCHEDULER=off). external: it schedules none because a separate scheduled job runs them with the one-shot close pass (VALOPAY_CLOSE_SCHEDULER=external), whose runs this process cannot observe; it reads the lenders still owed a close itself instead, every intervalMs (backlog). not_started and stopped: the scheduler has not started yet, or has stopped. */
   state: SchedulerStatusState;
-  /** @nullable */
+  /**
+     * How often this process looks: its scheduler's tick, or with external how often it reads the backlog; null in a process that does neither. Builds before the external read report null with external.
+     * @nullable
+     */
   intervalMs: number | null;
   ticks: number;
   /** @nullable */
@@ -25,6 +28,6 @@ export interface SchedulerStatus {
   lastSuccessAt?: string | null;
   /** @nullable */
   lastErrorAt?: string | null;
-  /** What the latest pass read from the database as still owed; null until this process's first pass has read it, and kept as last read while the scheduler is stopped or failing. Absent from builds before it was added, which report only lastRun. */
+  /** What this process last read from the database as still owed: at the end of each pass or, with external, every intervalMs; null until its first read, and kept as last read while the scheduler is stopped or failing, or a read fails, so its checkedAt ages. Absent from builds before it was added, which report only lastRun; builds before the external read report null with external. */
   backlog?: SchedulerBacklog | null;
 }
