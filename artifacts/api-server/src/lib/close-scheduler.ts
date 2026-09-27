@@ -446,7 +446,8 @@ export interface BacklogWatch {
  * is not a failed pass. The timers are unreferenced, as the scheduler's are.
  * `queue` runs each read in its turn with the other work on the same
  * connection (background.ts: the daily audit checks a person's closes ask
- * for), so that connection serves one thing at a time, as a pass's does.
+ * for, which a read goes ahead of while they wait), so that connection serves
+ * one thing at a time, as a pass's does.
  */
 export function startBacklogWatch(options: { intervalMs?: number; firstDelayMs?: number; log?: Logger; onlyMerchantIds?: readonly string[]; queue?: (read: () => Promise<void>) => Promise<void> } = {}): BacklogWatch {
   const intervalMs = options.intervalMs ?? closeRules.tickSeconds * 1000;
