@@ -606,20 +606,32 @@ try {
     const caughtUp = await externalProbe();
     assert.deepEqual([caughtUp.codes, caughtUp.warnings, caughtUp.observations.schedulerEvidence, caughtUp.observations.closeBacklog], [[], [], "mode_and_fresh_backlog", { overdue: 0, failing: 0, publicSandboxes: { overdue: 0, failing: 0 } }], "and the instance's next read ends it");
     // While a daily audit check a person's close asked for waits for its lender, held here, the instance makes no read:
-    // the check has the close's connection. Once the lender is free, the check finishes and the reads resume.
-    const [checked] = await signedInLenders();
-    const holdsChecked = await pool.connect();
+    // the check has the close's connection. A read then goes ahead of the checks still waiting, here one whose lender
+    // is held too, so it waits for the check in progress at most; the waiting check runs after it, and the reads resume.
+    const [checked, queued] = await signedInLenders();
+    const holdsChecked = await pool.connect(), holdsQueued = await pool.connect();
+    const lockWaits = async () => (await pool.query<{ waiting: number }>("SELECT count(*)::int AS waiting FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'")).rows[0]!.waiting;
+    /** Waits no longer than `ms` for `done`, well inside a check's 5 s wait for its lender, and says whether it holds. */
+    const within = async (ms: number, done: () => boolean | Promise<boolean>) => { for (const give = Date.now() + ms; !(await done()) && Date.now() < give;) await new Promise((resolve) => setTimeout(resolve, 20)); return done(); };
     try {
-      await holdsChecked.query("BEGIN");
-      await holdsChecked.query("SELECT 1 FROM valopay_merchants WHERE id=$1 FOR UPDATE", [checked]);
-      assert.ok(requestDailyAuditCheck(checked), "the thread takes the check");
-      await until(async () => (await pool.query<{ waiting: number }>("SELECT count(*)::int AS waiting FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'")).rows[0]!.waiting > 0);
+      for (const [holder, id] of [[holdsChecked, checked], [holdsQueued, queued]] as const) {
+        await holder.query("BEGIN");
+        await holder.query("SELECT 1 FROM valopay_merchants WHERE id=$1 FOR UPDATE", [id]);
+      }
+      assert.ok(requestDailyAuditCheck(checked) && requestDailyAuditCheck(queued), "the thread takes both checks");
+      await until(async () => (await lockWaits()) > 0);
       const heldAt = schedulerStatus().backlog!.checkedAt;
-      await new Promise((resolve) => setTimeout(resolve, 2_500));
-      assert.equal(schedulerStatus().backlog!.checkedAt, heldAt, "no read is made while the check has the close's connection");
-    } finally {
+      await new Promise((resolve) => setTimeout(resolve, 1_500));
+      assert.equal(schedulerStatus().backlog!.checkedAt, heldAt, "no read is made while a check has the close's connection");
+      since = Date.now();
       await holdsChecked.query("ROLLBACK");
-      holdsChecked.release();
+      assert.ok(await within(2_000, () => Date.parse(schedulerStatus().backlog!.checkedAt) >= since), "once that check ends, a read goes ahead of the check still waiting");
+      assert.ok(await within(2_000, async () => (await lockWaits()) > 0), "and the waiting check runs after it");
+    } finally {
+      for (const holder of [holdsChecked, holdsQueued]) {
+        await holder.query("ROLLBACK");
+        holder.release();
+      }
     }
     since = Date.now();
     await readSince(since);

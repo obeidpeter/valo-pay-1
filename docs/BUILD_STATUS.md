@@ -57,6 +57,7 @@ These follow up the review fixes and were merged with [PR #69](https://github.co
 These are merged with the pull request that adds this subsection; none is deployed yet.
 
 - **Follow-up: PR #69 is recorded.** The [document register](document-register.md) and the list above name PR #69 and its merge, like PR #68.
+- **Follow-up: a read of the close backlog waits for one audit check at most.** With `VALOPAY_CLOSE_SCHEDULER=external`, a web instance's reads of what is still owed and the daily audit checks a person's closes ask for take the background thread's close connection one at a time, and a read waited behind every check asked before it: a run of such checks lasting some three minutes, such as 36 lenders each held to a check's 5-second wait for its lender, would have aged the last read into `scheduler_stale` with nothing wrong. A read now goes ahead of the checks still waiting, never ahead of the one in progress, so it waits for that check at most; the waiting checks run after it, in the order asked for, and the connection still serves one thing at a time. Pinned by `close-scheduler.integration.test.ts`, which failed before the change: with two lenders held whose checks are asked for, no read is made while the first check waits, and once that lender is free a read comes while the second check still waits, which then runs.
 
 ## Earlier release notes
 
