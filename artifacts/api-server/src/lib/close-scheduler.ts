@@ -444,7 +444,7 @@ export function startBacklogWatch(options: { intervalMs?: number; firstDelayMs?:
       .catch((error: unknown) => { options.log?.error({ event: "close.backlog_failed", err: error }, "The lenders still owed a close could not be read; /api/healthz keeps the last read, which ages"); })
       .finally(() => { reading = null; });
   };
-  // The first read comes soon after start, as the scheduler's first look does, so a restarted process has evidence at once.
+  // The first read comes soon after start, as the scheduler's first look does, so a restarted process has evidence within seconds.
   const first = setTimeout(read, options.firstDelayMs ?? Math.min(intervalMs, 5_000));
   const timer = setInterval(read, intervalMs);
   first.unref();
