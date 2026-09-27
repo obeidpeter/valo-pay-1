@@ -152,8 +152,13 @@ export interface CloseRun {
    * `publicSandbox` marks a public anonymous sandbox's, which the pass's log lines count apart.
    */
   failed: Array<{ merchantId: string; error: string; failures?: number; retryAt?: string; publicSandbox?: true }>;
-  /** Whether the time budget ended the pass before it had taken up every lender due, so some may still be due; false for a pass told to stop. */
+  /**
+   * Whether the time budget ended the pass with a lender other than a public anonymous sandbox still due, as one read of
+   * the next due lender says once the budget is spent; false for a pass told to stop.
+   */
   budgetSpent: boolean;
+  /** Whether the time budget ended the pass with public anonymous sandboxes still due, and no other lender: they are taken up last. */
+  budgetSpentOnSandboxes: boolean;
   /** What was still owed when the pass ended, read from the database (scheduledCloseBacklog); null for a pass told to stop. */
   backlog: OwedCloses | null;
 }
@@ -220,7 +225,7 @@ export async function runDailyAuditCheck(merchantId: string, log?: Logger): Prom
  * stays due, and gets one catch-up close per pass, the oldest date first.
  */
 export async function runDueCloses(options: CloseRunOptions = {}): Promise<CloseRun> {
-  const run: CloseRun = { runId: randomUUID(), initialised: 0, batches: 0, examined: 0, closed: [], skipped: [], paused: [], failed: [], budgetSpent: false, backlog: null };
+  const run: CloseRun = { runId: randomUUID(), initialised: 0, batches: 0, examined: 0, closed: [], skipped: [], paused: [], failed: [], budgetSpent: false, budgetSpentOnSandboxes: false, backlog: null };
   const started = Date.now();
   const batchSize = options.batchSize ?? closeRules.batchSize, budgetMs = options.budgetMs ?? closeRules.passBudgetSeconds * 1000;
   const log = options.log?.child({ job: "scheduled_close", runId: run.runId });
@@ -292,8 +297,13 @@ export async function runDueCloses(options: CloseRunOptions = {}): Promise<Close
     auditChecks.delete(merchantId);
     await runDailyAuditCheck(merchantId, log);
   }
-  // Ended by its budget rather than by a stop or the end of what was due: the lenders it did not take up are still due.
-  run.budgetSpent = !drained && options.signal?.aborted !== true;
+  // Ended by its budget rather than by a stop or the end of what was due: one read of the next due lender says whether
+  // any is still due, and whether a lender or only public sandboxes, which the order takes up last.
+  if (!drained && options.signal?.aborted !== true) {
+    const [next] = await dueScheduledCloses(1, { exclude: [...exclude], only: options.onlyMerchantIds });
+    run.budgetSpent = next?.publicSandbox === false;
+    run.budgetSpentOnSandboxes = next?.publicSandbox === true;
+  }
   // What is still owed, read afresh whatever the pass did, so neither another lender's close nor a restart hides a
   // failing one; a pass told to stop leaves it to the next.
   if (options.signal?.aborted !== true) run.backlog = await scheduledCloseBacklog(closeRules.lateAfterMinutes, { only: options.onlyMerchantIds });
@@ -317,9 +327,9 @@ export interface OneShotCloseRun {
   /**
    * 0: the pass took up every lender due, and each was closed, paused or left to another process, and no lender's
    * close is failing or overdue; 2: the pass ran, but at least one close failed (recorded and retried by a later
-   * pass), its budget ran out before it had taken up every lender due (still due for the next run), or a lender's
-   * close is still failing, or overdue, from an earlier run; 1: the pass could not run, or was stopped before it
-   * finished. A public anonymous sandbox's failed, failing or overdue close is counted apart and never makes it 2.
+   * pass), its budget ran out with a lender still due (for the next run), or a lender's close is still failing, or
+   * overdue, from an earlier run; 1: the pass could not run, or was stopped before it finished. A public anonymous
+   * sandbox's failed, failing, overdue or leftover close is counted apart and never makes it 2.
    */
   exitCode: 0 | 1 | 2;
   run: CloseRun | null;
@@ -346,8 +356,9 @@ export async function runClosePassOnce(options: CloseRunOptions = {}, pass: (opt
     // Public anonymous sandboxes' counts are on the line, apart: a visitor's own data never fails the job.
     const counts = passCounts(run), owed = Boolean(run.backlog?.failing || run.backlog?.overdue);
     const exitCode = stopped ? 1 : counts.failed || run.budgetSpent || owed ? 2 : 0;
-    const fields = { event: "close.one_shot", exitCode, runId: run.runId, durationMs: Date.now() - started, stopped, budgetSpent: run.budgetSpent, examined: run.examined, closed: run.closed.length, skipped: run.skipped.length, paused: run.paused.length, ...counts };
-    if (exitCode === 0) options.log?.info(fields, "One-shot close pass finished");
+    const fields = { event: "close.one_shot", exitCode, runId: run.runId, durationMs: Date.now() - started, stopped, budgetSpent: run.budgetSpent, examined: run.examined, closed: run.closed.length, skipped: run.skipped.length, paused: run.paused.length, ...counts,
+      publicSandboxes: { ...counts.publicSandboxes, budgetSpent: run.budgetSpentOnSandboxes } };
+    if (exitCode === 0) options.log?.info(fields, run.budgetSpentOnSandboxes ? "One-shot close pass finished, with public sandboxes still due when its budget ran out; the next run takes them up" : "One-shot close pass finished");
     else options.log?.error(fields, stopped ? "One-shot close pass stopped before it finished; the lenders it did not reach are still due"
       : run.budgetSpent ? `One-shot close pass ran out of time with lenders still due${counts.failed ? ", and some closes failed" : ""}; the next run takes them up`
       : counts.failed ? "One-shot close pass finished, but some closes failed; each is retried by a later pass"
@@ -420,7 +431,7 @@ export function startCloseScheduler(options: { intervalMs?: number; firstDelayMs
 export interface BacklogWatch {
   /** Stops the timers; a read in progress finishes. */
   stop(): void;
-  /** Waits for the read in progress, if any, without starting one: what a shutdown does before it ends the pool. */
+  /** Waits for the read in progress or waiting its turn, if any, without starting one: what a shutdown does before it ends the pool. */
   settle(): Promise<void>;
 }
 
@@ -433,14 +444,18 @@ export interface BacklogWatch {
  * stopped running then shows as overdue closes. A read that fails is logged
  * (`close.backlog_failed`) and leaves the last read, whose checkedAt ages; it
  * is not a failed pass. The timers are unreferenced, as the scheduler's are.
+ * `queue` runs each read in its turn with the other work on the same
+ * connection (background.ts: the daily audit checks a person's closes ask
+ * for), so that connection serves one thing at a time, as a pass's does.
  */
-export function startBacklogWatch(options: { intervalMs?: number; firstDelayMs?: number; log?: Logger; onlyMerchantIds?: readonly string[] } = {}): BacklogWatch {
+export function startBacklogWatch(options: { intervalMs?: number; firstDelayMs?: number; log?: Logger; onlyMerchantIds?: readonly string[]; queue?: (read: () => Promise<void>) => Promise<void> } = {}): BacklogWatch {
   const intervalMs = options.intervalMs ?? closeRules.tickSeconds * 1000;
+  const queue = options.queue ?? ((read: () => Promise<void>) => read());
   let reading: Promise<void> | null = null;
-  // Reads never overlap: a read still running when the next is due is left to finish instead.
+  // Reads never overlap: a read still running, or waiting its turn, when the next is due is left to finish instead.
   const read = () => {
-    reading ??= scheduledCloseBacklog(closeRules.lateAfterMinutes, { only: options.onlyMerchantIds })
-      .then((owed) => applySchedulerEvent({ type: "backlog", backlog: { checkedAt: new Date().toISOString(), ...owed, lateAfterMinutes: closeRules.lateAfterMinutes } }))
+    reading ??= queue(() => scheduledCloseBacklog(closeRules.lateAfterMinutes, { only: options.onlyMerchantIds })
+      .then((owed) => applySchedulerEvent({ type: "backlog", backlog: { checkedAt: new Date().toISOString(), ...owed, lateAfterMinutes: closeRules.lateAfterMinutes } })))
       .catch((error: unknown) => { options.log?.error({ event: "close.backlog_failed", err: error }, "The lenders still owed a close could not be read; /api/healthz keeps the last read, which ages"); })
       .finally(() => { reading = null; });
   };

@@ -372,7 +372,7 @@ try {
   await setCursor(t1, stopAt); await setCursor(t2, stopAt);
   const outOfTime = await runDueCloses({ onlyMerchantIds: [t1, t2], budgetMs: 0 });
   assert.equal(outOfTime.examined, 0, "a pass whose budget is spent starts no close");
-  assert.equal(outOfTime.budgetSpent, true, "and records that its budget ended it with lenders possibly still due");
+  assert.deepEqual([outOfTime.budgetSpent, outOfTime.budgetSpentOnSandboxes], [false, true], "and records that its budget ended it with public sandboxes, which it takes up last, still due");
   const aborted = new AbortController();
   aborted.abort();
   const none = await runDueCloses({ onlyMerchantIds: [t1, t2], signal: aborted.signal });
@@ -508,7 +508,7 @@ try {
     await holdsVisitors.query("SELECT 1 FROM valopay_merchants WHERE id=$1 FOR UPDATE", [v2]);
     const visitorRun = await runClosePassOnce({ onlyMerchantIds: visitorOnly, log: visitorLog });
     assert.deepEqual([visitorRun.exitCode, visitorRun.run!.failed.map((item) => [item.merchantId, item.publicSandbox]), visitorRun.run!.skipped], [0, [[v1, true]], [v2]], "a public sandbox's failed close, and one held past its time, do not fail the job");
-    assert.deepEqual(["close.one_shot", "close.run"].map((event) => [visitorLine(event).failed, visitorLine(event).failing, visitorLine(event).overdue, visitorLine(event).publicSandboxes]), [[0, 0, 0, { failed: 1, failing: 1, overdue: 1 }], [0, 0, 0, { failed: 1, failing: 1, overdue: 1 }]], "its lines count them apart from the lenders");
+    assert.deepEqual(["close.one_shot", "close.run"].map((event) => [visitorLine(event).failed, visitorLine(event).failing, visitorLine(event).overdue, visitorLine(event).publicSandboxes]), [[0, 0, 0, { failed: 1, failing: 1, overdue: 1, budgetSpent: false }], [0, 0, 0, { failed: 1, failing: 1, overdue: 1 }]], "its lines count them apart from the lenders");
     assert.equal(visitorLines.find((line) => line.merchantId === v1 && line.err)?.publicSandbox, true, "the failure's own line says it is a public sandbox's");
     await visitorsWatched.tick();
     const visitorsOwed = await monitorProbe(schedulerStatus());
@@ -533,6 +533,24 @@ try {
     visitorsWatched.stop();
     await visitorsWatched.settle();
   }
+
+  // A spent budget fails the one-shot job only while a lender other than a public sandbox is still due: sandboxes are
+  // taken up last, so one read of the next due lender says which. Leftover sandboxes are counted on the line, and are
+  // overdue warnings once late.
+  const [u1, u2] = await sandboxLenders(), [u3, u4] = await sandboxLenders(), [ul] = await signedInLenders();
+  const budgetOnly = [u1, u2, u3, u4, ul];
+  clock = await databaseNow();
+  for (const id of [u1, u2, u3, u4]) await setCursor(id, hoursAgo(clock, 1));
+  const budgetLines: Array<Record<string, any>> = [];
+  const budgetLog: any = { info: (fields: object) => budgetLines.push(fields), error: (fields: object) => budgetLines.push(fields), debug() {}, child: () => budgetLog };
+  const lastOneShot = () => budgetLines.filter((line) => line.event === "close.one_shot").at(-1)!;
+  const sandboxesLeft = await runClosePassOnce({ onlyMerchantIds: budgetOnly, log: budgetLog, budgetMs: 0 });
+  assert.deepEqual([sandboxesLeft.exitCode, sandboxesLeft.run!.budgetSpent, lastOneShot().budgetSpent, lastOneShot().publicSandboxes], [0, false, false, { failed: 0, overdue: 4, failing: 0, budgetSpent: true }], "a budget spent with only public sandboxes still due does not fail the job, and the line counts them");
+  await setCursor(ul, hoursAgo(clock, 1));
+  const lenderLeft = await runClosePassOnce({ onlyMerchantIds: budgetOnly, log: budgetLog, budgetMs: 0 });
+  assert.deepEqual([lenderLeft.exitCode, lastOneShot().budgetSpent, lastOneShot().overdue], [2, true, 1], "with a lender still due beside them it does");
+  const drainedAll = await runClosePassOnce({ onlyMerchantIds: budgetOnly, log: budgetLog });
+  assert.deepEqual([drainedAll.exitCode, closedIds(drainedAll.run!).sort(), lastOneShot().publicSandboxes.budgetSpent], [0, [...budgetOnly].sort(), false], "a run with its budget closes them all");
 
   // Only a visitor's lenders are public sandboxes: those its sandbox is seeded with and those it creates. A signed-in
   // person's, seeded or created, and a staff pilot's, which its administrator creates, are lenders whatever their data.
@@ -560,15 +578,20 @@ try {
   // With VALOPAY_CLOSE_SCHEDULER=external a scheduled job runs the closes and the web instances run no pass, so each
   // reads what is still owed itself, on its background worker thread at the scheduler's interval, as index.ts starts it,
   // and its health answer carries the read: the monitor raises the same codes, so a job that has stopped running shows
-  // as overdue closes, and a read that stops ages past three intervals into scheduler_stale.
-  const { startBackgroundWorker } = await import("../src/lib/background-worker.js");
+  // as overdue closes, and a read that stops ages past three intervals into scheduler_stale. The reads take the close's
+  // connection in turn with the day's audit checks, one thing at a time, as a pass would.
+  const { requestDailyAuditCheck, startBackgroundWorker } = await import("../src/lib/background-worker.js");
   const [j1] = await signedInLenders(), [jv] = await sandboxLenders();
   const jobOnly = [j1, jv];
   clock = await databaseNow();
   await setCursor(j1, hoursAgo(clock, 1)); await setCursor(jv, hoursAgo(clock, 1));
   const externalProbe = async () => probeService({ origin: "https://example.test", expectScheduler: "external", fetchImpl: async (url: string) => new Response(JSON.stringify(url.endsWith("readyz") ? readyAnswer : healthAnswer(schedulerStatus()))) });
+  /** Waits, for a while, until `done` holds. */
+  const until = async (done: () => boolean | Promise<boolean>) => { for (const give = Date.now() + 15_000; !(await done()) && Date.now() < give;) await new Promise((resolve) => setTimeout(resolve, 20)); };
   /** Waits, for a while, for a read the instance made at or after `since`. */
-  const readSince = async (since: number) => { for (const give = Date.now() + 15_000; !(Date.parse(schedulerStatus().backlog?.checkedAt ?? "") >= since) && Date.now() < give;) await new Promise((resolve) => setTimeout(resolve, 20)); };
+  const readSince = (since: number) => until(() => Date.parse(schedulerStatus().backlog?.checkedAt ?? "") >= since);
+  /** Waits, for a while, for a read that shows nothing owed, rather than the first read after a moment, which may have begun before the last close committed. */
+  const readClear = () => until(() => { const owed = schedulerStatus().backlog; return Boolean(owed) && owed!.overdue + owed!.failing + owed!.publicSandboxes.overdue + owed!.publicSandboxes.failing === 0; });
   markSchedulerOff("external");
   let since = Date.now();
   const webInstance = startBackgroundWorker({ log: { info() {}, warn() {}, error() {} } as any, closes: null, backlog: { intervalMs: 1_000, firstDelayMs: 10, onlyMerchantIds: jobOnly }, exports: null });
@@ -579,10 +602,28 @@ try {
     assert.deepEqual([schedulerStatus().state, schedulerStatus().intervalMs], ["external", 1_000], "the instance runs no pass, and says how often it reads");
     const job = await runClosePassOnce({ onlyMerchantIds: jobOnly });
     assert.deepEqual([job.exitCode, closedIds(job.run!).sort()], [0, [...jobOnly].sort()], "the job's next run closes both");
-    since = Date.now();
-    await readSince(since);
+    await readClear();
     const caughtUp = await externalProbe();
     assert.deepEqual([caughtUp.codes, caughtUp.warnings, caughtUp.observations.schedulerEvidence, caughtUp.observations.closeBacklog], [[], [], "mode_and_fresh_backlog", { overdue: 0, failing: 0, publicSandboxes: { overdue: 0, failing: 0 } }], "and the instance's next read ends it");
+    // While a daily audit check a person's close asked for waits for its lender, held here, the instance makes no read:
+    // the check has the close's connection. Once the lender is free, the check finishes and the reads resume.
+    const [checked] = await signedInLenders();
+    const holdsChecked = await pool.connect();
+    try {
+      await holdsChecked.query("BEGIN");
+      await holdsChecked.query("SELECT 1 FROM valopay_merchants WHERE id=$1 FOR UPDATE", [checked]);
+      assert.ok(requestDailyAuditCheck(checked), "the thread takes the check");
+      await until(async () => (await pool.query<{ waiting: number }>("SELECT count(*)::int AS waiting FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'")).rows[0]!.waiting > 0);
+      const heldAt = schedulerStatus().backlog!.checkedAt;
+      await new Promise((resolve) => setTimeout(resolve, 2_500));
+      assert.equal(schedulerStatus().backlog!.checkedAt, heldAt, "no read is made while the check has the close's connection");
+    } finally {
+      await holdsChecked.query("ROLLBACK");
+      holdsChecked.release();
+    }
+    since = Date.now();
+    await readSince(since);
+    assert.ok(Date.parse(schedulerStatus().backlog!.checkedAt) >= since, "then the reads resume");
   } finally {
     webInstance.stop();
     await webInstance.settle();

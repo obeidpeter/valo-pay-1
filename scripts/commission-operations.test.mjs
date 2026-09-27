@@ -35,9 +35,12 @@ assert.deepEqual([report.blockers, report.warnings], [['scheduler_backlog_not_re
 const visitors = { overdue: 0, failing: 0, publicSandboxes: { overdue: 1, failing: 1 } };
 report = commissioningReport({ ...probe, warnings: ['scheduler_public_sandbox_close_failed', 'scheduler_public_sandbox_closes_overdue'], observations: { ...probe.observations, closeBacklog: visitors } }, configured);
 assert.deepEqual([report.status, report.blockers, report.warnings, report.observations.closeBacklog], ['observations_passed_acceptance_required', [], ['scheduler_public_sandbox_close_failed', 'scheduler_public_sandbox_closes_overdue'], visitors], 'a visitor\'s sandbox never blocks commissioning');
-// A process too young to have read what is still owed yet is a warning in the report, not a blocker.
-report = commissioningReport({ ...probe, warnings: ['scheduler_backlog_pending'], observations: { ...probe.observations, schedulerEvidence: 'first_read_pending', closeBacklog: 'pending' } }, configured);
-assert.deepEqual([report.status, report.blockers, report.warnings, report.observations.schedulerEvidence, report.observations.closeBacklog], ['observations_passed_acceptance_required', [], ['scheduler_backlog_pending'], 'first_read_pending', 'pending'], 'a process too young to have read is not a blocker');
+// A process too young to have read what is still owed has given no scheduler evidence yet: that blocks the report, in
+// either mode, until the check runs again against an instance that has read.
+for (const expectation of [configured, { ...configured, VALOPAY_MONITOR_EXPECT_SCHEDULER: 'external', VALOPAY_OPERATIONS_HOST_MODE: 'autoscale' }]) {
+  report = commissioningReport({ ...probe, warnings: ['scheduler_backlog_pending'], observations: { ...probe.observations, schedulerEvidence: 'first_read_pending', closeBacklog: 'pending' } }, expectation);
+  assert.deepEqual([report.status, report.blockers, report.warnings, report.observations.closeBacklog], ['needs_configuration_or_repair', ['scheduler_backlog_pending'], ['scheduler_backlog_pending'], 'pending'], `${expectation.VALOPAY_MONITOR_EXPECT_SCHEDULER}: a process too young to have read blocks commissioning`);
+}
 
 report = commissioningReport(probe, { ...configured, VALOPAY_OPERATIONS_HOST_MODE: 'autoscale' });
 assert.ok(report.blockers.includes('scheduler_stops_when_host_scales_down'), 'a current tick cannot commission an in-process timer on an idle Autoscale host');
@@ -90,4 +93,4 @@ try {
   assert.ok(directory.includes('valopay-commission-test-'));
   await rm(directory, { recursive: true, force: true });
 }
-console.log('Operational commissioning passed: scoped/redacted read-only evidence, configured versus observed versus accepted states, failing and overdue closes as counts, public sandboxes\' as warnings rather than blockers, a process too young to have read as a warning, a build without them, Autoscale scheduling mismatch, external mode\'s backlog and a build without it, unresolved external heartbeat, alert/recovery acceptance, private report replacement and actual CLI failure status.');
+console.log('Operational commissioning passed: scoped/redacted read-only evidence, configured versus observed versus accepted states, failing and overdue closes as counts, public sandboxes\' as warnings rather than blockers, a process too young to have read as a blocker, a build without them, Autoscale scheduling mismatch, external mode\'s backlog and a build without it, unresolved external heartbeat, alert/recovery acceptance, private report replacement and actual CLI failure status.');

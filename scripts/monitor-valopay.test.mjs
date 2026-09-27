@@ -136,6 +136,39 @@ try {
   assert.deepEqual([await watch(restarted, young), await watch({ ...restarted, lastSuccessAt: new Date(now).toISOString(), backlog: backlog(1) }, young)], [false, false], 'a young restarted process\'s warning is no evidence either way: it neither ends nor repeats the incident');
   assert.deepEqual([await watch(restarted), await watch({ ...restarted, lastSuccessAt: new Date(now).toISOString(), backlog: backlog(1) })], [false, false], 'nor does an older one\'s stale probe');
   assert.deepEqual([await watch({ ...current, backlog: backlog(0) }), sent.map(event => [event.kind, event.codes.join()])], [true, [['incident', 'scheduler_close_failed'], ['recovery', '']]], 'the failing lender closing ends it');
+  // No process stays young: probes that find nothing but a process too young to have read, for longer than one process
+  // can be young (80 s at the deployed minute), mean the monitor keeps meeting new processes, a crash loop or an instance
+  // each probe starts. From then on each counts as scheduler_stale, and two in a row open the incident; one restart does not.
+  let events = [];
+  const timeline = async (expectScheduler, answers, minutesApart = 5) => {
+    const delivered = [];
+    let state;
+    events = [];
+    for (const [index, answer] of answers.entries()) {
+      const at = now + index * minutesApart * 60_000;
+      const probe = await probeService({ origin: 'https://example.com', expectScheduler, now: at, fetchImpl: async url => new Response(JSON.stringify(url.endsWith('readyz') ? readiness() : answer(at))) });
+      state = (await deliverTransition(probe, state, async event => { events.push(event); delivered.push(`${event.kind}:${event.codes.join('|') || '-'}@${index}`); }, { owner: 'Synthetic rehearsal operator' })).state;
+    }
+    return delivered;
+  };
+  const minute = { intervalMs: 60_000, ticks: 0, lastTickAt: null, lastSuccessAt: null, lastErrorAt: null, lastRun: null, backlog: null };
+  const notRead = { on: { ...minute, state: 'running' }, external: { ...minute, state: 'external' } };
+  for (const expectScheduler of ['on', 'external']) {
+    const crashLoop = await timeline(expectScheduler, [23, 61, 9, 40, 15].map(uptimeSeconds => () => ({ status: 'ok', uptimeSeconds, scheduler: notRead[expectScheduler] })));
+    assert.deepEqual(crashLoop, ['incident:scheduler_stale@2'], `${expectScheduler}: a process that keeps restarting before its first read does not keep the monitor quiet`);
+  }
+  assert.deepEqual(await timeline('external', [2, 3, 2].map(uptimeSeconds => () => ({ status: 'ok', uptimeSeconds, scheduler: notRead.external })), 15), ['incident:scheduler_stale@2'], 'a monitor whose every probe starts an Autoscale instance is blind, and says so');
+  assert.deepEqual([events[0].warnings, events[0].firstReadWithinMs, events[0].observations.schedulerEvidence], [['scheduler_backlog_pending'], 80_000, 'failed'], 'its incident keeps the warning beside the code, so it can be told from an old read');
+  const heartbeat = failing => at => ({ status: 'ok', uptimeSeconds: 600, scheduler: { ...notRead.on, lastSuccessAt: new Date(at).toISOString(), backlog: { checkedAt: new Date(at).toISOString(), overdue: 0, failing, lateAfterMinutes: 30 } } });
+  assert.deepEqual(await timeline('on', [heartbeat(1), heartbeat(1), () => ({ status: 'ok', uptimeSeconds: 20, scheduler: notRead.on }), heartbeat(1), heartbeat(0)]), ['incident:scheduler_close_failed@1', 'recovery:-@4'], 'one young restart neither ends nor repeats the incident');
+  assert.equal((await aged(deployedInterval, 75, 'external')).firstReadWithinMs, 80_000, 'the probe says how long its process can be young');
+  // A pending probe that does not say, such as one an earlier monitor wrote, is given two minutes.
+  const pendingOnly = minutes => ({ service: 'https://example.com', observedAt: new Date(now + minutes * 60_000).toISOString(), codes: [], warnings: ['scheduler_backlog_pending'], observations: {} });
+  let unsaid;
+  for (const minutes of [0, 1.5]) unsaid = (await deliverTransition(pendingOnly(minutes), unsaid, async () => {}, { owner: 'Synthetic rehearsal operator' })).state;
+  assert.equal(unsaid.pending, '', 'ninety seconds of pending probes is still no evidence');
+  unsaid = (await deliverTransition(pendingOnly(2.5), unsaid, async () => {}, { owner: 'Synthetic rehearsal operator' })).state;
+  assert.deepEqual([unsaid.pending, unsaid.pendingSince], ['scheduler_stale', pendingOnly(0).observedAt], 'but after two minutes each counts as stale');
   assert.deepEqual((await probeService({ origin: 'https://example.com', now, fetchImpl: fake({ state: 'off' }, 'incomplete') })).codes, ['schema_unready']);
   for (const [label, status, body] of [
     ['malformed JSON', 503, '{"private":"synthetic-private-diagnostic",'],
@@ -197,5 +230,5 @@ try {
   assert.equal(deliveryConfiguration({ VALOPAY_MONITOR_OWNER: 'Operator', VALOPAY_MONITOR_ALERT_URL: 'http://alerts.example/receiver' }).status, 'incomplete');
   assert.equal(deliveryConfiguration({ VALOPAY_MONITOR_OWNER: 'Operator', VALOPAY_ALERT_RESEND_KEY: 'synthetic-secret', VALOPAY_ALERT_FROM: 'alerts@example.com', VALOPAY_ALERT_TO: 'operations@example.test' }).status, 'configured');
   await assert.rejects(() => sendEmail(received[0], { apiKey: 'synthetic-secret', from: 'alerts@example.com', to: 'operations@example.test', fetchImpl: async () => { throw new Error('provider secret'); } }), error => !error.message.includes('provider secret'));
-  console.log('Operational monitor passed: real local HTTP probe/delivery, incident threshold, no repeat, recovery, failed-delivery retry, close failures that stay raised until the failing lender closes (across other lenders\' passes and a restart), overdue closes, public sandboxes\' counted apart as warnings, a process too young to have read giving a warning that neither ends nor repeats an incident, schema readiness, scheduler mode versus execution evidence, the backlog an external host\'s web instances read, explicit labelled delivery tests without incident-state changes, redacted failures.');
+  console.log('Operational monitor passed: real local HTTP probe/delivery, incident threshold, no repeat, recovery, failed-delivery retry, close failures that stay raised until the failing lender closes (across other lenders\' passes and a restart), overdue closes, public sandboxes\' counted apart as warnings, a process too young to have read giving a warning that neither ends nor repeats an incident, until such warnings have lasted longer than one process can be young (a crash loop, or an instance each probe starts), when they count as stale, schema readiness, scheduler mode versus execution evidence, the backlog an external host\'s web instances read, explicit labelled delivery tests without incident-state changes, redacted failures.');
 } finally { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); }

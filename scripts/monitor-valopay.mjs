@@ -68,14 +68,18 @@ const reportsBacklog = scheduler => scheduler !== null && typeof scheduler === '
  * margin covers the process and its thread starting.
  */
 const FIRST_READ_MARGIN_MS = 15_000;
+/** How long a process reading at this interval can be too young to have made its first read: 80 seconds at a minute. */
+const firstReadWithin = interval => Math.min(interval, 5_000) + interval + FIRST_READ_MARGIN_MS;
 /**
  * Whether the answering process is too young to have made its first read, so that a read it has not made is no
  * evidence yet: its uptime is below its first read's delay, one interval and the margin. False when it does not say.
  */
 function awaitingFirstRead(health, interval) {
   const uptime = health?.uptimeSeconds;
-  return Number.isSafeInteger(uptime) && uptime >= 0 && Number.isFinite(interval) && interval > 0 && uptime * 1000 < Math.min(interval, 5_000) + interval + FIRST_READ_MARGIN_MS;
+  return Number.isSafeInteger(uptime) && uptime >= 0 && Number.isFinite(interval) && interval > 0 && uptime * 1000 < firstReadWithin(interval);
 }
+/** How long one process can be young when a probe does not say (firstReadWithinMs): two minutes, above the 80 seconds at a minute. */
+const YOUNG_AT_MOST_MS = 120_000;
 /**
  * The lenders' failing and overdue closes are incidents; public anonymous sandboxes', which a visitor's own synthetic
  * data can cause, are warnings, never incidents.
@@ -156,6 +160,8 @@ export async function probeService({ origin, expectScheduler = false, fetchImpl 
   const sawBacklog = health.status === 'fulfilled' && health.value?.scheduler?.state === 'external' && reportsBacklog(health.value.scheduler);
   const pending = warnings.includes('scheduler_backlog_pending');
   return { service: base, observedAt: new Date(now).toISOString(), codes: [...new Set(codes)].sort(), warnings: [...new Set(warnings)],
+    // With that warning, how long a process can be young at the interval it reads at, which the incident rule needs.
+    ...(pending ? { firstReadWithinMs: firstReadWithin(Number(health.value.scheduler.intervalMs)) } : {}),
     observations: {
       liveness: health.status === 'fulfilled' && health.value?.status === 'ok' ? 'ok' : 'unavailable',
       database: ready.status === 'fulfilled' && ready.value?.checks?.database?.status === 'ok' ? 'ok' : 'unavailable',
@@ -174,22 +180,33 @@ export async function probeService({ origin, expectScheduler = false, fetchImpl 
 /**
  * Stable incidents suppress repeated delivery; failed delivery never advances state. A probe that found nothing but a
  * process too young to have read what is still owed (scheduler_backlog_pending) is no evidence either way: it neither
- * ends an open incident nor counts towards one, so a restart neither ends nor repeats an incident.
+ * ends an open incident nor counts towards one, so a restart neither ends nor repeats an incident. But one process is
+ * young only so long (firstReadWithinMs, or two minutes when the probe does not say), so the state keeps when a run of
+ * such probes began (pendingSince), and any other probe ends the run: once it has lasted longer than that, the monitor
+ * is meeting a new process at each probe, one restarting before its first read or an instance the probe itself starts,
+ * and each such probe counts as scheduler_stale. The probe as judged is returned with the state.
  */
 export async function deliverTransition(probe, previous, deliver, { owner, failureThreshold = 2 } = {}) {
   if (!owner?.trim() || !Number.isInteger(failureThreshold) || failureThreshold < 1) throw new Error('An alert owner and positive failure threshold are required.');
-  const signature = probe.codes.join('|');
   const previousForService = previous?.service === probe.service ? previous : {};
-  if (!signature && probe.warnings?.includes('scheduler_backlog_pending')) {
-    return { state: { service: probe.service, pending: previousForService.pending ?? '', streak: Number(previousForService.streak || 0), delivered: previousForService.delivered || '', observedAt: probe.observedAt }, delivered: false };
+  let judged = probe, pendingSince;
+  if (!probe.codes.length && probe.warnings?.includes('scheduler_backlog_pending')) {
+    const at = Date.parse(probe.observedAt), since = Date.parse(previousForService.pendingSince ?? '');
+    pendingSince = Number.isFinite(since) && since <= at ? previousForService.pendingSince : probe.observedAt;
+    const youngAtMost = Number.isSafeInteger(probe.firstReadWithinMs) && probe.firstReadWithinMs > 0 ? probe.firstReadWithinMs : YOUNG_AT_MOST_MS;
+    if (!(at - Date.parse(pendingSince) > youngAtMost)) {
+      return { state: { service: probe.service, pending: previousForService.pending ?? '', streak: Number(previousForService.streak || 0), delivered: previousForService.delivered || '', observedAt: probe.observedAt, pendingSince }, delivered: false, probe };
+    }
+    judged = { ...probe, codes: ['scheduler_stale'], observations: { ...probe.observations, schedulerEvidence: 'failed' } };
   }
+  const signature = judged.codes.join('|');
   const streak = previousForService.pending === signature ? Number(previousForService.streak || 0) + 1 : 1;
-  const state = { service: probe.service, pending: signature, streak, delivered: previousForService.delivered || '', observedAt: probe.observedAt };
-  if (signature === state.delivered || (signature && streak < failureThreshold)) return { state, delivered: false };
-  const event = { version: 1, kind: signature ? 'incident' : 'recovery', owner, ...probe };
+  const state = { service: probe.service, pending: signature, streak, delivered: previousForService.delivered || '', observedAt: probe.observedAt, ...(pendingSince ? { pendingSince } : {}) };
+  if (signature === state.delivered || (signature && streak < failureThreshold)) return { state, delivered: false, probe: judged };
+  const event = { version: 1, kind: signature ? 'incident' : 'recovery', owner, ...judged };
   await deliver(event);
   state.delivered = signature;
-  return { state, delivered: true };
+  return { state, delivered: true, probe: judged };
 }
 
 export async function sendWebhook(urlText, event, { fetchImpl = fetch, allowLocal = false, timeoutMs = 8000 } = {}) {
@@ -298,7 +315,7 @@ async function main() {
   const temporary = `${target}.next`;
   await writeFile(temporary, JSON.stringify(result.state), { mode: 0o600 });
   await rename(temporary, target);
-  console.log(JSON.stringify({ ...probe, delivered: result.delivered }));
+  console.log(JSON.stringify({ ...result.probe, delivered: result.delivered }));
 }
 // Only a usage mistake or a missing origin is described: any other failure could carry a receiver address, a key or a response body.
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) main().catch(error => { console.error(error instanceof UsageError ? `${error.message} ${USAGE}` : error instanceof MissingSetting ? error.message : 'Operational monitoring failed. Check configuration, probe connectivity and the alert receiver. Credentials and response bodies are not logged.'); process.exitCode = 1; });
