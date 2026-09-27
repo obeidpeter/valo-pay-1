@@ -312,8 +312,9 @@ for (const [entry, env, problem] of refusals) {
 }
 
 // OFF and External, in any case: the health answer and the log say which, nothing is scheduled, and the background
-// worker thread starts with the export worker alone.
-for (const [value, state, event] of [["OFF", "off", "scheduler.off"], ["External", "external", "scheduler.external"]] as const) {
+// worker thread starts with the export worker, and with External also reads what is still owed at the scheduler's
+// interval, which the health answer says.
+for (const [value, state, event, reads] of [["OFF", "off", "scheduler.off", false], ["External", "external", "scheduler.external", true]] as const) {
   const free = createServer();
   free.listen(0, "127.0.0.1");
   await once(free, "listening");
@@ -321,17 +322,17 @@ for (const [value, state, event] of [["OFF", "off", "scheduler.off"], ["External
   free.close();
   const server = start("index.ts", { PORT: String(port), DATABASE_URL: database, VALOPAY_CLOSE_SCHEDULER: value, LOG_FORMAT: "json", CLERK_SECRET_KEY: "sk_test_placeholder", CLERK_PUBLISHABLE_KEY: `pk_test_${Buffer.from("clerk.example.test$").toString("base64")}`, CLERK_TELEMETRY_DISABLED: "1" });
   try {
-    let health: { scheduler?: { state?: string } } | undefined;
+    let health: { scheduler?: { state?: string; intervalMs?: number | null } } | undefined;
     for (let attempt = 0; attempt < 100 && !health; attempt++) {
       health = await fetch(`http://127.0.0.1:${port}/api/healthz`).then((response) => response.ok ? response.json() as Promise<typeof health> : undefined, () => undefined);
       if (!health) await new Promise((resolve) => setTimeout(resolve, 200));
     }
-    assert.equal(health?.scheduler?.state, state, server.output().stdout);
+    assert.deepEqual([health?.scheduler?.state, health?.scheduler?.intervalMs], [state, reads ? 60_000 : null], server.output().stdout);
     const lines = () => server.output().stdout.split("\n").filter((text) => text.startsWith("{")).map((text) => JSON.parse(text) as Record<string, unknown>);
     for (let wait = 0; wait < 50 && !lines().some((line) => line.event === "background.started"); wait++) await new Promise((resolve) => setTimeout(resolve, 100));
     const events = lines().map((line) => line.event);
     assert.ok(events.includes(event) && !events.includes("scheduler.started"), `${value}: ${events.join(",")}`);
-    assert.deepEqual(lines().filter((line) => line.event === "background.started").map((line) => [line.closes, line.exports]), [[false, true]], `${value}: the thread runs the export worker and no scheduled close`);
+    assert.deepEqual(lines().filter((line) => line.event === "background.started").map((line) => [line.closes, line.backlog, line.exports]), [[false, reads, true]], `${value}: the thread runs the export worker and no scheduled close${reads ? ", and reads what is still owed" : ""}`);
     checks += 3;
   } finally {
     server.child.kill("SIGTERM");
@@ -362,4 +363,4 @@ assert.equal(logged[0]!.retryInMs, 20);
 assert.equal(logged[1]!.failures, failedLooks);
 checks += 5;
 
-console.log(`Startup configuration checks passed (${checks}): every setting checked once with one fatal line that names it and never its value, the close scheduler's switch in any case and refusing anything but on, off or external, Clerk's JWT key checked as Clerk reads it and required on a staff host, the sign-in proxy's limits read as the proxy reads them with room for eight networks at their limit, off and external starting the thread without the scheduled close, and an export queue outage slowing the worker's looks and logged once when it starts and once when it ends.`);
+console.log(`Startup configuration checks passed (${checks}): every setting checked once with one fatal line that names it and never its value, the close scheduler's switch in any case and refusing anything but on, off or external, Clerk's JWT key checked as Clerk reads it and required on a staff host, the sign-in proxy's limits read as the proxy reads them with room for eight networks at their limit, off and external starting the thread without the scheduled close, external with the read of what is still owed, and an export queue outage slowing the worker's looks and logged once when it starts and once when it ends.`);

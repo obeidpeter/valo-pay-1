@@ -8,11 +8,13 @@
 // dates one close per pass, oldest first; pauses an idle anonymous sandbox
 // instead of closing it; stops between lenders when told to; gives legacy
 // lenders a cursor without a close; runs once, as the one-shot close pass,
-// with an exit status; and its audit entries never keep an abandoned sandbox
-// alive. Every pass is scoped to this test's own lenders, so other due
+// with an exit status; counts public anonymous sandboxes, and only those,
+// apart from the lenders; reads what is still owed on a web instance whose
+// closes a scheduled job runs; and its audit entries never keep an abandoned
+// sandbox alive. Every pass is scoped to this test's own lenders, so other due
 // lenders in a reused database never crowd them out.
 import assert from "node:assert/strict";
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 
 if (process.env.VALOPAY_RUN_INTEGRATION !== "1") {
   console.log("Set VALOPAY_RUN_INTEGRATION=1 to run the scheduler integration test.");
@@ -21,8 +23,8 @@ if (process.env.VALOPAY_RUN_INTEGRATION !== "1") {
 
 const { pool } = await import("@workspace/db");
 const { nextCloseInstant } = await import("@workspace/valopay-schema");
-const { SYSTEM_ACTOR_PREFIX, appendAudit, dueScheduledCloses, inWorkspace, listMerchants, loadState, recordScheduledCloseFailure, saveState } = await import("../src/lib/valopay-store.js");
-const { SCHEDULED_CLOSE_ACTOR, runClosePassOnce, runDueCloses, startCloseScheduler, schedulerStatus } = await import("../src/lib/close-scheduler.js");
+const { SYSTEM_ACTOR_PREFIX, appendAudit, createPilotLender, dueScheduledCloses, inWorkspace, listMerchants, loadState, provisionStaffWorkspace, recordScheduledCloseFailure, saveState, scheduledCloseBacklog } = await import("../src/lib/valopay-store.js");
+const { SCHEDULED_CLOSE_ACTOR, markSchedulerOff, runClosePassOnce, runDueCloses, startCloseScheduler, schedulerStatus } = await import("../src/lib/close-scheduler.js");
 const { followingCloseInstant, scheduledCloseBusinessDate } = await import("../src/domain/close.js");
 const { makeRecord } = await import("../src/domain/records.js");
 
@@ -33,6 +35,7 @@ const setCursor = (merchantId: string, at: string) => pool.query("UPDATE valopay
 const cursorOf = async (merchantId: string): Promise<string | null> => (await pool.query<{ cursor: string | null }>("SELECT settings->>'nextCloseAt' AS cursor FROM valopay_merchants WHERE id=$1", [merchantId])).rows[0]!.cursor;
 const closesOf = async (merchantId: string) => (await pool.query<{ id: string; data: Record<string, any> }>("SELECT id,data FROM valopay_records WHERE merchant_id=$1 AND kind='closes' ORDER BY created_at", [merchantId])).rows;
 const closedIds = (run: Awaited<ReturnType<typeof runDueCloses>>) => run.closed.map((item) => item.merchantId);
+const dueIds = async (...args: Parameters<typeof dueScheduledCloses>) => (await dueScheduledCloses(...args)).map((row) => row.id);
 const settingsOf = async (merchantId: string): Promise<Record<string, any>> => (await pool.query<{ settings: Record<string, any> }>("SELECT settings FROM valopay_merchants WHERE id=$1", [merchantId])).rows[0]!.settings;
 const databaseNow = async () => Date.parse((await pool.query<{ now: Date }>("SELECT now() AS now")).rows[0]!.now.toISOString());
 const hoursAgo = (now: number, hours: number) => new Date(now - hours * 60 * 60 * 1000).toISOString();
@@ -41,6 +44,14 @@ let addresses = 0;
 const sandboxLenders = async (sandboxToken = token()): Promise<[string, string]> => {
   let ids: string[] = [];
   await inWorkspace(Object.assign(requestFor(sandboxToken), { ip: `10.14.0.${(addresses += 1)}` }), response(), async (context) => { ids = (await listMerchants(context)).map((merchant) => merchant.id).sort(); });
+  return ids as [string, string];
+};
+/** A signed-in person's request: outside staff mode they get a workspace of their own, seeded as a sandbox is but not public. */
+const signedInRequest = (userId: string) => ({ headers: {}, secure: false, auth: Object.assign(() => ({ userId, tokenType: "session_token" }), { [Symbol.for("@clerk/express.auth")]: true }) }) as any;
+/** A new signed-in person's two lenders, sorted by id: lenders, not public anonymous sandboxes. */
+const signedInLenders = async (userId = `user_synthetic_${randomBytes(8).toString("hex")}`): Promise<[string, string]> => {
+  let ids: string[] = [];
+  await inWorkspace(signedInRequest(userId), response(), async (context) => { ids = (await listMerchants(context)).map((merchant) => merchant.id).sort(); });
   return ids as [string, string];
 };
 /** Makes the lender's first instalment unsaveable, so its close fails until the stored value is put back. */
@@ -285,14 +296,14 @@ try {
   const [x1, x2] = await sandboxLenders(), [y1] = await sandboxLenders(), [s1] = await sandboxLenders();
   clock = await databaseNow();
   await setCursor(x1, hoursAgo(clock, 5)); await setCursor(x2, hoursAgo(clock, 5)); await setCursor(y1, hoursAgo(clock, 1));
-  const shared = await dueScheduledCloses(2, { only: [x1, x2, y1] });
+  const shared = await dueIds(2, { only: [x1, x2, y1] });
   assert.equal(shared.length, 2);
   assert.ok(shared.includes(y1), "the other workspace's lender is in the batch");
   assert.equal(shared.filter((id) => id === x1 || id === x2).length, 1, "one lender from the workspace with two earlier ones");
-  assert.deepEqual((await dueScheduledCloses(2, { only: [x1, x2, y1], exclude: [y1] })).sort(), [x1, x2].sort(), "an excluded lender is left out");
+  assert.deepEqual((await dueScheduledCloses(2, { only: [x1, x2, y1], exclude: [y1] })).map((row) => [row.id, row.publicSandbox]).sort(), [[x1, true], [x2, true]].sort(), "an excluded lender is left out, and each read says it is a public sandbox's");
   await pool.query(`UPDATE valopay_merchants SET settings = settings || '{"anonymousWorkspace": false}' WHERE id=$1`, [s1]);
   await setCursor(s1, new Date(clock - 30 * 60 * 1000).toISOString());
-  assert.deepEqual(await dueScheduledCloses(1, { only: [x1, x2, y1, s1] }), [s1], "a signed-in lender comes first");
+  assert.deepEqual(await dueScheduledCloses(1, { only: [x1, x2, y1, s1] }), [{ id: s1, publicSandbox: false }], "a signed-in lender comes first, and is not a public sandbox");
   const fair = await runDueCloses({ batchSize: 1, onlyMerchantIds: [x1, x2, y1, s1] });
   assert.deepEqual(closedIds(fair).sort(), [x1, x2, y1, s1].sort(), "a pass drains every due lender");
   assert.equal(closedIds(fair)[0], s1); assert.equal(fair.batches, 5, "four full batches of one and a last empty one");
@@ -322,11 +333,11 @@ try {
     );
   };
   await retrying(r1, hoursAgo(clock, 5)); await setCursor(r2, hoursAgo(clock, 4)); await setCursor(h1, hoursAgo(clock, 1));
-  assert.deepEqual(await dueScheduledCloses(1, { only: [r1, h1] }), [h1], "a healthy lender comes before an earlier one being retried");
-  assert.deepEqual(await dueScheduledCloses(3, { only: [r1, r2, h1] }), [r2, h1, r1], "the lender being retried does not take its workspace's first turn");
+  assert.deepEqual(await dueIds(1, { only: [r1, h1] }), [h1], "a healthy lender comes before an earlier one being retried");
+  assert.deepEqual(await dueIds(3, { only: [r1, r2, h1] }), [r2, h1, r1], "the lender being retried does not take its workspace's first turn");
   await pool.query(`UPDATE valopay_merchants SET settings = settings || '{"anonymousWorkspace": false}' WHERE id=$1`, [g1]);
   await retrying(g1, hoursAgo(clock, 1));
-  assert.deepEqual(await dueScheduledCloses(1, { only: [g1, r2, h1] }), [g1], "a signed-in lender being retried still comes before a healthy anonymous sandbox");
+  assert.deepEqual(await dueIds(1, { only: [g1, r2, h1] }), [g1], "a signed-in lender being retried still comes before a healthy anonymous sandbox");
   const retriedLast = await runDueCloses({ batchSize: 1, onlyMerchantIds: [r1, r2, h1, g1] });
   assert.deepEqual(closedIds(retriedLast), [g1, r2, h1, r1], "a pass closes them in that order");
 
@@ -361,7 +372,7 @@ try {
   await setCursor(t1, stopAt); await setCursor(t2, stopAt);
   const outOfTime = await runDueCloses({ onlyMerchantIds: [t1, t2], budgetMs: 0 });
   assert.equal(outOfTime.examined, 0, "a pass whose budget is spent starts no close");
-  assert.equal(outOfTime.budgetSpent, true, "and records that its budget ended it with lenders possibly still due");
+  assert.deepEqual([outOfTime.budgetSpent, outOfTime.budgetSpentOnSandboxes], [false, true], "and records that its budget ended it with public sandboxes, which it takes up last, still due");
   const aborted = new AbortController();
   aborted.abort();
   const none = await runDueCloses({ onlyMerchantIds: [t1, t2], signal: aborted.signal });
@@ -385,8 +396,8 @@ try {
 
   // The one-shot pass (close-pass.ts), which a host without an in-process scheduler runs on a schedule: the same
   // pass and the same scheduled closes, exit 2 when its budget ran out with lenders still due and while a close
-  // failed and is waiting for its retry, then 0.
-  const [o1, o2] = await sandboxLenders();
+  // failed and is waiting for its retry, then 0. A signed-in person's lenders: public sandboxes' are counted apart (below).
+  const [o1, o2] = await signedInLenders();
   clock = await databaseNow();
   const oneShotDue = hoursAgo(clock, 1);
   await setCursor(o1, oneShotDue); await setCursor(o2, oneShotDue);
@@ -420,11 +431,12 @@ try {
   const { probeService } = await import(new URL("../../../scripts/monitor-valopay.mjs", import.meta.url).href);
   const { HealthCheckResponse } = await import("@workspace/api-zod");
   const { contractAnswer } = await import("../src/lib/contract.js");
-  /** The health answer /api/healthz gives with this scheduler status, and the monitor's codes for it. */
-  const healthAnswer = (scheduler: unknown) => contractAnswer(HealthCheckResponse, { status: "ok", build: "test", startedAt: new Date().toISOString(), uptimeSeconds: 1, scheduler });
+  /** The health answer /api/healthz gives with this scheduler status, from a process up for ten minutes unless said, and the monitor's probe of it, or its codes alone. */
+  const healthAnswer = (scheduler: unknown, uptimeSeconds = 600) => contractAnswer(HealthCheckResponse, { status: "ok", build: "test", startedAt: new Date().toISOString(), uptimeSeconds, scheduler });
   const readyAnswer = { status: "ok", build: "test", checks: { database: { status: "ok", latencyMs: 1 }, schema: { status: "ok" } } };
-  const monitorCodes = async (scheduler: unknown): Promise<string[]> => (await probeService({ origin: "https://example.test", expectScheduler: "on", fetchImpl: async (url: string) => new Response(JSON.stringify(url.endsWith("readyz") ? readyAnswer : healthAnswer(scheduler))) })).codes;
-  const [e1, e2] = await sandboxLenders(), [e3] = await sandboxLenders();
+  const monitorProbe = async (scheduler: unknown, uptimeSeconds?: number) => probeService({ origin: "https://example.test", expectScheduler: "on", fetchImpl: async (url: string) => new Response(JSON.stringify(url.endsWith("readyz") ? readyAnswer : healthAnswer(scheduler, uptimeSeconds))) });
+  const monitorCodes = async (scheduler: unknown): Promise<string[]> => (await monitorProbe(scheduler)).codes;
+  const [e1, e2] = await signedInLenders(), [e3] = await signedInLenders();
   const owedOnly = [e1, e2, e3];
   clock = await databaseNow();
   await setCursor(e1, new Date(clock - 5 * 60 * 1000).toISOString());
@@ -447,10 +459,13 @@ try {
     await watched.settle();
   }
   // A restarted process: nothing is known until its first pass, which does not try E1, still waiting, but reads it.
+  // Just started, it is too young for that pass to have returned: a warning, not an incident. Up long enough, it is stale.
   const restarted: typeof import("../src/lib/close-scheduler.js") = await import(`${new URL("../src/lib/close-scheduler.ts", import.meta.url).href}?restarted`);
   const afterRestart = restarted.startCloseScheduler({ intervalMs: 60_000, firstDelayMs: 60_000, onlyMerchantIds: owedOnly });
   try {
-    assert.deepEqual(await monitorCodes(restarted.schedulerStatus()), ["scheduler_stale"], "before its first pass the process has no evidence");
+    const justStarted = await monitorProbe(restarted.schedulerStatus(), 1);
+    assert.deepEqual([justStarted.codes, justStarted.warnings, justStarted.observations.closeBacklog], [[], ["scheduler_backlog_pending"], "pending"], "before its first pass a process just started has no evidence yet");
+    assert.deepEqual(await monitorCodes(restarted.schedulerStatus()), ["scheduler_stale"], "nor has one up long enough to have made that pass, which is stale");
     assert.equal((await afterRestart.tick())!.examined, 0);
     assert.deepEqual(await monitorCodes(restarted.schedulerStatus()), ["scheduler_close_failed"], "its first pass reads the failing lender from the database");
     await setCursor(e3, hoursAgo(clock, 1));
@@ -472,6 +487,149 @@ try {
     afterRestart.stop();
     await afterRestart.settle();
   }
+
+  // A public anonymous sandbox, a lender a visitor's sandbox is seeded with or creates, is counted apart from the
+  // lenders: a close its visitor's own synthetic data makes fail, and one overdue, are the sandboxes' own counts, a
+  // warning in the monitor, never an incident, and never fail the one-shot job. A lender beside them still does.
+  const visitor = token();
+  const [v1, v2] = await sandboxLenders(visitor), [n1] = await signedInLenders();
+  const visitorOnly = [v1, v2, n1];
+  clock = await databaseNow();
+  await setCursor(v1, new Date(clock - 5 * 60 * 1000).toISOString());
+  await setCursor(v2, hoursAgo(clock, 1));
+  const brokenV1 = await breakLender(v1);
+  const visitorLines: Array<Record<string, any>> = [];
+  const visitorLog: any = { info: (fields: object) => visitorLines.push(fields), error: (fields: object) => visitorLines.push(fields), debug() {}, child: () => visitorLog };
+  const visitorLine = (event: string) => visitorLines.find((line) => line.event === event)!;
+  const visitorsWatched = startCloseScheduler({ intervalMs: 60_000, firstDelayMs: 60_000, onlyMerchantIds: visitorOnly });
+  const holdsVisitors = await pool.connect();
+  try {
+    await holdsVisitors.query("BEGIN");
+    await holdsVisitors.query("SELECT 1 FROM valopay_merchants WHERE id=$1 FOR UPDATE", [v2]);
+    const visitorRun = await runClosePassOnce({ onlyMerchantIds: visitorOnly, log: visitorLog });
+    assert.deepEqual([visitorRun.exitCode, visitorRun.run!.failed.map((item) => [item.merchantId, item.publicSandbox]), visitorRun.run!.skipped], [0, [[v1, true]], [v2]], "a public sandbox's failed close, and one held past its time, do not fail the job");
+    assert.deepEqual(["close.one_shot", "close.run"].map((event) => [visitorLine(event).failed, visitorLine(event).failing, visitorLine(event).overdue, visitorLine(event).publicSandboxes]), [[0, 0, 0, { failed: 1, failing: 1, overdue: 1, budgetSpent: false }], [0, 0, 0, { failed: 1, failing: 1, overdue: 1 }]], "its lines count them apart from the lenders");
+    assert.equal(visitorLines.find((line) => line.merchantId === v1 && line.err)?.publicSandbox, true, "the failure's own line says it is a public sandbox's");
+    await visitorsWatched.tick();
+    const visitorsOwed = await monitorProbe(schedulerStatus());
+    assert.deepEqual([visitorsOwed.codes, visitorsOwed.warnings, visitorsOwed.observations.closeBacklog], [[], ["scheduler_public_sandbox_close_failed", "scheduler_public_sandbox_closes_overdue"], { overdue: 0, failing: 0, publicSandboxes: { overdue: 1, failing: 1 } }], "the monitor warns of them, and raises no incident");
+    await setCursor(n1, hoursAgo(clock, 1));
+    await holdsVisitors.query("SELECT 1 FROM valopay_merchants WHERE id=$1 FOR UPDATE", [n1]);
+    await visitorsWatched.tick();
+    const lenderOwed = await monitorProbe(schedulerStatus());
+    assert.deepEqual([lenderOwed.codes, lenderOwed.observations.closeBacklog], [["scheduler_closes_overdue"], { overdue: 1, failing: 0, publicSandboxes: { overdue: 1, failing: 1 } }], "a lender held past its time beside them is the incident");
+    assert.equal((await runClosePassOnce({ onlyMerchantIds: visitorOnly })).exitCode, 2, "and fails the job");
+  } finally {
+    await holdsVisitors.query("ROLLBACK");
+    holdsVisitors.release();
+  }
+  await pool.query("UPDATE valopay_records SET data = $2 WHERE id=$1", [brokenV1.id, brokenV1.data]);
+  await retryNow(v1);
+  try {
+    assert.deepEqual(closedIds((await visitorsWatched.tick())!).sort(), [...visitorOnly].sort(), "free and repaired, each closes");
+    const nothingOwed = await monitorProbe(schedulerStatus());
+    assert.deepEqual([nothingOwed.codes, nothingOwed.warnings], [[], []]);
+  } finally {
+    visitorsWatched.stop();
+    await visitorsWatched.settle();
+  }
+
+  // A spent budget fails the one-shot job only while a lender other than a public sandbox is still due: sandboxes are
+  // taken up last, so one read of the next due lender says which. Leftover sandboxes are counted on the line, and are
+  // overdue warnings once late.
+  const [u1, u2] = await sandboxLenders(), [u3, u4] = await sandboxLenders(), [ul] = await signedInLenders();
+  const budgetOnly = [u1, u2, u3, u4, ul];
+  clock = await databaseNow();
+  for (const id of [u1, u2, u3, u4]) await setCursor(id, hoursAgo(clock, 1));
+  const budgetLines: Array<Record<string, any>> = [];
+  const budgetLog: any = { info: (fields: object) => budgetLines.push(fields), error: (fields: object) => budgetLines.push(fields), debug() {}, child: () => budgetLog };
+  const lastOneShot = () => budgetLines.filter((line) => line.event === "close.one_shot").at(-1)!;
+  const sandboxesLeft = await runClosePassOnce({ onlyMerchantIds: budgetOnly, log: budgetLog, budgetMs: 0 });
+  assert.deepEqual([sandboxesLeft.exitCode, sandboxesLeft.run!.budgetSpent, lastOneShot().budgetSpent, lastOneShot().publicSandboxes], [0, false, false, { failed: 0, overdue: 4, failing: 0, budgetSpent: true }], "a budget spent with only public sandboxes still due does not fail the job, and the line counts them");
+  await setCursor(ul, hoursAgo(clock, 1));
+  const lenderLeft = await runClosePassOnce({ onlyMerchantIds: budgetOnly, log: budgetLog, budgetMs: 0 });
+  assert.deepEqual([lenderLeft.exitCode, lastOneShot().budgetSpent, lastOneShot().overdue], [2, true, 1], "with a lender still due beside them it does");
+  const drainedAll = await runClosePassOnce({ onlyMerchantIds: budgetOnly, log: budgetLog });
+  assert.deepEqual([drainedAll.exitCode, closedIds(drainedAll.run!).sort(), lastOneShot().publicSandboxes.budgetSpent], [0, [...budgetOnly].sort(), false], "a run with its budget closes them all");
+
+  // Only a visitor's lenders are public sandboxes: those its sandbox is seeded with and those it creates. A signed-in
+  // person's, seeded or created, and a staff pilot's, which its administrator creates, are lenders whatever their data.
+  const createLender = async (request: any, name: string) => (await inWorkspace(request, response(), (context) => createPilotLender(context, { name, segment: "Consumer lending" }, randomUUID()), "team")).lender.id;
+  const visitorCreated = await createLender(requestFor(visitor), "Visitor's own lender");
+  const signedInCreated = await createLender(signedInRequest(`user_synthetic_${randomBytes(8).toString("hex")}`), "Signed-in person's lender");
+  const staffSettings = { VALOPAY_STAFF_ACCESS: process.env.VALOPAY_STAFF_ACCESS, VALOPAY_STAFF_ISSUER: process.env.VALOPAY_STAFF_ISSUER, VALOPAY_STAFF_ORIGINS: process.env.VALOPAY_STAFF_ORIGINS };
+  let staffCreated = "";
+  try {
+    Object.assign(process.env, { VALOPAY_STAFF_ACCESS: "staging", VALOPAY_STAFF_ISSUER: "https://identity.example", VALOPAY_STAFF_ORIGINS: "https://pilot.example" });
+    const organisation = `org_${randomBytes(8).toString("hex")}`, administrator = `user_${randomBytes(8).toString("hex")}`, issued = Math.floor(Date.now() / 1000);
+    await provisionStaffWorkspace(organisation, administrator, "Scheduled close rehearsal");
+    const session = { userId: administrator, orgId: organisation, sessionId: `sess_${administrator}`, tokenType: "session_token", sessionStatus: "active", factorVerificationAge: [0, 0], sessionClaims: { sub: administrator, sid: `sess_${administrator}`, iss: "https://identity.example", azp: "https://pilot.example", iat: issued - 1, exp: issued + 3600 } };
+    staffCreated = await createLender({ headers: {}, auth: Object.assign(() => session, { [Symbol.for("@clerk/express.auth")]: true }) }, "Staff pilot lender");
+  } finally {
+    for (const [name, value] of Object.entries(staffSettings)) if (value === undefined) delete process.env[name]; else process.env[name] = value;
+  }
+  const created = [visitorCreated, signedInCreated, staffCreated];
+  assert.deepEqual(await Promise.all([v1, n1, ...created].map(async (id) => (await settingsOf(id)).anonymousWorkspace)), [true, false, true, false, false], "a visitor's lenders are public sandboxes, seeded or created; a signed-in person's and a staff pilot's are not");
+  clock = await databaseNow();
+  for (const id of created) await pool.query("UPDATE valopay_merchants SET settings = settings || jsonb_build_object('scheduledCloseEnabled', true, 'nextCloseAt', $2::text) WHERE id=$1", [id, hoursAgo(clock, 1)]);
+  assert.deepEqual(await scheduledCloseBacklog(30, { only: created }), { overdue: 2, failing: 0, publicSandboxes: { overdue: 1, failing: 0 } }, "an hour past their times, the visitor's is counted as a public sandbox, the others as lenders");
+  for (const id of created) await pool.query(`UPDATE valopay_merchants SET settings = settings || '{"scheduledCloseEnabled": false}' WHERE id=$1`, [id]);
+
+  // With VALOPAY_CLOSE_SCHEDULER=external a scheduled job runs the closes and the web instances run no pass, so each
+  // reads what is still owed itself, on its background worker thread at the scheduler's interval, as index.ts starts it,
+  // and its health answer carries the read: the monitor raises the same codes, so a job that has stopped running shows
+  // as overdue closes, and a read that stops ages past three intervals into scheduler_stale. The reads take the close's
+  // connection in turn with the day's audit checks, one thing at a time, as a pass would.
+  const { requestDailyAuditCheck, startBackgroundWorker } = await import("../src/lib/background-worker.js");
+  const [j1] = await signedInLenders(), [jv] = await sandboxLenders();
+  const jobOnly = [j1, jv];
+  clock = await databaseNow();
+  await setCursor(j1, hoursAgo(clock, 1)); await setCursor(jv, hoursAgo(clock, 1));
+  const externalProbe = async () => probeService({ origin: "https://example.test", expectScheduler: "external", fetchImpl: async (url: string) => new Response(JSON.stringify(url.endsWith("readyz") ? readyAnswer : healthAnswer(schedulerStatus()))) });
+  /** Waits, for a while, until `done` holds. */
+  const until = async (done: () => boolean | Promise<boolean>) => { for (const give = Date.now() + 15_000; !(await done()) && Date.now() < give;) await new Promise((resolve) => setTimeout(resolve, 20)); };
+  /** Waits, for a while, for a read the instance made at or after `since`. */
+  const readSince = (since: number) => until(() => Date.parse(schedulerStatus().backlog?.checkedAt ?? "") >= since);
+  /** Waits, for a while, for a read that shows nothing owed, rather than the first read after a moment, which may have begun before the last close committed. */
+  const readClear = () => until(() => { const owed = schedulerStatus().backlog; return Boolean(owed) && owed!.overdue + owed!.failing + owed!.publicSandboxes.overdue + owed!.publicSandboxes.failing === 0; });
+  markSchedulerOff("external");
+  let since = Date.now();
+  const webInstance = startBackgroundWorker({ log: { info() {}, warn() {}, error() {} } as any, closes: null, backlog: { intervalMs: 1_000, firstDelayMs: 10, onlyMerchantIds: jobOnly }, exports: null });
+  try {
+    await readSince(since);
+    const missed = await externalProbe();
+    assert.deepEqual([missed.codes, missed.warnings, missed.observations.schedulerEvidence, missed.observations.closeBacklog], [["scheduler_closes_overdue"], ["scheduler_public_sandbox_closes_overdue"], "failed", { overdue: 1, failing: 0, publicSandboxes: { overdue: 1, failing: 0 } }], "a close the scheduled job has not run shows on the web instance's health answer, as on a host that runs its own");
+    assert.deepEqual([schedulerStatus().state, schedulerStatus().intervalMs], ["external", 1_000], "the instance runs no pass, and says how often it reads");
+    const job = await runClosePassOnce({ onlyMerchantIds: jobOnly });
+    assert.deepEqual([job.exitCode, closedIds(job.run!).sort()], [0, [...jobOnly].sort()], "the job's next run closes both");
+    await readClear();
+    const caughtUp = await externalProbe();
+    assert.deepEqual([caughtUp.codes, caughtUp.warnings, caughtUp.observations.schedulerEvidence, caughtUp.observations.closeBacklog], [[], [], "mode_and_fresh_backlog", { overdue: 0, failing: 0, publicSandboxes: { overdue: 0, failing: 0 } }], "and the instance's next read ends it");
+    // While a daily audit check a person's close asked for waits for its lender, held here, the instance makes no read:
+    // the check has the close's connection. Once the lender is free, the check finishes and the reads resume.
+    const [checked] = await signedInLenders();
+    const holdsChecked = await pool.connect();
+    try {
+      await holdsChecked.query("BEGIN");
+      await holdsChecked.query("SELECT 1 FROM valopay_merchants WHERE id=$1 FOR UPDATE", [checked]);
+      assert.ok(requestDailyAuditCheck(checked), "the thread takes the check");
+      await until(async () => (await pool.query<{ waiting: number }>("SELECT count(*)::int AS waiting FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'")).rows[0]!.waiting > 0);
+      const heldAt = schedulerStatus().backlog!.checkedAt;
+      await new Promise((resolve) => setTimeout(resolve, 2_500));
+      assert.equal(schedulerStatus().backlog!.checkedAt, heldAt, "no read is made while the check has the close's connection");
+    } finally {
+      await holdsChecked.query("ROLLBACK");
+      holdsChecked.release();
+    }
+    since = Date.now();
+    await readSince(since);
+    assert.ok(Date.parse(schedulerStatus().backlog!.checkedAt) >= since, "then the reads resume");
+  } finally {
+    webInstance.stop();
+    await webInstance.settle();
+  }
+  await new Promise((resolve) => setTimeout(resolve, 3_200));
+  assert.deepEqual((await externalProbe()).codes, ["scheduler_stale"], "a read that stops ages: past three intervals it is no evidence");
 
   // Expiry: scheduled-close audit entries never keep an abandoned sandbox alive.
   const workspace = (await pool.query<{ workspace_id: string }>("SELECT workspace_id FROM valopay_merchants WHERE id=$1", [a])).rows[0]!.workspace_id;

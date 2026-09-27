@@ -7,7 +7,7 @@
  */
 
 /**
- * running: this process schedules the daily closes. off: it schedules none (VALOPAY_CLOSE_SCHEDULER=off). external: it schedules none because a separate scheduled job runs them with the one-shot close pass (VALOPAY_CLOSE_SCHEDULER=external), which this process cannot observe. not_started and stopped: the scheduler has not started yet, or has stopped.
+ * running: this process schedules the daily closes. off: it schedules none (VALOPAY_CLOSE_SCHEDULER=off). external: it schedules none because a separate scheduled job runs them with the one-shot close pass (VALOPAY_CLOSE_SCHEDULER=external), whose runs this process cannot observe; it reads the lenders still owed a close itself instead, every intervalMs (backlog). not_started and stopped: the scheduler has not started yet, or has stopped.
  */
 export type SchedulerStatusState = typeof SchedulerStatusState[keyof typeof SchedulerStatusState];
 

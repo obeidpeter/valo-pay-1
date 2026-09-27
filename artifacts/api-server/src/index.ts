@@ -30,15 +30,15 @@ const server = app.listen(port, (err) => {
   // REC-01: the daily close runs at each lender's configured time unless this process is told not to schedule it
   // (VALOPAY_CLOSE_SCHEDULER=off, or external where a separate scheduled job runs the one-shot close pass, in any
   // case; any other value was refused at startup). The scheduled closes and the export worker run on the background
-  // worker thread, off the event loop that answers requests.
+  // worker thread, off the event loop that answers requests; with external the thread reads what is still owed instead.
   if (serverSettings.closeScheduler === "off") {
     markSchedulerOff();
     logger.warn({ event: "scheduler.off" }, "VALOPAY_CLOSE_SCHEDULER=off: this process runs no scheduled close; run closes by hand or with the one-shot close pass.");
   } else if (serverSettings.closeScheduler === "external") {
     markSchedulerOff("external");
-    logger.info({ event: "scheduler.external" }, "VALOPAY_CLOSE_SCHEDULER=external: this process runs no scheduled close; a scheduled job runs them with the one-shot close pass, and a close it misses still raises the missed-close alert.");
+    logger.info({ event: "scheduler.external" }, "VALOPAY_CLOSE_SCHEDULER=external: this process runs no scheduled close; a scheduled job runs them with the one-shot close pass. This process reads the lenders still owed a close every minute, which /api/healthz reports, and a close the job misses still raises the missed-close alert.");
   }
-  background = startBackgroundWorker({ log: logger, closes: serverSettings.closeScheduler === "on" ? {} : null, exports: {} });
+  background = startBackgroundWorker({ log: logger, closes: serverSettings.closeScheduler === "on" ? {} : null, backlog: serverSettings.closeScheduler === "external" ? {} : null, exports: {} });
 });
 
 /**

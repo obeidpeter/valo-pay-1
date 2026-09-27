@@ -6,7 +6,7 @@
  * OpenAPI spec version: 1.1.0
  */
 /**
- * running: this process schedules the daily closes. off: it schedules none (VALOPAY_CLOSE_SCHEDULER=off). external: it schedules none because a separate scheduled job runs them with the one-shot close pass (VALOPAY_CLOSE_SCHEDULER=external), which this process cannot observe. not_started and stopped: the scheduler has not started yet, or has stopped.
+ * running: this process schedules the daily closes. off: it schedules none (VALOPAY_CLOSE_SCHEDULER=off). external: it schedules none because a separate scheduled job runs them with the one-shot close pass (VALOPAY_CLOSE_SCHEDULER=external), whose runs this process cannot observe; it reads the lenders still owed a close itself instead, every intervalMs (backlog). not_started and stopped: the scheduler has not started yet, or has stopped.
  */
 export type SchedulerStatusState = typeof SchedulerStatusState[keyof typeof SchedulerStatusState];
 
@@ -36,7 +36,17 @@ export interface SchedulerRun {
 }
 
 /**
- * The lenders still owed a scheduled close, as the latest pass read them from the database, counted without naming any: overdue, those whose automatic close is on and whose pending close is more than lateAfterMinutes past its time; failing, those with a failed scheduled attempt at their pending time, which only that lender's own close, or a change to its schedule, ends: not other lenders' closes, nor a restart. checkedAt is when the pass read them, on the API host's clock.
+ * The same counts for public anonymous sandboxes, the synthetic lenders a visitor's sandbox is seeded with or creates, whose own data can make a close fail: counted apart from the lenders, so they never raise an incident or fail the one-shot close pass. Absent from builds before they were counted apart, which count them among the lenders.
+ */
+export interface SchedulerPublicSandboxes {
+  /** @minimum 0 */
+  overdue: number;
+  /** @minimum 0 */
+  failing: number;
+}
+
+/**
+ * The lenders still owed a scheduled close, as this process last read them from the database, counted without naming any: overdue, those whose automatic close is on and whose pending close is more than lateAfterMinutes past its time; failing, those with a failed scheduled attempt at their pending time, which only that lender's own close, or a change to its schedule, ends: not other lenders' closes, nor a restart. Neither counts public anonymous sandboxes, whose own counts are publicSandboxes. checkedAt is when they were read, on the API host's clock.
  */
 export interface SchedulerBacklog {
   checkedAt: string;
@@ -45,15 +55,19 @@ export interface SchedulerBacklog {
   /** @minimum 0 */
   failing: number;
   lateAfterMinutes: number;
+  publicSandboxes?: SchedulerPublicSandboxes;
 }
 
 /**
- * Whether closes are scheduled in this process, how often it looks, when it last looked, its last pass with work and what its latest pass read as still owed.
+ * Whether closes are scheduled in this process, how often it looks, when it last looked, its last pass with work and what it last read as still owed.
  */
 export interface SchedulerStatus {
-  /** running: this process schedules the daily closes. off: it schedules none (VALOPAY_CLOSE_SCHEDULER=off). external: it schedules none because a separate scheduled job runs them with the one-shot close pass (VALOPAY_CLOSE_SCHEDULER=external), which this process cannot observe. not_started and stopped: the scheduler has not started yet, or has stopped. */
+  /** running: this process schedules the daily closes. off: it schedules none (VALOPAY_CLOSE_SCHEDULER=off). external: it schedules none because a separate scheduled job runs them with the one-shot close pass (VALOPAY_CLOSE_SCHEDULER=external), whose runs this process cannot observe; it reads the lenders still owed a close itself instead, every intervalMs (backlog). not_started and stopped: the scheduler has not started yet, or has stopped. */
   state: SchedulerStatusState;
-  /** @nullable */
+  /**
+     * How often this process looks: its scheduler's tick, or with external how often it reads the backlog; null in a process that does neither. Builds before the external read report null with external.
+     * @nullable
+     */
   intervalMs: number | null;
   ticks: number;
   /** @nullable */
@@ -63,7 +77,7 @@ export interface SchedulerStatus {
   lastSuccessAt?: string | null;
   /** @nullable */
   lastErrorAt?: string | null;
-  /** What the latest pass read from the database as still owed; null until this process's first pass has read it, and kept as last read while the scheduler is stopped or failing. Absent from builds before it was added, which report only lastRun. */
+  /** What this process last read from the database as still owed: at the end of each pass or, with external, every intervalMs; null until its first read, and kept as last read while the scheduler is stopped or failing, or a read fails, so its checkedAt ages. Absent from builds before it was added, which report only lastRun; builds before the external read report null with external. */
   backlog?: SchedulerBacklog | null;
 }
 

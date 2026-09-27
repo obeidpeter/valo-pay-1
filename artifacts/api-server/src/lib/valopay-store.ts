@@ -2541,14 +2541,17 @@ export async function merchantInWorkspace(merchantId: string, workspaceId: strin
  * signed-in lenders before anonymous sandboxes; lenders waiting to retry a
  * failed attempt after the rest; one lender per workspace per turn, so one
  * workspace's many lenders never hold another's back; then the earliest
- * time.  A lender waiting for its retry time is not due.  `exclude` leaves
- * out lenders a pass has already dealt with; `only` limits the read to the
- * lenders named (tests and operator tooling).  A plain read with the system
- * limits (runtimeServiceRead binds the service identity only under runtime
- * isolation): the caller re-checks under the merchant lock before closing.
+ * time.  A lender waiting for its retry time is not due.  Each says whether
+ * it is a public anonymous sandbox (settings.anonymousWorkspace, set only when
+ * a visitor's sandbox is seeded with a lender or creates one), whose failed
+ * close a pass counts apart.  `exclude` leaves out lenders a pass has already
+ * dealt with; `only` limits the read to the lenders named (tests and operator
+ * tooling).  A plain read with the system limits (runtimeServiceRead binds
+ * the service identity only under runtime isolation): the caller re-checks
+ * under the merchant lock before closing.
  */
-export async function dueScheduledCloses(limit: number, options: { exclude?: readonly string[]; only?: readonly string[] } = {}): Promise<string[]> {
-  return runtimeServiceRead(async client => (await client.query<{ id: string }>(
+export async function dueScheduledCloses(limit: number, options: { exclude?: readonly string[]; only?: readonly string[] } = {}): Promise<Array<{ id: string; publicSandbox: boolean }>> {
+  return runtimeServiceRead(async client => (await client.query<{ id: string; anonymous: boolean }>(
     `WITH ready AS (
        SELECT m.id, m.workspace_id,
          (CASE WHEN m.settings->>'nextCloseAt' ~ $2 THEN (m.settings->>'nextCloseAt')::timestamptz END) AS due_at,
@@ -2566,10 +2569,13 @@ export async function dueScheduledCloses(limit: number, options: { exclude?: rea
      ), ranked AS (
        SELECT id, anonymous, failures, due_at, row_number() OVER (PARTITION BY workspace_id ORDER BY failures > 0, due_at, id) AS turn FROM due
      )
-     SELECT id FROM ranked ORDER BY anonymous, failures > 0, turn, due_at, id LIMIT $1`,
+     SELECT id, anonymous FROM ranked ORDER BY anonymous, failures > 0, turn, due_at, id LIMIT $1`,
     [limit, ISO_INSTANT_PATTERN, [...(options.exclude ?? [])], options.only ? [...options.only] : null],
-  )).rows.map((row) => row.id));
+  )).rows.map((row) => ({ id: row.id, publicSandbox: row.anonymous })));
 }
+
+/** Lenders still owed a scheduled close, counted without naming any: every lender but public anonymous sandboxes, whose own counts are apart. */
+export interface OwedCloses { overdue: number; failing: number; publicSandboxes: { overdue: number; failing: number } }
 
 /**
  * What the scheduled close still owes, counted without naming a lender: the
@@ -2577,26 +2583,29 @@ export async function dueScheduledCloses(limit: number, options: { exclude?: rea
  * `lateAfterMinutes` past its time (missed, as the close_missed alert reads
  * it), and those with a failed scheduled attempt recorded at their pending
  * time (settings.closeRetry, as closeRetryOf reads it), which only a close of
- * that lender, or a change to its schedule, ends.  Durable facts on the
- * database clock, so no other lender's close clears them and a restarted
- * process reads them again.  `only` limits the count to the lenders named
- * (tests and operator tooling).  A plain read with the system limits, as
- * dueScheduledCloses is.
+ * that lender, or a change to its schedule, ends.  Public anonymous sandboxes
+ * (settings.anonymousWorkspace, a visitor's synthetic lenders, whose own data
+ * can make a close fail) are counted apart, in publicSandboxes.  Durable facts
+ * on the database clock, so no other lender's close clears them and a
+ * restarted process reads them again.  `only` limits the count to the lenders
+ * named (tests and operator tooling).  A plain read with the system limits,
+ * as dueScheduledCloses is.
  */
-export async function scheduledCloseBacklog(lateAfterMinutes: number, options: { only?: readonly string[] } = {}): Promise<{ overdue: number; failing: number }> {
+export async function scheduledCloseBacklog(lateAfterMinutes: number, options: { only?: readonly string[] } = {}): Promise<OwedCloses> {
   return runtimeServiceRead(async client => {
-    const row = (await client.query<{ overdue: number; failing: number }>(
-      `SELECT count(*) FILTER (WHERE floor(extract(epoch FROM now() - due_at) / 60) > $2)::int AS overdue,
-              count(*) FILTER (WHERE failing)::int AS failing
+    const row = (await client.query<{ overdue: number; failing: number; sandboxes_overdue: number; sandboxes_failing: number }>(
+      `SELECT count(*) FILTER (WHERE NOT anonymous AND late)::int AS overdue, count(*) FILTER (WHERE NOT anonymous AND failing)::int AS failing,
+              count(*) FILTER (WHERE anonymous AND late)::int AS sandboxes_overdue, count(*) FILTER (WHERE anonymous AND failing)::int AS sandboxes_failing
        FROM (SELECT
-         CASE WHEN m.settings->>'nextCloseAt' ~ $1 THEN (m.settings->>'nextCloseAt')::timestamptz END AS due_at,
+         floor(extract(epoch FROM now() - CASE WHEN m.settings->>'nextCloseAt' ~ $1 THEN (m.settings->>'nextCloseAt')::timestamptz END) / 60) > $2 AS late,
          m.settings->>'nextCloseAt' ~ $1 AND m.settings->'closeRetry'->>'cursor' = m.settings->>'nextCloseAt'
-           AND m.settings->'closeRetry'->>'failures' ~ '^[1-9][0-9]{0,5}$' AND m.settings->'closeRetry'->>'retryAt' ~ $1 AS failing
+           AND m.settings->'closeRetry'->>'failures' ~ '^[1-9][0-9]{0,5}$' AND m.settings->'closeRetry'->>'retryAt' ~ $1 AS failing,
+         COALESCE(m.settings->>'anonymousWorkspace', 'false') = 'true' AS anonymous
          FROM valopay_merchants m
          WHERE COALESCE(m.settings->>'scheduledCloseEnabled','true') <> 'false' AND ($3::text[] IS NULL OR m.id = ANY($3::text[]))) lenders`,
       [ISO_INSTANT_PATTERN, lateAfterMinutes, options.only ? [...options.only] : null],
     )).rows[0];
-    return { overdue: row?.overdue ?? 0, failing: row?.failing ?? 0 };
+    return { overdue: row?.overdue ?? 0, failing: row?.failing ?? 0, publicSandboxes: { overdue: row?.sandboxes_overdue ?? 0, failing: row?.sandboxes_failing ?? 0 } };
   });
 }
 
@@ -2670,6 +2679,11 @@ const tableMigrations: Record<string, string> = {
   valopay_staff_invitations: "003_pilot_workflow.sql", valopay_staff_events: "003_pilot_workflow.sql", valopay_staff_lender_access: "004_staff_lender_access.sql",
 };
 const schemaSource = (table: string) => tableMigrations[table] ? `apply lib/db/migrations/${tableMigrations[table]}` : "create it from the Drizzle schema in lib/db";
+/**
+ * Where a missing column comes from: no migration adds one, since each creates its tables whole (CREATE TABLE IF NOT
+ * EXISTS) and applying it again leaves a table that exists as it is, so a column is added as the Drizzle schema declares it.
+ */
+const columnSource = "add it from the Drizzle schema in lib/db";
 /** Every table this build uses, with every column the Drizzle schema in lib/db gives it. */
 const requiredTables = [tables.workspaces, tables.merchants, tables.records, tables.idempotency, tables.operations, tables.teams, tables.staffMemberships, tables.staffInvitations, tables.staffEvents, tables.staffLenderAccess]
   .map((table) => { const config = getTableConfig(table); return { name: config.name, columns: config.columns.map((column) => column.name) }; });
@@ -2786,7 +2800,7 @@ function schemaGaps(catalogue: SchemaCatalogue): { required: string[]; indexes: 
   for (const table of requiredTables) {
     const columns = present.get(table.name);
     if (!columns) { required.push(`table ${table.name}: ${schemaSource(table.name)}`); continue; }
-    for (const column of table.columns) if (!columns.has(column)) required.push(`column ${table.name}.${column}: ${schemaSource(table.name)}`);
+    for (const column of table.columns) if (!columns.has(column)) required.push(`column ${table.name}.${column}: ${columnSource}`);
   }
   const valid = catalogue.indexes.filter((index) => index.valid);
   const defined = new Set(valid.map((index) => `${index.table} ${index.definition}`));

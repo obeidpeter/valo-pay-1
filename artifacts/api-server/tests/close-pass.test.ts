@@ -20,7 +20,7 @@ type Run = Awaited<ReturnType<Pass>>;
 let checks = 0;
 const lines: Array<Record<string, any>> = [];
 const log = { info: (fields: object, msg: string) => lines.push({ level: "info", ...fields, msg }), error: (fields: object, msg: string) => lines.push({ level: "error", ...fields, msg }) } as any;
-const run = (change: Partial<Run> = {}): Run => ({ runId: "run-1", initialised: 0, batches: 1, examined: 2, closed: [{ merchantId: "a", closeId: "c", late: false, delayMinutes: 0 }], skipped: ["b"], paused: [], failed: [], budgetSpent: false, backlog: { overdue: 0, failing: 0 }, ...change });
+const run = (change: Partial<Run> = {}): Run => ({ runId: "run-1", initialised: 0, batches: 1, examined: 2, closed: [{ merchantId: "a", closeId: "c", late: false, delayMinutes: 0 }], skipped: ["b"], paused: [], failed: [], budgetSpent: false, budgetSpentOnSandboxes: false, backlog: { overdue: 0, failing: 0, publicSandboxes: { overdue: 0, failing: 0 } }, ...change });
 let given: Parameters<Pass>[0] | undefined;
 
 // Everything due closed, paused or left to another process: 0, with the counts, and the longer budget.
@@ -46,18 +46,34 @@ assert.match(lines[0]!.msg, /ran out of time/);
 lines.length = 0;
 result = await runClosePassOnce({ log }, async () => run({ budgetSpent: true, failed: [{ merchantId: "a", error: "synthetic" }] }));
 assert.deepEqual([result.exitCode, lines[0]!.budgetSpent, lines[0]!.failed], [2, true, 1]);
-checks += 3;
+// Public sandboxes are taken up last: a budget that ran out with only them still due does not fail the run, and the
+// line says so under publicSandboxes (the review's case: 25 closed, the other 5 due and late).
+lines.length = 0;
+result = await runClosePassOnce({ log }, async () => run({ examined: 25, closed: [], skipped: [], budgetSpentOnSandboxes: true, backlog: { overdue: 0, failing: 0, publicSandboxes: { overdue: 5, failing: 0 } } }));
+assert.deepEqual([result.exitCode, lines[0]!.level, lines[0]!.budgetSpent, lines[0]!.publicSandboxes], [0, "info", false, { failed: 0, overdue: 5, failing: 0, budgetSpent: true }]);
+assert.match(lines[0]!.msg, /public sandboxes still due/);
+checks += 5;
 
 // A lender's close still failing from an earlier run, or one more than 30 minutes past its time, makes the run fail
 // too, though this run tried neither: the job's history shows it until that lender's close succeeds (K).
 lines.length = 0;
-result = await runClosePassOnce({ log }, async () => run({ examined: 0, closed: [], skipped: [], backlog: { overdue: 0, failing: 1 } }));
+result = await runClosePassOnce({ log }, async () => run({ examined: 0, closed: [], skipped: [], backlog: { overdue: 0, failing: 1, publicSandboxes: { overdue: 0, failing: 0 } } }));
 assert.deepEqual([result.exitCode, lines[0]!.level, lines[0]!.failed, lines[0]!.failing, lines[0]!.overdue], [2, "error", 0, 1, 0]);
 assert.match(lines[0]!.msg, /still failing or overdue/);
 lines.length = 0;
-result = await runClosePassOnce({ log }, async () => run({ backlog: { overdue: 3, failing: 0 } }));
+result = await runClosePassOnce({ log }, async () => run({ backlog: { overdue: 3, failing: 0, publicSandboxes: { overdue: 0, failing: 0 } } }));
 assert.deepEqual([result.exitCode, lines[0]!.overdue], [2, 3]);
 checks += 3;
+
+// A public anonymous sandbox's failed close, and its failing or overdue count, never fail the run: a visitor's own
+// synthetic data can make its close fail. The line counts them apart, beside the lenders' counts.
+lines.length = 0;
+result = await runClosePassOnce({ log }, async () => run({ failed: [{ merchantId: "v", error: "synthetic", failures: 1, retryAt: "2026-09-23T07:02:00.000Z", publicSandbox: true }], backlog: { overdue: 0, failing: 0, publicSandboxes: { overdue: 2, failing: 1 } } }));
+assert.deepEqual([result.exitCode, lines[0]!.level, lines[0]!.failed, lines[0]!.failing, lines[0]!.overdue, lines[0]!.publicSandboxes], [0, "info", 0, 0, 0, { failed: 1, overdue: 2, failing: 1, budgetSpent: false }]);
+lines.length = 0;
+result = await runClosePassOnce({ log }, async () => run({ failed: [{ merchantId: "a", error: "synthetic" }, { merchantId: "v", error: "synthetic", publicSandbox: true }] }));
+assert.deepEqual([result.exitCode, lines[0]!.failed, lines[0]!.publicSandboxes], [2, 1, { failed: 1, overdue: 0, failing: 0, budgetSpent: false }], "a lender's failure beside a sandbox's still fails the run");
+checks += 2;
 
 // Stopped before it finished: 1, whatever it managed; the lenders it did not reach are still due.
 lines.length = 0;
@@ -89,4 +105,4 @@ assert.deepEqual([summary?.level, summary?.exitCode], [50, 1], stdout);
 assert.doesNotMatch(stderr, /\n\s+at /, "no bare stack");
 checks += 3;
 
-console.log(`One-shot close pass checks passed (${checks}): exit 0 when every due close ran, 2 when a close failed and was left for its retry, the budget ran out with lenders still due or a lender's close is still failing or overdue, 1 when the pass was stopped or could not read what was due, one close.one_shot line each time, and the command's own exit against an unreachable database.`);
+console.log(`One-shot close pass checks passed (${checks}): exit 0 when every due close ran, 2 when a close failed and was left for its retry, the budget ran out with lenders still due or a lender's close is still failing or overdue, never for a public sandbox's, one the budget left included, 1 when the pass was stopped or could not read what was due, one close.one_shot line each time, and the command's own exit against an unreachable database.`);
