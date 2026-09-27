@@ -89,6 +89,24 @@ try {
   const lenderAndVisitor = await probeService({ origin: 'https://example.com', expectScheduler: 'on', now, fetchImpl: fake({ ...current, backlog: withSandboxes(backlog(1), 1, 0) }) });
   assert.deepEqual([lenderAndVisitor.codes, lenderAndVisitor.warnings], [['scheduler_close_failed'], ['scheduler_public_sandbox_close_failed']], 'a lender failing beside a sandbox is still the incident');
   assert.deepEqual((await probeService({ origin: 'https://example.com', expectScheduler: 'on', now, fetchImpl: fake({ ...current, backlog: withSandboxes(backlog(0), -1, 0) }) })).codes, ['scheduler_stale'], 'sandbox counts the monitor cannot read are no evidence either');
+  // A host whose closes run from a scheduled job (VALOPAY_CLOSE_SCHEDULER=external): each web instance reads what is
+  // still owed at the scheduler's interval and reports it, so the same codes apply, a job that has stopped running shows
+  // as overdue closes, and a read missing or older than three intervals is no evidence.
+  const external = (owed, at = now) => ({ state: 'external', intervalMs: 1000, ticks: 0, lastTickAt: null, lastSuccessAt: null, lastErrorAt: null, lastRun: null, backlog: owed && { ...owed, checkedAt: new Date(at).toISOString() } });
+  const probeExternal = scheduler => probeService({ origin: 'https://example.com', expectScheduler: 'external', now, fetchImpl: fake(scheduler) });
+  const jobStopped = await probeExternal(external(backlog(0, 1)));
+  assert.deepEqual([jobStopped.codes, jobStopped.warnings, jobStopped.observations.schedulerEvidence, jobStopped.observations.closeBacklog], [['scheduler_closes_overdue'], [], 'failed', { overdue: 1, failing: 0 }], 'a scheduled job that stopped running shows as overdue closes');
+  assert.deepEqual((await probeExternal(external(backlog(2)))).codes, ['scheduler_close_failed'], 'a failing close is raised as on a host that runs its own');
+  const quiet = await probeExternal(external(withSandboxes(backlog(0), 0, 1)));
+  assert.deepEqual([quiet.codes, quiet.warnings, quiet.observations.schedulerEvidence, quiet.observations.closeBacklog], [[], ['scheduler_public_sandbox_closes_overdue'], 'mode_and_fresh_backlog', { overdue: 0, failing: 0, publicSandboxes: { overdue: 1, failing: 0 } }], 'the monitor saw the backlog, not only the mode');
+  assert.deepEqual((await probeExternal(external(backlog(0), now - 4000))).codes, ['scheduler_stale'], 'a read older than three intervals is no evidence');
+  const unread = await probeExternal(external(null));
+  assert.deepEqual([unread.codes, unread.observations.closeBacklog], [['scheduler_stale'], 'unverified'], 'nor is a process that has not read it yet');
+  // A build from before this reports no backlog in external mode, null or absent: the mode alone, as before, with a warning.
+  for (const older of [{ state: 'external', intervalMs: null, ticks: 0, lastTickAt: null, lastRun: null, backlog: null }, { state: 'external', intervalMs: null, ticks: 0, lastTickAt: null, lastRun: null }]) {
+    const before = await probeExternal(older);
+    assert.deepEqual([before.codes, before.warnings, before.observations.schedulerEvidence, before.observations.closeBacklog], [[], ['scheduler_backlog_not_reported'], 'mode_only', 'not_reported'], 'an older build is the mode alone');
+  }
   // Two identical probes open the incident; a restart's first probe, before its first pass, neither ends nor repeats
   // it; the pass after the restart reads the lender again, and only that lender's close sends the recovery.
   const sent = [];
@@ -163,5 +181,5 @@ try {
   assert.equal(deliveryConfiguration({ VALOPAY_MONITOR_OWNER: 'Operator', VALOPAY_MONITOR_ALERT_URL: 'http://alerts.example/receiver' }).status, 'incomplete');
   assert.equal(deliveryConfiguration({ VALOPAY_MONITOR_OWNER: 'Operator', VALOPAY_ALERT_RESEND_KEY: 'synthetic-secret', VALOPAY_ALERT_FROM: 'alerts@example.com', VALOPAY_ALERT_TO: 'operations@example.test' }).status, 'configured');
   await assert.rejects(() => sendEmail(received[0], { apiKey: 'synthetic-secret', from: 'alerts@example.com', to: 'operations@example.test', fetchImpl: async () => { throw new Error('provider secret'); } }), error => !error.message.includes('provider secret'));
-  console.log('Operational monitor passed: real local HTTP probe/delivery, incident threshold, no repeat, recovery, failed-delivery retry, close failures that stay raised until the failing lender closes (across other lenders\' passes and a restart), overdue closes, public sandboxes\' counted apart as warnings, schema readiness, scheduler mode versus execution evidence, explicit labelled delivery tests without incident-state changes, redacted failures.');
+  console.log('Operational monitor passed: real local HTTP probe/delivery, incident threshold, no repeat, recovery, failed-delivery retry, close failures that stay raised until the failing lender closes (across other lenders\' passes and a restart), overdue closes, public sandboxes\' counted apart as warnings, schema readiness, scheduler mode versus execution evidence, the backlog an external host\'s web instances read, explicit labelled delivery tests without incident-state changes, redacted failures.');
 } finally { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); }

@@ -13,8 +13,9 @@ export function commissioningReport(probe, env) {
   const blockers = [...probe.codes];
   if (!expected) blockers.push('scheduler_expectation_not_configured');
   if (expected === 'on' && hostMode === 'autoscale') blockers.push('scheduler_stops_when_host_scales_down');
-  // A build that does not report what is still owed shows a failed close only until a later pass with work replaces it.
-  if (expected === 'on' && probe.observations?.closeBacklog === 'not_reported') blockers.push('scheduler_backlog_not_reported');
+  // A build that does not report what is still owed shows a failed close only until a later pass with work replaces it,
+  // and on a host whose closes a scheduled job runs, it shows only the mode: a job that stopped running goes unseen.
+  if (expected && probe.observations?.closeBacklog === 'not_reported') blockers.push('scheduler_backlog_not_reported');
   if (hostMode === 'unverified') blockers.push('host_operating_mode_unverified');
   if (delivery.status !== 'configured') blockers.push('alert_configuration_incomplete');
   if (!env.VALOPAY_MONITOR_STATE_FILE?.trim()) blockers.push('monitor_state_not_configured');

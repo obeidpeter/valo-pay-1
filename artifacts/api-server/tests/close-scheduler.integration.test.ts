@@ -9,7 +9,8 @@
 // instead of closing it; stops between lenders when told to; gives legacy
 // lenders a cursor without a close; runs once, as the one-shot close pass,
 // with an exit status; counts public anonymous sandboxes, and only those,
-// apart from the lenders; and its audit entries never keep an abandoned
+// apart from the lenders; reads what is still owed on a web instance whose
+// closes a scheduled job runs; and its audit entries never keep an abandoned
 // sandbox alive. Every pass is scoped to this test's own lenders, so other due
 // lenders in a reused database never crowd them out.
 import assert from "node:assert/strict";
@@ -23,7 +24,7 @@ if (process.env.VALOPAY_RUN_INTEGRATION !== "1") {
 const { pool } = await import("@workspace/db");
 const { nextCloseInstant } = await import("@workspace/valopay-schema");
 const { SYSTEM_ACTOR_PREFIX, appendAudit, createPilotLender, dueScheduledCloses, inWorkspace, listMerchants, loadState, provisionStaffWorkspace, recordScheduledCloseFailure, saveState, scheduledCloseBacklog } = await import("../src/lib/valopay-store.js");
-const { SCHEDULED_CLOSE_ACTOR, runClosePassOnce, runDueCloses, startCloseScheduler, schedulerStatus } = await import("../src/lib/close-scheduler.js");
+const { SCHEDULED_CLOSE_ACTOR, markSchedulerOff, runClosePassOnce, runDueCloses, startCloseScheduler, schedulerStatus } = await import("../src/lib/close-scheduler.js");
 const { followingCloseInstant, scheduledCloseBusinessDate } = await import("../src/domain/close.js");
 const { makeRecord } = await import("../src/domain/records.js");
 
@@ -552,6 +553,39 @@ try {
   for (const id of created) await pool.query("UPDATE valopay_merchants SET settings = settings || jsonb_build_object('scheduledCloseEnabled', true, 'nextCloseAt', $2::text) WHERE id=$1", [id, hoursAgo(clock, 1)]);
   assert.deepEqual(await scheduledCloseBacklog(30, { only: created }), { overdue: 2, failing: 0, publicSandboxes: { overdue: 1, failing: 0 } }, "an hour past their times, the visitor's is counted as a public sandbox, the others as lenders");
   for (const id of created) await pool.query(`UPDATE valopay_merchants SET settings = settings || '{"scheduledCloseEnabled": false}' WHERE id=$1`, [id]);
+
+  // With VALOPAY_CLOSE_SCHEDULER=external a scheduled job runs the closes and the web instances run no pass, so each
+  // reads what is still owed itself, on its background worker thread at the scheduler's interval, as index.ts starts it,
+  // and its health answer carries the read: the monitor raises the same codes, so a job that has stopped running shows
+  // as overdue closes, and a read that stops ages past three intervals into scheduler_stale.
+  const { startBackgroundWorker } = await import("../src/lib/background-worker.js");
+  const [j1] = await signedInLenders(), [jv] = await sandboxLenders();
+  const jobOnly = [j1, jv];
+  clock = await databaseNow();
+  await setCursor(j1, hoursAgo(clock, 1)); await setCursor(jv, hoursAgo(clock, 1));
+  const externalProbe = async () => probeService({ origin: "https://example.test", expectScheduler: "external", fetchImpl: async (url: string) => new Response(JSON.stringify(url.endsWith("readyz") ? readyAnswer : healthAnswer(schedulerStatus()))) });
+  /** Waits, for a while, for a read the instance made at or after `since`. */
+  const readSince = async (since: number) => { for (const give = Date.now() + 15_000; !(Date.parse(schedulerStatus().backlog?.checkedAt ?? "") >= since) && Date.now() < give;) await new Promise((resolve) => setTimeout(resolve, 20)); };
+  markSchedulerOff("external");
+  let since = Date.now();
+  const webInstance = startBackgroundWorker({ log: { info() {}, warn() {}, error() {} } as any, closes: null, backlog: { intervalMs: 1_000, firstDelayMs: 10, onlyMerchantIds: jobOnly }, exports: null });
+  try {
+    await readSince(since);
+    const missed = await externalProbe();
+    assert.deepEqual([missed.codes, missed.warnings, missed.observations.schedulerEvidence, missed.observations.closeBacklog], [["scheduler_closes_overdue"], ["scheduler_public_sandbox_closes_overdue"], "failed", { overdue: 1, failing: 0, publicSandboxes: { overdue: 1, failing: 0 } }], "a close the scheduled job has not run shows on the web instance's health answer, as on a host that runs its own");
+    assert.deepEqual([schedulerStatus().state, schedulerStatus().intervalMs], ["external", 1_000], "the instance runs no pass, and says how often it reads");
+    const job = await runClosePassOnce({ onlyMerchantIds: jobOnly });
+    assert.deepEqual([job.exitCode, closedIds(job.run!).sort()], [0, [...jobOnly].sort()], "the job's next run closes both");
+    since = Date.now();
+    await readSince(since);
+    const caughtUp = await externalProbe();
+    assert.deepEqual([caughtUp.codes, caughtUp.warnings, caughtUp.observations.schedulerEvidence, caughtUp.observations.closeBacklog], [[], [], "mode_and_fresh_backlog", { overdue: 0, failing: 0, publicSandboxes: { overdue: 0, failing: 0 } }], "and the instance's next read ends it");
+  } finally {
+    webInstance.stop();
+    await webInstance.settle();
+  }
+  await new Promise((resolve) => setTimeout(resolve, 3_200));
+  assert.deepEqual((await externalProbe()).codes, ["scheduler_stale"], "a read that stops ages: past three intervals it is no evidence");
 
   // Expiry: scheduled-close audit entries never keep an abandoned sandbox alive.
   const workspace = (await pool.query<{ workspace_id: string }>("SELECT workspace_id FROM valopay_merchants WHERE id=$1", [a])).rows[0]!.workspace_id;

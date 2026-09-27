@@ -10,7 +10,8 @@ declare const __VALOPAY_BACKGROUND_ENTRY__: string | undefined;
 
 /**
  * The background worker thread's own database connections: one for the
- * scheduled close, which closes one lender at a time, and one for each export
+ * scheduled close, which closes one lender at a time (or, where a scheduled
+ * job runs the closes, reads what is still owed), and one for each export
  * slot. With the request pool (VALOPAY_DATABASE_POOL_SIZE) and readiness's one
  * connection, an API process holds at most that size plus four.
  */
@@ -25,6 +26,8 @@ export const BACKGROUND_STEADY_MS = 60_000;
 export interface BackgroundOptions {
   /** The scheduled daily close, with its options (tests narrow it to their own lenders), or null when this process schedules none. */
   closes: { intervalMs?: number; firstDelayMs?: number; batchSize?: number; budgetMs?: number; onlyMerchantIds?: string[] } | null;
+  /** Where a scheduled job runs the closes (VALOPAY_CLOSE_SCHEDULER=external), the read of what is still owed at the scheduler's interval (startBacklogWatch), with its options; null or absent otherwise. */
+  backlog?: { intervalMs?: number; firstDelayMs?: number; onlyMerchantIds?: string[] } | null;
   /** The export worker, with its options, or null (tests of the close alone). */
   exports: { intervalMs?: number; maxBackoffMs?: number } | null;
 }
@@ -95,7 +98,7 @@ function sourceWorker(entry: URL, options: WorkerOptions): Worker | undefined {
  */
 export function startBackgroundWorker(options: BackgroundOptions & { log: Logger; entry?: URL; restartMs?: number; maxRestartMs?: number; steadyMs?: number }): BackgroundWorker {
   const { log } = options, entry = options.entry ?? backgroundEntry();
-  const workerData: BackgroundOptions & { thread: "background" } = { thread: "background", closes: options.closes, exports: options.exports };
+  const workerData: BackgroundOptions & { thread: "background" } = { thread: "background", closes: options.closes, backlog: options.backlog ?? null, exports: options.exports };
   // The database module sizes its pool from this setting when the thread loads it: the thread's pool, not the requests'.
   const settings: WorkerOptions = { workerData, env: { ...process.env, VALOPAY_DATABASE_POOL_SIZE: String(BACKGROUND_POOL_SIZE) } };
   let current: Worker | undefined, restart: ReturnType<typeof setTimeout> | undefined;
@@ -116,6 +119,8 @@ export function startBackgroundWorker(options: BackgroundOptions & { log: Logger
   // The scheduler counts as started with its thread, as it did in the process, rather than as not started while the
   // thread loads; the thread reports the same when its scheduler starts.
   if (options.closes) applySchedulerEvent({ type: "started", intervalMs: options.closes.intervalMs ?? closeRules.tickSeconds * 1000 });
+  // Likewise where the thread reads what is still owed instead: the health answer says how often from the start.
+  if (options.backlog) applySchedulerEvent({ type: "external", intervalMs: options.backlog.intervalMs ?? closeRules.tickSeconds * 1000 });
   function spawn(): void {
     restart = undefined;
     const startedAt = Date.now();
@@ -139,7 +144,7 @@ export function startBackgroundWorker(options: BackgroundOptions & { log: Logger
       else log.info({ event: "background.stopped", durationMs: Date.now() - startedAt }, "Background worker thread stopped");
       ended();
     });
-    log.info({ event: "background.started", threadId: worker.threadId, closes: options.closes !== null, exports: options.exports !== null, poolSize: BACKGROUND_POOL_SIZE, crashes }, "Background worker thread started");
+    log.info({ event: "background.started", threadId: worker.threadId, closes: options.closes !== null, backlog: Boolean(options.backlog), exports: options.exports !== null, poolSize: BACKGROUND_POOL_SIZE, crashes }, "Background worker thread started");
   }
   spawn();
 

@@ -54,8 +54,13 @@ function backlogCounts(scheduler) {
   if (sandboxes === undefined) return { overdue: backlog.overdue, failing: backlog.failing };
   return count(sandboxes?.overdue) && count(sandboxes?.failing) ? { overdue: backlog.overdue, failing: backlog.failing, publicSandboxes: { overdue: sandboxes.overdue, failing: sandboxes.failing } } : undefined;
 }
-/** Whether a health answer's scheduler carries the backlog at all: builds before it report only their last pass with work. */
-const reportsBacklog = scheduler => scheduler !== null && typeof scheduler === 'object' && Object.hasOwn(scheduler, 'backlog');
+/**
+ * Whether a health answer's scheduler carries the backlog at all: builds before it report only their last pass with
+ * work. In external mode a build reads it itself only since it says how often (intervalMs): one from before reports
+ * it null for good.
+ */
+const reportsBacklog = scheduler => scheduler !== null && typeof scheduler === 'object' && Object.hasOwn(scheduler, 'backlog')
+  && (scheduler.state !== 'external' || scheduler.backlog !== null || Number(scheduler.intervalMs) > 0);
 /**
  * The lenders' failing and overdue closes are incidents; public anonymous sandboxes', which a visitor's own synthetic
  * data can cause, are warnings, never incidents.
@@ -70,7 +75,8 @@ function raiseBacklog(backlog, codes, warnings) {
 /**
  * One probe, no customer records, no log bodies, no provider requests. `expectScheduler`: true or 'on' expects the
  * API process to run the scheduled closes with a fresh successful check; 'external' expects it to leave them to a
- * separate scheduled job and say so (VALOPAY_CLOSE_SCHEDULER=external), since off would hide missed closes.
+ * separate scheduled job and say so (VALOPAY_CLOSE_SCHEDULER=external), since off would hide missed closes, and to
+ * report a fresh read of what is still owed. Either way no lender's close may be failing or overdue.
  */
 export async function probeService({ origin, expectScheduler = false, fetchImpl = fetch, now = Date.now(), allowLocal = false, timeoutMs = 8000 }) {
   const base = checkedOrigin(origin, allowLocal);
@@ -90,8 +96,16 @@ export async function probeService({ origin, expectScheduler = false, fetchImpl 
     else if (ready.value?.checks?.schema?.status !== 'ok') codes.push('schema_unready');
   }
   if (expectScheduler === 'external' && health.status === 'fulfilled') {
-    // The job's own runs are not visible here: they show in its run history and its close.one_shot lines.
-    if (health.value?.scheduler?.state !== 'external') codes.push('scheduler_not_external');
+    // The job's own runs are not visible here: they show in its run history and its close.one_shot lines. Each web
+    // instance reads what is still owed at the scheduler's interval instead, so a job that has stopped running shows
+    // as overdue closes; a read missing, or older than three intervals, is no evidence, like a stale heartbeat.
+    const scheduler = health.value?.scheduler;
+    if (scheduler?.state !== 'external') codes.push('scheduler_not_external');
+    else if (reportsBacklog(scheduler)) {
+      const interval = Number(scheduler.intervalMs), checkedAt = Date.parse(scheduler.backlog?.checkedAt || ''), backlog = backlogCounts(scheduler);
+      if (!backlog || !Number.isFinite(interval) || interval <= 0 || !Number.isFinite(checkedAt) || now - checkedAt > 3 * interval || checkedAt > now + interval) codes.push('scheduler_stale');
+      raiseBacklog(backlog, codes, warnings);
+    } else warnings.push('scheduler_backlog_not_reported');
   } else if (expectScheduler && health.status === 'fulfilled') {
     const scheduler = health.value?.scheduler;
     const interval = Number(scheduler?.intervalMs);
@@ -115,15 +129,18 @@ export async function probeService({ origin, expectScheduler = false, fetchImpl 
     }
   }
   const schedulerStates = ['not_started', 'running', 'off', 'external', 'stopped'];
+  // In external mode the monitor saw the backlog only from a build that reads it; from one before, the mode alone.
+  const sawBacklog = health.status === 'fulfilled' && health.value?.scheduler?.state === 'external' && reportsBacklog(health.value.scheduler);
   return { service: base, observedAt: new Date(now).toISOString(), codes: [...new Set(codes)].sort(), warnings,
     observations: {
       liveness: health.status === 'fulfilled' && health.value?.status === 'ok' ? 'ok' : 'unavailable',
       database: ready.status === 'fulfilled' && ready.value?.checks?.database?.status === 'ok' ? 'ok' : 'unavailable',
       schema: ready.status === 'fulfilled' && ['ok', 'indexes_missing', 'incomplete'].includes(ready.value?.checks?.schema?.status) ? ready.value.checks.schema.status : 'unverified',
       scheduler: schedulerStates.includes(health.value?.scheduler?.state) ? health.value.scheduler.state : 'unverified',
-      schedulerEvidence: !expectScheduler ? 'not_requested' : expectScheduler === 'external' ? 'mode_only' : codes.some(code => code.startsWith('scheduler_')) || health.status !== 'fulfilled' ? 'failed' : 'fresh_process_heartbeat',
-      // Counts only, never a lender: what the scheduler's latest pass read as still owed, public sandboxes apart.
-      closeBacklog: !expectScheduler || expectScheduler === 'external' ? 'not_requested' : backlogCounts(health.value?.scheduler)
+      schedulerEvidence: !expectScheduler ? 'not_requested' : expectScheduler === 'external' && !sawBacklog ? 'mode_only'
+        : codes.some(code => code.startsWith('scheduler_')) || health.status !== 'fulfilled' ? 'failed' : expectScheduler === 'external' ? 'mode_and_fresh_backlog' : 'fresh_process_heartbeat',
+      // Counts only, never a lender: what the process last read as still owed, public sandboxes apart.
+      closeBacklog: !expectScheduler ? 'not_requested' : backlogCounts(health.value?.scheduler)
         ?? (health.status === 'fulfilled' && health.value?.scheduler !== null && typeof health.value?.scheduler === 'object' && !reportsBacklog(health.value.scheduler) ? 'not_reported' : 'unverified'),
     },
   };

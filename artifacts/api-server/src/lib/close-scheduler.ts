@@ -31,7 +31,10 @@
  * a failing lender stays visible until its own close succeeds, whatever
  * other lenders' passes do and across a restart.  Public anonymous sandboxes,
  * whose visitors' own synthetic data can make a close fail, are counted apart
- * there and in the pass's failures, and never fail a one-shot run.
+ * there and in the pass's failures, and never fail a one-shot run.  Where a
+ * scheduled job runs the closes instead (VALOPAY_CLOSE_SCHEDULER=external),
+ * the process runs no pass but makes the same read at the same interval
+ * (startBacklogWatch), so /api/healthz still reports what is owed.
  */
 import { randomUUID } from "node:crypto";
 import type { Logger } from "pino";
@@ -55,7 +58,7 @@ export interface ClosedMerchant { merchantId: string; closeId: string; late: boo
  * first pass reads it again. Counts only: no lender is named.
  */
 export interface CloseBacklog extends OwedCloses {
-  /** When the pass read it, on this process's clock, as lastSuccessAt. */
+  /** When it was read, on this process's clock: at the end of a pass, as lastSuccessAt, or with external by the backlog watch. */
   checkedAt: string;
   /** Lenders other than public anonymous sandboxes whose automatic close is on and whose pending close is more than lateAfterMinutes past its time: missed. */
   overdue: number;
@@ -69,19 +72,20 @@ export interface CloseBacklog extends OwedCloses {
 
 /**
  * What the scheduler is doing, for /api/healthz: whether it ticks, when it last looked, what its last pass that
- * found work did, and what its latest pass read as still owed. `off` and `external` both mean this process schedules
- * no closes; `external` says a separate scheduled job runs them (the one-shot close pass), so a close it misses still
- * counts as missed.
+ * found work did, and what it last read as still owed. `off` and `external` both mean this process schedules no
+ * closes; `external` says a separate scheduled job runs them (the one-shot close pass), so a close it misses still
+ * counts as missed, and this process reads what is still owed itself (startBacklogWatch).
  */
 export interface SchedulerStatus {
   state: "not_started" | "running" | "off" | "external" | "stopped";
+  /** How often this process looks: its scheduler's tick, or with external how often it reads what is still owed; null in a process that does neither. */
   intervalMs: number | null;
   ticks: number;
   lastTickAt: string | null;
   lastSuccessAt: string | null;
   lastErrorAt: string | null;
   lastRun: { runId: string; at: string; durationMs: number; initialised: number; batches: number; examined: number; closed: number; skipped: number; paused: number; failed: number } | null;
-  /** Null until this process's first pass has read it; kept while the scheduler is stopped or failing, as last read. */
+  /** Null until this process has first read it (its first pass, or with external its first read); kept as last read while the scheduler is stopped or failing, or a read fails. */
   backlog: CloseBacklog | null;
 }
 const status: SchedulerStatus = { state: "not_started", intervalMs: null, ticks: 0, lastTickAt: null, lastSuccessAt: null, lastErrorAt: null, lastRun: null, backlog: null };
@@ -91,7 +95,8 @@ export function schedulerStatus(): SchedulerStatus & { observedAt: string } { re
  * One change to the scheduler's state: it started, a pass began, a pass
  * returned (with its counts when it found work, and what it read as still
  * owed unless it was told to stop) or failed, it stopped, or this process
- * schedules no closes.
+ * schedules no closes: with external, how often it reads what is still owed,
+ * and each read, which is not a pass.
  */
 export type SchedulerEvent =
   | { type: "started"; intervalMs: number }
@@ -99,7 +104,9 @@ export type SchedulerEvent =
   | { type: "succeeded"; at: string; run: SchedulerStatus["lastRun"]; backlog?: CloseBacklog | null }
   | { type: "failed"; at: string }
   | { type: "stopped" }
-  | { type: "off" | "external" };
+  | { type: "off" }
+  | { type: "external"; intervalMs?: number }
+  | { type: "backlog"; backlog: CloseBacklog };
 const observers = new Set<(event: SchedulerEvent) => void>();
 /**
  * Applies a change to this thread's scheduler state and passes it to the
@@ -114,6 +121,8 @@ export function applySchedulerEvent(event: SchedulerEvent): void {
   else if (event.type === "succeeded") { status.lastSuccessAt = event.at; status.lastErrorAt = null; if (event.run) status.lastRun = event.run; if (event.backlog) status.backlog = event.backlog; }
   else if (event.type === "failed") status.lastErrorAt = event.at;
   else if (event.type === "stopped") status.state = "stopped";
+  else if (event.type === "backlog") status.backlog = event.backlog;
+  else if (event.type === "external") { status.state = "external"; if (event.intervalMs) status.intervalMs = event.intervalMs; }
   else status.state = event.type;
   for (const observer of observers) observer(event);
 }
@@ -404,5 +413,45 @@ export function startCloseScheduler(options: { intervalMs?: number; firstDelayMs
       auditChecks.add(merchantId);
       void tick();
     },
+  };
+}
+
+/** The read of what is still owed that a process runs where a scheduled job runs the closes. */
+export interface BacklogWatch {
+  /** Stops the timers; a read in progress finishes. */
+  stop(): void;
+  /** Waits for the read in progress, if any, without starting one: what a shutdown does before it ends the pool. */
+  settle(): Promise<void>;
+}
+
+/**
+ * Where a scheduled job runs the closes (VALOPAY_CLOSE_SCHEDULER=external),
+ * this process runs no pass, so it reads what is still owed itself: the read
+ * a pass ends with (scheduledCloseBacklog), every intervalMs (the scheduler's
+ * tick), on the background worker thread as the scheduler would be, and
+ * /api/healthz reports each read as the scheduler's backlog. A job that has
+ * stopped running then shows as overdue closes. A read that fails is logged
+ * (`close.backlog_failed`) and leaves the last read, whose checkedAt ages; it
+ * is not a failed pass. The timers are unreferenced, as the scheduler's are.
+ */
+export function startBacklogWatch(options: { intervalMs?: number; firstDelayMs?: number; log?: Logger; onlyMerchantIds?: readonly string[] } = {}): BacklogWatch {
+  const intervalMs = options.intervalMs ?? closeRules.tickSeconds * 1000;
+  let reading: Promise<void> | null = null;
+  // Reads never overlap: a read still running when the next is due is left to finish instead.
+  const read = () => {
+    reading ??= scheduledCloseBacklog(closeRules.lateAfterMinutes, { only: options.onlyMerchantIds })
+      .then((owed) => applySchedulerEvent({ type: "backlog", backlog: { checkedAt: new Date().toISOString(), ...owed, lateAfterMinutes: closeRules.lateAfterMinutes } }))
+      .catch((error: unknown) => { options.log?.error({ event: "close.backlog_failed", err: error }, "The lenders still owed a close could not be read; /api/healthz keeps the last read, which ages"); })
+      .finally(() => { reading = null; });
+  };
+  // The first read comes soon after start, as the scheduler's first look does, so a restarted process has evidence at once.
+  const first = setTimeout(read, options.firstDelayMs ?? Math.min(intervalMs, 5_000));
+  const timer = setInterval(read, intervalMs);
+  first.unref();
+  timer.unref();
+  applySchedulerEvent({ type: "external", intervalMs });
+  return {
+    stop() { clearTimeout(first); clearInterval(timer); },
+    settle() { return reading ?? Promise.resolve(); },
   };
 }

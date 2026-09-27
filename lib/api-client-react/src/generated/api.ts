@@ -199,7 +199,7 @@ export const getHealthCheckUrl = () => {
 }
 
 /**
- * Never touches the database, so a database outage does not read as a dead process: the scheduler's backlog is what its latest pass read, counted without naming a lender. Needs no sandbox or sign-in, and answers whether or not Clerk is configured. At most 120 health checks a minute per client network, both health addresses together (an IPv6 client's network is its /64).
+ * Never touches the database, so a database outage does not read as a dead process: the scheduler's backlog is what the process last read, at the end of a pass or, where a scheduled job runs the closes, at the scheduler's interval, counted without naming a lender. Needs no sandbox or sign-in, and answers whether or not Clerk is configured. At most 120 health checks a minute per client network, both health addresses together (an IPv6 client's network is its /64).
  * @summary Liveness: the process answers, with its build, uptime and scheduler state
  */
 export const healthCheck = async ( options?: Parameters<typeof customFetch>[1]): Promise<HealthStatus> => {

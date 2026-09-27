@@ -3,11 +3,13 @@
 // doubles to its maximum, and a thread that stayed up long enough starts the
 // waits again; its crash marks the scheduler failed without touching the
 // process; its log lines and scheduler changes reach the main thread; a stop
-// ends the thread, or cancels a start still waiting; and the real thread
+// ends the thread, or cancels a start still waiting; the real thread
 // (background.ts) runs the close scheduler and the export worker against an
 // unreachable database, reports both through the main thread and stops
-// cleanly. The fixture threads are data: modules; nothing connects to a
-// database.
+// cleanly; and where a scheduled job runs the closes, the thread's reads of
+// what is still owed reach the main thread, and a read that fails is logged
+// and keeps the last one. The fixture threads are data: modules; nothing
+// connects to a database.
 import assert from "node:assert/strict";
 import { readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -114,7 +116,34 @@ try {
   assert.deepEqual(lines().filter((line) => line.event?.startsWith("background.")).map((line) => line.event), ["background.started", "background.stopped"], "it stopped when asked, without a crash");
   checks += 5;
 
-  console.log(`Background worker tests passed (${checks} checks): crashes, unasked ends and refused starts logged and the thread started again after doubling waits, reset after a steady run; the scheduler marked failed meanwhile; log lines and scheduler changes relayed to the main thread; a stop that ends the thread or cancels a waiting start; and the real thread running both jobs and stopping cleanly.`);
+  // ---- External mode: no pass runs here, so the thread reads what is still owed itself, and each read reaches the main thread ----
+  mark();
+  const relayingReads = startBackgroundWorker({ log: logger, closes: null, backlog: {}, exports: null, entry: fixture(`
+    parentPort.postMessage({ type: "scheduler", event: { type: "external", intervalMs: 60000 } });
+    parentPort.postMessage({ type: "scheduler", event: { type: "backlog", backlog: { checkedAt: "2026-09-23T07:00:00.000Z", overdue: 3, failing: 0, lateAfterMinutes: 30, publicSandboxes: { overdue: 1, failing: 1 } } } });
+    ${stoppable}`) });
+  await waitFor(() => schedulerStatus().backlog?.checkedAt === "2026-09-23T07:00:00.000Z", "the relayed read");
+  assert.deepEqual([schedulerStatus().state, schedulerStatus().intervalMs, schedulerStatus().backlog], ["external", 60_000, { checkedAt: "2026-09-23T07:00:00.000Z", overdue: 3, failing: 0, lateAfterMinutes: 30, publicSandboxes: { overdue: 1, failing: 1 } }], "what the thread read reaches the health answer, with how often it reads");
+  relayingReads.stop();
+  await relayingReads.settle();
+  checks += 1;
+
+  // ---- The real thread in external mode, against an unreachable database: a read that fails is logged and keeps the last one ----
+  mark();
+  const lastRead = schedulerStatus();
+  const reader = startBackgroundWorker({ log: logger, closes: null, backlog: { intervalMs: 60_000, firstDelayMs: 10 }, exports: null });
+  await waitFor(() => events("close.backlog_failed").length > 0, "the real thread's first read", 30_000);
+  reader.stop();
+  await reader.settle();
+  const failedRead = events("close.backlog_failed")[0]!;
+  assert.deepEqual([failedRead.level, failedRead.thread, typeof failedRead.err?.message], [50, "background", "string"], "a failed read is an error line of the thread's, with the error");
+  const afterFailedRead = schedulerStatus();
+  assert.deepEqual([afterFailedRead.state, afterFailedRead.intervalMs, afterFailedRead.backlog, afterFailedRead.lastErrorAt, afterFailedRead.ticks], ["external", 60_000, lastRead.backlog, lastRead.lastErrorAt, lastRead.ticks], "it keeps the last read, whose checkedAt ages, and is not a failed pass");
+  assert.deepEqual(events("background.started").map((line) => [line.closes, line.backlog, line.exports]), [[false, true, false]], "the thread reads the backlog and schedules no close");
+  assert.deepEqual(lines().filter((line) => line.event?.startsWith("background.")).map((line) => line.event), ["background.started", "background.stopped"], "and stops when asked, without a crash");
+  checks += 4;
+
+  console.log(`Background worker tests passed (${checks} checks): crashes, unasked ends and refused starts logged and the thread started again after doubling waits, reset after a steady run; the scheduler marked failed meanwhile; log lines and scheduler changes relayed to the main thread; a stop that ends the thread or cancels a waiting start; the real thread running both jobs and stopping cleanly; and in external mode the thread's reads of what is still owed relayed, a failed read logged and the last read kept.`);
 } finally {
   rmSync(logFile, { force: true });
 }
