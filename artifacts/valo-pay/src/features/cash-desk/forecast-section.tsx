@@ -12,6 +12,13 @@ import {
 import { ForecastChart } from "./forecast-chart";
 import { amount, label, Metric, Section } from "./shared";
 import type { CashView, ForecastAssumptions, ReviewAction } from "./types";
+import { Link } from "wouter";
+
+// An absent source value is not a zero balance. The service supplies qualification and warnings.
+const sourceAmount = (value: number | null | undefined) =>
+  value == null ? "Unavailable" : amount(value);
+const sourceTime = (value: string | null | undefined) =>
+  value ? formatDate(value) : "Unavailable";
 
 type Props = {
   cash: CashView;
@@ -40,23 +47,65 @@ export function CashForecastSection({
 }: Props) {
   const { downside, delay, buffer } = assumptions;
   const position = cash.positions.find((p) => p.currency === "NGN");
+  const hasBalances = !!position?.accountCount;
   const base =
     cash.forecast?.scenarios.find((s) => s.name === "base")?.points ?? [];
   const stress =
     cash.forecast?.scenarios.find((s) => s.name === "downside")?.points ?? [];
   return (
     <div className="space-y-6">
+      <section
+        aria-labelledby="cash-source-title"
+        className="rounded-2xl border bg-card p-5"
+      >
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h2 id="cash-source-title" className="text-sm font-semibold">
+              Sample balance sources
+            </h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {hasBalances
+                ? `${formatCount(position!.accountCount, "business account")} included`
+                : "No account balances are available for this view."}
+            </p>
+          </div>
+          <p className={`text-xs font-medium ${position?.qualified ? "text-muted-foreground" : "text-amber-700 dark:text-amber-400"}`}>
+            {position?.qualified ? "No source warnings reported" : "Review source limits"}
+          </p>
+        </div>
+        <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+          <div>
+            <dt className="text-xs text-muted-foreground">Oldest sample bank timestamp</dt>
+            <dd className="mt-1 font-medium">{sourceTime(position?.oldestBalanceAsOf)}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted-foreground">Latest retrieval time</dt>
+            <dd className="mt-1 font-medium">{sourceTime(position?.latestFetchedAt)}</dd>
+          </div>
+        </dl>
+        <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+          The bank timestamp says when the sample balance applies. Retrieval says when its source was received.
+          A later retrieval does not make an older bank balance current. These are sample records, not live bank data.
+        </p>
+        {!!position?.warnings.length && (
+          <div role="status" className="mt-4 space-y-1 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-sm">
+            {position.warnings.map((warning) => <p key={warning}>{warning}</p>)}
+          </div>
+        )}
+      </section>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Metric
           title="Booked cash"
-          value={amount(position?.bookedMinor)}
-          detail={`${formatCount(position?.accountCount ?? 0, "business account")} · own-account transfers excluded from income`}
+          value={sourceAmount(hasBalances ? position?.bookedMinor : null)}
+          detail="Recorded source balances; review the timestamps and coverage above"
           accent
         />
         <Metric
           title="Available cash"
-          value={amount(position?.availableMinor)}
-          detail="Bank-reported amount; pending items are kept separate"
+          value={sourceAmount(hasBalances ? position?.availableMinor : null)}
+          detail={position?.availableMinor == null || !hasBalances
+            ? "Review the source limits above; unavailable does not mean zero"
+            : "Bank-reported amount; pending items are kept separate"}
         />
         <Metric
           title="Base · day 30"
@@ -69,16 +118,12 @@ export function CashForecastSection({
           detail="Lower and later receipts; committed outflows remain due"
         />
       </div>
-      {!!position?.warnings.length && (
-        <div
-          role="status"
-          className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-sm"
-        >
-          {position.warnings.map((w) => (
-            <p key={w}>{w}</p>
-          ))}
-        </div>
-      )}
+      <p className="text-sm text-muted-foreground">
+        <Link href="/cash-desk?view=accounting" className="font-medium text-foreground underline underline-offset-4">
+          Review accounting drafts
+        </Link>{" "}
+        alongside these balances. An accounting draft or export has not been posted to accounting software.
+      </p>
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.55fr)_minmax(280px,1fr)]">
         <Section
           title="Your next 30 days"
@@ -301,7 +346,7 @@ export function CashForecastSection({
       >
         <div className="grid gap-4 lg:grid-cols-2">
           {cash.accounts.map((a) => (
-            <div key={a.id} className="rounded-xl border p-4">
+            <article key={a.id} className="rounded-xl border p-4">
               <div className="flex items-center gap-3">
                 <div className="rounded-xl bg-secondary p-3">
                   <Landmark className="h-5 w-5" />
@@ -315,27 +360,45 @@ export function CashForecastSection({
                 <div>
                   <dt className="text-xs text-muted-foreground">Booked</dt>
                   <dd className="mt-1 text-sm font-medium tabular-nums">
-                    {amount(a.bookedMinor)}
+                    {sourceAmount(a.bookedMinor)}
                   </dd>
                 </div>
                 <div>
                   <dt className="text-xs text-muted-foreground">Available</dt>
                   <dd className="mt-1 text-sm font-medium tabular-nums">
-                    {amount(a.availableMinor)}
+                    {sourceAmount(a.availableMinor)}
                   </dd>
                 </div>
                 <div>
                   <dt className="text-xs text-muted-foreground">Pending</dt>
                   <dd className="mt-1 text-sm font-medium tabular-nums">
-                    {amount(a.pendingMinor)}
+                    {sourceAmount(a.pendingMinor)}
                   </dd>
                 </div>
               </dl>
-              <p className="mt-4 border-t pt-3 text-xs text-muted-foreground">
-                Bank as of {formatDate(a.balanceAsOf)}
-              </p>
-            </div>
+              <dl className="mt-4 space-y-3 border-t pt-3 text-xs">
+                <div>
+                  <dt className="text-muted-foreground">Sample bank timestamp</dt>
+                  <dd className="mt-1">{sourceTime(a.balanceAsOf)}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Retrieved</dt>
+                  <dd className="mt-1">{sourceTime(a.fetchedAt)}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Transaction coverage</dt>
+                  <dd className={`mt-1 ${a.coverageComplete ? "" : "font-medium text-amber-700 dark:text-amber-400"}`}>
+                    {a.coverageComplete ? "Complete in this sample" : "Partial — some transactions may be missing"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Balance definition</dt>
+                  <dd className="mt-1 leading-relaxed">{a.sourceDefinition || "Not supplied"}</dd>
+                </div>
+              </dl>
+            </article>
           ))}
+          {!cash.accounts.length && <p className="text-sm text-muted-foreground">No account details are available in this view.</p>}
         </div>
       </Section>
       <Section

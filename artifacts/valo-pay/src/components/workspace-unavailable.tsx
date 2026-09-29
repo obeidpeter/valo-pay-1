@@ -8,6 +8,7 @@ import { formatDate } from '@/lib/formatters';
 import { referenceOf } from '@/lib/notify';
 import type { WorkspaceRefreshFailure } from '@/lib/workspace-context';
 import { StaffSession } from './staff-session';
+import { ContextualHelp } from './contextual-help';
 
 /**
  * Shown in place of the console when the workspace cannot be loaded at all.
@@ -41,6 +42,8 @@ export function explainWorkspaceError(error: unknown): WorkspaceExplanation {
   if (typeof status !== 'number') return { title: 'Could not connect to Valo Pay', lines: ['Check your connection and try again.'] };
   if (status === 429) return { title: 'Please wait before trying again', lines: [message || 'Too many requests were sent from your connection. Try again shortly.'] };
   if (status >= 500) return { title: 'Your workspace is temporarily unavailable', lines: ['We could not load your workspace. Try again in a moment.'], reportTime: true, reference: referenceOf(error) };
+  if (status === 401) return { title: 'Sign in to open this workspace', lines: [message || 'Your sign-in session is missing or has ended.', 'Sign in with the account your organisation invited. Then check access again.'] };
+  if (status === 403) return { title: 'Your account cannot open this workspace', lines: [message || 'Your current account does not have the required access.', 'Check the selected organisation. Ask its administrator to review your invitation and lender access. Choosing a workspace does not grant permission.'] };
   return { title: 'Could not load your workspace', lines: [message || 'We could not open your workspace. Try again.'] };
 }
 
@@ -69,6 +72,7 @@ export function WorkspaceUnavailable({ error, retry, busy }: { error: unknown; r
             : <p>When reporting the problem, include this time: <LookedFor>{formatDate(at)}</LookedFor>.</p>)}
           <p>{CHECK_OPERATIONS}</p>
           {[401,403].includes(Number((error as { status?: number })?.status)) && <StaffSession />}
+          <ContextualHelp topic={[401,403].includes(Number((error as { status?: number })?.status)) ? 'access' : 'recovery'} />
         </Notice>
       </main>
     </PublicFrame>

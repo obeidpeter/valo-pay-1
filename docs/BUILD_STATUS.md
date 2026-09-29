@@ -1,6 +1,14 @@
 # Valo Pay — build status
 
-## Latest verified deployed release · PR #77 · 29 September 2026
+## Latest verified deployed release · PR #78 · 29 September 2026
+
+[PR #78](https://github.com/obeidpeter/valo-pay/pull/78) merged as `83eda41dba56da6dfc65a10ce3e228906de17dac` and was published to [Valo Pay — Stage 1](https://valo-pay.replit.app). The verified live build was `83eda41 2026-09-29T10:26:46.692Z`. The merge retained tested source tree `f87a422941d1c98f017feac27bc6e742e1a571fc`. All eight jobs in [main CI](https://github.com/obeidpeter/valo-pay/actions/runs/36554972868) passed on attempt 2. The earlier daily-close UI fixture clock race is fixed in the subsequent usability candidate without changing the production comparison.
+
+No migration or live activation was added. The scheduler remains **off**, financial staging disabled, cleanup enabled and the existing live gates unchanged. Reviewed contract dates govern future design-partner pricing; issued invoices remain immutable. These are dated release observations, not continuous monitoring or independent operational acceptance.
+
+The [beginner usability programme](usability-2026-09-29/README.md) is subsequent work on a review branch, **not deployed**. It changes navigation, role-aware orientation, task help and source/status clarity, preserving financial rules and authority.
+
+## Earlier verified deployed release · PR #77 · 29 September 2026
 
 [PR #77](https://github.com/obeidpeter/valo-pay/pull/77), merged as `cd9d81c665ca08c29429e26bb3ed0d78863b5966`, was published to [Valo Pay — Stage 1](https://valo-pay.replit.app). The verified live build was `cd9d81c 2026-09-29T08:41:32.879Z`; publication completed at 08:47 UTC. Its source tree exactly matched the reviewed candidate. The [main CI run](https://github.com/obeidpeter/valo-pay/actions/runs/36543762013) passed all eight jobs. No migration or hosting configuration change was introduced; the publication schema comparison was empty.
 
@@ -8,9 +16,9 @@ At 08:48:26 and 08:49:56 UTC, health and readiness returned 200 with database/sc
 
 The scheduler remains **off**, financial staging disabled and existing live gates unchanged. Independent monitoring/delivery, provider access, hosted recovery and human operator acceptance remain outstanding.
 
-## Refactoring candidate · not deployed
+## Refactoring verification · subsequently deployed in PR #78
 
-The [programme release record](refactor-2026-09-29/README.md) describes the subsequent capability-boundary, current-permission, reviewed-contract-date and experience improvements in [draft PR #78](https://github.com/obeidpeter/valo-pay/pull/78). Implemented commit `c02147b3c8904d3175e55156ee7457f8ea3e1e63` passed all eight CI jobs, 793 local UI tests across 100 files, all offline checks and 37 PostgreSQL suites; CI also passed pilot, real API/browser and synthetic backup/restore rehearsals. The release record separately records baseline, candidate verification and external acceptance. This candidate adds no database migration, dependency or shared-host setting. Reviewed contract dates govern future design-partner pricing only after a service-attributed review; issued invoices remain immutable. Publication and activation are separate decisions.
+The [programme release record](refactor-2026-09-29/README.md) describes the capability-boundary, current-permission, reviewed-contract-date and experience improvements in [PR #78](https://github.com/obeidpeter/valo-pay/pull/78). Implemented commit `c02147b3c8904d3175e55156ee7457f8ea3e1e63` passed all eight CI jobs, 793 local UI tests across 100 files, all offline checks and 37 PostgreSQL suites; CI also passed pilot, real API/browser and synthetic backup/restore rehearsals. The release record separately records baseline, candidate verification and external acceptance. This candidate adds no database migration, dependency or shared-host setting. Reviewed contract dates govern future design-partner pricing only after a service-attributed review; issued invoices remain immutable. Publication and activation are separate decisions.
 
 ## Earlier deployed release · PR #76 · 29 September 2026
 

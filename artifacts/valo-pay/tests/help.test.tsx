@@ -1,0 +1,304 @@
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { render } from "@testing-library/react";
+import axe from "axe-core";
+import { ContextualHelp } from "@/components/contextual-help";
+import { helpGuides, helpHref, safeHelpReturnTo } from "@/lib/help-content";
+import { installFakeApi, type FakeApi } from "./fake-api";
+import { renderApp, screen, userEvent, waitFor, within } from "./harness";
+
+let api: FakeApi;
+beforeEach(() => {
+  api = installFakeApi();
+});
+afterEach(() => {
+  api.uninstall();
+});
+
+describe("public task help", () => {
+  it("lets a visitor read every task without creating or querying a workspace", async () => {
+    for (const guide of helpGuides) {
+      const page = renderApp(`/help?topic=${guide.id}`);
+      expect(
+        await screen.findByRole("heading", { name: guide.title, level: 2 }),
+      ).toBeTruthy();
+      expect(
+        screen.getByRole("heading", { name: "If you are blocked" }),
+      ).toBeTruthy();
+      expect(
+        screen.getByRole("heading", { name: "If you were interrupted" }),
+      ).toBeTruthy();
+      expect(screen.getByText(guide.result)).toBeTruthy();
+      page.unmount();
+    }
+    expect(api.calls).toEqual([]);
+  });
+
+  it("supports a direct topic, returning to its search and browser back without losing the query", async () => {
+    const user = userEvent.setup();
+    renderApp("/help?q=payment&topic=payment-status&returnTo=%2Fpay-by-bank");
+    await screen.findByRole("heading", {
+      name: "Understand payment status without paying twice",
+    });
+    expect(
+      screen
+        .getByRole("searchbox", { name: "Search tasks and terms" })
+        .getAttribute("value"),
+    ).toBe("payment");
+    expect(
+      screen
+        .getByRole("link", { name: "Return to your page" })
+        .getAttribute("href"),
+    ).toBe("/pay-by-bank");
+    await user.click(
+      screen.getByRole("link", { name: "Back to search results" }),
+    );
+    const results = await screen.findByRole("heading", {
+      name: "Search results",
+    });
+    expect(document.activeElement).toBe(results);
+    expect(new URLSearchParams(window.location.search).get("q")).toBe(
+      "payment",
+    );
+    expect(
+      screen.queryByRole("heading", { name: "If you are blocked" }),
+    ).toBeNull();
+    window.history.back();
+    const restored = await screen.findByRole("heading", {
+      name: "Understand payment status without paying twice",
+      level: 2,
+    });
+    await waitFor(() => expect(document.activeElement).toBe(restored));
+    expect(new URLSearchParams(window.location.search).get("topic")).toBe(
+      "payment-status",
+    );
+    expect(api.calls).toEqual([]);
+  });
+
+  it("finds a guide through a specialist term and offers an actionable empty search state", async () => {
+    const user = userEvent.setup();
+    renderApp("/help");
+    const input = await screen.findByRole("searchbox", {
+      name: "Search tasks and terms",
+    });
+    await user.type(input, "kobo");
+    await user.click(screen.getByRole("button", { name: "Search help" }));
+    expect(
+      await screen.findByRole("link", {
+        name: /Import your first payment file/,
+      }),
+    ).toBeTruthy();
+    expect(new URLSearchParams(window.location.search).get("q")).toBe("kobo");
+    expect(screen.getByRole("status").textContent).toBe("1 guide for “kobo”");
+    await user.clear(input);
+    await user.type(input, "zzznosuchtask");
+    await user.keyboard("{Enter}");
+    expect(
+      await screen.findByRole("heading", { name: "No matching guides" }),
+    ).toBeTruthy();
+    await user.click(screen.getByRole("link", { name: "Show all guides" }));
+    expect(
+      await screen.findByRole("link", {
+        name: /Prepare a reviewed payroll file/,
+      }),
+    ).toBeTruthy();
+    expect((input as HTMLInputElement).value).toBe("");
+    expect(api.calls).toEqual([]);
+  });
+
+  it("finds task guides using common payment states and workflow names", async () => {
+    const user = userEvent.setup();
+    renderApp("/help");
+    const input = await screen.findByRole("searchbox", {
+      name: "Search tasks and terms",
+    });
+    const cases = [
+      ["pending", /Understand payment status without paying twice/],
+      ["payment pending", /Understand payment status without paying twice/],
+      ["mandate", /Pause, cancel or reissue a debit mandate/],
+      ["reconciliation", /Match a payment to a repayment/],
+      ["payroll", /Prepare a reviewed payroll file/],
+    ] as const;
+    for (const [query, title] of cases) {
+      await user.clear(input);
+      await user.type(input, query);
+      await user.keyboard("{Enter}");
+      expect(await screen.findByRole("link", { name: title })).toBeTruthy();
+    }
+    expect(api.calls).toEqual([]);
+  });
+
+  it("searches the glossary using formal language without confusing reading with debit authority", async () => {
+    const user = userEvent.setup();
+    renderApp("/help?view=glossary&q=account-read");
+    await screen.findByRole("heading", { name: "Terms explained", level: 2 });
+    expect(screen.getByText("Permission to read an account")).toBeTruthy();
+    expect(
+      screen.getByText(/It is not permission to debit the account/),
+    ).toBeTruthy();
+    expect(
+      screen
+        .getByRole("link", { name: "Terms explained" })
+        .getAttribute("aria-current"),
+    ).toBe("page");
+    await user.click(screen.getByRole("link", { name: "Clear search" }));
+    expect(screen.getByText("Committed import")).toBeTruthy();
+    expect(
+      screen.getByText(/Exported does not mean salaries were executed/),
+    ).toBeTruthy();
+    expect(api.calls).toEqual([]);
+  });
+
+  it("recovers an unknown topic and never turns an untrusted return address into a link", async () => {
+    renderApp(
+      "/help?topic=missing&returnTo=https%3A%2F%2Fexample.test%2Fsecret",
+    );
+    expect(await screen.findByText(/That guide is not available/)).toBeTruthy();
+    expect(
+      screen.getByRole("link", { name: "Back to home" }).getAttribute("href"),
+    ).toBe("/");
+    expect(
+      screen.queryByRole("link", { name: "Return to your page" }),
+    ).toBeNull();
+    expect(
+      Array.from(document.querySelectorAll("a")).some((link) =>
+        link.href.startsWith("https://example.test"),
+      ),
+    ).toBe(false);
+    expect(api.calls).toEqual([]);
+  });
+
+  it("keeps financial distinctions and independent review visible in the relevant guides", async () => {
+    const user = userEvent.setup();
+    renderApp("/help?topic=close");
+    await screen.findByRole("heading", {
+      name: "Prepare a close for a separate reviewer",
+    });
+    expect(
+      screen.getByText(
+        /Switching demo roles does not create an independent staff reviewer/,
+      ),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(/It does not resolve exceptions, move money/),
+    ).toBeTruthy();
+    await user.click(screen.getByRole("link", { name: "All task guides" }));
+    await user.click(
+      screen.getByRole("link", {
+        name: /Prepare an accounting draft for review/,
+      }),
+    );
+    expect(
+      screen.getByText(/Nothing has been posted to accounting software/),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(/previous approval does not cover a changed draft/),
+    ).toBeTruthy();
+    expect(api.calls).toEqual([]);
+  });
+
+  it("has labelled keyboard-search controls, landmarks and no structural accessibility violations", async () => {
+    const user = userEvent.setup();
+    renderApp("/help");
+    await screen.findByRole("heading", { name: "Find your next step" });
+    const input = within(
+      screen.getByRole("search", { name: "Search help" }),
+    ).getByRole("searchbox", { name: "Search tasks and terms" });
+    input.focus();
+    await user.keyboard("payroll{Enter}");
+    expect(
+      await screen.findByRole("link", {
+        name: /Prepare a reviewed payroll file/,
+      }),
+    ).toBeTruthy();
+    const result = await axe.run(document.body, {
+      rules: { "color-contrast": { enabled: false } },
+    });
+    expect(result.violations).toEqual([]);
+    expect(api.calls).toEqual([]);
+  });
+});
+
+describe("contextual help links", () => {
+  it("returns someone reading sign-up help to sign-up without opening a workspace", async () => {
+    const user = userEvent.setup();
+    renderApp("/sign-up");
+    await user.click(
+      await screen.findByRole("link", {
+        name: "Help: Sign in or accept an invitation",
+      }),
+    );
+    await screen.findByRole("heading", {
+      name: "Sign in or accept an invitation",
+      level: 2,
+    });
+    const back = screen.getByRole("link", { name: "Return to your page" });
+    expect(back.getAttribute("href")).toBe("/sign-up");
+    await user.click(back);
+    expect(
+      await screen.findByRole("heading", {
+        name: "Create your workspace",
+        level: 1,
+      }),
+    ).toBeTruthy();
+    expect(api.calls).toEqual([]);
+  });
+
+  it.each([
+    [
+      "/mandates",
+      "Pause, cancel or reissue a debit mandate",
+      "Mandates",
+      /No instruction is sent to a bank or provider/,
+    ],
+    [
+      "/policies",
+      "Review retry rules and message templates",
+      "Policies & templates",
+      /Applying a policy in Mandates is a separate action/,
+    ],
+  ])(
+    "keeps %s guidance separate from account-read permission withdrawal",
+    async (route, title, destination, consequence) => {
+      const user = userEvent.setup();
+      renderApp(route as string);
+      await user.click(
+        await screen.findByRole("link", { name: `Help: ${title}` }),
+      );
+      await screen.findByRole("heading", { name: title as string, level: 2 });
+      expect(
+        screen.getByText(destination as string, { exact: true }),
+      ).toBeTruthy();
+      expect(screen.getByText(consequence as RegExp)).toBeTruthy();
+      expect(api.calls.filter((call) => call.method === "POST")).toEqual([]);
+    },
+  );
+
+  it("opens the precise task with a safe static return page", () => {
+    render(<ContextualHelp topic="imports" returnTo="/imports" />);
+    const link = screen.getByRole("link", {
+      name: "Help: Import your first payment file",
+    });
+    expect(link.getAttribute("href")).toBe(
+      "/help?topic=imports&returnTo=%2Fimports",
+    );
+    expect(api.calls).toEqual([]);
+  });
+
+  it("does not carry external destinations, record queries, tokens or arbitrary paths into help", () => {
+    for (const value of [
+      "https://example.test",
+      "//example.test",
+      "javascript:alert(1)",
+      "/imports?batch=private-record",
+      "/team-invite#secret",
+      "/cases/private-id",
+      "/\\example.test",
+      "/overview/../sign-in",
+      "/overview\n",
+    ]) {
+      expect(safeHelpReturnTo(value)).toBeNull();
+      expect(helpHref("recovery", value)).toBe("/help?topic=recovery");
+    }
+    expect(safeHelpReturnTo("/cash-desk")).toBe("/cash-desk");
+  });
+});

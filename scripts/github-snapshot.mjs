@@ -21,6 +21,8 @@ docs.add('docs/synthetic-instruction-recovery.md');
 docs.add('docs/document-register.md');
 // Reviewed engineering records only; controlled sources and private extractions stay excluded.
 for (const name of ['README.md', 'backend-package.md', 'repository-assessment.md', 'source-status-notes.md', 'traceability.json', 'validate-traceability.mjs']) docs.add(`docs/refactor-2026-09-29/${name}`);
+// Reviewed beginner guidance and synthetic evidence only; source attachments and participant data stay private.
+for (const name of ['README.md', 'sources.md', 'start-findings.md', 'help-findings.md', 'cash-findings.md', 'journeys.md', 'validation.md', 'research-kit.md', 'measurement-template.csv']) docs.add(`docs/usability-2026-09-29/${name}`);
 // Workflows execute code on GitHub. Review each file before approving its export.
 const workflows = new Set([".github/workflows/ci.yml"]);
 const sourceExtension = /\.(?:ts|tsx|js|jsx|mjs|cjs|json|yaml|yml|toml|css|html|svg|sh|md|sql)$/;

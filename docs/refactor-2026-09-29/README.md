@@ -2,6 +2,10 @@
 
 This is the engineering release record for [draft PR #78](https://github.com/obeidpeter/valo-pay/pull/78), branch `codex/comprehensive-refactor-2026-09-29`, starting from merged PR #77, revision `cd9d81c665ca08c29429e26bb3ed0d78863b5966` in `obeidpeter/valo-pay`. The initial checkout was clean and no open pull request was returned. Implemented source is commit `c02147b3c8904d3175e55156ee7457f8ea3e1e63`; subsequent evidence-only commits preserve that runtime source. The latest verified publication remains PR #77; this candidate is **not deployed** and advances no live gate.
 
+## Release disposition · 29 September 2026
+
+The candidate status above is the original engineering snapshot. PR #78 was subsequently merged as `83eda41dba56da6dfc65a10ce3e228906de17dac` and deployed as `83eda41 2026-09-29T10:26:46.692Z`. The reviewed source tree was preserved; all eight final-main CI jobs passed on attempt 2. [Build status](../BUILD_STATUS.md) is the maintained release record. This disposition advances no live-product or independent acceptance gate.
+
 ## Scope and decisions
 
 The [repository assessment](repository-assessment.md) dispositions every area in the mandate with concrete code pointers. Existing persistence, reconciliation, money, recovery, identity, worker and security components were retained where inspection and fresh characterisation supported them. A repository-wide refactor does not require rewriting sound files. The stack remains the TypeScript/Node modular monolith with Express, Zod, Drizzle/PostgreSQL and React/Vite. No dependency, hosting configuration, public route prefix, authoritative storage cutover or SQL migration changed.

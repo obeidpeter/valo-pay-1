@@ -388,6 +388,9 @@ function PaymentContent({ api }: { api: ReturnType<typeof useConnected> }) {
                 <p className="text-xs text-muted-foreground mt-1">
                   Authorise before {formatDate(intent.data.expiresAt ?? '')}
                 </p>
+                <p className="text-xs text-muted-foreground mt-3">
+                  This simulator does not calculate or charge payment fees. It does not quote the cost of a live payment.
+                </p>
               </div>
               <PaymentProgress status={intent.status} expired={checkoutExpired} held={intentHeld} refundRequested={!!intent.data.refundRequest} />
               <div className="flex flex-wrap gap-2">
@@ -664,6 +667,7 @@ function PaymentContent({ api }: { api: ReturnType<typeof useConnected> }) {
                   {formatKobo(review.record.amountKobo)}
                 </p>
                 <p className="text-sm">{review.record.data.beneficiary}</p>
+                {review.action === 'payment.authorise' && <p className="mt-2 text-xs text-muted-foreground">This simulator does not calculate or charge payment fees. It does not quote the cost of a live payment.</p>}
               </div>
               <div>
                 <label

@@ -1,6 +1,6 @@
 # Valo Pay
 
-The [build status](docs/BUILD_STATUS.md) records the latest verified deployed release, PR #77 (29 September 2026), its verification and the remaining commissioning work. Migration 013 was applied and verified during the earlier PR #71–#72 deployment. The release includes operational checks, a repeatable pilot rehearsal and isolated financial recovery rehearsals. Financial staging remains disabled on the deployed sandbox, and automatic daily closes remain off. The [29 September refactoring programme](docs/refactor-2026-09-29/README.md) records the subsequent candidate, its verification and unchanged activation boundaries.
+The [build status](docs/BUILD_STATUS.md) records the latest verified deployed release, PR #78 (29 September 2026), its verification and the remaining commissioning work. Migration 013 was applied and verified during the earlier PR #71–#72 deployment. The release includes operational checks, a repeatable pilot rehearsal and isolated financial recovery rehearsals. Financial staging remains disabled on the deployed sandbox, and automatic daily closes remain off. The [29 September refactoring programme](docs/refactor-2026-09-29/README.md) records that release, its verification and unchanged activation boundaries. The [beginner usability candidate](docs/usability-2026-09-29/README.md) records subsequent interface work, which has not been deployed.
 
 Observation-first collections operations and connected banking workflows for Nigerian lenders and SMEs. This application is a **synthetic sandbox**, not a live payment service or an approved system for real customer data. Pay-by-bank, Credit Desk, Cash Desk and purpose-specific permissions have working sample journeys; each live capability remains independently gated.
 
@@ -27,6 +27,15 @@ Keep the workspace together: the frontend and API depend on shared packages.
 | --- | --- |
 | `README.md` | This file: what the application is, how to install, run, check and change it. |
 | `docs/document-register.md` | Current planning-document versions, repository guidance, dated audits, responsible roles, review triggers and the distinction between deployed and draft work. |
+| `docs/usability-2026-09-29/README.md` | Single prioritised beginner usability register, ten-heuristic coverage and navigation/vocabulary decisions. |
+| `docs/usability-2026-09-29/sources.md` | Controlled source versions, provenance, interpretation and unchanged acceptance boundaries. |
+| `docs/usability-2026-09-29/start-findings.md` | Role-aware next steps, server-derived progress and optional reading-guide evidence. |
+| `docs/usability-2026-09-29/help-findings.md` | Task-specific help, glossary, access and recovery evidence. |
+| `docs/usability-2026-09-29/cash-findings.md` | Balance source timestamps, coverage and unavailable-versus-zero evidence. |
+| `docs/usability-2026-09-29/journeys.md` | Eight journey families, named existing coverage and explicit test limitations. |
+| `docs/usability-2026-09-29/validation.md` | Exact candidate checks, before/after browser evidence, journey outcomes and remaining dependencies. |
+| `docs/usability-2026-09-29/research-kit.md` | Neutral independent beginner study protocol; proposed targets are not results. |
+| `docs/usability-2026-09-29/measurement-template.csv` | Empty measurement template with no invented participant data. |
 | `docs/refactor-2026-09-29/README.md` | Programme release record, baseline/final verification, compatibility, release and reversal conditions. |
 | `docs/refactor-2026-09-29/repository-assessment.md` | Repository-wide assessment and the disposition of every engineering area. |
 | `docs/refactor-2026-09-29/backend-package.md` | Capability boundary decision, permission defect evidence and PostgreSQL contract checks. |

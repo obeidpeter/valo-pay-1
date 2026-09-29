@@ -462,6 +462,7 @@ export function LandingFooter() {
           </nav>
           <nav aria-label="Help and documentation" className="lp-footer-links">
             <h2>Useful information</h2>
+            <Link href="/help">Task guides & glossary</Link>
             <a href="#boundaries">Our boundaries</a>
             <a href="https://github.com/obeidpeter/valo-pay#readme">
               How the sandbox works
