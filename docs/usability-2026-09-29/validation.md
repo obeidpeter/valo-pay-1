@@ -1,6 +1,6 @@
 # Candidate validation
 
-Verified 29 September 2026 on `codex/beginner-usability-2026-09-29`, based on PR #78 at `83eda41dba56da6dfc65a10ce3e228906de17dac`. The implementation and evidence are delivered for draft review. The exact final commit and PR are recorded in the accompanying evidence manifest and GitHub branch. No merge, deployment, real notification, live permission change or financial activation occurred in this programme. The last separately verified live release remains PR #78, build `83eda41 2026-09-29T10:26:46.692Z`.
+Verified 29 September 2026 on `codex/beginner-usability-2026-09-29`, based on PR #78 at `83eda41dba56da6dfc65a10ce3e228906de17dac`. The implementation and evidence were delivered for draft review. The exact final commit and PR are recorded in the accompanying evidence manifest and GitHub branch. No merge, deployment, real notification, live permission change or financial activation occurred in this programme. At the time of this validation the last separately verified live release was PR #78, build `83eda41 2026-09-29T10:26:46.692Z`. The final source, `d34b00a39d93bb93b498219db69a51b772c39439`, was then merged as [PR #79](https://github.com/obeidpeter/valo-pay/pull/79), `c2ade2639876edd7036f3ce885ab4f5db5ec53fc`, and deployed as live build `c2ade26 2026-09-29T12:39:30.718Z`, as PR #79's publication record reports; [build status](../BUILD_STATUS.md) records that release.
 
 ## Executed engineering checks
 
