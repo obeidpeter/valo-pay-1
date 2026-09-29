@@ -2,8 +2,10 @@
 // Saved exports whose file an approved retention run removed are listed as expired, never as completed or needing a retry;
 // and an idle anonymous sandbox the sweep deletes loses its export files too, once the deletion has committed.
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { randomBytes, randomUUID } from "node:crypto";
 import type { Server } from "node:http";
+import path from "node:path";
 import type { ValopayRecord } from "../src/domain/types.js";
 
 if (process.env.VALOPAY_RUN_INTEGRATION !== "1") {
@@ -273,6 +275,17 @@ try {
       assert.ok(!JSON.stringify(listed).includes(bucket), 'without their storage location');
       const firstTwo = await parkedExportFiles(2);
       assert.deepEqual([listed.total, firstTwo.files.length, firstTwo.total], [parkedStatus.parked, 2, parkedStatus.parked], 'a list cut short still says how many files are parked');
+      // The operator's command, run as the runbook runs it, lists 20 and says so when more are parked.
+      const moreParked = Array.from({ length: 21 }, () => randomUUID());
+      reviewIds.push(...moreParked);
+      await pool.query(`INSERT INTO valopay_export_cleanup(id,merchant_id,bucket,object_name,attempts,last_failure,next_attempt_at)
+        SELECT id,$2,$3,name,1,'ownership_mismatch','infinity' FROM unnest($1::text[],$4::text[]) AS parked(id,name)`, [moreParked, first, bucket, moreParked.map((id) => objectName(first!, id))]);
+      const root = path.resolve(import.meta.dirname, "..", "..", "..");
+      const command = spawnSync(process.execPath, [path.join(root, "scripts", "node_modules", "tsx", "dist", "cli.mjs"), "scripts/src/export-cleanup.ts"], { cwd: root, encoding: "utf8", timeout: 60_000 });
+      const report = JSON.parse(command.stdout || "{}");
+      assert.deepEqual([command.status, report.parkedFiles?.total, report.parkedFiles?.files.length, report.parkedFiles?.cutShort], [2, report.status?.parked, 20, true], `the command says a list of more than 20 parked files stops short: ${command.stderr}`);
+      assert.ok(report.status.parked >= 25 && !command.stdout.includes(bucket), 'counting them all, without their storage location');
+      await pool.query('DELETE FROM valopay_export_cleanup WHERE id=ANY($1::text[])', [moreParked]);
       // A due pass retries the storage failures only: a parked file is never attempted again automatically.
       await pool.query('UPDATE valopay_export_cleanup SET next_attempt_at=now() WHERE id=ANY($1::text[])', [[files.down.id, files.race.id]]);
       assert.deepEqual(await runExportCleanupPass({ ids: reviewIds, limit: 20 }), { attempted: 2, removed: 0, deferred: 2 });
@@ -307,7 +320,7 @@ try {
       await pool.query('DELETE FROM valopay_export_cleanup WHERE id=ANY($1::text[])', [reviewIds]);
     }
   } finally { restore(); }
-  console.log('Export expiry integration checks passed: expiry filtering, running-upload sweep exclusion, interrupted-upload grace period, transactional tombstones, outage retry, crash recovery, concurrent claims, absent files, identity mismatches parked for review apart from storage failures and the generation race, which are retried, and parked files re-queued or released after review, never deleted by force.');
+  console.log('Export expiry integration checks passed: expiry filtering, running-upload sweep exclusion, interrupted-upload grace period, transactional tombstones, outage retry, crash recovery, concurrent claims, absent files, identity mismatches parked for review apart from storage failures and the generation race, which are retried, the operator command\'s list of parked files cut short and saying so, and parked files re-queued or released after review, never deleted by force.');
 } finally {
   delete process.env.VALOPAY_EXPIRED_WORKSPACE_CLEANUP;
   if (server) await new Promise<void>((resolve, reject) => server!.close((error) => error ? reject(error) : resolve()));
