@@ -29,25 +29,25 @@ const card = (heading: string) => screen.getByRole("heading", { name: heading })
 
 it("names what each request asked and the record it names, never more", async () => {
   journal([
-    entry("pending-change", "pending", { summary: { action: "Change a record", targetKind: "customers", targetId: "cus-1", details: [{ name: "Status", value: "inactive" }] } }),
-    entry("pending-action", "pending", { summary: { action: "Mandate suspend", targetKind: "mandates", targetId: "mnd-1", details: [] } }),
-    entry("pending-revoke", "pending", { summary: { action: "Connected banking: consent.revoke", targetKind: "connected-consents", targetId: "cst-1", details: [] } }),
+    entry("pending-change", "pending", { summary: { action: "Change a record", targetKind: "customers", targetId: "cus-1", details: [{ name: "Status", value: "Inactive" }] } }),
+    entry("pending-action", "pending", { summary: { action: "Suspend mandate", targetKind: "mandates", targetId: "mnd-1", details: [] } }),
+    entry("pending-revoke", "pending", { summary: { action: "Withdraw permission", targetKind: "connected-consents", targetId: "cst-1", details: [] } }),
     entry("pending-export", "pending", { summary: { action: "Retry an export", targetKind: "exports", targetId: "exp-1", details: [] } }),
-    entry("pending-run", "pending", { summary: { action: "Approve a retention run", targetKind: "retention-runs", targetId: "run-1", details: [] } }),
+    entry("pending-run", "pending", { summary: { action: "Approve a deletion run", targetKind: "retention-runs", targetId: "run-1", details: [] } }),
     entry("sealed", "pending"),
   ]);
   renderApp("/operations");
   await screen.findByRole("heading", { name: "Change a record" });
   const change = card("Change a record");
   expect(change.textContent).toContain("Customers cus-1");
-  expect(change.textContent).toContain("Status: inactive");
+  expect(change.textContent).toContain("Status: Inactive");
   expect(within(change).getByRole("link", { name: "Open the record" }).getAttribute("href")).toBe("/customers/cus-1");
-  const action = card("Mandate suspend");
+  const action = card("Suspend mandate");
   expect(within(action).getByRole("link", { name: "Open the record" }).getAttribute("href")).toBe(`/mandates?record=mnd-1&lender=${api.merchantIds[0]}#record-mnd-1`);
-  expect(within(card("Connected banking: consent.revoke")).getByRole("link", { name: "Open the record" }).getAttribute("href")).toBe("/connections");
+  expect(within(card("Withdraw permission")).getByRole("link", { name: "Open the record" }).getAttribute("href")).toBe("/connections");
   // The export or run itself, not the newest one its page lists.
   expect(within(card("Retry an export")).getByRole("link", { name: "Open the record" }).getAttribute("href")).toBe("/exports?job=exp-1");
-  expect(within(card("Approve a retention run")).getByRole("link", { name: "Open the record" }).getAttribute("href")).toBe("/lifecycle?run=run-1");
+  expect(within(card("Approve a deletion run")).getByRole("link", { name: "Open the record" }).getAttribute("href")).toBe("/lifecycle?run=run-1");
   // A sealed request has no summary: its label stands in.
   expect(card("Save sealed").textContent).not.toContain("Open the record");
 });

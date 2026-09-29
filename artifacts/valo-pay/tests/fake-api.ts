@@ -38,6 +38,7 @@ import { allocatableOnly, allocationChoices, pageRecords } from "../../api-serve
 import { pageQueue } from '../../api-server/src/lib/valopay-queues';
 import { importCsv, withRowIdColumn } from "../../api-server/src/lib/valopay-import";
 import { exportJobView, publicExportRecord, queueExport, retryExport } from '../../api-server/src/lib/export-jobs';
+import { withAuditName } from '../../api-server/src/lib/action-names';
 import { buildConsoleOverview, buildConsoleReports, buildConsoleSettings } from "../../api-server/src/lib/valopay-close-views";
 import type { CloseRuntime } from "../../api-server/src/domain/effective-close-schedule";
 import { auditEntryData, canonicalDigest, verifyAuditChain, walkAuditChain } from "../../api-server/src/lib/digests";
@@ -224,7 +225,7 @@ export function installFakeApi(options: { now?: string; role?: string; queuedExp
     ['POST', /^\/v1\/pilot\/batches\/(?<id>[^/]+)\/commit$/, (p,q,b)=>pilotWrite(q,(s,c)=>commitImportBatch(s,c,p.id!,b.expectedUpdatedAt))],
     ['GET', /^\/v1\/pilot\/cases\/(?<id>[^/]+)$/, (p,q)=>{const s=api.state(merchantOf(q)),record=s.records.find(r=>r.kind==='exceptions'&&r.id===p.id);if(!record)fail('Exception not found.',404);return contract(caseDetailSchema, {record,assignees:roster(),events:s.records.filter(r=>r.kind==='case-events'&&r.data.exceptionId===p.id),evidence:s.records.filter(r=>r.kind==='payments').map(r=>({id:r.id,name:r.name,reference:r.reference,kind:r.kind}))});}],
     ['POST', /^\/v1\/pilot\/cases\/(?<id>[^/]+)$/, (p,q,b)=>pilotWrite(q,(s,c)=>coordinateCase(s,c,p.id!,b,roster()))],
-    ['GET', /^\/v1\/customers\/(?<id>[^/]+)\/history$/, (params,query)=>{const parsed=S.GetCustomerHistoryQueryParams.parse(query);return S.GetCustomerHistoryResponse.parse(withState(parsed.merchantId,state=>pageCustomerHistory(state,params.id!,parsed)));}],
+    ['GET', /^\/v1\/customers\/(?<id>[^/]+)\/history$/, (params,query)=>{const parsed=S.GetCustomerHistoryQueryParams.parse(query);return S.GetCustomerHistoryResponse.parse(withState(parsed.merchantId,state=>{const history=pageCustomerHistory(state,params.id!,parsed);return {...history,events:history.events.map(withAuditName),...(history.focusedRecord?{focusedRecord:withAuditName(history.focusedRecord)}:{})};}));}],
     ['GET', /^\/v1\/reconciliation\/(?<queue>[^/]+)$/, (params,query)=>{
       const {queue:name}=S.ListReconciliationParams.parse(params), parsed=S.ListReconciliationQueryParams.parse(query);
       return S.ListReconciliationResponse.parse(withState(parsed.merchantId,(state,ctx)=>pageReconciliation(state,name,parsed,ctx.now)));
@@ -252,7 +253,7 @@ export function installFakeApi(options: { now?: string; role?: string; queuedExp
         const named = payment && !payment.customerId && payment.data.dueItemId ? state.records.find((record) => record.kind === "due-items" && record.id === payment.data.dueItemId)?.customerId : undefined;
         const query = payment ? allocationChoices(parsed, allocationPayer(payment, named)) : parsed;
         const page = query ? pageRecords(state.records.filter((record) => record.kind === params.kind), query, params.kind) : { items: [], total: 0 };
-        return { ...page, items: page.items.map((record) => record.kind === "exports" ? publicExportRecord(record) : record) };
+        return { ...page, items: page.items.map((record) => record.kind === "exports" ? publicExportRecord(record) : withAuditName(record)) };
       }));
     }],
     ["POST", /^\/v1\/records\/(?<kind>[^/]+)$/, (params, query, raw) => {
@@ -301,7 +302,7 @@ export function installFakeApi(options: { now?: string; role?: string; queuedExp
       const body = S.ImportRecordsBody.parse(withRowIdColumn(raw));
       return S.ImportRecordsResponse.parse(withState(merchantOf(query), (state, ctx) => importCsv(state, ctx, body), body.commit ? { action: 'post.imports', objectId: 'workspace', summary: 'Synthetic CSV import' } : undefined));
     }],
-    ["GET", /^\/v1\/customers\/(?<id>[^/]+)\/timeline$/, (params, query) => S.GetCustomerTimelineResponse.parse(withState(merchantOf(query), (state) => customerTimeline(state, params.id!)))],
+    ["GET", /^\/v1\/customers\/(?<id>[^/]+)\/timeline$/, (params, query) => S.GetCustomerTimelineResponse.parse(withState(merchantOf(query), (state) => { const timeline = customerTimeline(state, params.id!); return { ...timeline, events: timeline.events.map(withAuditName) }; }))],
     ["GET", /^\/v1\/reports$/, (_p, query) => S.GetReportsResponse.parse(withState(merchantOf(query), (state, ctx) => ({...buildConsoleReports(state, ctx.now, api.scheduler), ...(query.includeCloses === 'false' ? {closes:[]} : {})})))],
     ["GET", /^\/v1\/gates$/, (_p, query) => S.GetGatesResponse.parse(withState(merchantOf(query), (state) => getGates(state)))],
     ["GET", /^\/v1\/settings$/, (_p, query) => S.GetSettingsResponse.parse(withState(merchantOf(query), (state, ctx) => buildConsoleSettings(state, ctx.role, ctx.now, api.scheduler)))],

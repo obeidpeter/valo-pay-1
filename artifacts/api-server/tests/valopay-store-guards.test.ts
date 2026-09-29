@@ -40,10 +40,36 @@ assert.deepEqual(journalReceipt({ id: "export-1", kind: "customers", format: "cs
   const { summariseRequest } = await import("../src/lib/operation-summary.js");
   const { recoverableRequest } = await import("../src/lib/operation-recovery.js");
   const facts = (method: string, path: string, rest: Record<string, string | null> = {}) => ({ method, path, action: null, decision: null, status: null, kind: null, format: null, target: null, targetKind: null, ...rest });
-  assert.deepEqual(summariseRequest(facts("PATCH", "/v1/records/customers/cus%201", { status: "inactive" })), { summary: { action: "Change a record", targetKind: "customers", targetId: "cus 1", details: [{ name: "Status", value: "inactive" }] }, resultKind: "customers", resultOverrides: false }, "a record update names its record, from the path, and the status it sets");
-  assert.deepEqual(summariseRequest(facts("POST", "/v1/actions", { action: "mandate_suspend", target: "mnd-1", targetKind: "mandates" }))?.summary, { action: "Mandate suspend", targetKind: "mandates", targetId: "mnd-1", details: [] }, "an action is named in words, with the record its recordId names");
-  assert.deepEqual(summariseRequest(facts("POST", "/v1/exports", { kind: "customers", format: "csv" })), { summary: { action: "Request an export", targetKind: null, targetId: null, details: [{ name: "Kind", value: "customers" }, { name: "Format", value: "csv" }] }, resultKind: "exports", resultOverrides: true }, "an export's answer is an export, whatever kind it exports");
-  assert.deepEqual(summariseRequest(facts("POST", "/v1/pilot/cases/exc-1", { action: "claim" }))?.summary, { action: "Update a case", targetKind: "exceptions", targetId: "exc-1", details: [{ name: "Action", value: "claim" }] });
+  assert.deepEqual(summariseRequest(facts("PATCH", "/v1/records/customers/cus%201", { status: "inactive" })), { summary: { action: "Change a record", targetKind: "customers", targetId: "cus 1", details: [{ name: "Status", value: "Inactive" }] }, resultKind: "customers", resultOverrides: false }, "a record update names its record, from the path, and the status it sets, in words");
+  assert.deepEqual(summariseRequest(facts("POST", "/v1/actions", { action: "mandate_suspend", target: "mnd-1", targetKind: "mandates" }))?.summary, { action: "Suspend mandate", targetKind: "mandates", targetId: "mnd-1", details: [] }, "an action is named in words, as its button names it, with the record its recordId names");
+  assert.deepEqual(summariseRequest(facts("POST", "/v1/exports", { kind: "customers", format: "csv" })), { summary: { action: "Create an export", targetKind: null, targetId: null, details: [{ name: "Record type", value: "Customers" }, { name: "Format", value: "CSV" }] }, resultKind: "exports", resultOverrides: true }, "an export's answer is an export, whatever kind it exports");
+  assert.deepEqual(summariseRequest(facts("POST", "/v1/pilot/cases/exc-1", { action: "claim" }))?.summary, { action: "Update a case", targetKind: "exceptions", targetId: "exc-1", details: [{ name: "Action", value: "Claim" }] });
+  // Words, never codes: an action's, a connected banking action's with its product, and a status through the shared labels.
+  assert.equal(summariseRequest(facts("POST", "/v1/actions", { action: "kill_switch" }))?.summary.action, "Turn the emergency stop on or off");
+  assert.equal(summariseRequest(facts("POST", "/v1/connected/actions", { action: "payment.create" }))?.summary.action, "Pay by Bank: create checkout");
+  assert.equal(summariseRequest(facts("POST", "/v1/connected/actions", { action: "consent.revoke" }))?.summary.action, "Withdraw permission");
+  assert.equal(summariseRequest(facts("POST", "/v1/connected/actions", { action: "cash.erp.prepare" }))?.summary.action, "Cash Desk: prepare accounting draft");
+  assert.deepEqual(summariseRequest(facts("PATCH", "/v1/records/mandates/m-1", { status: "pending_activation" }))?.summary.details, [{ name: "Status", value: "Awaiting activation" }]);
+  // The label a new entry stores, and a label an earlier build stored as a spelled-out code, read in words.
+  const { requestLabel } = await import("../src/lib/operation-summary.js");
+  const { auditEntryName, storedRequestLabel, withAuditName } = await import("../src/lib/action-names.js");
+  assert.equal(requestLabel({ method: "POST", path: "/v1/actions", body: { action: "mandate_cancel" } }), "Cancel mandate");
+  assert.equal(requestLabel({ method: "POST", path: "/v1/records/due-items", body: {} }), "Add a record");
+  assert.equal(requestLabel({ method: "POST", path: "/v1/team/invitations", body: {} }), "Saved change");
+  assert.equal(storedRequestLabel("kill switch"), "Turn the emergency stop on or off");
+  assert.equal(storedRequestLabel("payment.refund request"), "Pay by Bank: request refund");
+  assert.equal(storedRequestLabel("Save pilot batches"), "Save pilot batches", "a label already in words is shown as stored");
+  // An audit entry is named in words from its stored action, which stays as it was.
+  assert.equal(auditEntryName("post.records.customers"), "Customer added");
+  assert.equal(auditEntryName("patch.records.exceptions.3f2a.9"), "Exception edited");
+  assert.equal(auditEntryName("mandate_suspend"), "Mandate suspended");
+  assert.equal(auditEntryName("consent.grant"), "Permission granted");
+  assert.equal(auditEntryName("post.lifecycle.runs.run-1.approve"), "Deletion run approved");
+  assert.equal(auditEntryName("an.unknown.code"), "Change recorded");
+  const entry = { kind: "audit", name: "post.records.due-items", data: { action: "post.records.due-items" } };
+  assert.deepEqual(withAuditName(entry), { kind: "audit", name: "Instalment added", data: { action: "post.records.due-items" } });
+  assert.equal(entry.name, "post.records.due-items", "the stored entry is not changed");
+  assert.deepEqual(withAuditName({ kind: "customers", name: "post.records", data: {} }).name, "post.records", "only an audit entry is renamed");
   assert.equal(summariseRequest(facts("POST", "/v1/lifecycle/runs/run-1/approve"))?.resultKind, "retention-runs", "an answer that names no kind is the kind its route saves");
   assert.equal(summariseRequest(facts("POST", "/v1/team/invitations")), null, "a route the journal does not record has no summary");
   assert.equal(summariseRequest({ ...facts("POST", "/v1/actions"), method: null, path: null }), null, "nor has a sealed or purged request");
@@ -53,7 +79,7 @@ assert.deepEqual(journalReceipt({ id: "export-1", kind: "customers", format: "cs
     const [method, path] = route.split(" ") as [string, string];
     assert.ok(recoverableRequest(method, path, { commit: true, action: "daily_close" }), `${route} is journaled`);
     const described = summariseRequest(facts(method, path, { action: "daily_close" }));
-    assert.ok(described && /^[A-Z][a-z]/.test(described.summary.action) && !described.summary.action.includes("/"), `${route} is named in words: ${described?.summary.action}`);
+    assert.ok(described && /^[A-Z][a-z]/.test(described.summary.action) && !/[/_]|\.[a-z]/.test(described.summary.action), `${route} is named in words: ${described?.summary.action}`);
   }
 }
 {

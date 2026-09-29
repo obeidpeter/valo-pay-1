@@ -4,12 +4,15 @@ import { effectiveCloseSchedule, type CloseRuntime } from "../domain/effective-c
 import type { DomainState } from "../domain/types";
 import { getSettings } from "./valopay-readiness";
 import { settingsRevision } from "./edit-versions";
+import { withAuditName } from "./action-names";
 
 /** Public console projections combine lender preferences with the actual running service. */
 export function buildConsoleOverview(state: DomainState, now: string, audit: AuditVerification, runtime: CloseRuntime) {
   const schedule = effectiveCloseSchedule(state, now, runtime);
   const alerts = buildAlerts(state, now, audit).filter(alert => alert.key !== "close_missed" || schedule.missed);
-  return { ...buildOverview(state, now, alerts), lastClose: schedule.lastAt ?? "", nextClose: schedule.nextAt ?? "", closeSchedule: schedule };
+  const overview = buildOverview(state, now, alerts);
+  // Recent activity names each audit entry in words ("Customer added"), not by its stored action.
+  return { ...overview, activity: overview.activity.map(withAuditName), lastClose: schedule.lastAt ?? "", nextClose: schedule.nextAt ?? "", closeSchedule: schedule };
 }
 
 export function buildConsoleReports(state: DomainState, now: string, runtime: CloseRuntime) {

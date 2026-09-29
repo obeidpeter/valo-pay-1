@@ -1,5 +1,6 @@
 /** Internal repository journal. Import through valopay-store; external access is rejected by the boundary check. */
-import { summariseRequest } from "../operation-summary";
+import { requestLabel, summariseRequest } from "../operation-summary";
+import { storedRequestLabel } from "../action-names";
 import { requestFingerprint } from "../digests";
 import {
   markOperationClosed,
@@ -145,7 +146,8 @@ export function createJournalRepository(dependencies: Dependencies) {
       answered = textOrNull(row.receipt_id);
     return {
       id: row.id,
-      label: row.label,
+      // A label an earlier build stored as a spelled-out code reads in words.
+      label: storedRequestLabel(row.label),
       actor: row.actor,
       role: row.role,
       status: row.status,
@@ -260,16 +262,8 @@ export function createJournalRepository(dependencies: Dependencies) {
         "Review your pending operations before submitting more requests.",
         409,
       );
-    const label =
-      request.path.includes("/actions") &&
-      request.body &&
-      typeof request.body === "object"
-        ? String(
-            (request.body as { action?: unknown }).action || "Workspace action",
-          )
-            .replaceAll("_", " ")
-            .slice(0, 100)
-        : `${request.method === "PATCH" ? "Update" : "Save"} ${request.path.split("/").filter(Boolean).slice(1, 3).join(" ").replaceAll("-", " ")}`;
+    // What Request history calls the request once it can no longer be read: its route or action in words.
+    const label = requestLabel(request);
     await session.client.query(
       `INSERT INTO valopay_operations(id,merchant_id,owner,actor,role,request_key,request_hash,request,label,created_at,updated_at)
     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10)`,

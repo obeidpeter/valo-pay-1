@@ -14,6 +14,7 @@ import type { DomainState, ValopayRecord } from "../domain/types";
 import { getGates } from "../lib/valopay-readiness";
 import { importCsv, withRowIdColumn } from "../lib/valopay-import";
 import { exportDescriptorForRecord, exportKinds, readExport } from "../lib/valopay-exports";
+import { withAuditName } from "../lib/action-names";
 import { assertExportPermitted, exportJobView, publicExportRecord, queueExport, retryExport } from '../lib/export-jobs';
 import { assertRecordVersion, assertSettingsVersion, mergeData } from "../lib/edit-versions";
 import { schedulerStatus } from "../lib/close-scheduler";
@@ -111,7 +112,8 @@ router.get("/v1/records/:kind",async(req,res)=>{
  res.json(await inWorkspace(req,res,async ctx=>{
   const page=await listRecords(ctx,query.merchantId,kind,query);
   // Never leak internal storage location through collection APIs.
-  return contractAnswer(S.ListRecordsResponse,{...page,items:page.items.map(r=>r.kind==="exports"?publicExportRecord(r):r)});
+  // An audit entry is named in words; its stored action stays in data.action.
+  return contractAnswer(S.ListRecordsResponse,{...page,items:page.items.map(r=>r.kind==="exports"?publicExportRecord(r):withAuditName(r))});
  },"read"));
 });
 router.get('/v1/queues/:queue', async (req, res) => {
@@ -187,7 +189,7 @@ router.get('/v1/customers/:id/history',async(req,res)=>{
  const {id}=S.GetCustomerHistoryParams.parse(req.params), query=S.GetCustomerHistoryQueryParams.parse(req.query);
  res.json(await inWorkspace(req,res,async ctx=>{
   const result=await getCustomerHistory(ctx,query.merchantId,id,query);
-  return contractAnswer(S.GetCustomerHistoryResponse,{...result,events:result.events.map(record=>record.kind==='exports'?publicExportRecord(record):record),...(result.focusedRecord?{focusedRecord:result.focusedRecord.kind==='exports'?publicExportRecord(result.focusedRecord):result.focusedRecord}:{})});
+  return contractAnswer(S.GetCustomerHistoryResponse,{...result,events:result.events.map(record=>record.kind==='exports'?publicExportRecord(record):withAuditName(record)),...(result.focusedRecord?{focusedRecord:result.focusedRecord.kind==='exports'?publicExportRecord(result.focusedRecord):withAuditName(result.focusedRecord)}:{})});
  },'read'));
 });
 router.get("/v1/customers/:id/timeline",async(req,res)=>{
@@ -195,7 +197,7 @@ router.get("/v1/customers/:id/timeline",async(req,res)=>{
  const {id}=S.GetCustomerTimelineParams.parse(req.params);
  res.json(await inWorkspace(req,res,async ctx=>{
   const timeline=customerTimeline(await loadCustomerView(ctx,merchantId,id),id);
-  return contractAnswer(S.GetCustomerTimelineResponse,{...timeline,events:timeline.events.map(record=>record.kind==='exports'?publicExportRecord(record):record)});
+  return contractAnswer(S.GetCustomerTimelineResponse,{...timeline,events:timeline.events.map(record=>record.kind==='exports'?publicExportRecord(record):withAuditName(record))});
  },"read"));
 });
 router.get('/v1/reconciliation/:queue',async(req,res)=>{
