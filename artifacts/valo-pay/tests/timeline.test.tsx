@@ -104,7 +104,7 @@ describe("customer timeline", () => {
       return state.records.find((record) => record.kind === "exceptions" && record.data.linkedRecordId === card.data.paymentId)!;
     });
     renderApp(`/cases/${exception.id}`);
-    const panel = (await screen.findByRole("heading", { name: "Unallocated payment" })).closest("section")!;
+    const panel = (await screen.findByRole("heading", { name: "Exception details" })).closest("section")!;
     expect(panel.textContent!.replace(/ /g, " ")).toContain("USD 1,000.00");
     expect(panel.textContent).not.toContain("₦1,000.00");
   });
@@ -116,8 +116,8 @@ describe("customer timeline", () => {
     expect(api.calls.find((call) => call.path.endsWith("/history"))?.status).toBe(404);
     // The sidebar stays as the way out, and each action names where it goes.
     expect(screen.getByRole("link", { name: /Audit log/ })).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Back to customers" }).getAttribute("href")).toBe("/customers");
-    expect(screen.getByRole("link", { name: "Go to overview" }).getAttribute("href")).toBe("/overview");
+    expect(screen.getByRole("link", { name: "Back to Customers" }).getAttribute("href")).toBe("/customers");
+    expect(screen.getByRole("link", { name: "Open Overview" }).getAttribute("href")).toBe("/overview");
     await waitFor(() => expect(document.title).toBe("Customer not found · Valo Pay"));
   });
 
@@ -128,11 +128,11 @@ describe("customer timeline", () => {
     try {
       renderApp("/cases/no-such-case");
       expect(await screen.findByRole("heading", { level: 1, name: "Case not found" })).toBeTruthy();
-      expect(screen.queryByRole("heading", { name: "Coordinate a case" })).toBeNull();
+      expect(screen.queryByRole("heading", { name: /^Case(: .+)?$/ })).toBeNull();
       expect(screen.getByText("no-such-case")).toBeTruthy();
       expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
-      expect(screen.getByRole("link", { name: "Back to exceptions" }).getAttribute("href")).toBe("/exceptions");
-      expect(screen.getByRole("link", { name: "Go to overview" }).getAttribute("href")).toBe("/overview");
+      expect(screen.getByRole("link", { name: "Back to Exceptions" }).getAttribute("href")).toBe("/exceptions");
+      expect(screen.getByRole("link", { name: "Open Overview" }).getAttribute("href")).toBe("/overview");
       await waitFor(() => expect(document.title).toBe("Case not found · Valo Pay"));
       expect(api.calls.filter((call) => call.path === "/v1/pilot/cases/no-such-case").map((call) => call.status)).toEqual([404]);
     } finally {
@@ -144,7 +144,8 @@ describe("customer timeline", () => {
     api.failNext(/^\/v1\/pilot\/cases\/no-such-case$/, { status: 503, error: "The service is busy. Try again in a moment." });
     renderApp("/cases/no-such-case");
     expect(await screen.findByText(/^The service is busy\. Try again in a moment\./)).toBeTruthy();
-    expect(screen.getByRole("heading", { level: 1, name: "Coordinate a case" })).toBeTruthy();
+    // Before the exception loads, the heading is the page's name alone.
+    expect(screen.getByRole("heading", { level: 1, name: "Case" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy();
   });
 });

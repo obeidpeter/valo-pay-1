@@ -152,8 +152,8 @@ it('takes an empty lender from corrected sample imports to a reviewed payment an
   expect(within(caseRow).getByText('Unallocated payment')).toBeTruthy();
   expect(within(caseRow).getByText('No certain or confirmed allocation after 24 hours.')).toBeTruthy();
   await user.click(caseLink);
-  await screen.findByRole('heading', { name: 'Coordinate a case', level: 1 });
-  expect(screen.getByText(/Recording a handover does not allocate a payment or resolve its exception/)).toBeTruthy();
+  await screen.findByRole('heading', { name: 'Case: Unallocated payment', level: 1 });
+  expect(screen.getByText(/Recording a handover does not allocate a payment or resolve the exception/)).toBeTruthy();
   expect(records('exceptions').filter(record => record.status === 'open')).toHaveLength(1);
   expect(records('payments').find(record => record.reference === 'PILOT-O002')?.status).toBe('unallocated');
   expect(api.role).toBe('Finance');

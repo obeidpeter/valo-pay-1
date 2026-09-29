@@ -18,18 +18,18 @@ test('the current assignee can review and acknowledge a handover without resolvi
   const saved = await request.post(`/api/v1/pilot/cases/${source.id}?merchantId=${lender}`, { data: { action: 'handover', expectedUpdatedAt: source.updatedAt, assignee: workspace.actor, note: 'Handing this sample case to the named administrator.', nextAction: 'Inspect the sample payment evidence and record the outcome.', nextActionAt: '2026-09-20T10:00:00.000Z', evidenceIds: [] } });
   expect(saved.ok()).toBeTruthy();
   await page.goto('/work');
-  await page.getByRole('button', { name: 'Review handover', exact: true }).click();
-  const dialog = page.getByRole('dialog', { name: 'Review this handover' });
+  await page.getByRole('button', { name: 'Acknowledge handover', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Acknowledge handover?' });
   await expect(dialog.getByRole('button', { name: 'Acknowledge handover' })).toBeDisabled();
-  await dialog.getByRole('checkbox', { name: 'I have reviewed this handover and its next action.' }).check();
+  await dialog.getByRole('checkbox', { name: 'I have checked this handover and its next step.' }).check();
   await dialog.getByRole('button', { name: 'Acknowledge handover', exact: true }).click();
   await expect(dialog).not.toBeVisible();
-  await expect(page.getByText(/Handover acknowledged\. The case and its next action remain open/)).toBeVisible();
+  await expect(page.getByText(/Handover acknowledged\. The case and its next step stay open/)).toBeVisible();
   await page.getByRole('button', { name: 'Mark as read', exact: true }).click();
   await expect(page.getByText(/Notification marked as read/)).toBeVisible();
   await page.reload();
   await expect(page.getByText('Inspect the sample payment evidence and record the outcome.', { exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Review handover', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Acknowledge handover', exact: true })).toHaveCount(0);
   expect((await (await request.get(`/api/v1/records/exceptions?merchantId=${lender}&id=${source.id}`)).json()).items[0].status).toBe('in_progress');
   await audit(page);
   await page.screenshot({ path: info.outputPath('personal-work-receipts.png'), fullPage: true });
@@ -95,7 +95,7 @@ for (const theme of ['light', 'dark'] as const) test(`new operations pages expos
   for (const [route, title] of [['/work', 'My work'], ['/close-review', 'Finance close review'], ['/lifecycle', 'Data retention'], ['/team', 'Team & access']]) {
     await page.goto(route);
     await expect(page.getByRole('heading', { name: title, exact: true })).toBeVisible();
-    if (route === '/work') await expect(page.getByText('No work assigned here', { exact: true })).toBeVisible();
+    if (route === '/work') await expect(page.getByText('No work assigned yet', { exact: true })).toBeVisible();
     if (route === '/close-review') {
       await expect(page.getByText('Independent approval needs two people', { exact: true })).toBeVisible();
       const history = page.getByRole('navigation', { name: 'Close snapshots' });

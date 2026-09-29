@@ -101,7 +101,7 @@ it('records reading without resolving the case and retains history', async () =>
 it.each(['Cancel', 'Escape'] as const)('returns keyboard focus to the handover opener after %s', async close => {
   assigned('Clerk:alice', 'Handover to review', true);
   const user = userEvent.setup(); mount();
-  const opener = await screen.findByRole('button', { name: 'Review handover' });
+  const opener = await screen.findByRole('button', { name: 'Acknowledge handover' });
   opener.focus();
   await user.keyboard('{Enter}');
   const dialog = screen.getByRole('dialog');
@@ -118,7 +118,7 @@ it.each(['Cancel', 'Escape'] as const)('returns keyboard focus to the handover o
 it.each([false, true])('handles a delayed acknowledged-queue refresh without losing or stealing focus (moved on: %s)', async movedOn => {
   assigned('Clerk:alice', 'Delayed handover refresh', true);
   const user = userEvent.setup(); mount();
-  const opener = await screen.findByRole('button', { name: 'Review handover' });
+  const opener = await screen.findByRole('button', { name: 'Acknowledge handover' });
   opener.focus();
   await user.keyboard('{Enter}');
   const dialog = screen.getByRole('dialog');
@@ -137,7 +137,7 @@ it.each([false, true])('handles a delayed acknowledged-queue refresh without los
   const filter = screen.getByRole('combobox', { name: 'Show' });
   if (movedOn) filter.focus();
   release();
-  await waitFor(() => expect(screen.queryByRole('button', { name: 'Review handover' })).toBeNull());
+  await waitFor(() => expect(screen.queryByRole('button', { name: 'Acknowledge handover' })).toBeNull());
   await waitFor(() => expect(document.activeElement).toBe(movedOn ? filter : confirmation));
   expect(requests).toHaveLength(1);
 });
@@ -146,7 +146,7 @@ it.each(['lost', 'malformed'] as const)('recovers %s handover responses with the
   const record = assigned('Clerk:alice', 'Handover sample', true);
   responseMode = mode;
   const user = userEvent.setup(); mount();
-  await user.click(await screen.findByRole('button', { name: 'Review handover' }));
+  await user.click(await screen.findByRole('button', { name: 'Acknowledge handover' }));
   const dialog = screen.getByRole('dialog');
   expect((within(dialog).getByRole('button', { name: 'Acknowledge handover' }) as HTMLButtonElement).disabled).toBe(true);
   await user.click(within(dialog).getByRole('checkbox'));
@@ -169,7 +169,7 @@ it.each(['lost', 'malformed'] as const)('recovers %s handover responses with the
 it('rejects a handover changed after the review opened and explains the current assignment check', async () => {
   const record = assigned('Clerk:alice', 'Stale handover', true);
   const user = userEvent.setup(); mount();
-  await user.click(await screen.findByRole('button', { name: 'Review handover' }));
+  await user.click(await screen.findByRole('button', { name: 'Acknowledge handover' }));
   record.data.case.nextAction = 'New next action'; record.updatedAt = '2026-09-25T10:01:00.000Z';
   const dialog = screen.getByRole('dialog');
   await user.click(within(dialog).getByRole('checkbox'));
@@ -183,12 +183,12 @@ it('shows administrators a scoped team workload without another person’s ackno
   context.actor = 'Clerk:admin'; context.role = 'Admin';
   assigned('Clerk:alice', 'Alice handover', true); assigned('Clerk:bob', 'Bob case');
   const user = userEvent.setup(); mount();
-  await screen.findByText('No work assigned here');
+  await screen.findByText('No work assigned yet');
   await user.selectOptions(screen.getByRole('combobox', { name: 'Work queue' }), 'team');
-  await screen.findByRole('heading', { name: 'Workload by staff member' });
+  await screen.findByRole('heading', { name: 'Workload by team member' });
   expect(screen.getByRole('heading', { name: 'Alice handover' })).toBeTruthy();
   expect(screen.getByRole('heading', { name: 'Bob case' })).toBeTruthy();
-  expect(screen.queryByRole('button', { name: 'Review handover' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Acknowledge handover' })).toBeNull();
   expect(screen.queryByRole('button', { name: 'Mark as read' })).toBeNull();
 });
 

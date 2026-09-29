@@ -114,7 +114,7 @@ test("record pages have unique, top-level landmarks and pass WCAG 2.2 AA as a wh
   await audit(page, "customer history");
   const exception = (await (await request.get(`/api/v1/records/exceptions?merchantId=${lender}&limit=1`)).json()).items[0];
   await page.goto(`/cases/${exception.id}`);
-  await settle(page, "Coordinate a case");
+  await settle(page, /^Case: /);
   await audit(page, "case");
 });
 

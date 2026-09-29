@@ -49,9 +49,9 @@ function allocationDetail(data: Record<string, any>): string {
 function MissingCustomer({ id }: { id: string }) {
   useEffect(() => { document.title = 'Customer not found · Valo Pay'; }, []);
   return (
-    <NotFoundNotice title="Customer not found" primary={{ href: '/customers', label: 'Back to customers' }} secondary={{ href: '/overview', label: 'Go to overview' }}>
-      <p>No customer was found with ID <LookedFor>{id}</LookedFor> for the selected lender. Check the address or choose another lender.</p>
-      <p>No records have changed.</p>
+    <NotFoundNotice title="Customer not found" primary={{ href: '/customers', label: 'Back to Customers' }} secondary={{ href: '/overview', label: 'Open Overview' }}>
+      <p>No customer has the ID <LookedFor>{id}</LookedFor> for this lender. It may have been deleted, or it belongs to another lender. Check the address or choose another lender.</p>
+      <p>Nothing has changed.</p>
     </NotFoundNotice>
   );
 }

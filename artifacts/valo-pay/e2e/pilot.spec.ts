@@ -56,14 +56,14 @@ test("saved import and case handover work across reload with accessible responsi
   ).items[0];
   await page.goto(`/cases/${record.id}`);
   await page
-    .getByLabel("Next action", { exact: true })
+    .getByLabel("Next step", { exact: true })
     .fill("Review the source payment");
   await page
     .getByLabel("Handover or progress note")
     .fill("Verified the sample reference and source batch.");
   await page.getByRole("button", { name: "Claim and save next step" }).click();
   await expect(
-    page.getByText("Case update saved with its handover history."),
+    page.getByText("Case saved. Its handover history is updated."),
   ).toBeVisible();
   await page.getByLabel("Assigned to").selectOption("Sandbox Finance");
   await page
@@ -149,7 +149,7 @@ test("an unknown case says so at once, after a single request", async ({
   ).toBeVisible();
   await expect(page.getByText("no-such-case", { exact: true })).toBeVisible();
   await expect(
-    page.getByRole("link", { name: "Back to exceptions" }),
+    page.getByRole("link", { name: "Back to Exceptions" }),
   ).toHaveAttribute("href", "/exceptions");
   // A refusal is never repeated: past the first retry's one-second delay, still one request.
   await page.waitForTimeout(1500);
