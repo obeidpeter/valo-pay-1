@@ -74,6 +74,42 @@ describe("public task help", () => {
     expect(api.calls).toEqual([]);
   });
 
+  it("keeps the search, section and return page in its links where URLSearchParams has no size", async () => {
+    // Safari 16, Chrome and Edge before 113 and Firefox before 112, all in the build's target, have no size.
+    const size = Object.getOwnPropertyDescriptor(URLSearchParams.prototype, "size");
+    delete (URLSearchParams.prototype as { size?: number }).size;
+    try {
+      expect(new URLSearchParams("q=payment").size).toBeUndefined();
+      const user = userEvent.setup();
+      renderApp("/help?q=payment&returnTo=%2Fpay-by-bank");
+      const guide = await screen.findByRole("link", {
+        name: /Understand payment status without paying twice/,
+      });
+      expect(guide.getAttribute("href")).toBe(
+        "/help?q=payment&returnTo=%2Fpay-by-bank&topic=payment-status",
+      );
+      expect(
+        screen.getByRole("link", { name: "Terms explained" }).getAttribute("href"),
+      ).toBe("/help?q=payment&returnTo=%2Fpay-by-bank&view=glossary");
+      expect(
+        screen.getByRole("link", { name: "Clear search" }).getAttribute("href"),
+      ).toBe("/help?returnTo=%2Fpay-by-bank");
+      await user.click(guide);
+      await screen.findByRole("heading", {
+        name: "Understand payment status without paying twice",
+        level: 2,
+      });
+      expect(
+        screen
+          .getByRole("link", { name: "Back to search results" })
+          .getAttribute("href"),
+      ).toBe("/help?q=payment&returnTo=%2Fpay-by-bank");
+    } finally {
+      if (size) Object.defineProperty(URLSearchParams.prototype, "size", size);
+    }
+    expect(api.calls).toEqual([]);
+  });
+
   it("finds a guide through a specialist term and offers an actionable empty search state", async () => {
     const user = userEvent.setup();
     renderApp("/help");
@@ -243,6 +279,29 @@ describe("contextual help links", () => {
     expect(api.calls).toEqual([]);
   });
 
+  it("returns someone reading a Cash Desk section's help to that section", async () => {
+    const user = userEvent.setup();
+    renderApp("/cash-desk?view=payroll");
+    await user.click(
+      await screen.findByRole("link", {
+        name: "Help: Prepare a reviewed payroll file",
+      }),
+    );
+    await screen.findByRole("heading", {
+      name: "Prepare a reviewed payroll file",
+      level: 2,
+    });
+    const back = screen.getByRole("link", { name: "Return to your page" });
+    expect(back.getAttribute("href")).toBe("/cash-desk?view=payroll");
+    await user.click(back);
+    expect(
+      (
+        await screen.findByRole("button", { name: "Payroll funding" })
+      ).getAttribute("aria-current"),
+    ).toBe("page");
+    expect(api.calls.filter((call) => call.method === "POST")).toEqual([]);
+  });
+
   it.each([
     [
       "/mandates",
@@ -295,10 +354,15 @@ describe("contextual help links", () => {
       "/\\example.test",
       "/overview/../sign-in",
       "/overview\n",
+      "/cash-desk?view=unknown",
+      "/cash-desk?view=payroll&record=private-id",
     ]) {
       expect(safeHelpReturnTo(value)).toBeNull();
       expect(helpHref("recovery", value)).toBe("/help?topic=recovery");
     }
     expect(safeHelpReturnTo("/cash-desk")).toBe("/cash-desk");
+    expect(safeHelpReturnTo("/cash-desk?view=payroll")).toBe(
+      "/cash-desk?view=payroll",
+    );
   });
 });

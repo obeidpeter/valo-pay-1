@@ -269,7 +269,10 @@ export function Layout({ children }: { children: ReactNode }) {
   const pageTitle = navItems.find(n => n.href === location)?.label || (location.startsWith('/cases/') ? 'Case handling' : 'Customer timeline');
   const baseRoute = location.startsWith('/cases/') ? '/exceptions' : location.startsWith('/customers/') ? '/customers' : location;
   const cashView = new URLSearchParams(search).get('view');
-  const helpTopic: HelpTopicId = baseRoute === '/cash-desk' && ['accounting', 'vat', 'payroll'].includes(cashView || '') ? cashView as HelpTopicId : helpTopics[baseRoute] || 'start';
+  // A Cash Desk section has a guide of its own, and its help returns to that section rather than to the first.
+  const cashSection = baseRoute === '/cash-desk' && ['accounting', 'vat', 'payroll'].includes(cashView || '') ? cashView as HelpTopicId : null;
+  const helpTopic: HelpTopicId = cashSection || helpTopics[baseRoute] || 'start';
+  const helpReturn = cashSection ? `${baseRoute}?view=${cashSection}` : baseRoute;
   const [printedAt, setPrintedAt] = useState(() => formatDate(new Date().toISOString()));
   useEffect(() => {
     const stamp = () => setPrintedAt(formatDate(new Date().toISOString()));
@@ -365,7 +368,7 @@ export function Layout({ children }: { children: ReactNode }) {
             <p aria-live="polite" className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs"><span>{workspace?.accessMode === 'staff' ? 'Role' : 'Demo role'}: <strong className="font-semibold">{workspace?.role || 'Loading…'}</strong></span>{lender?.mode && <span>Mode: <strong className="font-semibold">{lender.mode}</strong></span>}<span className="text-muted-foreground">Times in WAT</span></p>
           </div>
           <div className="console-content p-4 sm:p-6 md:p-8 max-w-[1440px] mx-auto print:max-w-none print:p-0" aria-busy={isLoading && !workspace}>
-            {!embedded && <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-b pb-3 text-xs print:hidden"><p className="text-muted-foreground">{pageDescriptions[baseRoute]}</p><ContextualHelp topic={helpTopic} returnTo={baseRoute} /></div>}
+            {!embedded && <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-b pb-3 text-xs print:hidden"><p className="text-muted-foreground">{pageDescriptions[baseRoute]}</p><ContextualHelp topic={helpTopic} returnTo={helpReturn} /></div>}
             {/* Print only: the provenance the screen's banner and sidebar carried. */}
             <div className="hidden print:block mb-6 border-b pb-3">
               <div className="flex items-baseline justify-between gap-4 text-sm">

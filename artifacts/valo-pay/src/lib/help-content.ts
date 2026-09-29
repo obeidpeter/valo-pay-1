@@ -644,6 +644,10 @@ export const helpReturnPaths = [
   "/pay-by-bank",
   "/credit-desk",
   "/cash-desk",
+  // Each of these Cash Desk sections has its own guide, whose help returns to the same section.
+  "/cash-desk?view=accounting",
+  "/cash-desk?view=vat",
+  "/cash-desk?view=payroll",
   "/connections",
   "/pilot",
   "/imports",
