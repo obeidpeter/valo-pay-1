@@ -30,7 +30,7 @@ describe("accessibility", () => {
     ["/reconciliation", "Reconciliation"],
     ["/exceptions", "Exceptions"],
     ["/policies", "Policies & templates"],
-    ["/reports", "Reports & analytics"],
+    ["/reports", "Reports"],
     ["/evidence", "Go-live evidence"],
     ["/audit", "Audit log"],
     ["/settings", "Settings & administration"],

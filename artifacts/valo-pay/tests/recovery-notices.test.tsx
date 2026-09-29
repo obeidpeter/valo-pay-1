@@ -126,8 +126,8 @@ describe("unconfirmed changes the journal records point to Operations", () => {
     expect(within(refused).queryByRole("link", { name: "Open Operations" })).toBeNull();
     api.failNext(/^\/v1\/actions$/, "offline", "POST");
     await user.click(screen.getByRole("button", { name: "Run daily close" }));
-    await screen.findByText(/The service could not confirm the result/);
-    pointsToOperations("Daily close could not be confirmed");
+    await screen.findByText(/We do not know yet whether Valo Pay ran this close/);
+    pointsToOperations("Request not confirmed");
   });
 
   it("on Reconciliation, for a run", async () => {

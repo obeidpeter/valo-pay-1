@@ -133,10 +133,10 @@ test("close range uses native date fields, pages summaries and loads evidence on
     page.getByRole("button", { name: "Issue invoice" }),
   ).toBeVisible();
   await page
-    .getByRole("button", { name: "Pilot evidence", exact: true })
+    .getByRole("button", { name: "Pilot results", exact: true })
     .click();
   await expect(
-    page.getByRole("button", { name: "New experiment" }),
+    page.getByRole("button", { name: "Create experiment" }),
   ).toBeVisible();
 });
 test("a close's money in another currency is listed in that currency beside its naira", async ({ page, request }) => {
@@ -249,6 +249,6 @@ test("reconciliation pages retain evidence and reject a proposed match with a re
   expect(unbounded).toHaveLength(0);
   await navigate(page, "Reports");
   await expect(
-    page.getByRole("heading", { name: "Reports & analytics" }),
+    page.getByRole("heading", { name: "Reports" }),
   ).toBeVisible();
 });

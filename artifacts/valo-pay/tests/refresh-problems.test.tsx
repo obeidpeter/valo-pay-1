@@ -20,8 +20,8 @@ const text = (selector: string) => () => document.querySelector(selector)?.textC
 describe("failed background refresh", () => {
   it.each([
     ["/overview", /^\/v1\/overview$/, "Operations overview", "The overview could not be refreshed.", text('section[aria-labelledby="overview-metrics-title"]')],
-    ["/reports", /^\/v1\/reports$/, "Reports & analytics", "Reports could not be refreshed.", text('section[aria-label="Operational metrics"]')],
-    ["/reports", /^\/v1\/close-history$/, "Reports & analytics", "The close history could not be refreshed.", text("#daily-closes")],
+    ["/reports", /^\/v1\/reports$/, "Reports", "Reports could not be refreshed.", text('section[aria-label="Totals"]')],
+    ["/reports", /^\/v1\/close-history$/, "Reports", "The close history could not be refreshed.", text("#daily-closes")],
     ["/settings", /^\/v1\/settings$/, "Settings & administration", "Collection settings could not be refreshed.", () => screen.queryByRole("heading", { name: "Collection settings" })?.closest("section")?.textContent],
     ["/credit-desk", /^\/v1\/connected$/, "Credit Desk", "Credit Desk could not be refreshed.", text(".connected-page")],
     ["/pay-by-bank", /^\/v1\/connected$/, "Pay-by-bank", "Pay-by-bank could not be refreshed.", text(".connected-page fieldset")],

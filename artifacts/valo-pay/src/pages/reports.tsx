@@ -38,7 +38,7 @@ const invoiceRows = (record: Unknown): Array<Record<string, any>> => Array.isArr
 const adjustmentRows = (record: Unknown): Array<Record<string, any>> => Array.isArray(record?.pendingAdjustments) ? (record!.pendingAdjustments as Array<Record<string, any>>) : [];
 /** Issued invoices charged at another rate than the terms in effect for their month give, each with the service's explanation; an older answer has none. */
 const discrepancyRows = (record: Unknown): Array<Record<string, any>> => Array.isArray(record?.rateDiscrepancies) ? (record!.rateDiscrepancies as Array<Record<string, any>>) : [];
-const rateText = (rate: unknown) => typeof rate !== 'number' ? 'Not available' : rate > 0 ? `${formatPercent(rate)} discount` : 'Full public price';
+const rateText = (rate: unknown) => typeof rate !== 'number' ? 'Not recorded' : rate > 0 ? `${formatPercent(rate)} discount` : 'Full public price';
 const billingSummaryKeys = new Set(['period', 'volumeTier', 'totalKobo', 'usageFeeKobo', 'successfulCollections', 'nextInvoicePeriod', 'pendingAdjustmentsKobo']);
 const billingReadinessKeys = new Set(['pricingReady', 'pricingExplanation', 'nextInvoicePricingReady', 'nextInvoicePricingExplanation']);
 const billingLabels: Record<string, string> = {
@@ -46,7 +46,7 @@ const billingLabels: Record<string, string> = {
   usageRateBps: 'Usage fee rate', usageCapKobo: 'Maximum usage fee per collection', vatBps: 'VAT rate',
   reversalWindowDays: 'Provider reversal period (days)', billableRule: 'When a collection can be billed',
   eligibleAllocatedKobo: 'Matched value eligible for billing', successfulCollections: 'Billable collections',
-  usageFeeKobo: 'Usage fees', nextInvoicePeriod: 'Next invoice month',
+  usageFeeKobo: 'Usage fees', nextInvoicePeriod: 'Month the next invoice covers',
   withheldInsideReversalWindow: 'Collections still within the reversal period',
   pendingAdjustmentsKobo: 'Pending adjustments', adjustmentRule: 'How invoice corrections work',
   recoveryFee: 'Recovery fee conditions', implementationExcludedFromRecurring: 'Setup fees excluded from recurring revenue',
@@ -59,7 +59,7 @@ const checkLabels: Record<string, string> = {
 };
 
 function renderValue(key: string, value: unknown): string {
-  if (value === null || value === undefined) return 'Not available';
+  if (value === null || value === undefined) return 'Not recorded';
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
   if (typeof value === 'number') {
     if (/kobo$/i.test(key)) return formatKobo(value);
@@ -107,7 +107,7 @@ export default function ReportsPage() {
         setCloseResult({ merchantId: variables.params!.merchantId, message: data.message, failed: false });
         void queryClient.invalidateQueries();
       },
-      onError: (error, variables) => setCloseResult({ merchantId: variables.params!.merchantId, message: saidBy(error, 'The service could not confirm the result. Refresh the reports to check for a close record before trying again.'), failed: true }),
+      onError: (error, variables) => setCloseResult({ merchantId: variables.params!.merchantId, message: saidBy(error, 'We do not know yet whether Valo Pay ran this close. Refresh the close records to check before you run it again.'), failed: true }),
     }
   }, merchantId);
 
@@ -136,9 +136,7 @@ export default function ReportsPage() {
     <div className="space-y-6">
       <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Insights & evidence</p>
-          <h1 className="text-3xl font-bold tracking-tight">Reports & analytics</h1>
-          <p className="text-sm text-muted-foreground mt-2">Review daily close records, billing and operational results.</p>
+          <h1 className="text-3xl font-bold tracking-tight">Reports</h1>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           {view === 'billing' && <><ExportJobControl kind="billing" formats={['csv']} label="Export billing CSV" />
@@ -148,30 +146,30 @@ export default function ReportsPage() {
           {view === 'operations' && <><div className="max-w-64 space-y-1">
             <label htmlFor="close-source-date" className="text-xs font-medium">Source business date (optional)</label>
             <Input id="close-source-date" type="date" value={sourceBusinessDate} onChange={event => setSourceBusinessDate(event.target.value)} disabled={dailyClose.isPending} aria-describedby="close-source-date-help" />
-            <p id="close-source-date-help" className="text-xs text-muted-foreground">Defaults to today in WAT or, while scheduled closes are missed, to the oldest missed business date, which this close then covers. Checks files for that date; financial totals reflect this run.</p>
+            <p id="close-source-date-help" className="text-xs text-muted-foreground">Leave blank to use today (WAT). If automatic closes were missed, the oldest missed date is used instead. The close checks the files for that date. Its totals are as at the time it runs.</p>
           </div><Button
             className="gap-2"
             action="daily_close" onClick={() => dailyClose.mutate({ data: { action: 'daily_close', ...(sourceBusinessDate ? { data: { sourceBusinessDate } } : {}) }, params: { merchantId } })}
             busy={dailyClose.isPending}
-            busyLabel="Closing the day…"
+            busyLabel="Running daily close…"
           >
             <RefreshCcw className="h-4 w-4" /> Run daily close
           </Button></>}
         </div>
       </header>
       <SectionNavigation label="Report views" value={view} onChange={value => setReportFilter('view', value)} sections={[
-        { id: 'operations', label: 'Operations', description: 'Current operational totals and recorded daily closes. Use the date range to compare past closing positions.' },
-        { id: 'billing', label: 'Billing', description: 'Current-period charges, issued invoices and adjustments. The billing export covers the current statement.' },
-        { id: 'evidence', label: 'Pilot evidence', description: 'Review the evidence needed to assess a pilot. Sample data cannot establish live performance.' },
+        { id: 'operations', label: 'Totals and closes', description: 'Current totals and the saved daily closes. Use the dates below to compare past closes.' },
+        { id: 'billing', label: 'Billing', description: 'Charges for this billing month, issued invoices and adjustments. The billing CSV covers this month’s statement.' },
+        { id: 'evidence', label: 'Pilot results', description: 'Measures for judging the pilot. Sample data cannot show how Valo Pay performs live.' },
       ]} />
       {view === 'billing' && (invoiceNeedsReview || statementNeedsReview) && <div id="invoice-pricing-review" role="status" className="rounded-xl border border-warning/40 bg-warning/5 p-4 text-sm">
         <p className="font-semibold">Commercial terms need review</p>
         {statementNeedsReview && <p className="mt-2">Current statement: {pricingExplanation(reports?.billing?.pricingExplanation)}</p>}
         {invoiceNeedsReview && <p className="mt-2">Next invoice: {pricingExplanation(reports?.billing?.nextInvoicePricingExplanation)}</p>}
-        <Link href="/evidence" className="mt-3 inline-flex min-h-10 items-center font-medium text-primary underline underline-offset-4">Review commercial terms in Go-live evidence</Link>
+        <Link href="/evidence" className="mt-3 inline-flex min-h-10 items-center font-medium text-primary underline underline-offset-4">Open Go-live evidence</Link>
       </div>}
       {closeResult?.merchantId === merchantId && <div role={closeResult.failed ? 'alert' : 'status'} className={`rounded-lg border p-5 text-sm ${closeResult.failed ? 'border-destructive/30 bg-destructive/5' : 'bg-card'}`}>
-        <p className="font-semibold">{closeResult.failed ? 'Daily close could not be confirmed' : 'Daily close completed'}</p>
+        <p className="font-semibold">{closeResult.failed ? (dailyClose.hasUnconfirmedOutcome ? 'Request not confirmed' : 'Daily close not completed') : 'Daily close completed'}</p>
         <p className="mt-2 text-muted-foreground">{closeResult.message}{closeResult.failed && dailyClose.hasUnconfirmedOutcome && <> {KEPT_IN_OPERATIONS}</>}</p>
         {closeResult.failed ? <div className="mt-3 flex flex-wrap items-center gap-3"><Button variant="outline" size="sm" onClick={() => { void refetch(); void queryClient.invalidateQueries({ queryKey: ['/api/v1/close-history'] }); }} busy={fetchingReports} busyLabel="Refreshing…">Refresh close records</Button>{dailyClose.hasUnconfirmedOutcome && <OpenOperations />}</div> : <Link href="/reports?view=operations#daily-closes" className="mt-3 inline-flex min-h-6 items-center font-medium text-primary underline">View close record</Link>}
       </div>}
@@ -183,8 +181,8 @@ export default function ReportsPage() {
       ) : (
         <div className="space-y-6">
           <RefreshProblem what="Reports" query={reportsQuery} />
-          <p className="text-xs text-muted-foreground">{view === 'operations' ? `Current workspace totals${reports.operational?.asOf ? ` as at ${formatDate(String(reports.operational.asOf))}` : ''}.` : view === 'billing' ? `Billing period: ${String(reports.billing?.period || 'not available')}. Amounts are in Nigerian naira unless another currency is named.` : `Accuracy sample: ${String((reports.operational?.precisionAudit as any)?.month || 'completed month')}.`} All figures use sample data.</p>
-          <section hidden={view !== 'operations'} aria-label="Operational metrics" className={view === 'operations' ? 'grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4' : ''}>
+          <p className="text-xs text-muted-foreground">{view === 'operations' ? `Current totals for this lender${reports.operational?.asOf ? ` as at ${formatDate(String(reports.operational.asOf))}` : ''}.` : view === 'billing' ? `Billing month: ${String(reports.billing?.period || 'not recorded')}. Amounts are in naira unless another currency is named.` : `Accuracy sample: ${String((reports.operational?.precisionAudit as any)?.month || 'completed month')}.`} All figures use sample data.</p>
+          <section hidden={view !== 'operations'} aria-label="Totals" className={view === 'operations' ? 'grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4' : ''}>
             {reports.metrics.map(metric => (
               <div key={metric.key} className="min-w-0 rounded-xl border bg-card p-5 shadow-sm">
                 <p className="text-xs font-medium text-muted-foreground">{metric.label}</p>
@@ -200,19 +198,19 @@ export default function ReportsPage() {
 
           <section hidden={view !== 'evidence'} className="rounded-xl border bg-card" aria-labelledby="measurement-title">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b px-5 py-4">
-              <h2 id="measurement-title" className="text-sm font-semibold">Operational evidence</h2>
-              <span className="rounded-md bg-secondary/60 px-2 py-1 text-xs text-muted-foreground">Sample data · not live evidence</span>
+              <h2 id="measurement-title" className="text-sm font-semibold">Pilot measures</h2>
+              <span className="rounded-md bg-secondary/60 px-2 py-1 text-xs text-muted-foreground">Sample data, not live results</span>
             </div>
             <div className="grid grid-cols-1 gap-5 p-5 sm:grid-cols-2 xl:grid-cols-4">
             <div className="min-w-0">
                <p className="text-xs font-medium text-muted-foreground">Staff review confirmed</p>
                <div className="mt-2 text-xl font-semibold tracking-tight tabular-nums">{reports.operational?.fortnightlyStaffConfirmed ? 'Yes' : 'No'}</div>
-               <p className="text-xs text-muted-foreground mt-2">{reports.operational?.latestReviewAt ? `Last confirmed on ${formatDate(String(reports.operational.latestReviewAt))}. ${reports.operational?.reviewCadenceMet ? 'Reviews have met the two-week schedule' : 'The two-week review schedule has gaps'} since the first close.` : 'No named reviewer has confirmed all four tasks in a fortnightly review yet.'}</p>
+               <p className="text-xs text-muted-foreground mt-2">{reports.operational?.latestReviewAt ? `Last confirmed on ${formatDate(String(reports.operational.latestReviewAt))}. ${reports.operational?.reviewCadenceMet ? 'Reviews have happened every two weeks since the first close.' : 'Some two-week periods since the first close had no review.'}` : 'No reviewer has confirmed all four tasks in a review yet. Reviews are due every two weeks.'}</p>
             </div>
             <div className="min-w-0">
                <p className="text-xs font-medium text-muted-foreground">Payment match accuracy</p>
                <div className="mt-2 text-xl font-semibold tracking-tight tabular-nums">{count((reports.operational?.precisionAudit as any)?.reviewed)} <span className="text-sm font-normal text-muted-foreground">/ {count(reports.operational?.requiredAuditSample || 0)} reviewed</span></div>
-               <p className="text-xs text-muted-foreground mt-2">{(() => { const audit = reports.operational?.precisionAudit as any; return audit?.falseMatchRate === null || audit?.falseMatchRate === undefined ? `Sample of ${count(audit?.sampleSize)} of ${count(audit?.population)} automatic high-confidence matches for ${String(audit?.month ?? 'the completed month')}. None reviewed yet.` : `Incorrect matches: ${percent(audit.falseMatchRate)}. The 95% confidence interval is ${percent(audit.interval?.low)} to ${percent(audit.interval?.high)}, based on ${count(audit.reviewed)} reviewed matches from a sample of ${count(audit.sampleSize)}.`; })()}</p>
+               <p className="text-xs text-muted-foreground mt-2">{(() => { const audit = reports.operational?.precisionAudit as any; return audit?.falseMatchRate === null || audit?.falseMatchRate === undefined ? `A sample of ${count(audit?.sampleSize)} of ${count(audit?.population)} automatic Certain matches for ${String(audit?.month ?? 'the completed month')}. None reviewed yet.` : `Incorrect matches: ${percent(audit.falseMatchRate)}. The 95% confidence interval is ${percent(audit.interval?.low)} to ${percent(audit.interval?.high)}, based on ${count(audit.reviewed)} reviewed matches from a sample of ${count(audit.sampleSize)}.`; })()}</p>
             </div>
             <div className="min-w-0">
                <p className="text-xs font-medium text-muted-foreground">Days since first close</p>
@@ -234,12 +232,12 @@ export default function ReportsPage() {
             <section hidden={view !== 'billing'} className="bg-card border rounded-xl shadow-sm overflow-hidden">
               <div className="p-5 border-b flex items-center gap-2">
                 <FileText aria-hidden="true" className="h-4 w-4 text-muted-foreground" />
-                <h2 className="font-semibold">Billing statement · current period</h2>
+                <h2 className="font-semibold">Billing statement for this month</h2>
               </div>
               <div className="space-y-4 p-5">
                 <div className="flex flex-wrap items-end justify-between gap-4 rounded-xl bg-secondary/35 p-4">
-                  <div><p className="text-xs text-muted-foreground">Current statement total</p><p className="mt-2 text-3xl font-semibold tracking-tight tabular-nums">{statementNeedsReview ? 'Needs review' : typeof reports.billing?.totalKobo === 'number' ? formatKobo(reports.billing.totalKobo) : 'Not available'}</p></div>
-                  <div className="text-xs text-muted-foreground"><p>Period {String(reports.billing?.period || 'not available')}</p><p className="mt-1">We never hold money.</p></div>
+                  <div><p className="text-xs text-muted-foreground">Current statement total</p><p className="mt-2 text-3xl font-semibold tracking-tight tabular-nums">{statementNeedsReview ? 'Needs review' : typeof reports.billing?.totalKobo === 'number' ? formatKobo(reports.billing.totalKobo) : 'Not recorded'}</p></div>
+                  <div className="text-xs text-muted-foreground"><p>Billing month {String(reports.billing?.period || 'not recorded')}</p><p className="mt-1">Valo Pay never holds money.</p></div>
                 </div>
                 <div className="grid grid-cols-1 gap-x-5 gap-y-3 text-sm sm:grid-cols-2">
                   {scalarEntries(reports.billing).filter(([key]) => billingSummaryKeys.has(key) && key !== 'totalKobo' && key !== 'period').map(([key, value]) => (
@@ -249,14 +247,14 @@ export default function ReportsPage() {
                     </div>
                   ))}
                   {scalarEntries(reports.billing).length === 0 && (
-                    <EmptyState title="No billing data for this period" className="px-0 py-4">A collection can be billed only after the direct debit succeeds, settles and remains unreversed beyond the provider's reversal period.</EmptyState>
+                    <EmptyState title="No billing data for this month" className="px-0 py-4">A collection is billed only when its direct debit succeeds, the money settles and the provider’s reversal period ends without a reversal.</EmptyState>
                   )}
                 </div>
                 {discrepancyRows(reports.billing).length > 0 && <div role="status" className="space-y-3 rounded-xl border border-warning/40 bg-warning/5 p-4 text-sm">
                   <p className="font-semibold">Issued invoices that differ from the terms in effect</p>
                   <ScrollFrame label="Issued invoices that differ from the terms in effect" className="overflow-x-auto">
                     <table className="w-full text-xs text-left tabular-nums">
-                      <thead className="text-muted-foreground border-b"><tr><th className="py-1 pr-2">Invoice</th><th className="py-1 pr-2">Month</th><th className="py-1 pr-2">Rate charged</th><th className="py-1 pr-2">Rate in the terms in effect</th></tr></thead>
+                      <thead className="text-muted-foreground border-b"><tr><th className="py-1 pr-2">Invoice</th><th className="py-1 pr-2">Billing month</th><th className="py-1 pr-2">Rate charged</th><th className="py-1 pr-2">Rate in the terms in effect</th></tr></thead>
                       {/* Each difference with the service's explanation beneath it: the terms compared with, when they took effect and the whole-month rule. */}
                       {discrepancyRows(reports.billing).map(line => (
                         <tbody key={String(line.invoiceId)} className="border-b border-border/60 last:border-0">
@@ -268,7 +266,7 @@ export default function ReportsPage() {
                   </ScrollFrame>
                   <p>{String(reports.billing?.rateDiscrepancyGuidance || 'Issued invoices cannot be changed. Agree any difference with the lender outside Valo Pay.')}</p>
                 </div>}
-                <ReportDisclosure title="Billing rates & rules">
+                <ReportDisclosure title="Billing rates and rules">
                   <dl className="space-y-3 text-xs">
                     {scalarEntries(reports.billing).filter(([key]) => !billingSummaryKeys.has(key) && !billingReadinessKeys.has(key) && key !== 'rateDiscrepancyGuidance').map(([key, value]) => (
                       <div key={key} className="grid gap-1 border-b border-border/60 pb-3 last:border-0 last:pb-0">
@@ -278,9 +276,9 @@ export default function ReportsPage() {
                     ))}
                   </dl>
                 </ReportDisclosure>
-                <ReportDisclosure title={`Statement lines · ${formatNumber(billingLines(reports.billing).length)}`}>
+                <ReportDisclosure title={`Statement lines (${formatNumber(billingLines(reports.billing).length)})`}>
                   {billingLines(reports.billing).length === 0 ? (
-                    <p className="text-xs text-muted-foreground">{statementNeedsReview ? 'Statement lines are withheld until the design-partner terms can price this month, for the reason shown above. This does not mean there are no signed terms or that nothing is owed.' : 'No signed partner terms apply to this period, so there are no billable statement lines.'}</p>
+                    <p className="text-xs text-muted-foreground">{statementNeedsReview ? 'Statement lines are hidden until the design-partner terms can be used for this month (see the reason above). Signed terms may still exist, and money may still be owed.' : 'No signed partner terms apply to this month, so there are no statement lines to bill.'}</p>
                   ) : (
                     <ScrollFrame label="Statement lines" className="overflow-x-auto">
                       <table className="w-full text-xs text-left tabular-nums">
@@ -303,39 +301,39 @@ export default function ReportsPage() {
                     </ScrollFrame>
                   )}
                 </ReportDisclosure>
-                <ReportDisclosure title="Receipts by payment method">
+                <ReportDisclosure title="Payments by method">
                   <p className="text-xs text-muted-foreground mb-2">Only successful direct debits are billed, after settlement and the reversal period. Transfers and card payments are matched to records but never billed.</p>
-                  <ScrollFrame label="Receipts by payment method" className="overflow-x-auto">
+                  <ScrollFrame label="Payments by method" className="overflow-x-auto">
                     <table className="w-full text-xs text-left tabular-nums">
-                      <thead className="text-muted-foreground border-b"><tr><th className="py-1 pr-2">Payment method</th><th className="py-1 pr-2 text-right">Receipts</th><th className="py-1 pr-2 text-right">Value</th><th className="py-1 pr-2 text-right">Billable</th></tr></thead>
+                      <thead className="text-muted-foreground border-b"><tr><th className="py-1 pr-2">Payment method</th><th className="py-1 pr-2 text-right">Payments</th><th className="py-1 pr-2 text-right">Value</th><th className="py-1 pr-2 text-right">Billable</th></tr></thead>
                       <tbody className="divide-y">
                         {Object.entries((reports.billing?.channelBreakdown as Record<string, any>) || {}).map(([channel, row]) => (
-                          <tr key={channel}><td className="py-1 pr-2">{labelOf(channel)}</td><td className="py-1 pr-2 text-right">{count(row.count)}</td><td className="py-1 pr-2 text-right">{formatWithOtherCurrencies(Number(row.kobo || 0), row.otherCurrencies, 'receipt')}</td><td className="py-1 pr-2 text-right">{count(row.billable)}</td></tr>
+                          <tr key={channel}><td className="py-1 pr-2">{labelOf(channel)}</td><td className="py-1 pr-2 text-right">{count(row.count)}</td><td className="py-1 pr-2 text-right">{formatWithOtherCurrencies(Number(row.kobo || 0), row.otherCurrencies, 'payment')}</td><td className="py-1 pr-2 text-right">{count(row.billable)}</td></tr>
                         ))}
-                        {Object.keys((reports.billing?.channelBreakdown as Record<string, any>) || {}).length === 0 && <tr><td colSpan={4} className="py-2 text-muted-foreground">No receipts in this period.</td></tr>}
+                        {Object.keys((reports.billing?.channelBreakdown as Record<string, any>) || {}).length === 0 && <tr><td colSpan={4} className="py-2 text-muted-foreground">No payments this month.</td></tr>}
                       </tbody>
                     </table>
                   </ScrollFrame>
-                  <p className="text-xs text-muted-foreground mt-2">Collections awaiting the end of the reversal period: {count(reports.billing?.withheldInsideReversalWindow)} (eligible for a later statement).</p>
+                  <p className="text-xs text-muted-foreground mt-2">Collections still in the reversal period: {count(reports.billing?.withheldInsideReversalWindow)}. They can be billed on a later statement.</p>
                 </ReportDisclosure>
                 <ReportDisclosure title="Revenue and costs">
-                  {(() => { const e = reports.billing?.unitEconomics as Record<string, any> | undefined; if (!e) return <p className="text-xs text-muted-foreground">Not available.</p>; return (
+                  {(() => { const e = reports.billing?.unitEconomics as Record<string, any> | undefined; if (!e) return <p className="text-xs text-muted-foreground">Not recorded.</p>; return (
                     <div className="text-xs tabular-nums space-y-1">
-                      {e.pricingReady === false && <p className="font-sans font-medium">Revenue and margin wait until the commercial terms can price this month. Recorded collection costs remain available.</p>}
+                      {e.pricingReady === false && <p className="font-sans font-medium">Revenue and margin are shown once the commercial terms can be used for this month. Recorded collection costs are shown below.</p>}
                       <p>Successful collections: {count(e.successfulCollections)}. Usage fees: {renderValue('usageFeeKobo', e.usageFeeKobo)}. Licence fees: {renderValue('licenceKobo', e.licenceKobo)} ({String(e.volumeTier)} plan). Recurring revenue: {renderValue('recurringKobo', e.recurringKobo)}.</p>
-                      <p>Collection costs: {formatKobo(Number(e.variableCostKobo || 0))}{e.estimated ? ' (estimated at ₦15 per collection)' : ' (recorded)'}. Cost per collection: {e.costPerCollectionKobo === null ? 'not available' : formatKobo(Number(e.costPerCollectionKobo))}. Plan target: {formatKobo(Number(e.planCostPerCollectionKobo || 0))}.</p>
-                      <p>Gross margin (share of revenue left after collection costs): {e.grossMargin === null ? 'not available' : percent(e.grossMargin)}. Plan target: {percent(e.planGrossMargin?.low)} to {percent(e.planGrossMargin?.high)}. Recurring revenue at an annual rate: {renderValue('annualisedRecurringRevenueKobo', e.annualisedRecurringRevenueKobo)}, from licence and usage fees only.</p>
+                      <p>Collection costs: {formatKobo(Number(e.variableCostKobo || 0))}{e.estimated ? ' (estimated at ₦15 per collection)' : ' (recorded)'}. Cost per collection: {e.costPerCollectionKobo === null ? 'not recorded' : formatKobo(Number(e.costPerCollectionKobo))}. Plan target: {formatKobo(Number(e.planCostPerCollectionKobo || 0))}.</p>
+                      <p>Gross margin (share of revenue left after collection costs): {e.grossMargin === null ? 'not recorded' : percent(e.grossMargin)}. Plan target: {percent(e.planGrossMargin?.low)} to {percent(e.planGrossMargin?.high)}. Recurring revenue at an annual rate: {renderValue('annualisedRecurringRevenueKobo', e.annualisedRecurringRevenueKobo)}, from licence and usage fees only.</p>
                       <p className="font-sans text-muted-foreground">{String(e.note || '')}</p>
                     </div>
                   ); })()}
                 </ReportDisclosure>
-                <ReportDisclosure title={`Issued invoices · ${formatNumber(invoiceRows(reports.billing).length)}`}>
+                <ReportDisclosure title={`Issued invoices (${formatNumber(invoiceRows(reports.billing).length)})`}>
                   {invoiceRows(reports.billing).length === 0 ? (
-                    <p className="text-xs text-muted-foreground">No invoice has been issued. The next covers {String(reports.billing?.nextInvoicePeriod || 'the previous month')}. Issued invoices cannot be changed. VAT is listed separately.</p>
+                    <p className="text-xs text-muted-foreground">No invoices yet. The next invoice covers {String(reports.billing?.nextInvoicePeriod || 'the previous month')}. Issued invoices cannot be changed. VAT is shown separately.</p>
                   ) : (
                     <ScrollFrame label="Issued invoices" className="overflow-x-auto">
                       <table className="w-full text-xs text-left tabular-nums">
-                        <thead className="text-muted-foreground border-b"><tr><th className="py-1 pr-2">Invoice</th><th className="py-1 pr-2">Period</th><th className="py-1 pr-2 text-right">Collections billed</th><th className="py-1 pr-2 text-right">Adjustments</th><th className="py-1 pr-2 text-right">Before VAT</th><th className="py-1 pr-2 text-right">VAT</th><th className="py-1 pr-2 text-right">Total</th></tr></thead>
+                        <thead className="text-muted-foreground border-b"><tr><th className="py-1 pr-2">Invoice</th><th className="py-1 pr-2">Billing month</th><th className="py-1 pr-2 text-right">Collections billed</th><th className="py-1 pr-2 text-right">Adjustments</th><th className="py-1 pr-2 text-right">Before VAT</th><th className="py-1 pr-2 text-right">VAT</th><th className="py-1 pr-2 text-right">Total</th></tr></thead>
                         <tbody className="divide-y">
                           {invoiceRows(reports.billing).map(invoice => (
                             <tr key={String(invoice.id)}>
@@ -353,15 +351,15 @@ export default function ReportsPage() {
                     </ScrollFrame>
                   )}
                 </ReportDisclosure>
-                <ReportDisclosure title={`Next invoice adjustments · ${formatNumber(adjustmentRows(reports.billing).length)}`}>
-                  <p className="text-xs text-muted-foreground mb-2">If a billed collection is reversed, refunded, confirmed as a duplicate or has an allocation invalidated, the next invoice records a credit or debit. Each adjustment identifies the invoice it corrects. Issued invoices cannot be changed.</p>
+                <ReportDisclosure title={`Next invoice adjustments (${formatNumber(adjustmentRows(reports.billing).length)})`}>
+                  <p className="text-xs text-muted-foreground mb-2">If a billed collection is reversed, refunded, confirmed as a duplicate or loses its match, the next invoice adds a credit or debit. Each adjustment names the invoice it corrects. Issued invoices cannot be changed.</p>
                   {adjustmentRows(reports.billing).length === 0 ? (
-                    <p className="text-xs text-muted-foreground">Nothing to adjust.</p>
+                    <p className="text-xs text-muted-foreground">Nothing to adjust this month.</p>
                   ) : (
                     <ul className="text-xs tabular-nums space-y-1">
                       {adjustmentRows(reports.billing).map(line => (
                         <li key={`${String(line.paymentId)}-${String(line.reason)}`} className={Number(line.kobo) < 0 ? 'text-destructive' : ''}>
-                          {String(line.paymentReference)} · {String(line.reason).replace(/_/g, ' ')} · {formatKobo(Number(line.kobo || 0))} · corrects {String(line.originalInvoiceReference)}
+                          {String(line.paymentReference)} · {readableLabel(line.reason)} · {formatKobo(Number(line.kobo || 0))} · corrects {String(line.originalInvoiceReference)}
                         </li>
                       ))}
                     </ul>
@@ -377,24 +375,24 @@ export default function ReportsPage() {
                   <BarChart3 aria-hidden="true" className="h-4 w-4 text-muted-foreground" />
                   <h2 className="font-semibold">Recovery experiment</h2>
                 </div>
-                <Button size="sm" disabled={!policies || !!policiesError} kind="experiments" onClick={() => openExperimentDialog('create')}>New experiment</Button>
+                <Button size="sm" disabled={!policies || !!policiesError} kind="experiments" onClick={() => openExperimentDialog('create')}>Create experiment</Button>
               </div>
               <div className="p-5">
                 {policiesError && <LoadProblem what="approved policies" error={policiesError} retry={() => { void retryPolicies(); }} busy={fetchingPolicies} />}
-                {experimentsError && <LoadProblem what="experiment drafts" error={experimentsError} retry={() => { void retryExperiments(); }} busy={fetchingExperiments} />}
-                {loadingExperiments && <Loading what="experiment drafts" />}
+                {experimentsError && <LoadProblem what="experiments" error={experimentsError} retry={() => { void retryExperiments(); }} busy={fetchingExperiments} />}
+                {loadingExperiments && <Loading what="experiments" />}
                 <div className="space-y-4">
                   {(experiments?.items || []).map(experiment => (
                     <div key={experiment.id} className="border rounded-lg p-3">
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
                           <p className="text-sm font-medium">{experiment.name}</p>
-                          <p className="mt-1 text-xs capitalize text-muted-foreground">{readableLabel(experiment.status)} · {percent(experiment.data?.holdoutShare)} in comparison group</p>
+                          <p className="mt-1 text-xs text-muted-foreground">{readableLabel(experiment.status)} · {percent(experiment.data?.holdoutShare)} in the comparison group</p>
                         </div>
                         {experiment.status === 'draft' && (
                           <div className="flex gap-2">
                             <Button size="sm" variant="outline" kind="experiments" record={experiment} onClick={() => openExperimentDialog('edit', experiment)}>Edit</Button>
-                            <Button size="sm" action="preregister_experiment" record={experiment} onClick={() => openExperimentDialog('preregister', experiment)}>Register plan</Button>
+                            <Button size="sm" action="preregister_experiment" record={experiment} onClick={() => openExperimentDialog('preregister', experiment)}>Register experiment plan</Button>
                           </div>
                         )}
                       </div>
@@ -410,7 +408,7 @@ export default function ReportsPage() {
                   ))}
                   {experimentRows(reports.experiment).map(row => (
                     <div key={String(row.experimentId)} className="border rounded-lg p-3 text-xs tabular-nums space-y-2">
-                      <p className="text-muted-foreground truncate">Experiment {String(row.experimentId)} · {readableLabel(row.status)} · analysis date {String(row.analysisDate || 'not set')}</p>
+                      <p className="text-muted-foreground truncate">Experiment {String(row.experimentId)} · {readableLabel(row.status)} · analysis date {row.analysisDate ? formatDate(String(row.analysisDate)) : 'not set'}</p>
                       <p>Enrolled instalments: retry group {count(row.engine?.enrolled)} · comparison group {count(row.holdout?.enrolled)}</p>
                       <p>Minimum completed outcomes: retry group {count(row.minimumByArm?.engine ?? row.minimumPerArm)} · comparison group {count(row.minimumByArm?.holdout ?? row.minimumPerArm)}</p>
                       <p>Completed 30-day outcomes: retry group {count(row.engine?.mature)} · comparison group {count(row.holdout?.mature)}</p>
@@ -423,7 +421,7 @@ export default function ReportsPage() {
                     </div>
                   ))}
                   {scalarEntries(reports.experiment).length === 0 && experimentRows(reports.experiment).length === 0 && (
-                    <EmptyState title="No active experiment" className="px-0 py-4">Assign an experiment to an approved policy to compare its retry group with a comparison group. Results and confidence intervals will appear here.</EmptyState>
+                    <EmptyState title="No experiment results yet" className="px-0 py-4">Select Create experiment and choose an approved policy, then register its plan. The experiment compares a retry group with a comparison group, and its results will appear here.</EmptyState>
                   )}
                 </div>
               </div>
@@ -432,7 +430,7 @@ export default function ReportsPage() {
 
           {/* Daily Closes */}
           <section hidden={view !== 'operations'} id="daily-closes" tabIndex={-1} aria-label="Daily close records" className="scroll-mt-6 bg-card border rounded-xl shadow-sm overflow-hidden">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b p-4"><p className="text-sm text-muted-foreground">Export saved closing snapshots and their reconciliation evidence.</p><ExportJobControl kind="closes" formats={['json','csv']} label="Export close evidence" /></div>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b p-4"><p className="text-sm text-muted-foreground">Export the saved daily closes and their reconciliation details.</p><ExportJobControl kind="closes" formats={['json','csv']} label="Export close evidence" /></div>
             <div className="p-5 border-b flex flex-wrap gap-3 items-center justify-between">
               <div className="flex items-center gap-2">
                 <CheckSquare aria-hidden="true" className="h-4 w-4 text-muted-foreground" />
@@ -450,10 +448,10 @@ export default function ReportsPage() {
         record={null}
         isOpen={invoiceDialogOpen}
         onOpenChange={(open) => { if (!open) { setInvoiceDialogOpen(false); refetch(); } }}
-        title="Issue the monthly invoice"
+        title="Issue the monthly invoice?"
         actionMutation="issue_invoice"
         fields={[
-          { name: 'period', label: 'Invoice month (YYYY-MM; leave blank for the previous month)', type: 'text', isData: true, help: `Months are invoiced in order, a month with nothing to bill for zero. The next invoice covers ${String(reports?.billing?.nextInvoicePeriod || 'the previous month')}.` },
+          { name: 'period', label: 'Billing month (optional)', type: 'text', isData: true, help: `Leave blank to invoice the previous month, or enter a month as YYYY-MM, for example 2027-01. Months are invoiced in order, and a month with nothing to bill gets a zero invoice. The next invoice covers ${String(reports?.billing?.nextInvoicePeriod || 'the previous month')}.` },
         ]}
       />
       <RecordDialog
@@ -461,17 +459,17 @@ export default function ReportsPage() {
         record={selectedExperiment}
         isOpen={experimentDialog !== null}
         onOpenChange={(open) => { if (!open) setExperimentDialog(null); }}
-        title={experimentDialog === 'preregister' ? 'Register experiment plan' : experimentDialog === 'edit' ? 'Edit experiment draft' : 'Create experiment draft'}
+        title={experimentDialog === 'preregister' ? 'Register experiment plan?' : experimentDialog === 'edit' ? 'Edit experiment' : 'Create experiment'}
         actionMutation={experimentDialog === 'preregister' ? 'preregister_experiment' : undefined}
         fields={experimentDialog === 'preregister' ? [] : [
           { name: 'name', label: 'Experiment name', type: 'text', required: true },
           { name: 'status', label: 'Status', type: 'select', options: [{ label: 'Draft', value: 'draft' }], required: true },
-          { name: 'baselineRate', label: 'Baseline recovery rate (greater than 0, below 0.92)', type: 'number', isData: true, required: true },
-          { name: 'holdoutShare', label: 'Comparison group share (0.1–0.5)', type: 'number', isData: true, required: true },
+          { name: 'baselineRate', label: 'Baseline recovery rate (%)', type: 'number', percent: 'fraction', isData: true, required: true, help: 'The share of money due that is recovered without the experiment’s retries. More than 0 and less than 92, for example 40.' },
+          { name: 'holdoutShare', label: 'Comparison group share (%)', type: 'number', percent: 'fraction', isData: true, required: true, help: 'From 10 to 50, for example 20.' },
           { name: 'minPerArm', label: 'Minimum instalments per group', type: 'number', isData: true, required: true },
-          { name: 'analysisDate', label: 'Analysis date (YYYY-MM-DD)', type: 'text', isData: true, required: true },
-          { name: 'enrolmentClose', label: 'Enrolment closes (YYYY-MM-DD)', type: 'text', isData: true, required: true },
-          { name: 'seed', label: 'Random assignment key', type: 'text', isData: true, required: true },
+          { name: 'analysisDate', label: 'Analysis date', type: 'text', isData: true, required: true, help: 'Enter the date as YYYY-MM-DD, for example 2027-01-31.' },
+          { name: 'enrolmentClose', label: 'Enrolment closes', type: 'text', isData: true, required: true, help: 'Enter the date as YYYY-MM-DD, for example 2026-12-31.' },
+          { name: 'seed', label: 'Random assignment key', type: 'text', isData: true, required: true, help: 'Any text. The same key always puts an instalment in the same group.' },
           { name: 'policyId', label: 'Approved policy', type: 'select', options: approvedPolicyOptions, isData: true, required: true }
         ]}
         defaultValues={{ status: 'draft' }}

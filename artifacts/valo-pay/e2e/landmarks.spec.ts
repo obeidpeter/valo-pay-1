@@ -32,7 +32,7 @@ const routes: Array<[string, string | RegExp]> = [
   ["/credit-desk", "Credit Desk"],
   ["/cash-desk", "Cash Desk"],
   ["/connections", "Permissions & readiness"],
-  ["/reports", "Reports & analytics"],
+  ["/reports", "Reports"],
   ["/exports", "Saved exports"],
   ["/audit", "Audit log"],
   ["/evidence", "Go-live evidence"],

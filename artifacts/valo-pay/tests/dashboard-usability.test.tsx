@@ -29,7 +29,7 @@ describe('dashboard usability', () => {
     const allocation = await screen.findByText('Allocation rate');
     expect(within(allocation.parentElement!).getByText('50.0%')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Billing' }));
-    const summary = screen.getByText('Billing rates & rules');
+    const summary = screen.getByText('Billing rates and rules');
     const details = summary.closest('details')!;
     expect(details.open).toBe(false);
     await user.click(summary);
@@ -42,8 +42,8 @@ describe('dashboard usability', () => {
   it('includes collapsed evidence when printing and restores the chosen disclosures afterwards', async () => {
     const user = userEvent.setup();
     renderApp('/reports?view=billing');
-    const rates = (await screen.findByText('Billing rates & rules')).closest('details')!;
-    const receipts = screen.getByText('Receipts by payment method').closest('details')!;
+    const rates = (await screen.findByText('Billing rates and rules')).closest('details')!;
+    const receipts = screen.getByText('Payments by method').closest('details')!;
     await user.click(receipts.querySelector('summary')!);
     expect(rates.open).toBe(false);
     expect(receipts.open).toBe(true);

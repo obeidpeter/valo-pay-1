@@ -33,8 +33,8 @@ describe("keyboard", () => {
   it("starts the next console page at the top of its scrolling region", async () => {
     const user = userEvent.setup();
     renderApp("/reports?view=billing");
-    await screen.findByRole("heading", { name: "Reports & analytics" });
-    await user.click(await screen.findByText("Billing rates & rules"));
+    await screen.findByRole("heading", { name: "Reports" });
+    await user.click(await screen.findByText("Billing rates and rules"));
     const main = screen.getByRole("main");
     // jsdom has no layout, but preserves offsets on the main element that survives navigation.
     main.scrollTop = 640;
