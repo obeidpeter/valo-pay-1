@@ -13,8 +13,8 @@ const landmarkRules = [
 
 const routes: Array<[string, string | RegExp]> = [
   ["/", "Collections, credit and cash. One clear view."],
-  ["/sign-in", "Sign in to your workspace"],
-  ["/sign-up", "Create your workspace"],
+  ["/sign-in", "Sign in"],
+  ["/sign-up", "Create an account"],
   ["/team-invite", "Join your pilot workspace"],
   ["/no-such-page", "Page not found"],
   ["/overview", "Operations overview"],

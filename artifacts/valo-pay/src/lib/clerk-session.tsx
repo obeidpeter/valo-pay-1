@@ -30,7 +30,7 @@ export type ClerkSessionProps = { onSession: (session: Session) => void; slots: 
 function ClerkProblem({ resetError }: ErrorFallbackProps) {
   return (
     <p role="alert" className="text-sm text-muted-foreground">
-      Sign-in could not be shown. <button type="button" className="font-medium text-primary underline" onClick={resetError}>Try again</button>
+      We could not show sign-in. <button type="button" className="font-medium text-primary underline" onClick={resetError}>Try again</button>
     </p>
   );
 }

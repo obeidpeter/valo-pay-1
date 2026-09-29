@@ -93,11 +93,11 @@ it("explains a failed auth load and retries it without losing a draft or treatin
   const draft = screen.getByLabelText("Draft") as HTMLInputElement;
   fireEvent.change(draft, { target: { value: "Keep my unsaved work" } });
   const failure = await screen.findByRole("alert");
-  expect(failure.textContent).toContain("Sign-in could not be loaded");
+  expect(failure.textContent).toContain("We could not load sign-in.");
   expect(screen.queryByText("Signed out content")).toBeNull();
   expect(screen.queryByText("Signed in content")).toBeNull();
   expect(screen.getByText("Waiting for Clerk")).toBeTruthy();
-  fireEvent.click(within(failure).getByRole("button", { name: "Try loading sign-in again" }));
+  fireEvent.click(within(failure).getByRole("button", { name: "Try again" }));
   await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
   expect(screen.getByRole("status").textContent).toBe("Loading sign-in…");
   expect(screen.queryByRole("alert")).toBeNull();

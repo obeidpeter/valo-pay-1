@@ -51,20 +51,20 @@ function Shell({
         className="public-container public-auth focus:outline-none"
       >
         <div className="auth-welcome">
-          <p className="auth-eyebrow">
-            <span aria-hidden="true" /> Your connected workspace
-          </p>
           <h1>{title}</h1>
           <p className="auth-intro">{intro}</p>
           <p className="auth-workspace-state">
-            <span aria-hidden="true" /> Explore with sample data
+            <span aria-hidden="true" /> Sample data only
           </p>
         </div>
         <div className="auth-form-area">
           {children}
           <p className="auth-footnote">
             <ShieldCheck aria-hidden="true" />
-            <span>Signing in does not activate live financial services.</span>
+            <span>
+              Live payments and bank connections are switched off, even when
+              you sign in.
+            </span>
           </p>
           <ContextualHelp topic="access" returnTo={returnTo} className="mt-4" />
         </div>
@@ -78,10 +78,10 @@ function Shell({
                 <ArrowLeftRight aria-hidden="true" />
               </span>
               <div>
-                <h3>Collections &amp; pay-by-bank</h3>
+                <h3>Collections and Pay by Bank</h3>
                 <p>
-                  Follow customer timelines, match payments and explore a
-                  simulated bank-payment journey.
+                  Follow customer history, match payments and try a sample Pay
+                  by Bank checkout.
                 </p>
               </div>
               <span className="auth-suite-number" aria-hidden="true">
@@ -95,8 +95,8 @@ function Shell({
               <div>
                 <h3>Credit Desk</h3>
                 <p>
-                  Check sample evidence and affordability, then record an
-                  independent review.
+                  Check sample evidence and affordability. A different person
+                  then reviews the assessment.
                 </p>
               </div>
               <span className="auth-suite-number" aria-hidden="true">
@@ -124,8 +124,8 @@ function Shell({
             <div>
               <h3>Why sign in?</h3>
               <p>
-                Return to your account-linked workspace and its saved records.
-                Anonymous sandbox changes are not copied into it.
+                Your workspace keeps its records for your next visit. Work you
+                do in the sandbox is not copied to your workspace.
               </p>
             </div>
           </div>
@@ -134,16 +134,17 @@ function Shell({
               How long is my workspace kept? <ChevronDown aria-hidden="true" />
             </summary>
             <p>
-              Anonymous sandboxes may be cleared after 30 days without changes.
-              Signed-in workspaces are not cleared by this inactivity rule.
+              The sandbox is kept in this browser and may be deleted after 30
+              days without changes. Your workspace is not deleted by this rule.
             </p>
           </details>
           <p className="auth-custody">
             <ShieldCheck aria-hidden="true" />
             <span>
-              These sample journeys do not connect real bank accounts, make
-              lending decisions or move money. Live services need separate
-              permissions, provider setup and approval. We never hold money.
+              These sample workflows do not connect real bank accounts, make
+              lending decisions or move money. Live use needs its own
+              permissions, provider set-up and approval. Valo Pay never holds
+              money.
             </span>
           </p>
         </aside>
@@ -152,7 +153,7 @@ function Shell({
   );
 }
 
-/** When this host has no Clerk key there is no account to sign into: say so, say why, and offer the sandbox. */
+/** Where the deployment has no Clerk key there is no account to sign into: say so, and offer the sandbox. */
 function Unavailable({ action }: { action: "sign in" | "create an account" }) {
   return (
     <section
@@ -164,21 +165,21 @@ function Unavailable({ action }: { action: "sign in" | "create an account" }) {
       </span>
       <h2 id="unavailable-title">Sign-in is unavailable here</h2>
       <p>
-        You cannot {action} at this address. You can explore the sandbox without
-        an account.
+        You cannot {action} at this address. Open the sandbox to try Valo Pay
+        without an account.
       </p>
       <div className="auth-sandbox-note">
         <Sparkles aria-hidden="true" />
         <p>
-          <strong>Try the connected workspace</strong>Explore collections,
-          pay-by-bank, Credit Desk and Cash Desk with sample records. No real
-          bank connection is needed.
+          <strong>Try the sandbox</strong> Explore Collections, Pay by Bank,
+          Credit Desk and Cash Desk with sample data. No bank connection is
+          needed.
         </p>
       </div>
       <div className="auth-unavailable-actions">
         <Button asChild className="gap-2">
           <Link href="/overview">
-            Continue to the sandbox{" "}
+            Open the sandbox{" "}
             <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </Link>
         </Button>
@@ -208,13 +209,13 @@ function SandboxOption() {
   );
 }
 
-/** The sign-in page: Clerk's form beside what signing in changes, or the unavailable notice on a host without a key. */
+/** The sign-in page: Clerk's form beside what signing in changes, or the unavailable notice where there is no key. */
 export function SignInPage() {
   return (
     <Shell
       returnTo="/sign-in"
-      title="Sign in to your workspace"
-      intro="Return to the collections, credit reviews and business cash plans saved in your account."
+      title="Sign in"
+      intro="Return to your workspace and the collections, credit reviews and cash plans saved in it."
     >
       {authEnabled ? (
         <>
@@ -239,8 +240,8 @@ export function SignUpPage() {
   return (
     <Shell
       returnTo="/sign-up"
-      title="Create your workspace"
-      intro="Create an account-linked workspace for collections, credit reviews and business cash planning."
+      title="Create an account"
+      intro="Get your own workspace, linked to your account, for collections, credit reviews and cash planning."
     >
       {authEnabled ? (
         <>

@@ -15,7 +15,7 @@ describe("sign-in pages without Clerk", () => {
     expect(
       await screen.findByRole("heading", {
         level: 1,
-        name: "Sign in to your workspace",
+        name: "Sign in",
       }),
     ).toBeTruthy();
     expect(
@@ -23,13 +23,13 @@ describe("sign-in pages without Clerk", () => {
     ).toBeTruthy();
     expect(
       screen.getByText(
-        "You cannot sign in at this address. You can explore the sandbox without an account.",
+        "You cannot sign in at this address. Open the sandbox to try Valo Pay without an account.",
       ),
     ).toBeTruthy();
     expect(screen.queryByRole("textbox")).toBeNull();
     expect(
       screen
-        .getByRole("link", { name: /Continue to the sandbox/ })
+        .getByRole("link", { name: /Open the sandbox/ })
         .getAttribute("href"),
     ).toBe("/overview");
     expect(
@@ -39,7 +39,9 @@ describe("sign-in pages without Clerk", () => {
     ).toEqual(["/", "/"]);
     expect(screen.getByRole("heading", { name: "Why sign in?" })).toBeTruthy();
     expect(
-      screen.getByText(/Signing in does not activate live financial services/),
+      screen.getByText(
+        /Live payments and bank connections are switched off, even when you sign in/,
+      ),
     ).toBeTruthy();
     expect(
       screen.getByText(
@@ -47,10 +49,12 @@ describe("sign-in pages without Clerk", () => {
       ),
     ).toBeTruthy();
     expect(
-      screen.getByText(/Anonymous sandbox changes are not copied into it/),
+      screen.getByText(
+        /Work you do in the sandbox is not copied to your workspace/,
+      ),
     ).toBeTruthy();
     await waitFor(() =>
-      expect(document.title).toBe("Sign in to your workspace · Valo Pay"),
+      expect(document.title).toBe("Sign in · Valo Pay"),
     );
     expect(api.calls).toEqual([]);
   });
@@ -60,21 +64,21 @@ describe("sign-in pages without Clerk", () => {
     expect(
       await screen.findByRole("heading", {
         level: 1,
-        name: "Create your workspace",
+        name: "Create an account",
       }),
     ).toBeTruthy();
     expect(
       screen.getByText(
-        "You cannot create an account at this address. You can explore the sandbox without an account.",
+        "You cannot create an account at this address. Open the sandbox to try Valo Pay without an account.",
       ),
     ).toBeTruthy();
     expect(
       screen
-        .getByRole("link", { name: /Continue to the sandbox/ })
+        .getByRole("link", { name: /Open the sandbox/ })
         .getAttribute("href"),
     ).toBe("/overview");
     await waitFor(() =>
-      expect(document.title).toBe("Create your workspace · Valo Pay"),
+      expect(document.title).toBe("Create an account · Valo Pay"),
     );
     expect(api.calls).toEqual([]);
   });
@@ -86,7 +90,9 @@ describe("sign-in pages without Clerk", () => {
     await user.click(summary);
     expect(summary.closest("details")?.open).toBe(true);
     expect(
-      screen.getByText(/Anonymous sandboxes may be cleared after 30 days/),
+      screen.getByText(
+        /The sandbox is kept in this browser and may be deleted after 30 days/,
+      ),
     ).toBeTruthy();
     expect(
       screen.queryByRole("button", { name: /connect|authorise|pay|assess/i }),

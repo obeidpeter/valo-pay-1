@@ -22,7 +22,7 @@ async function violations(): Promise<string[]> {
 describe("accessibility", () => {
   it.each([
     ["/", "Collections, credit and cash. One clear view."],
-    ["/sign-in", "Sign in to your workspace"],
+    ["/sign-in", "Sign in"],
     ["/no-such-page", "Page not found"],
     ["/overview", "Operations overview"],
     ["/customers", "Customers"],

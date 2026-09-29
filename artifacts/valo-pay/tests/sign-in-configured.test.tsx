@@ -61,7 +61,9 @@ describe("configured account pages", () => {
         .getAttribute("href"),
     ).toBe("/overview");
     expect(
-      screen.getByText(/Anonymous sandbox changes are not copied into it/),
+      screen.getByText(
+        /Work you do in the sandbox is not copied to your workspace/,
+      ),
     ).toBeTruthy();
     expect(api.calls).toEqual([]);
   });
@@ -80,7 +82,9 @@ describe("configured account pages", () => {
       appearance: { baseTheme: expect.any(Object) },
     });
     expect(
-      screen.getByText(/Signing in does not activate live financial services/),
+      screen.getByText(
+        /Live payments and bank connections are switched off, even when you sign in/,
+      ),
     ).toBeTruthy();
     expect(api.calls).toEqual([]);
   });

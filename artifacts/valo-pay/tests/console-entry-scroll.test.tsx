@@ -76,7 +76,7 @@ it('clears the public offset and late document restoration without resetting con
   });
   const viewport = visualViewport(1);
   renderApp('/sign-in');
-  const entry = await screen.findByRole('link', { name: 'Continue to the sandbox' });
+  const entry = await screen.findByRole('link', { name: 'Open the sandbox' });
   Object.defineProperty(window, 'scrollY', { configurable: true, writable: true, value: 361 });
   await user.click(entry);
   await screen.findByRole('heading', { name: 'Operations overview' });

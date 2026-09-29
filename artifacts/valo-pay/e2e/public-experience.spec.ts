@@ -65,8 +65,8 @@ for (const theme of ["light", "dark"]) {
     });
     await page.screenshot({ path: info.outputPath(`hero-${theme}.png`), scale: "css" });
     for (const [route, heading] of [
-      ["/sign-in", "Sign in to your workspace"],
-      ["/sign-up", "Create your workspace"],
+      ["/sign-in", "Sign in"],
+      ["/sign-up", "Create an account"],
     ]) {
       await page.goto(route!);
       await expect(
@@ -74,7 +74,9 @@ for (const theme of ["light", "dark"]) {
       ).toBeVisible();
       await page.getByText("How long is my workspace kept?").click();
       await expect(
-        page.getByText(/Anonymous sandboxes may be cleared after 30 days/),
+        page.getByText(
+          /The sandbox is kept in this browser and may be deleted after 30 days/,
+        ),
       ).toBeVisible();
       await audit(page);
       await page.screenshot({

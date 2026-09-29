@@ -272,7 +272,7 @@ describe("contextual help links", () => {
     await user.click(back);
     expect(
       await screen.findByRole("heading", {
-        name: "Create your workspace",
+        name: "Create an account",
         level: 1,
       }),
     ).toBeTruthy();
