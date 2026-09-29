@@ -10,17 +10,28 @@ export function focusMain(): void {
   document.getElementById('main')?.focus({ preventScroll: true });
 }
 
+/** A field that takes typing or opens a picker, which a phone moves the document to show above its keyboard. */
+function takesInput(element: Element | null): boolean {
+  if (element instanceof HTMLInputElement) return !['button', 'checkbox', 'color', 'file', 'hidden', 'image', 'radio', 'range', 'reset', 'submit'].includes(element.type);
+  return element instanceof HTMLTextAreaElement || element instanceof HTMLSelectElement || (element instanceof HTMLElement && element.isContentEditable);
+}
+
 /**
  * The console scrolls its main region, while public pages scroll the document.
  * CSS hides document overflow, but focus and browser restoration can still move
- * it, even after mount. Keep that outer offset at zero while the console exists.
+ * it, even after mount. Keep that outer offset at zero while the console exists,
+ * except while the reader has pinch-zoomed, as iOS Safari moves it when they pan,
+ * or a field has focus, as a phone moves it to show the field above the keyboard:
+ * the next scroll with neither resets it.
  * Route/filter changes within the mounted console keep useQueuePosition's
  * independent saved offsets; neither focus nor main-region scroll is changed.
  */
 export function useConsoleViewportReset(): void {
   useLayoutEffect(() => {
     const resetDocument = () => {
-      if (window.scrollX !== 0 || window.scrollY !== 0) window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      if (window.scrollX === 0 && window.scrollY === 0) return;
+      if ((window.visualViewport?.scale ?? 1) > 1 || takesInput(document.activeElement)) return;
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     };
     // Non-capturing: internal queue scroll events must remain independent.
     window.addEventListener('scroll', resetDocument, { passive: true });
