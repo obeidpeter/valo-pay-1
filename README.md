@@ -12,7 +12,7 @@ This repository contains a clean snapshot of the application, not the original R
 
 ## Project structure
 
-- `artifacts/valo-pay` — React + Vite operations console. The landing page is `/` and the console's overview `/overview`; its pages, states and audits are designed against Nielsen's usability heuristics and the interaction-design principles recorded in `docs/design/console.md`.
+- `artifacts/valo-pay` — React + Vite operations console. The landing page is `/` and the console's overview `/overview`; its pages, states and audits are designed against Nielsen's usability heuristics and the interaction-design principles recorded in `docs/design/console.md`; its words follow `docs/design/writing.md`.
 - `artifacts/api-server` — Express API, scoped repository, domain logic and tests. On the deployed host, where `VALOPAY_EXPIRED_WORKSPACE_CLEANUP=on`, anonymous sandboxes nobody has changed for 30 days are deleted as new ones are created (`docs/deployment.md`); their creation is limited per client network and per server process, and list endpoints page with `limit`, `offset` and `updatedSince`.
 - `artifacts/mockup-sandbox` — existing design/component preview workspace. It carries its own variant of the UI kit (different tokens and hover treatment from the console), so the two `components/ui` trees are intentionally not shared.
 - `lib` — PostgreSQL/Drizzle schema, the OpenAPI contract (`lib/api-spec/openapi.json`, written by `node scripts/create-valopay-spec.cjs`), generated API packages and `lib/valopay-schema`, the shared per-kind schema (statuses, state machines, failure-code and exception catalogues, money and policy guardrails) that the API validator and the console both import.
@@ -60,6 +60,7 @@ Keep the workspace together: the frontend and API depend on shared packages.
 | `docs/deployment-node.md` | The verified Node version used for publishing builds and production startup, checksum checks and the runtime upgrade procedure. |
 | `docs/frontend-contract.md` | The console's contract with the API: records, pages, mutations, imports and exports, and every console behaviour a page must keep. |
 | `docs/design/console.md` | The design rationale for the console, page by page and audit by audit, against the usability heuristics and interaction-design principles. |
+| `docs/design/writing.md` | How Valo Pay speaks: plain-English rules, the one name for each page and product, the terms to use and avoid, and the patterns for buttons, notices, forms and statuses. |
 | `docs/security-review.md` | The security review: what is sound, the findings and their status, what belongs to the host. |
 | `docs/observability.md` | What an operator can see: request ids, the log's events, health and readiness, what to watch, how to trace a report. |
 | `docs/operational-rehearsals.md` | The operational monitor (`pnpm run check:operations`), the measured recovery rehearsal and staff access on the restricted runtime. |
