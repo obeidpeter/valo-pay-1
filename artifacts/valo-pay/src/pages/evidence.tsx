@@ -12,16 +12,17 @@ import { RecordDialog } from '@/components/record-dialog';
 import { readableLabel } from '@/components/record-label';
 import { LoadProblem } from '@/components/load-problem';
 import { ReviewDialog, reviewJobs } from '@/components/review-dialog';
-import { discountTermsStatus } from '@workspace/valopay-schema';
+import { discountTermsStatus, termsReplaced } from '@workspace/valopay-schema';
 
 /**
  * A design partner's discount dates as the service reads them, in its words: why the terms cannot price a new invoice,
- * or the confirmed dates, and who proposed and confirmed them. Unsigned terms bill nothing, so they carry no note.
- * Display only: invoice authority remains server-side.
+ * or the confirmed dates, and who proposed and confirmed them. Unsigned terms bill nothing, and replaced terms (other
+ * signed terms start billing in the same month and come first, `termsReplaced`) bill no month, so neither carries a
+ * note. Display only: invoice authority remains server-side.
  */
-function DiscountTermsNote({ data }: { data: unknown }) {
+function DiscountTermsNote({ data, replaced }: { data: unknown; replaced: boolean }) {
   const status = discountTermsStatus(data);
-  if (status.state === 'full_price' || status.state === 'unsigned') return null;
+  if (status.state === 'full_price' || status.state === 'unsigned' || replaced) return null;
   const terms = data as Record<string, unknown>;
   return <div className="mt-1 max-w-64 space-y-1 text-xs">
     {status.ready ? <p className="text-muted-foreground">Discount from {formatDate(String(terms.discountStartDate))}; full price from {formatDate(String(terms.fullPriceStartDate))}.</p> : <p className="text-warning-strong">{status.explanation}</p>}
@@ -279,12 +280,12 @@ export default function EvidencePage() {
                         <span className="text-warning-strong text-xs font-bold">Not signed</span>
                       )}
                       {!!comm.data?.effectiveDate && <p className="text-[10px] text-muted-foreground mt-1">From {formatDate(String(comm.data.effectiveDate))}</p>}
-                      <DiscountTermsNote data={comm.data} />
+                      <DiscountTermsNote data={comm.data} replaced={termsReplaced(comm, commercial.items)} />
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex flex-col items-end gap-2">
                         <Button size="sm" variant="outline" kind="commercial" record={comm} onClick={() => handleEdit(comm, 'commercial')}>Edit</Button>
-                        {discountTermsStatus(comm.data).state === 'awaiting_confirmation' && <Button size="sm" action="confirm_discount_terms" record={comm} onClick={() => setConfirming(comm)}>Confirm discount dates</Button>}
+                        {discountTermsStatus(comm.data).state === 'awaiting_confirmation' && !termsReplaced(comm, commercial.items) && <Button size="sm" action="confirm_discount_terms" record={comm} onClick={() => setConfirming(comm)}>Confirm discount dates</Button>}
                       </div>
                     </td>
                   </tr>
@@ -357,9 +358,11 @@ export default function EvidencePage() {
         onOpenChange={setIsDialogOpen}
         onDone={response => {
           if (actionKind !== 'commercial') return;
-          // Said at save time: saved terms that cannot price a new invoice yet, and why, in the service's words.
+          // Said at save time: saved terms that cannot price a new invoice yet, and why, in the service's words. Unsigned
+          // or replaced terms bill nothing, so, as in their row, nothing is said about pricing them.
           const status = discountTermsStatus(response?.data);
-          setTermsNotice(status.ready ? '' : `Terms saved. ${status.explanation}`);
+          const silent = status.ready || status.state === 'unsigned' || (!!response && termsReplaced(response, commercial?.items ?? []));
+          setTermsNotice(silent ? '' : `Terms saved. ${status.explanation}`);
         }}
         answer={() => actionKind === 'commercial' ? termsAnswer.current : null}
         title={`${selectedRecord ? 'Edit' : 'Add'} ${actionKind === 'commercial' ? 'commercial terms' : 'evidence'}`}

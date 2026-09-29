@@ -117,12 +117,40 @@ describe('evidence register and operational reviews', () => {
     expect(within(within(section).getByRole('table')).getByText(flag)).toBeTruthy();
   });
 
-  it('does not flag an unsigned design-partner prospect, whose terms bill nothing', async () => {
+  it('does not flag an unsigned design-partner prospect, whose terms bill nothing, in its row or when it is saved', async () => {
+    const user = userEvent.setup();
     renderApp('/evidence');
     const table = await commitmentsTable();
     expect(await within(table).findByText('Not signed')).toBeTruthy();
     expect(within(table).queryByText(/need review|cannot price a new invoice|await confirmation/)).toBeNull();
     expect(within(table).queryByRole('button', { name: 'Confirm discount dates' })).toBeNull();
+    // Saved unchanged, the prospect is still unsigned: nothing is said about pricing an invoice.
+    const section = (await screen.findByRole('heading', { name: 'Commercial commitments' })).closest('section')!;
+    await user.click(within(table).getByRole('button', { name: 'Edit' }));
+    await user.click(within(await screen.findByRole('dialog', { name: 'Edit commercial terms' })).getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(api.calls.some(call => call.method === 'PATCH' && call.path.includes('/records/commercial/') && call.status === 200)).toBe(true);
+    expect(within(section).getByRole('status').textContent).toBe('');
+    expect(within(table).queryByText(/cannot price a new invoice/)).toBeNull();
+  });
+
+  it('does not flag terms that later terms from the same date replaced, which bill no month', async () => {
+    api.mutate((state, ctx) => {
+      // Terms signed before contract dates existed, which may not even be saveable, replaced through Add terms from the same date and confirmed by two people.
+      const old = state.records.find(record => record.kind === 'commercial')!;
+      Object.assign(old.data, { signed: true, designPartner: true, signedFullPriceTerms: true, effectiveDate: '2027-01-01' });
+      makeRecord(state, 'commercial', { name: 'Replacement terms', status: 'signed', createdAt: new Date(Date.parse(old.createdAt) + 60_000).toISOString(), data: { signed: true, designPartner: true, signedFullPriceTerms: true, effectiveDate: '2027-01-01', licenceKobo: 60_000_000, ...agreement,
+        discountReview: { reviewedBy: 'Clerk:user_first', reviewedAt: ctx.now, proposedPrincipal: 'first-person', discountStartDate: agreement.discountStartDate, fullPriceStartDate: agreement.fullPriceStartDate, termsReference: agreement.discountTermsReference,
+          confirmedBy: 'Clerk:user_second', confirmedPrincipal: 'second-person', confirmedAt: ctx.now } } });
+    });
+    renderApp('/evidence');
+    const table = await commitmentsTable();
+    const row = (name: string) => within(table).getByText(name).closest('tr')!;
+    expect(await within(table).findByText(`Discount from ${formatDate('2027-02-01')}; full price from ${formatDate('2028-02-01')}.`)).toBeTruthy();
+    expect(row('Replacement terms').textContent).toContain('Confirmed by Clerk:user_second');
+    const replaced = row(api.state().merchant.name);
+    expect(replaced.textContent).toContain('Signed');
+    expect(replaced.textContent).not.toMatch(/cannot price a new invoice|missing/);
   });
 
   it('shows who proposed and who confirmed the discount dates, and when, beside the confirmed dates', async () => {
