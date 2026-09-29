@@ -12,14 +12,15 @@ describe("not found", () => {
     renderApp("/reportz");
     expect(await screen.findByRole("heading", { level: 1, name: "Page not found" })).toBeTruthy();
     expect(screen.getByText("/reportz")).toBeTruthy();
+    expect(screen.getByText("Nothing has changed.")).toBeTruthy();
     await waitFor(() => expect(document.title).toBe("Page not found · Valo Pay"));
-    expect(screen.getByRole("link", { name: "Go to overview" }).getAttribute("href")).toBe("/overview");
+    expect(screen.getByRole("link", { name: "Open Overview" }).getAttribute("href")).toBe("/overview");
     expect(screen.getAllByRole("link", { name: "Back to home" }).map((link) => link.getAttribute("href"))).toEqual(["/", "/"]);
     // No sidebar and no workspace request: the console was never mounted.
     expect(screen.queryByRole("link", { name: /Audit log/ })).toBeNull();
     expect(api.calls).toEqual([]);
 
-    await user.click(screen.getByRole("link", { name: "Go to overview" }));
+    await user.click(screen.getByRole("link", { name: "Open Overview" }));
     expect(await screen.findByRole("heading", { name: "Operations overview" })).toBeTruthy();
     expect(api.calls.some((call) => call.path === "/v1/workspace")).toBe(true);
   });

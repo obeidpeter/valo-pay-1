@@ -38,9 +38,9 @@ export default function NotFoundPage() {
   return (
     <PublicFrame>
       <main id="main" tabIndex={-1} className="mx-auto max-w-6xl px-4 py-12 sm:px-6 lg:py-16 focus:outline-none">
-        <NotFoundNotice title="Page not found" primary={{ href: '/overview', label: 'Go to overview' }} secondary={{ href: '/', label: 'Back to home' }}>
+        <NotFoundNotice title="Page not found" primary={{ href: '/overview', label: 'Open Overview' }} secondary={{ href: '/', label: 'Back to home' }}>
           <p>We could not find <LookedFor>{location}</LookedFor>. Check the address or use one of the links below.</p>
-          <p>No records have changed.</p>
+          <p>Nothing has changed.</p>
         </NotFoundNotice>
       </main>
     </PublicFrame>
