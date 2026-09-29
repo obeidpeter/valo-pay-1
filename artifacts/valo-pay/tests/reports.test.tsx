@@ -39,6 +39,40 @@ describe("reports", () => {
     expect(screen.queryByRole('dialog', { name: 'Issue the monthly invoice' })).toBeNull();
   });
 
+  it('names the cause the service gives when design-partner terms cannot price the next invoice', async () => {
+    api.setNow('2027-04-03T09:00:00.000Z');
+    // Dates saved without ticking “Full-price terms are signed”: the cause is the flag, not the dates.
+    api.mutate(state => { const terms = state.records.find(record => record.kind === 'commercial')!; Object.assign(terms.data, { signed: true, designPartner: true, signedFullPriceTerms: false, effectiveDate: '2027-01-01', discountStartDate: '2027-01-01', fullPriceStartDate: '2028-01-01', discountTermsReference: 'SYN-CAUSE' }); });
+    renderApp('/reports?view=billing');
+    const box = (await screen.findByText('Commercial terms need review')).parentElement!;
+    const cause = 'These design-partner terms cannot price a new invoice yet. The full-price terms are not recorded as signed: tick “Full-price terms are signed” once they are, so that the discount dates can be proposed.';
+    expect(box.textContent).toContain(`Next invoice: ${cause}`);
+    expect(box.textContent).not.toMatch(/Review the discount dates/);
+    expect((screen.getByRole('button', { name: 'Issue invoice' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('lists issued invoices charged at another rate than the confirmed agreement gives, says what to do, and keeps invoicing available', async () => {
+    api.setNow('2027-05-02T09:00:00.000Z');
+    api.mutate((state, ctx) => {
+      const terms = state.records.find(record => record.kind === 'commercial')!;
+      // The confirmed agreement: 50% from March 2027 to February 2028, proposed by one person and confirmed by another.
+      Object.assign(terms.data, { signed: true, designPartner: true, signedFullPriceTerms: true, effectiveDate: '2027-01-01', discountStartDate: '2027-03-01', fullPriceStartDate: '2028-03-01', discountTermsReference: 'SYN-AGREEMENT',
+        discountReview: { reviewedBy: 'Clerk:user_first', reviewedAt: '2027-04-20T09:00:00.000Z', proposedPrincipal: 'first', discountStartDate: '2027-03-01', fullPriceStartDate: '2028-03-01', termsReference: 'SYN-AGREEMENT', confirmedBy: 'Clerk:user_second', confirmedPrincipal: 'second', confirmedAt: '2027-04-21T09:00:00.000Z' } });
+      // January to March were invoiced under the earlier calendar-2027 rule, at half price.
+      ['2027-01', '2027-02', '2027-03'].forEach((period, index) => makeRecord(state, 'invoices', { name: `Invoice ${period}`, status: 'issued', reference: `INV-${period}-00${index + 1}`, createdAt: ctx.now,
+        data: { period, issuedAt: ctx.now, issuedBy: 'Sandbox Finance', sequence: index + 1, usageLines: [], adjustments: [], terms: { commercialId: terms.id, prospect: terms.name, contractedLicenceKobo: 60_000_000, designPartner: true, effectiveDate: '2027-01-01' },
+          designPartnerDiscount: { rate: 0.5, kobo: -30_000_000 }, totals: { netKobo: 30_000_000, vatBps: 750, vatKobo: 2_250_000, totalKobo: 32_250_000, creditNote: false } } }));
+    });
+    renderApp('/reports?view=billing');
+    const box = (await screen.findByText('Issued invoices that differ from the confirmed agreement')).parentElement!;
+    const rows = within(within(box).getByRole('table')).getAllByRole('row').map(row => Array.from(row.querySelectorAll('th,td')).map(cell => cell.textContent));
+    expect(rows).toEqual([['Invoice', 'Month', 'Rate charged', 'Rate in the confirmed agreement'], ['INV-2027-01-001', '2027-01', '50% discount', 'Full public price'], ['INV-2027-02-002', '2027-02', '50% discount', 'Full public price']]);
+    expect(box.textContent).toContain("An issued invoice is never changed, and Valo Pay has no way to correct an issued invoice's discount");
+    expect(box.textContent).toContain('Agree any difference with the lender outside Valo Pay');
+    expect((screen.getByRole('button', { name: 'Issue invoice' }) as HTMLButtonElement).disabled).toBe(false);
+    expect(screen.queryByText('Commercial terms need review')).toBeNull();
+  });
+
   it('keeps older report responses without pricing metadata usable', async () => {
     const baseFetch = globalThis.fetch;
     globalThis.fetch = async (input, init) => {

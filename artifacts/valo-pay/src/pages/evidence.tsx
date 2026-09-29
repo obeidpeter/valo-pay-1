@@ -1,5 +1,5 @@
 import { ExportJobControl } from '@/components/export-job-control';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ScrollFrame } from '@/components/scroll-frame';
 import { EmptyRow } from '@/components/empty-state';
 import { Loading, LoadingRow } from '@/components/loading';
@@ -12,18 +12,32 @@ import { RecordDialog } from '@/components/record-dialog';
 import { readableLabel } from '@/components/record-label';
 import { LoadProblem } from '@/components/load-problem';
 import { ReviewDialog, reviewJobs } from '@/components/review-dialog';
-import { recordDataSchemas } from '@workspace/valopay-schema';
+import { discountTermsStatus } from '@workspace/valopay-schema';
 
-/** Display only service-attributed evidence bound to these terms; invoice authority remains server-side. */
-function hasReviewedDiscountDates(value: unknown): boolean {
-  const parsed = recordDataSchemas.commercial.safeParse(value);
-  if (!parsed.success) return false;
-  const data = parsed.data, review = data.discountReview;
-  return data.signed === true && data.signedFullPriceTerms === true && data.designPartner === true && !!review?.reviewedBy.trim()
-    && typeof data.discountStartDate === 'string' && /^\d{4}-\d{2}-01$/.test(data.discountStartDate)
-    && typeof data.fullPriceStartDate === 'string' && /^\d{4}-\d{2}-01$/.test(data.fullPriceStartDate) && data.fullPriceStartDate > data.discountStartDate
-    && !!data.discountTermsReference?.trim() && review.discountStartDate === data.discountStartDate
-    && review.fullPriceStartDate === data.fullPriceStartDate && review.termsReference === data.discountTermsReference.trim();
+/**
+ * A design partner's discount dates as the service reads them, in its words: why the terms cannot price a new invoice,
+ * or the confirmed dates, and who proposed and confirmed them. Unsigned terms bill nothing, so they carry no note.
+ * Display only: invoice authority remains server-side.
+ */
+function DiscountTermsNote({ data }: { data: unknown }) {
+  const status = discountTermsStatus(data);
+  if (status.state === 'full_price' || status.state === 'unsigned') return null;
+  const terms = data as Record<string, unknown>;
+  return <div className="mt-1 max-w-64 space-y-1 text-xs">
+    {status.ready ? <p className="text-muted-foreground">Discount from {formatDate(String(terms.discountStartDate))}; full price from {formatDate(String(terms.fullPriceStartDate))}.</p> : <p className="text-warning-strong">{status.explanation}</p>}
+    {status.proposal && <p className="text-muted-foreground">Proposed by {status.proposal.by} · {formatDate(status.proposal.at)}</p>}
+    {status.confirmation && <p className="text-muted-foreground">Confirmed by {status.confirmation.by} · {formatDate(status.confirmation.at)}</p>}
+  </div>;
+}
+
+/** What a second person checks before confirming proposed discount dates, and what confirming records. */
+function ConfirmDiscountContext({ data }: { data: Record<string, unknown> }) {
+  const proposal = discountTermsStatus(data).proposal;
+  return <div className="space-y-2 rounded-lg border bg-secondary/20 p-3 text-sm">
+    <p>Check these against the signed agreement before you confirm: 50% discount from {formatDate(String(data.discountStartDate))}; full price from {formatDate(String(data.fullPriceStartDate))}; signed agreement reference {String(data.discountTermsReference)}.</p>
+    {proposal && <p className="text-muted-foreground">Proposed by {proposal.by} · {formatDate(proposal.at)}</p>}
+    <p className="text-muted-foreground">Confirming records your demo role or staff account as the second person, with the time. New invoices are then priced from these dates; issued invoices stay unchanged.</p>
+  </div>;
 }
 
 /** The prerequisite and decision ids the gate register matches evidence on (data.gateId). */
@@ -49,7 +63,10 @@ export default function EvidencePage() {
   const [reviewOpen, setReviewOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [gateFilter, setGateFilter] = useState('all');
-  useEffect(() => { setSearch(''); setGateFilter('all'); setIsDialogOpen(false); setReviewOpen(false); }, [merchantId]);
+  const [confirming, setConfirming] = useState<any>(null);
+  const [termsNotice, setTermsNotice] = useState('');
+  const termsAnswer = useRef<HTMLParagraphElement>(null);
+  useEffect(() => { setSearch(''); setGateFilter('all'); setIsDialogOpen(false); setReviewOpen(false); setConfirming(null); setTermsNotice(''); }, [merchantId]);
 
   const { data: gates, isLoading: isLoadingGates, error: gatesError, refetch: retryGates, isFetching: fetchingGates } = useGetGates(
     { merchantId: merchantId! },
@@ -224,6 +241,7 @@ export default function EvidencePage() {
           </div>
           <Button size="sm" kind="commercial" onClick={() => handleCreate('commercial')}>Add terms</Button>
         </div>
+        <div role="status">{termsNotice && <p ref={termsAnswer} tabIndex={-1} className="border-b bg-secondary/20 px-4 py-3 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">{termsNotice}</p>}</div>
         <ScrollFrame label="Commercial commitments" className="overflow-x-auto">
           <table className="w-full text-sm text-left">
             <thead className="bg-secondary/30 border-b text-muted-foreground">
@@ -261,10 +279,13 @@ export default function EvidencePage() {
                         <span className="text-warning-strong text-xs font-bold">Not signed</span>
                       )}
                       {!!comm.data?.effectiveDate && <p className="text-[10px] text-muted-foreground mt-1">From {formatDate(String(comm.data.effectiveDate))}</p>}
-                      {comm.data?.designPartner === true && <p className="mt-1 max-w-64 text-xs text-muted-foreground">{hasReviewedDiscountDates(comm.data) ? `Discount from ${formatDate(String(comm.data.discountStartDate))}; full price from ${formatDate(String(comm.data.fullPriceStartDate))}.` : 'Discount dates need review before a new invoice can be issued.'}</p>}
+                      <DiscountTermsNote data={comm.data} />
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <Button size="sm" variant="outline" kind="commercial" record={comm} onClick={() => handleEdit(comm, 'commercial')}>Edit</Button>
+                      <div className="flex flex-col items-end gap-2">
+                        <Button size="sm" variant="outline" kind="commercial" record={comm} onClick={() => handleEdit(comm, 'commercial')}>Edit</Button>
+                        {discountTermsStatus(comm.data).state === 'awaiting_confirmation' && <Button size="sm" action="confirm_discount_terms" record={comm} onClick={() => setConfirming(comm)}>Confirm discount dates</Button>}
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -317,10 +338,30 @@ export default function EvidencePage() {
       {reviewOpen && <ReviewDialog onClose={() => setReviewOpen(false)} />}
 
       <RecordDialog
+        kind="commercial"
+        record={confirming}
+        isOpen={!!confirming}
+        onOpenChange={open => { if (!open) setConfirming(null); }}
+        title="Confirm discount dates"
+        actionMutation="confirm_discount_terms"
+        fields={[]}
+        defaultValues={{ data: { discountStartDate: confirming?.data?.discountStartDate, fullPriceStartDate: confirming?.data?.fullPriceStartDate, discountTermsReference: confirming?.data?.discountTermsReference } }}
+        context={confirming && <ConfirmDiscountContext data={confirming.data} />}
+        onDone={response => setTermsNotice(String(response?.message || 'Discount dates confirmed.'))}
+        answer={() => termsAnswer.current}
+      />
+      <RecordDialog
         kind={actionKind || 'evidence'}
         record={selectedRecord}
         isOpen={isDialogOpen}
         onOpenChange={setIsDialogOpen}
+        onDone={response => {
+          if (actionKind !== 'commercial') return;
+          // Said at save time: saved terms that cannot price a new invoice yet, and why, in the service's words.
+          const status = discountTermsStatus(response?.data);
+          setTermsNotice(status.ready ? '' : `Terms saved. ${status.explanation}`);
+        }}
+        answer={() => actionKind === 'commercial' ? termsAnswer.current : null}
         title={`${selectedRecord ? 'Edit' : 'Add'} ${actionKind === 'commercial' ? 'commercial terms' : 'evidence'}`}
         fields={
           actionKind === 'evidence' ? [
@@ -341,10 +382,10 @@ export default function EvidencePage() {
             { name: 'signed', label: 'Signed', type: 'checkbox', isData: true },
             { name: 'effectiveDate', label: 'Takes effect on', type: 'date', isData: true, help: 'Each invoice month is billed from the latest signed terms in effect by its end, for the whole month. Leave blank for terms that apply from the start.' },
             { name: 'designPartner', label: 'Design-partner agreement', type: 'checkbox', isData: true },
-            { name: 'signedFullPriceTerms', label: 'Full-price terms are signed', type: 'checkbox', isData: true },
+            { name: 'signedFullPriceTerms', label: 'Full-price terms are signed', type: 'checkbox', isData: true, help: 'Tick once the full-price terms are signed. Until then the discount dates are not proposed and cannot price an invoice.' },
             { name: 'discountStartDate', label: '50% discount starts on', type: 'date', isData: true, help: 'Use the first day of the billing month agreed in the signed contract. There is no automatic 2027 discount.' },
             { name: 'fullPriceStartDate', label: 'Full-price billing starts on', type: 'date', isData: true, help: 'Use the first day of the agreed billing month after the pilot and bridge. No mid-month proration is calculated.' },
-            { name: 'discountTermsReference', label: 'Signed agreement reference for these dates', type: 'text', isData: true, help: 'Saving signed design-partner terms with these dates records your name and the review time. Existing invoices stay unchanged. Leave dates blank until the agreement has been reviewed; new invoices will wait.' }
+            { name: 'discountTermsReference', label: 'Signed agreement reference for these dates', type: 'text', isData: true, help: 'Saving signed design-partner terms with these dates proposes them: the service records your demo role or staff account and the time. A different Admin or Finance user must then confirm them before a new invoice is priced. Existing invoices stay unchanged. Leave dates blank until the agreement has been reviewed; new invoices will wait.' }
           ] : []
         }
       />

@@ -1,6 +1,6 @@
 import { nairaText, normaliseRefundStatus, normaliseReversalStatus, paymentMoneyReturned, paymentRefundedKobo, paymentUnappliedKobo, providerIdentityOf } from '@workspace/valopay-schema';
 
-type ActingWorkspace = { role: string; actor: string } | undefined;
+type ActingWorkspace = { role: string; actor: string; accessMode?: string } | undefined;
 type PermissionRecord = { status?: string; reference?: string; amountKobo?: number; data?: Record<string, unknown> } | null;
 /** An action on a record; a proposed match's decision also names the payment and instalment it applies. */
 export type PermissionRequest = { action?: string; kind?: string; record?: PermissionRecord; payment?: PermissionRecord; instalment?: PermissionRecord };
@@ -25,7 +25,7 @@ const actionRoles: Record<string, string[]> = {
   approve_template: ['Compliance reviewer'], reject_template: ['Compliance reviewer'],
   run_reconciliation: operators, daily_close: operators,
   confirm_allocation: ['Admin', 'Finance'], reject_allocation: ['Admin', 'Finance'], manual_allocate: ['Admin', 'Finance'],
-  review_allocation: ['Admin', 'Finance'], record_refund: ['Admin', 'Finance'], release_dispute: ['Admin', 'Finance'], issue_invoice: ['Admin', 'Finance'],
+  review_allocation: ['Admin', 'Finance'], record_refund: ['Admin', 'Finance'], release_dispute: ['Admin', 'Finance'], issue_invoice: ['Admin', 'Finance'], confirm_discount_terms: ['Admin', 'Finance'],
   edit_batch: ['Admin', 'Finance'], resolve_exception: operators,
   simulate_failure: ['Admin', 'Operations'], hand_back: ['Admin', 'Operations'],
   backtest_policy: [...operators, 'Compliance reviewer'], preregister_experiment: ['Admin'],
@@ -80,6 +80,9 @@ export function permissionReason(workspace: ActingWorkspace, { action, kind, rec
     return 'Ask a different Compliance reviewer. You cannot review your own submission.';
   }
   if (action === 'submit_template' && record?.data?.author !== workspace.actor) return 'Only this template’s author can submit it for review.';
+  // Design-partner discount dates take two people: a staff account cannot confirm its own proposal, and every demo role is the sandbox's one visitor.
+  if (action === 'confirm_discount_terms' && workspace.accessMode !== 'staff') return 'A different person must confirm these discount dates. Every demo role here is you, so switching roles cannot confirm them. In a staff pilot, a second Admin or Finance user confirms them.';
+  if (action === 'confirm_discount_terms' && (record?.data?.discountReview as { reviewedBy?: unknown } | undefined)?.reviewedBy === workspace.actor) return 'You proposed these discount dates. A different Admin or Finance user must confirm them.';
   if ((['edit_template', 'edit_policy'].includes(action || '') || (!action && ['templates', 'policies'].includes(kind || ''))) && record?.data?.author && record.data.author !== workspace.actor) return 'Only this draft’s author can edit it.';
   // One refund is recorded per payment, even one that returned only part of it, and reversed money already went back.
   if (action === 'record_refund' && normaliseReversalStatus(record?.data?.reversalStatus) === 'reversed') return 'The provider reversed this payment, so its money already went back.';

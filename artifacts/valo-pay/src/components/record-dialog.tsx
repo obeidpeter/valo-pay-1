@@ -28,7 +28,7 @@ const actionLabels: Record<string, string> = {
   confirm_allocation: 'Confirm allocation', reject_allocation: 'Reject allocation', manual_allocate: 'Allocate payment',
   review_allocation: 'Record review', resolve_exception: 'Resolve exception', record_refund: 'Record external refund', release_dispute: 'Release from dispute',
   simulate_failure: 'Simulate failure', backtest_policy: 'Run policy simulation',
-  preregister_experiment: 'Register experiment plan', hand_back: 'Return collection ownership', issue_invoice: 'Issue invoice',
+  preregister_experiment: 'Register experiment plan', hand_back: 'Return collection ownership', issue_invoice: 'Issue invoice', confirm_discount_terms: 'Confirm discount dates',
 };
 
 type FieldDef = {
