@@ -51,6 +51,12 @@ The follow-on refactor keeps `valopay-store.ts` as an explicit facade with the s
 
 SQL statements, transaction boundaries, lock order, journal cancellation fences and cleanup timing remain unchanged. The database boundary guard now checks explicit internal-module and facade-export allowlists, with 16 refusal fixtures and one permitted composition exercised by both normal test runners. Stored receipt JSON and SQL error fields use `unknown` with narrowing instead of unchecked `any`. This decomposition adds no schema migration or configuration.
 
+### Reconciliation decomposition · 29 September 2026
+
+`reconciliation.ts` now coordinates the same synchronous indexed pass in 148 lines, with all 49 original public exports preserved. Focused `reconciliation-*` modules own evidence ingestion, matching, settlement identity and totals, payment/allocation state, instalment repair, reversal holds and retry decisions. Their dependency graph is acyclic, record indexes remain local to the same pass, and none receives database or provider access.
+
+The runtime coordinator and financial function bodies are unchanged; its result now has an inferred field shape rather than `Record<string, any>`. Existing golden tests cover 2,905 financial checks, and the 4,796-record scale fixture retains its original index-visit counts. No monetary rule, processing order, stored record, API contract or permission changes.
+
 The normal offline runner includes exact-money oracle/rounding tests, database-money parsing, authority revocation/regrant, Paystack verification and command refusal, source-boundary mutation tests and the affected console tests. Database-backed workflows check real persistence, concurrent writes, access isolation, journal behaviour and saved response contracts. All test figures are synthetic; timings are local measurements, not production guarantees.
 
 This change needs no new database migration, credential, environment variable or enabled gate. Existing runtime-isolation and provider-ingress configuration remain opt-in. Rollback is the previous application build with the same schema; retain records and audit history and do not delete new verification evidence to make an earlier build appear current. Revalidate grants and preparations before any later live activation.
