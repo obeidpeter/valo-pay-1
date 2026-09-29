@@ -1,4 +1,3 @@
-import { useEffect, useRef } from 'react';
 import { useMutation, type UseMutationOptions } from '@tanstack/react-query';
 import {
   performAction, createRecord, updateRecord, updateSettings, importRecords, createExport, retryExportJob,
@@ -7,61 +6,14 @@ import {
   type ImportRecordsMutationVariables, type CreateExportMutationVariables, type RetryExportJobMutationVariables,
 } from '@workspace/api-client-react';
 import type { ZodTypeAny } from 'zod';
-import { actionResultSchema, canonicalJson, definitiveRefusalStatuses, exportResultSchema, importResultSchema, recoverableOperation, settingsViewSchema, valopayRecordSchema } from '@workspace/valopay-schema';
+import { actionResultSchema, exportResultSchema, importResultSchema, recoverableOperation, settingsViewSchema, valopayRecordSchema } from '@workspace/valopay-schema';
 import { readAnswer } from './answers';
-import { useSubmissionRecovery, type SubmissionIdentity } from './submission-recovery';
-
-/** Object key order must not turn an unchanged retry into another operation: the canonical form, the same in any browser locale. */
-export function submissionFingerprint(value: unknown): string {
-  return canonicalJson(value);
-}
+import type { SubmissionIdentity } from './submission-recovery';
+import { standardSubmissionPolicy, useSubmissionAttempt } from './submission-attempt';
+export { definitiveRefusal, nothingSaved, outcomeIsUnconfirmed, requestClosed, requestOpen, savedAnswerWithheld, submissionFingerprint } from './submission-outcomes';
 
 type RequestOptions = Parameters<typeof performAction>[2];
 type Options<Result, Variables> = { mutation?: UseMutationOptions<Result, Error, Variables>; request?: RequestOptions; recovery?: (variables: Variables) => SubmissionIdentity | null };
-
-/** A structured rejection confirms no write; transport/parse/5xx errors do not. */
-export function outcomeIsUnconfirmed(error: unknown): boolean {
-  if (nothingSaved(error) || requestClosed(error)) return false;
-  const response = error as { status?: number; data?: { error?: unknown } } | null;
-  return !(response?.status && response.status >= 400 && response.status < 500 && response.status !== 408 && typeof response.data?.error === 'string');
-}
-
-/** The server rolled the request back and says so: nothing was saved, whatever the status. */
-export function nothingSaved(error: unknown): boolean {
-  const response = error as { status?: number; data?: { error?: unknown; committed?: unknown } } | null;
-  return Boolean(response?.status && response.status >= 500 && response.data?.committed === false && typeof response.data.error === 'string');
-}
-
-/** The service says the request's journal entry is cancelled (`operation: "cancelled"`): a cancelled entry never
- * completes, so neither this request nor an earlier one with its key was or can be saved. Proof even for a request
- * held as unconfirmed. */
-export function requestClosed(error: unknown): boolean {
-  const response = error as { status?: number; data?: { error?: unknown; operation?: unknown } } | null;
-  return Boolean(response?.status && response.status >= 400 && response.data?.operation === 'cancelled' && typeof response.data.error === 'string');
-}
-
-/** The service says a request with this key was saved, is still running or is not confirmed yet (`operation`
- * completed, running or pending): whatever this answer refused, the key is kept to recover its result. */
-export function requestOpen(error: unknown): boolean {
-  const operation = (error as { data?: { operation?: unknown } } | null)?.data?.operation;
-  return operation === 'completed' || operation === 'running' || operation === 'pending';
-}
-
-/** A structured refusal the service treats as final for its key (400, 403, 404, 409, 410, 413, 415, 422): the same
- * request would be refused again, and its key cannot run again. A 401 or 429 keeps the key, as does a refusal that
- * says a request with the key was saved or is still open (requestOpen). */
-export function definitiveRefusal(error: unknown): boolean {
-  const response = error as { status?: number; data?: { error?: unknown } } | null;
-  return (definitiveRefusalStatuses as readonly number[]).includes(response?.status ?? 0) && typeof response?.data?.error === 'string' && !requestOpen(error);
-}
-
-/** A refusal of a request the service saved earlier (a 4xx with `operation: "completed"`): its saved answer is
- * withheld, because the permission or review it was made under changed, or retention removed it. Retrying the same
- * request cannot recover it, so the request is over; a failure (5xx) may still give the answer on a retry. */
-export function savedAnswerWithheld(error: unknown): boolean {
-  const response = error as { status?: number; data?: { error?: unknown; operation?: unknown } } | null;
-  return Boolean(response?.status && response.status >= 400 && response.status < 500 && response.data?.operation === 'completed' && typeof response.data.error === 'string');
-}
 
 function recoveryError(message: string) {
   return Object.assign(new Error(message), { data: { error: message } });
@@ -93,64 +45,31 @@ const exportReceipt = (value: Awaited<ReturnType<typeof createExport>>) => Boole
  * request identity is remembered for a reload, never its body or fingerprint.
  */
 export function useSafeMutation<Result, Variables>(send: (variables: Variables, request: RequestOptions) => Promise<Result>, options: Options<Result, Variables> = {}, scope?: unknown, writes: (variables: Variables) => boolean = () => true) {
-  const recovery = useSubmissionRecovery();
-  const attempt = useRef<{ fingerprint: string; key: string; variables: Variables; pending: boolean; unconfirmed: boolean; recovery: typeof recovery } | null>(null);
-  const previousScope = useRef(scope);
-  if (previousScope.current !== scope || (attempt.current?.recovery && attempt.current.recovery.scope !== recovery?.scope)) {
-    const original = attempt.current;
-    previousScope.current = scope; attempt.current = null;
-    // Closing/reopening a mounted dialog must promote its marker too. Notify the parent after this render.
-    if (original?.recovery) queueMicrotask(() => original.recovery?.keep(original.key));
-  }
-  useEffect(() => () => { if (attempt.current) attempt.current.recovery?.keep(attempt.current.key); }, []);
+  const attempt = useSubmissionAttempt({
+    scope,
+    prepare: (variables: Variables) => variables,
+    identity: variables => options.recovery?.(variables),
+    writes,
+    policy: standardSubmissionPolicy,
+    pendingMessage: 'This request is still in progress. Wait for its result.',
+    problem: recoveryError,
+  });
   const mutation = useMutation<Result, Error, Variables>({
     ...options.mutation,
     retry: false,
-    mutationFn: async variables => {
-      const fingerprint = submissionFingerprint(variables);
-      if (attempt.current?.pending) throw recoveryError('This request is still in progress. Wait for its result.');
-      if (attempt.current?.unconfirmed && attempt.current.fingerprint !== fingerprint) throw recoveryError('The previous request has an unconfirmed outcome. Retry the original request before changing it.');
-      const identity = options.recovery?.(variables);
-      if (identity) recovery?.assertAvailable(attempt.current?.key);
-      if (!attempt.current || attempt.current.fingerprint !== fingerprint) attempt.current = { fingerprint, key: crypto.randomUUID(), variables: structuredClone(variables), pending: false, unconfirmed: false, recovery: identity ? recovery : null };
-      const current = attempt.current;
-      if (identity && writes(current.variables)) recovery?.remember(current.key, identity);
-      current.pending = true;
+    mutationFn: variables => attempt.execute(variables, ({ payload, key }) => {
       const headers = new Headers(options.request?.headers);
-      headers.set('Idempotency-Key', current.key);
-      try {
-        const result = await send(current.variables, { ...options.request, headers });
-        current.recovery?.forget(current.key);
-        if (attempt.current === current) attempt.current = null;
-        return result;
-      } catch (error) {
-        // A later auth/policy rejection can occur before replay lookup. It does
-        // not establish whether the original request committed, unless the
-        // service says the key's journal entry is cancelled: then nothing sent
-        // with it was saved or can be.
-        const over = requestClosed(error);
-        current.unconfirmed = over ? false : current.unconfirmed || (writes(current.variables) && outcomeIsUnconfirmed(error));
-        // A finished request (refused for good, or saved nothing) cannot run again under its key: the next submission needs a new one.
-        if (!current.unconfirmed && (over || nothingSaved(error) || definitiveRefusal(error))) { current.recovery?.forget(current.key); if (attempt.current === current) attempt.current = null; }
-        throw error;
-      } finally {
-        current.pending = false;
-      }
-    },
+      headers.set('Idempotency-Key', key);
+      return send(payload, { ...options.request, headers });
+    }),
   });
   return {
     ...mutation,
-    hasUnconfirmedOutcome: Boolean(attempt.current?.unconfirmed),
-    retryUnconfirmed: (): Promise<Result> => {
-      if (!attempt.current?.unconfirmed) return Promise.reject(recoveryError('There is no unconfirmed request to retry.'));
-      return mutation.mutateAsync(attempt.current.variables);
-    },
+    hasUnconfirmedOutcome: attempt.hasUnconfirmedOutcome,
+    retryUnconfirmed: async (): Promise<Result> => mutation.mutateAsync(attempt.unconfirmedInput()),
     /** Discards private in-memory fields. A journaled request's identity remains until server recovery settles it. */
     abandonUnconfirmed: () => {
-      if (attempt.current?.pending) return;
-      if (attempt.current) attempt.current.recovery?.keep(attempt.current.key);
-      attempt.current = null;
-      mutation.reset();
+      if (attempt.abandon()) mutation.reset();
     },
   };
 }
