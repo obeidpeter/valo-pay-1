@@ -2,6 +2,10 @@
 
 29 September 2026. Baseline `cd9d81c665ca08c29429e26bb3ed0d78863b5966`; implementation and scoped verification on the uncommitted `codex/comprehensive-refactor-2026-09-29` working tree. The programme release record supplies the eventual commit and combined verification. This package has not been deployed and enables no gate.
 
+## Release disposition · 29 September 2026
+
+The status above is the original engineering snapshot. Git shows this package in implementation commit `c02147b3c8904d3175e55156ee7457f8ea3e1e63`, an ancestor of PR #78's merge `83eda41dba56da6dfc65a10ce3e228906de17dac`; between the two only three documentation files changed, so the merge carries the package's source unchanged. [Build status](../BUILD_STATUS.md) records that merge as deployed, live build `83eda41 2026-09-29T10:26:46.692Z`. The package still enables no gate.
+
 ## Findings and decision
 
 `domain/actions.ts` imported `resolveUnknownCheckout` from the entire `domain/connected.ts` coordinator. Its runtime graph therefore included Credit assessment and Cash/ERP/payroll implementations. Core needs to resolve an existing checkout outcome; it does not need those other capabilities. Separately, `connected-credit-service.ts::currentGrants` replaced a stored permission's `data.validFrom` with its creation time. A future effective start was consequently ignored during inference, disclosure, review and receipt replay. Its read-model permission predicate also omitted the positive safe-integer version check already present in the Permission Centre and Cash Desk.
