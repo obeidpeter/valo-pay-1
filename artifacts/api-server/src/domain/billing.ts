@@ -9,7 +9,7 @@ import {
   counted, sumMoney, multiplyDivideMoney, legacyDiscountMoney, nonnegativeMoney, validMoneyBps, MoneyArithmeticError,
   DEFAULT_REVERSAL_WINDOW_DAYS, DEFAULT_VAT_BPS, RECOVERY_FEE_KOBO, USAGE_FEE_BPS, USAGE_FEE_CAP_KOBO,
   billableChannels, experimentRules, isBillableChannel, isKobo, licenceTierFor, nairaText, paymentAppliedKobo, usageFeeKobo, vatKobo, type AdjustmentReason,
-  latestTermsFirst, termsEffectiveAt,
+  latestTermsFirst, termsEffectiveAt, WAT_OFFSET_MS,
 } from "@workspace/valopay-schema";
 import { makeRecord, recordsOf } from "./records";
 import type { Context, DomainState, TypedRecord, ValopayRecord } from "./types";
@@ -221,37 +221,37 @@ export function pendingAdjustments(state: DomainState): AdjustmentLine[] {
 }
 
 /**
- * An issued invoice whose design-partner rate differs from what the confirmed agreement gives for its month: that of
- * the terms that billed it or, when those are not confirmed, that of other confirmed terms now in effect for the
- * month (commercialId names the terms compared with).
+ * An issued invoice charged at another rate than the terms billing reads for its month now give: commercialId names
+ * those terms, and the explanation names them, when they took effect and the whole-month rule.
  */
 export interface RateDiscrepancy { invoiceId: string; invoiceReference: string; period: string; commercialId: string; chargedRate: number; agreedRate: number; explanation: string }
 const rateText = (rate: number): string => rate > 0 ? `the ${Math.round(rate * 100)}% design-partner discount` : "the full public price";
 /** What Finance does about a discrepancy: there is no correction for an issued invoice's discount, so it is agreed outside the platform. */
-export const RATE_DISCREPANCY_GUIDANCE = "An issued invoice is never changed, and Valo Pay has no way to correct an issued invoice's discount: the next invoice's adjustment lines correct only collections that were reversed, refunded, confirmed as duplicates or re-allocated. Adjustment lines on later invoices for a listed invoice's collections, such as a re-allocation debit or a reversal credit, carry that invoice's rate too, so include them in what you agree. Agree any difference with the lender outside Valo Pay and keep a record of what you agreed. An invoice is not compared while neither the terms that billed it nor the terms now in effect for its month have a confirmed agreement: confirm the discount dates of one of them to compare it. New invoices are priced from the confirmed dates.";
+export const RATE_DISCREPANCY_GUIDANCE = "An issued invoice is never changed, and Valo Pay has no way to correct an issued invoice's discount: the next invoice's adjustment lines correct only collections that were reversed, refunded, confirmed as duplicates or re-allocated. Adjustment lines on later invoices for a listed invoice's collections, such as a re-allocation debit or a reversal credit, carry that invoice's rate too, so include them in what you agree. Agree any difference with the lender outside Valo Pay and keep a record of what you agreed. Each invoice is compared with the terms in effect for its month now, as billing reads them: a month takes the terms in effect by its end, and ordinary terms give the full public price. While the design-partner terms in effect for a month are not confirmed, its invoices are not compared; confirming their discount dates compares them. New invoices are priced from the confirmed dates.";
+/** When terms took effect, as a WAT date, for an explanation; terms that name no date have applied from the start. */
+function effectiveFrom(terms: TypedRecord<"commercial">): string {
+  const at = effectiveAt(terms), wat = new Date(at + WAT_OFFSET_MS);
+  if (Number.isFinite(wat.getTime())) return wat.toISOString().slice(0, 10);
+  return Number.isFinite(at) ? String(terms.data.effectiveDate) : "the start";
+}
 /**
- * BIL-02: every issued invoice charged at another design-partner rate than the confirmed agreement gives for its
- * month, such as one issued under the earlier calendar-year rule. The agreement is that of the terms that billed it
- * or, when those are not confirmed, that of other confirmed terms now in effect for the month, such as replacement
- * terms recorded from the same date. It is only reported: an issued invoice is never rewritten and no money is
- * created. An invoice for which neither is confirmed (dates that await confirmation are not an agreement) is not compared.
+ * BIL-02: every issued invoice charged at another rate than the terms billing reads for its month now give, such as
+ * one issued under the earlier calendar-year rule. Those are the lender's signed terms in effect by the month's end,
+ * in billing's own order (termsFor), whichever terms billed it: ordinary terms give the full public price, and
+ * design-partner terms count once their discount dates are confirmed. While the terms in effect cannot price the
+ * month, its invoices are not compared. It is only reported: an issued invoice is never rewritten and no money is created.
  */
 export function rateDiscrepancies(state: DomainState): RateDiscrepancy[] {
-  const terms = new Map(recordsOf(state, "commercial").map((item) => [item.id, item]));
   return issuedInvoices(state).flatMap((invoice) => {
-    const billedBy = terms.get(String(invoice.data.terms?.commercialId ?? ""));
-    if (!billedBy) return [];
-    const period = String(invoice.data.period), chargedRate = rateOf(invoice.data.designPartnerDiscount?.rate, 0);
-    const own = billedBy.data.designPartner === true ? designPartnerDiscount(billedBy.data, period) : undefined;
-    const inEffect = own?.ready ? undefined : termsFor(state, period);
-    const replacing = inEffect && inEffect.id !== billedBy.id && inEffect.data.designPartner === true ? designPartnerDiscount(inEffect.data, period) : undefined;
-    const [compared, agreed] = own?.ready ? [billedBy, own] : replacing?.ready ? [inEffect!, replacing] : [];
-    if (!compared || !agreed || agreed.rate === chargedRate) return [];
-    const agreement = String(compared.data.discountTermsReference ?? "").trim();
-    return [{ invoiceId: invoice.id, invoiceReference: invoice.reference, period, commercialId: compared.id, chargedRate, agreedRate: agreed.rate!,
-      explanation: compared === billedBy
-        ? `${invoice.reference} for ${period} charged ${rateText(chargedRate)}; the terms that billed it have the confirmed agreement ${agreement}, which gives ${rateText(agreed.rate!)} for that month.`
-        : `${invoice.reference} for ${period} charged ${rateText(chargedRate)}; the terms that billed it have no confirmed agreement, and the terms “${compared.name}”, now in effect for that month, have the confirmed agreement ${agreement}, which gives ${rateText(agreed.rate!)}.` }];
+    const period = String(invoice.data.period), inEffect = termsFor(state, period);
+    const agreed = inEffect ? designPartnerDiscount(inEffect.data, period) : undefined;
+    const chargedRate = rateOf(invoice.data.designPartnerDiscount?.rate, 0);
+    if (!inEffect || !agreed?.ready || agreed.rate === chargedRate) return [];
+    const terms = `“${inEffect.name}”, ${inEffect.data.designPartner === true
+      ? `design-partner terms in effect from ${effectiveFrom(inEffect)}, whose confirmed agreement ${String(inEffect.data.discountTermsReference ?? "").trim()} gives ${rateText(agreed.rate!)}`
+      : `ordinary terms in effect from ${effectiveFrom(inEffect)}, which give the full public price`}`;
+    return [{ invoiceId: invoice.id, invoiceReference: invoice.reference, period, commercialId: inEffect.id, chargedRate, agreedRate: agreed.rate!,
+      explanation: `${invoice.reference} for ${period} charged ${rateText(chargedRate)}. A month takes the terms in effect by its end: for ${period} those are ${terms}.` }];
   });
 }
 

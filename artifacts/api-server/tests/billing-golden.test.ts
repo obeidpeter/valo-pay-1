@@ -244,7 +244,7 @@ checks += 5;
   const statement = () => buildReports(state, wat('2027-05-02T09:00:00')).billing;
   const listed = () => (statement().rateDiscrepancies as Array<Record<string, any>> | undefined)?.map((line) => [line.invoiceId, line.invoiceReference, line.period, line.chargedRate, line.agreedRate]);
   assert.deepEqual(listed(), [[issued[0]!.id, 'INV-2027-01-001', '2027-01', 0.5, 0], [issued[1]!.id, 'INV-2027-02-002', '2027-02', 0.5, 0]], 'each month charged at another rate than the confirmed agreement gives is listed; March agrees');
-  assert.equal(statement().rateDiscrepancies[0].explanation, 'INV-2027-01-001 for 2027-01 charged the 50% design-partner discount; the terms that billed it have the confirmed agreement synthetic-agreement, which gives the full public price for that month.');
+  assert.equal(statement().rateDiscrepancies[0].explanation, `INV-2027-01-001 for 2027-01 charged the 50% design-partner discount. A month takes the terms in effect by its end: for 2027-01 those are “${terms.name}”, design-partner terms in effect from 2027-01-01, whose confirmed agreement synthetic-agreement gives the full public price.`);
   assert.match(statement().rateDiscrepancyGuidance, /An issued invoice is never changed, and Valo Pay has no way to correct an issued invoice's discount/);
   assert.match(statement().rateDiscrepancyGuidance, /Adjustment lines on later invoices for a listed invoice's collections, such as a re-allocation debit or a reversal credit, carry that invoice's rate too, so include them in what you agree\./);
   assert.match(statement().rateDiscrepancyGuidance, /Agree any difference with the lender outside Valo Pay/);
@@ -266,7 +266,7 @@ checks += 5;
   checks += 13;
 }
 
-// ---------- Review follow-up: months billed by terms that replacement terms now govern are compared with the replacement's confirmed agreement ----------
+// ---------- Review follow-up: months billed by terms that replacement terms now govern are compared with the replacement's confirmed agreement, the terms in effect ----------
 {
   const state = seedMerchant('replacement-terms');
   for (const payment of recordsOf(state, 'payments')) payment.data.channel = 'transfer';
@@ -290,8 +290,8 @@ checks += 5;
   executeAction(state, staffAt('fixture_admin', 'Admin', wat('2027-04-21T09:00:00')), { action: 'confirm_discount_terms', recordId: replacement.id, reason: 'Checked against the signed agreement', data: { discountStartDate: '2027-03-01', fullPriceStartDate: '2028-03-01', discountTermsReference: 'SYN-REPLACEMENT' } });
   // January and February were billed by the old terms, which are not confirmed: the confirmed replacement, now in effect for those months, gives the full price. March agrees.
   assert.deepEqual(listed(), [[issued[0]!.id, '2027-01', 0.5, 0, replacement.id], [issued[1]!.id, '2027-02', 0.5, 0, replacement.id]], 'the months the replaced terms billed are compared with the confirmed terms now in effect');
-  assert.equal(statement().rateDiscrepancies[0].explanation, 'INV-2027-01-001 for 2027-01 charged the 50% design-partner discount; the terms that billed it have no confirmed agreement, and the terms “Replacement terms”, now in effect for that month, have the confirmed agreement SYN-REPLACEMENT, which gives the full public price.');
-  assert.match(statement().rateDiscrepancyGuidance, /An invoice is not compared while neither the terms that billed it nor the terms now in effect for its month have a confirmed agreement: confirm the discount dates of one of them to compare it\./);
+  assert.equal(statement().rateDiscrepancies[0].explanation, 'INV-2027-01-001 for 2027-01 charged the 50% design-partner discount. A month takes the terms in effect by its end: for 2027-01 those are “Replacement terms”, design-partner terms in effect from 2027-01-01, whose confirmed agreement SYN-REPLACEMENT gives the full public price.');
+  assert.match(statement().rateDiscrepancyGuidance, /Each invoice is compared with the terms in effect for its month now, as billing reads them: a month takes the terms in effect by its end, and ordinary terms give the full public price\. While the design-partner terms in effect for a month are not confirmed, its invoices are not compared; confirming their discount dates compares them\./);
   // Replacement terms that take effect later govern only their own months: January stays with the old terms, uncompared.
   replacement.data.effectiveDate = '2027-02-01';
   assert.deepEqual(listed(), [[issued[1]!.id, '2027-02', 0.5, 0, replacement.id]], 'a month the replacement does not govern is not compared');
@@ -316,6 +316,120 @@ checks += 5;
   const all = recordsOf(state, 'commercial');
   assert.deepEqual(all.filter((terms) => termsReplaced(terms, all)).map((terms) => terms.name), [first.name, 'Recorded first'], 'terms another signed record overtakes from their first month are replaced; unsigned terms replace nothing');
   checks += 2;
+}
+
+/**
+ * Review follow-up 2: a lender whose first terms (from 1 January 2027, `data` merged in) billed `months` at `rate`, as
+ * the earlier calendar-2027 rule issued them. With contract dates in `data`, one person proposed them and another
+ * confirmed them. `listed` gives each rate difference as [month, charged, agreed, terms compared with].
+ */
+function billedUnder(id: string, data: Record<string, unknown>, months: string[], rate: number) {
+  const state = seedMerchant(id);
+  for (const payment of recordsOf(state, 'payments')) payment.data.channel = 'transfer';
+  const first = recordsOf(state, 'commercial')[0]!;
+  first.createdAt = wat('2026-12-01T09:00:00');
+  Object.assign(first.data, { signed: true, signedFullPriceTerms: true, effectiveDate: '2027-01-01', ...data });
+  if (first.data.discountTermsReference) {
+    validateRecord(state, staffAt('fixture_finance', 'Finance', wat('2026-12-01T09:00:00')), 'commercial', first);
+    confirmTerms(state, wat('2026-12-02T09:00:00'));
+  }
+  const invoices = months.map((period, index) => makeRecord(state, 'invoices', { name: `Invoice ${period}`, status: 'issued', reference: `INV-${period}-00${index + 1}`, createdAt: wat(`${period}-28T09:00:00`),
+    data: { period, issuedAt: wat(`${period}-28T09:00:00`), issuedBy: 'Sandbox Finance', sequence: index + 1, usageLines: [], adjustments: [], terms: { commercialId: first.id, prospect: first.name, contractedLicenceKobo: LICENCE, designPartner: first.data.designPartner === true, effectiveDate: '2027-01-01' },
+      designPartnerDiscount: { rate, kobo: -LICENCE * rate }, totals: { netKobo: LICENCE * (1 - rate), vatBps: 750, vatKobo: 0, totalKobo: LICENCE * (1 - rate), creditNote: false } } }));
+  const discrepancies = () => buildReports(state, wat('2027-09-02T09:00:00')).billing.rateDiscrepancies as Array<Record<string, any>>;
+  const listed = () => discrepancies().map((line) => [line.period, line.chargedRate, line.agreedRate, line.commercialId]);
+  return { state, first, invoices, discrepancies, listed };
+}
+/** Signed terms Finance adds with Add terms: one person proposes any discount dates, and a second confirms them unless `confirm` is false. */
+function addTerms(state: DomainState, name: string, data: Record<string, unknown>, recordedAt: string, confirm = true) {
+  const at = wat(recordedAt);
+  const input: any = { name, status: 'signed', reference: '', amountKobo: 0, customerId: '', createdAt: at, updatedAt: at, data: { signed: true, signedFullPriceTerms: true, licenceKobo: LICENCE, synthetic: true, ...data } };
+  validateRecord(state, staffAt('fixture_finance', 'Finance', at), 'commercial', input);
+  const terms = makeRecord(state, 'commercial', input);
+  if (confirm) confirmAdded(state, terms, recordedAt);
+  return terms;
+}
+/** A second person confirms added terms' dates, as they were proposed. */
+function confirmAdded(state: DomainState, terms: TypedRecord<'commercial'>, at: string) {
+  executeAction(state, staffAt('fixture_admin', 'Admin', wat(at)), { action: 'confirm_discount_terms', recordId: terms.id, reason: 'Checked against the signed agreement',
+    data: { discountStartDate: terms.data.discountStartDate, fullPriceStartDate: terms.data.fullPriceStartDate, discountTermsReference: terms.data.discountTermsReference } });
+}
+const wrongDates = { designPartner: true, discountStartDate: '2027-03-01', fullPriceStartDate: '2028-01-01', discountTermsReference: 'SYN-A-WRONG' };
+const firstHalf = ['2027-01', '2027-02', '2027-03', '2027-04', '2027-05', '2027-06'];
+
+// ---------- Review follow-up 2: a confirmed agreement that corrected terms from the same date replace is no longer compared with ----------
+{
+  // A's dates were entered wrongly (discount from March) and confirmed; January and February were invoiced at half price.
+  const { state, first, listed } = billedUnder('replaced-confirmed', wrongDates, ['2027-01', '2027-02'], 0.5);
+  assert.deepEqual(listed(), [['2027-01', 0.5, 0, first.id], ['2027-02', 0.5, 0, first.id]], 'while A is in effect, both months differ from its agreement');
+  // Finance records the signed agreement correctly as terms from the same date (Add terms), and a second person confirms them.
+  addTerms(state, 'Corrected terms', { designPartner: true, effectiveDate: '2027-01-01', discountStartDate: '2027-01-01', fullPriceStartDate: '2028-01-01', discountTermsReference: 'SYN-CORRECTED' }, '2027-03-10T09:00:00');
+  assert.deepEqual(listed(), [], 'the corrected agreement, in effect for both months, gives the rate charged');
+  assert.equal(termsReplaced(first, recordsOf(state, 'commercial')), true, 'Go-live evidence no longer shows A, and nothing is compared with it');
+  checks += 3;
+}
+
+// ---------- Review follow-up 2: a retroactive amendment recorded as new terms governs the months it is in effect by ----------
+{
+  const { state, first, listed } = billedUnder('retroactive-amendment', wrongDates, ['2027-01', '2027-02'], 0.5);
+  // The amendment, signed in March, applies from 15 January: recorded as new terms, it is in effect by the end of January.
+  addTerms(state, 'Amendment from 15 January', { designPartner: true, effectiveDate: '2027-01-15', discountStartDate: '2027-01-01', fullPriceStartDate: '2028-01-01', discountTermsReference: 'SYN-AMENDMENT' }, '2027-03-10T09:00:00');
+  assert.deepEqual(listed(), [], 'both months take the amendment, which gives the rate charged');
+  assert.equal(termsReplaced(first, recordsOf(state, 'commercial')), true, 'A bills no month');
+  checks += 2;
+}
+
+// ---------- Review follow-up 2: ordinary terms in effect count as an agreement at the full public price ----------
+{
+  // A pilot's terms with no dates billed January to March at half price; the lender was never a design partner, and Finance records its ordinary terms from the same date.
+  const { state, listed, discrepancies } = billedUnder('ordinary-replacement', { designPartner: true }, ['2027-01', '2027-02', '2027-03'], 0.5);
+  assert.deepEqual(listed(), [], 'design-partner terms with no dates give no rate to compare with');
+  const ordinary = addTerms(state, 'Ordinary terms', { designPartner: false, effectiveDate: '2027-01-01' }, '2027-04-10T09:00:00', false);
+  assert.deepEqual(listed(), [['2027-01', 0.5, 0, ordinary.id], ['2027-02', 0.5, 0, ordinary.id], ['2027-03', 0.5, 0, ordinary.id]], 'each month is compared with the ordinary terms in effect, which have nothing to confirm');
+  assert.equal(discrepancies()[0]!.explanation, 'INV-2027-01-001 for 2027-01 charged the 50% design-partner discount. A month takes the terms in effect by its end: for 2027-01 those are “Ordinary terms”, ordinary terms in effect from 2027-01-01, which give the full public price.');
+  checks += 3;
+}
+
+// ---------- Review follow-up 2: a month whose terms changed partway through takes the terms in effect by its end, and says when they took effect ----------
+{
+  // The pilot's terms, with no dates, billed January to June at half price. A bridge signed on 15 June, discount from July, is recorded in August and confirmed.
+  const { state, listed, discrepancies } = billedUnder('partway-bridge', { designPartner: true }, firstHalf, 0.5);
+  const bridge = addTerms(state, 'Bridge signed 15 June', { designPartner: true, effectiveDate: '2027-06-15', discountStartDate: '2027-07-01', fullPriceStartDate: '2028-01-01', discountTermsReference: 'SYN-BRIDGE' }, '2027-08-10T09:00:00');
+  assert.deepEqual(listed(), [['2027-06', 0.5, 0, bridge.id]], 'June takes the bridge, in effect by its end; January to May keep the pilot terms, which cannot be compared');
+  assert.equal(discrepancies()[0]!.explanation, 'INV-2027-06-006 for 2027-06 charged the 50% design-partner discount. A month takes the terms in effect by its end: for 2027-06 those are “Bridge signed 15 June”, design-partner terms in effect from 2027-06-15, whose confirmed agreement SYN-BRIDGE gives the full public price.');
+  checks += 2;
+}
+
+// ---------- Review follow-up 2: with several replacements, nothing is compared until the latest is confirmed ----------
+{
+  const { state, listed } = billedUnder('several-replacements', wrongDates, ['2027-01', '2027-02', '2027-03'], 0.5);
+  addTerms(state, 'B', { designPartner: true, effectiveDate: '2027-01-01', discountStartDate: '2027-01-01', fullPriceStartDate: '2028-01-01', discountTermsReference: 'SYN-B' }, '2027-04-10T09:00:00');
+  assert.deepEqual(listed(), [], 'B, confirmed and in effect, gives the rate charged');
+  const c = addTerms(state, 'C', { designPartner: true, effectiveDate: '2027-01-01', discountStartDate: '2027-02-01', fullPriceStartDate: '2028-02-01', discountTermsReference: 'SYN-C' }, '2027-04-11T09:00:00', false);
+  assert.deepEqual(listed(), [], 'while the latest terms, C, await confirmation, no month is compared, with B or with A');
+  confirmAdded(state, c, '2027-04-12T09:00:00');
+  assert.deepEqual(listed(), [['2027-01', 0.5, 0, c.id]], 'once C is confirmed, each month is compared with it');
+  checks += 3;
+}
+
+// ---------- Review follow-up 2: a later agreement from a later month, and another lender's terms, govern none of these months ----------
+{
+  const bridgeFromJuly = { designPartner: true, effectiveDate: '2027-07-01', discountStartDate: '2027-07-01', fullPriceStartDate: '2028-01-01', discountTermsReference: 'SYN-BRIDGE' };
+  // The pilot's terms, with no dates, billed January to June; a bridge from July is confirmed. January to June keep the pilot terms: they are not compared.
+  const pilot = billedUnder('later-agreement', { designPartner: true }, firstHalf, 0.5);
+  addTerms(pilot.state, 'Bridge from July', bridgeFromJuly, '2027-08-10T09:00:00');
+  assert.deepEqual(pilot.listed(), [], 'a later agreement does not govern the months before it');
+  // With the pilot's dates confirmed (discount until June) and July invoiced at half price, June takes the pilot agreement and July the bridge.
+  const confirmed = billedUnder('later-agreement-confirmed', { designPartner: true, discountStartDate: '2027-01-01', fullPriceStartDate: '2027-07-01', discountTermsReference: 'SYN-PILOT' }, [...firstHalf, '2027-07'], 0.5);
+  addTerms(confirmed.state, 'Bridge from July', bridgeFromJuly, '2027-08-10T09:00:00');
+  assert.deepEqual(confirmed.listed(), [], 'each month is compared with the terms in effect by its end, whichever terms billed it');
+  // Another lender's confirmed terms from the same date, even ones an invoice names, as a merged or damaged load might hold them, are never read.
+  const other = billedUnder('one-lender-terms', { designPartner: true }, ['2027-01', '2027-02', '2027-03'], 0.5);
+  const theirs = addTerms(other.state, 'Another lender’s terms', { designPartner: true, effectiveDate: '2027-01-01', discountStartDate: '2027-03-01', fullPriceStartDate: '2028-03-01', discountTermsReference: 'SYN-OTHER' }, '2027-04-10T09:00:00');
+  theirs.merchantId = 'a-different-lender';
+  other.invoices[0]!.data.terms!.commercialId = theirs.id;
+  assert.deepEqual(other.listed(), [], 'another lender’s terms govern none of this lender’s months');
+  checks += 3;
 }
 
 // BIL-02: a calendar year is not signed authority to end the pilot/bridge discount.
@@ -734,4 +848,4 @@ checks += 5;
   checks += 2;
 }
 
-console.log(`Billing golden tests passed (${checks} checks): invoice lines, VAT, WAT months and period rules, every month invoiced in order with a zero invoice for a quiet one, the latest signed terms in effect found by the lender's id, withheld collections and the reversal window from settlement, adjustment credits and debits with references at the rate first billed, refunds of unapplied money, debits settled without a webhook, credit note, recovery fee gate and window, receipts by channel in naira with other currencies beside them, a design-partner price that is not ready naming its cause in the same words everywhere, discount dates proposed by one person and confirmed by another, issued invoices whose rate differs from the confirmed agreement reported, never rewritten, including months billed by terms that replacement terms now govern, and the terms Go-live evidence treats as replaced being those billing never reads.`);
+console.log(`Billing golden tests passed (${checks} checks): invoice lines, VAT, WAT months and period rules, every month invoiced in order with a zero invoice for a quiet one, the latest signed terms in effect found by the lender's id, withheld collections and the reversal window from settlement, adjustment credits and debits with references at the rate first billed, refunds of unapplied money, debits settled without a webhook, credit note, recovery fee gate and window, receipts by channel in naira with other currencies beside them, a design-partner price that is not ready naming its cause in the same words everywhere, discount dates proposed by one person and confirmed by another, issued invoices whose rate differs from the terms in effect for their month reported, never rewritten, whichever terms billed them and with ordinary terms at the full public price, and the terms Go-live evidence treats as replaced being those billing never reads.`);
