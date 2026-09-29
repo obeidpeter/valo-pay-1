@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, symlinkSync, unlinkSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, symlinkSync, unlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { rehearsalEnvironment, rehearsalSuites, runRehearsal, validateRehearsalEnvironment } from './rehearse-pilot.mjs';
@@ -64,4 +64,19 @@ try {
   assert.equal(child.status, 1, 'started through a symlinked path, the rehearsal still refuses without its opt-ins');
   assert.match(child.stderr, /^Set VALOPAY_RUN_INTEGRATION=1 and VALOPAY_RUN_PILOT_REHEARSAL=1/m); checks += 2;
 } finally { unlinkSync(linked); rmSync(links, { recursive: true, force: true }); }
-console.log(`Pilot rehearsal command checks passed (${checks}): unsafe destinations refused, host credentials excluded, all failures retained, source changes detected, evidence stays free of child output, and a run started through a symlinked path still refuses.`);
+// A report path that reaches the checkout through a link, in a directory above it or at the path itself, is refused as a
+// path inside it is. PATH holds no git, so even a build that accepted the path stops at the source fingerprint, before any suite.
+const outside = mkdtempSync(path.join(tmpdir(), 'valopay-rehearsal-report-'));
+const name = `rehearsal-report-${process.pid}.json`, checkoutLink = path.join(outside, 'checkout'), reportLink = path.join(outside, 'report.json');
+symlinkSync(root, checkoutLink, 'junction');
+symlinkSync(path.join(root, 'docs'), reportLink, process.platform === 'win32' ? 'junction' : 'dir');
+try {
+  const gitless = { ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^path$/i.test(key))), ...enabled, PATH: outside };
+  for (const report of [path.join(checkoutLink, name), reportLink]) {
+    const child = spawnSync(process.execPath, [path.join(root, 'scripts/rehearse-pilot.mjs')], { env: { ...gitless, VALOPAY_PILOT_REHEARSAL_REPORT: report }, encoding: 'utf8', timeout: 10_000 });
+    assert.equal(child.status, 1);
+    assert.match(child.stderr, /^Write the evidence report outside this checkout/m, `a report path that leads into the checkout through a link is refused: ${report}`);
+    assert.equal(existsSync(path.join(root, name)), false); checks += 3;
+  }
+} finally { unlinkSync(checkoutLink); unlinkSync(reportLink); rmSync(outside, { recursive: true, force: true }); }
+console.log(`Pilot rehearsal command checks passed (${checks}): unsafe destinations refused, a report path leading into the checkout through a link refused, host credentials excluded, all failures retained, source changes detected, evidence stays free of child output, and a run started through a symlinked path still refuses.`);

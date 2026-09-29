@@ -2,7 +2,7 @@
 // This is an automated synthetic rehearsal, not an observed usability study.
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, realpathSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -95,6 +95,15 @@ export function runRehearsal({ run, fingerprint, now = () => new Date(), clock =
   };
 }
 
+/** Where a file written at this path lands: a link at the path itself is followed, then its nearest existing ancestor's real path taken. */
+function landingPath(file) {
+  let target = path.resolve(file);
+  for (let hops = 0; hops < 40 && lstatSync(target, { throwIfNoEntry: false })?.isSymbolicLink(); hops++) target = path.resolve(path.dirname(target), readlinkSync(target));
+  let existing = target;
+  while (!existsSync(existing) && path.dirname(existing) !== existing) existing = path.dirname(existing);
+  return path.join(realpathSync(existing), path.relative(existing, target));
+}
+
 // Real paths: started through a symlinked path, argv names the link while this module's URL names the file, and the
 // rehearsal would exit 0 without running or refusing.
 const startedDirectly = () => { try { return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)); } catch { return false; } };
@@ -103,7 +112,8 @@ if (startedDirectly()) {
     validateRehearsalEnvironment(process.env, process.argv.slice(2));
     const output = process.env.VALOPAY_PILOT_REHEARSAL_REPORT;
     if (!output) throw new Error('Set VALOPAY_PILOT_REHEARSAL_REPORT to an evidence file outside this checkout.');
-    const reportPath = path.resolve(output), relative = path.relative(root, reportPath);
+    // Real paths on both sides, so a link in a directory above the report, or at the report itself, cannot lead it into the checkout.
+    const reportPath = path.resolve(output), relative = path.relative(realpathSync(root), landingPath(reportPath));
     if (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative)) {
       throw new Error('Write the evidence report outside this checkout so it does not change the source fingerprint.');
     }

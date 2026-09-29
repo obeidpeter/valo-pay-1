@@ -161,7 +161,7 @@ Provide credentials through your environment's secret manager, never through com
 | `VALOPAY_RUN_RECOVERY` | With the above, `1` runs the measured backup and restore rehearsal on a loopback `valopay` database |
 | `VALOPAY_REHEARSAL_REPORT` | Optional path where the recovery rehearsal writes its timings and counts |
 | `VALOPAY_RUN_PILOT_REHEARSAL` | With `VALOPAY_RUN_INTEGRATION=1`, opts into the four-suite synthetic pilot rehearsal on an explicitly disposable loopback database |
-| `VALOPAY_PILOT_REHEARSAL_REPORT` | Required evidence-file path outside the checkout for `check:pilot-rehearsal`; retains source fingerprints, timings and every suite outcome without credentials or record payloads |
+| `VALOPAY_PILOT_REHEARSAL_REPORT` | Required evidence-file path outside the checkout, with links followed, for `check:pilot-rehearsal`; retains source fingerprints, timings and every suite outcome without credentials or record payloads |
 | `VALOPAY_BROWSER_TEST` | Set to `1` by the browser test runner for its loopback fixture server; test only |
 | `VALOPAY_BROWSER_DATABASE_TEST` | Set to `1` by the real-API browser runner for its test-only host; test only |
 | `VALOPAY_BENCH_CUSTOMERS` | Optional size of the synthetic lender in the workflow benchmark suites |
