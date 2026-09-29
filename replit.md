@@ -41,6 +41,7 @@ Observation-first collections operations for Nigerian lenders. The current appli
 - Security boundary and publishing limitations: `docs/DATABASE_SECURITY.md`.
 - Console: `artifacts/valo-pay/src/`.
 - Console submission lifecycle: `artifacts/valo-pay/src/lib/submission-attempt.ts`; pure outcome classification: `artifacts/valo-pay/src/lib/submission-outcomes.ts`. The generated/pilot and connected adapters supply explicit completion policies and keep their own transport and receipt checks.
+- Console workflow components: `artifacts/valo-pay/src/features/cash-desk`, `features/credit-desk` and `features/imports`. Pages own navigation and workflow state; the import editor keeps hydration, draft, cancellation and recovery sequencing together. Cash/Credit models derive from the shared connected schema; import models distinguish list summaries from full detail and write receipts. `useTypedPilotMutation` validates workflow-specific receipt fields after the existing route and lender checks.
 - Readiness and delivery limitations: `docs/BUILD_STATUS.md`.
 
 ## Architecture decisions

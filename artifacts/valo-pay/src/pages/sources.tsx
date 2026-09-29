@@ -2,8 +2,8 @@ import { useRef, useState } from "react";
 import { Link, useSearchParams } from "wouter";
 import type { SourceProfileInput } from "@workspace/valopay-schema";
 import { useWorkspace } from "@/lib/workspace-context";
-import { usePilotMutation, usePilotQuery } from "@/lib/pilot";
-import { amountUnitName, sourcesViewSchema } from "@workspace/valopay-schema";
+import { usePilotMutation, useTypedPilotMutation, usePilotQuery } from "@/lib/pilot";
+import { amountUnitName, paystackFixtureResultSchema, sourcesViewSchema } from "@workspace/valopay-schema";
 import { useUnsavedChanges, confirmUnsavedChanges } from "@/lib/unsaved-changes";
 import { PilotHeading, PilotPanel, PilotError, RecoveryNotice, pilotField } from "@/components/pilot-ui";
 import { Button } from "@/components/ui/button";
@@ -43,7 +43,7 @@ function Sources() {
   const currentRecovery = recovery?.key === recoveryKey && query.data ? recovery : null;
   useFocusWhenLost(recovered, currentRecovery, problem);
   const [selected, setSelected] = useState<any>(null), [revision, setRevision] = useState(0), [message, setMessage] = useState("");
-  const fixture = usePilotMutation(result => setMessage(result.event.message));
+  const fixture = useTypedPilotMutation(paystackFixtureResultSchema, result => setMessage(result.event.message));
   const canWrite = ["Admin", "Operations", "Finance"].includes(workspace?.role || "");
   const canReplay = ["Admin", "Finance"].includes(workspace?.role || "");
   return <div className="space-y-6">

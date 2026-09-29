@@ -4,15 +4,9 @@ import { connectedSubmissionPolicy, useSubmissionAttempt } from './submission-at
 import { submissionFingerprint } from './submission-outcomes';
 import { useUnsavedChanges } from "./unsaved-changes";
 import { answerProblem, readAnswer, UNREADABLE_ANSWER } from "./answers";
-import { connectedActionResultFor, connectedViewSchema, type ConnectedView as SharedConnectedView } from "@workspace/valopay-schema";
-
-/** A consent or payment intent as the connected view lists it; its data is read field by field. */
-export type ConnectedRecord = Omit<SharedConnectedView["payments"]["intents"][number], "data"> & { data: Record<string, any>; effectiveStatus?: string };
-/** The connected workspace as the shared schema reads it, its consents and intents with data read field by field. */
-export type ConnectedView = Omit<SharedConnectedView, "consents" | "payments"> & {
-  consents: Array<ConnectedRecord & { effectiveStatus: SharedConnectedView["consents"][number]["effectiveStatus"] }>;
-  payments: Omit<SharedConnectedView["payments"], "intents"> & { intents: ConnectedRecord[] };
-};
+import { connectedActionResultFor } from "@workspace/valopay-schema";
+import { consoleConnectedViewSchema, type ConnectedView } from './connected-view';
+export type { ConnectedRecord, ConnectedView } from './connected-view';
 /** Shown for a connected action whose answer does not confirm the expected sample result: the action may have been saved. */
 const UNCONFIRMED_SAMPLE = "The response did not confirm the expected sample result. Retry the original request to recover its outcome.";
 type ConnectedInput = {
@@ -53,7 +47,7 @@ export function useConnected() {
     queryFn: async ({ signal }) => {
       // The view the API checked, read through the same schema: a malformed answer is a load problem, never a page.
       const view = readAnswer(
-        connectedViewSchema,
+        consoleConnectedViewSchema,
         await request(
           `/api/v1/connected?merchantId=${encodeURIComponent(merchantId!)}`,
           { signal },

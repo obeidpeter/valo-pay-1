@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { ArrowRight, CheckCircle2, Circle, Building2, AlertCircle, Clock3 } from "lucide-react";
-import { pilotProgressSchema } from "@workspace/valopay-schema";
+import { merchantSchema, pilotProgressSchema } from "@workspace/valopay-schema";
 import { useWorkspace } from "@/lib/workspace-context";
-import { usePilotMutation, usePilotQuery } from "@/lib/pilot";
+import { useTypedPilotMutation, usePilotQuery } from "@/lib/pilot";
 import { useUnsavedChanges } from "@/lib/unsaved-changes";
 import {
   PilotError,
@@ -19,7 +19,7 @@ export default function PilotPage() {
   const journey = usePilotQuery("/pilot/progress", pilotProgressSchema);
   const [name, setName] = useState(""),
     [segment, setSegment] = useState("Consumer lending");
-  const create = usePilotMutation(() => setName(""));
+  const create = useTypedPilotMutation(merchantSchema, () => setName(""));
   // Operations does not record lender creation: while it is unanswered, leaving or reloading would lose the only check.
   useUnsavedChanges(create.isPending || create.hasUnconfirmedOutcome);
   // The new lender is selected once the creation has settled: its success runs while it is still being sent, and

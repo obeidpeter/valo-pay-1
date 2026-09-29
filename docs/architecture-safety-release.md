@@ -57,6 +57,14 @@ SQL statements, transaction boundaries, lock order, journal cancellation fences 
 
 The runtime coordinator and financial function bodies are unchanged; its result now has an inferred field shape rather than `Record<string, any>`. Existing golden tests cover 2,905 financial checks, and the 4,796-record scale fixture retains its original index-visit counts. No monetary rule, processing order, stored record, API contract or permission changes.
 
+### Console workflows and response typing · 29 September 2026
+
+Cash Desk, Credit Desk and Imports pages delegate presentation to focused feature components. Cash planning/review state and Credit assessment selection remain in their page coordinators. The import batch editor retains hydration, file cancellation, draft protection, recovery and focus sequencing together; fields, mapping, results, revisions and confirmation are separate components. The Credit reviewer panel still remounts for its selected assessment and lender.
+
+Cash and Credit view types derive from the shared connected schema, removing duplicated definitions. Connected consent and checkout data reuse the shared record-field schemas instead of widening to `any`. Import decoders distinguish count-only list summaries from opened batches and write confirmations, tolerate retained records without CSV, and validate row-check details before rendering. Unknown service additions and absent optional legacy fields remain accepted.
+
+`useTypedPilotMutation` preserves route, lender and actor receipt checks, then validates the workflow's result shape before calling its typed success callback. Mixed-route callers receive `Record<string, unknown>` and narrow fields they render. A malformed success answer remains unconfirmed; retry uses the original request key, body and revision. New regression tests exercise this recovery, wrong-lender refusal, legacy view compatibility and malformed nested fields. This change preserves endpoint and storage contracts, permissions and financial behaviour.
+
 The normal offline runner includes exact-money oracle/rounding tests, database-money parsing, authority revocation/regrant, Paystack verification and command refusal, source-boundary mutation tests and the affected console tests. Database-backed workflows check real persistence, concurrent writes, access isolation, journal behaviour and saved response contracts. All test figures are synthetic; timings are local measurements, not production guarantees.
 
 This change needs no new database migration, credential, environment variable or enabled gate. Existing runtime-isolation and provider-ingress configuration remain opt-in. Rollback is the previous application build with the same schema; retain records and audit history and do not delete new verification evidence to make an earlier build appear current. Revalidate grants and preparations before any later live activation.

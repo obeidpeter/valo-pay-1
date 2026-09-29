@@ -83,7 +83,7 @@ function ConnectionsContent({ api }: { api: ReturnType<typeof useConnected> }) {
     api.canWrite &&
     ["Admin", "Operations", "Compliance reviewer"].includes(data.role);
   const selectedPermission = data.consents.find((c) => c.id === revoke);
-  const subjectName = (id: string) =>
+  const subjectName = (id: string | undefined) =>
     id === "sme"
       ? "Sample SME · separate legal entity"
       : data.customers.find((c) => c.id === id)?.name || "Unknown subject";
@@ -170,7 +170,7 @@ function ConnectionsContent({ api }: { api: ReturnType<typeof useConnected> }) {
                   {selectedPermission.name}
                 </p>
                 <p>{subjectName(selectedPermission.data.subjectId)}</p>
-                <p>Expires {formatDate(selectedPermission.data.expiresAt)}</p>
+                <p>Expires {formatDate(selectedPermission.data.expiresAt ?? '')}</p>
                 <p className="mt-2">
                   Only this permission will end. Other purposes stay unchanged.
                   New work depending on it will stop; existing evidence will
@@ -310,7 +310,7 @@ function ConnectionsContent({ api }: { api: ReturnType<typeof useConnected> }) {
                       ? "Simulated authority"
                       : "Sample permission"}
                   </p>
-                  <p>Expires {formatDate(c.data.expiresAt)}</p>
+                  <p>Expires {formatDate(c.data.expiresAt ?? '')}</p>
                   <p>Granted by {c.data.grantedBy}</p>
                   {c.effectiveStatus === "active" && (
                     <Button
