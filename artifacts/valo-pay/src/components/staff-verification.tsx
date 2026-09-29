@@ -23,13 +23,14 @@ export function VerifiedSession() {
   return (
     <div className="space-y-3">
       <p className="text-sm text-muted-foreground">
-        Select your provisioned organisation. Use account security to enrol an
-        authenticator, then verify both factors before making a pilot change.
+        Choose the organisation you were invited to. Select Open account
+        security to set up two-step verification. Then select Verify identity
+        before you make a change.
       </p>
       <div className="flex flex-wrap items-center gap-3">
         <OrganizationSwitcher hidePersonal />
         <Button variant="outline" onClick={() => clerk.openUserProfile()}>
-          Account security
+          Open account security
         </Button>
         <Button
           variant="outline"
@@ -44,7 +45,7 @@ export function VerifiedSession() {
                 const result = await response.json().catch(() => undefined);
                 if (!response.ok)
                   throw new Error(
-                    result?.error || "Verification could not be completed.",
+                    result?.error || "Identity not verified.",
                   );
                 // Only the confirmation the contract describes counts as verified. The
                 // schemas load with the pages that use them: this component is also
@@ -52,7 +53,7 @@ export function VerifiedSession() {
                 const { messageSchema } = await import("@workspace/valopay-schema");
                 if (!readAnswer(messageSchema, result))
                   throw answerProblem(UNREADABLE_ANSWER);
-                setMessage("Identity verified. Retry your original request.");
+                setMessage("Identity verified. You can continue now.");
               })
               .catch(setError)
               .finally(() => setBusy(false));
@@ -61,7 +62,7 @@ export function VerifiedSession() {
           Verify identity
         </Button>
       </div>
-      <PilotError error={error} fallback="Verification could not be completed. Try again." />
+      <PilotError error={error} fallback="Identity not verified. Select Verify identity to try again." />
       <p role="status" className="text-sm">
         {message}
       </p>

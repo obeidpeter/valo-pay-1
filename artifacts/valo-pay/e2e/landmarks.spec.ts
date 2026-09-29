@@ -15,7 +15,7 @@ const routes: Array<[string, string | RegExp]> = [
   ["/", "Collections, credit and cash. One clear view."],
   ["/sign-in", "Sign in"],
   ["/sign-up", "Create an account"],
-  ["/team-invite", "Join your pilot workspace"],
+  ["/team-invite", "Accept your invitation"],
   ["/no-such-page", "Page not found"],
   ["/overview", "Operations overview"],
   ["/work", "My work"],

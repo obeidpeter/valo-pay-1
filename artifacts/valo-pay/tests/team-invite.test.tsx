@@ -27,7 +27,7 @@ for (const [name, fragment] of [
   renderApp(`/team-invite${fragment}`);
   const problem = await screen.findByRole("alert");
   expect(problem.textContent).toContain("This invitation link is incomplete or invalid.");
-  expect(problem.textContent).toContain("Reopen the complete link your administrator sent you.");
+  expect(problem.textContent).toContain("Open the full link the Admin sent you again.");
   expect(problem.textContent).toContain("ask them for a new invitation");
   const accept = screen.getByRole("button", { name: "Accept invitation" }) as HTMLButtonElement;
   expect(accept.disabled).toBe(true);
@@ -44,7 +44,7 @@ it("keeps a complete invitation's sign-in recovery without passing its token to 
   renderApp(`/team-invite#${token}`);
   const signIn = await screen.findByRole("link", { name: "Sign in" });
   expect(signIn.getAttribute("href")).toBe("/sign-in");
-  expect(screen.getByText(/Sign in, then reopen your invitation link/)).toBeTruthy();
+  expect(screen.getByText(/Sign in first, then open your invitation link again/)).toBeTruthy();
   expect(screen.queryByRole("alert")).toBeNull();
   expect((screen.getByRole("button", { name: "Accept invitation" }) as HTMLButtonElement).disabled).toBe(true);
   expect(screen.getByRole("main").innerHTML).not.toContain(token);
@@ -69,7 +69,7 @@ it("accepts a complete invitation once and removes the token from the address af
     method: "POST", body: JSON.stringify({ token }), credentials: "same-origin",
   }));
   expect(window.location.hash).toBe("");
-  expect(screen.getByRole("link", { name: "Open pilot workspace" }).getAttribute("href")).toBe("/pilot");
+  expect(screen.getByRole("link", { name: "Open Pilot journey" }).getAttribute("href")).toBe("/pilot");
   await waitFor(() => expect(accept.disabled).toBe(true));
   await user.click(accept);
   expect(fetch).toHaveBeenCalledTimes(1);
@@ -77,7 +77,7 @@ it("accepts a complete invitation once and removes the token from the address af
 
 it("gives the shared route focus helper a focusable invitation main region", async () => {
   renderApp("/team-invite");
-  await screen.findByRole("heading", { name: "Join your pilot workspace" });
+  await screen.findByRole("heading", { level: 1, name: "Accept your invitation" });
   const main = screen.getByRole("main");
   screen.getByRole("link", { name: "Valo Pay" }).focus();
   focusMain();

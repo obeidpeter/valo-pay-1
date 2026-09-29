@@ -56,6 +56,6 @@ it("says in plain words that no answer arrived, never the browser's own error", 
 
 it("names the invitation page in the browser's title", async () => {
   renderApp("/team-invite");
-  await screen.findByRole("heading", { name: "Join your pilot workspace" });
-  await waitFor(() => expect(document.title).toBe("Join your pilot workspace · Valo Pay"));
+  await screen.findByRole("heading", { level: 1, name: "Accept your invitation" });
+  await waitFor(() => expect(document.title).toBe("Accept your invitation · Valo Pay"));
 });
