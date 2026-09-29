@@ -20,13 +20,14 @@ let refusal = dashedReason ? 'The reason after --reason begins with --, so it re
   : !usable ? usage
   : (options.has('--requeue') || options.has('--release')) && !/^[A-Za-z0-9_-]{1,100}$/.test(exportId) ? "The export ID must be the queued export's ID: letters, digits, hyphens and underscores, at most 100. It is not repeated here."
   // As releaseParkedExportFile requires, checked before the database is reached.
-  : options.has('--release') && !/^[^\p{Cc}\u2028\u2029]{1,200}$/u.test(reason) ? "Give the release a reason of 1 to 200 characters on one line: it is written to this command's log output."
+  : options.has('--release') && !/^[^\p{Cc}\u2028\u2029]{1,200}$/u.test(reason) ? "Give the release a reason of 1 to 200 characters on one line: it is written to this command's log output, or the file LOG_FILE names."
   : !process.env.DATABASE_URL ? 'DATABASE_URL is required for the sandbox service cleanup queue.'
   : options.has('--retry') && !storageConfigured ? "Private storage is not configured here (PRIVATE_OBJECT_DIR), so --retry was refused and no file was claimed: a retry that cannot reach storage would push every due file into backoff. Run it where the service's storage settings and credentials are, or leave the files to the service's background worker."
   : undefined;
-// A release's only record is its warning line in this command's log output, which LOG_LEVEL must let through.
+// A release's only record is its warning line in this command's log output, or the file LOG_FILE names, which LOG_LEVEL
+// must let through.
 if (!refusal && options.has('--release') && !(await import('../../artifacts/api-server/src/lib/logger').then(({ logger }) => logger.isLevelEnabled('warn'), () => false))) {
-  refusal = "The release was refused: its record, a warning line in this command's log output, would not be written with LOG_LEVEL as set. Unset LOG_LEVEL, or set it to warn, info or debug, and run the command again. Nothing was changed.";
+  refusal = "The release was refused: its record, a warning line in this command's log output, or the file LOG_FILE names, would not be written with LOG_LEVEL as set. Unset LOG_LEVEL, or set it to warn, info or debug, and run the command again. Nothing was changed.";
 }
 // A retry obtains storage credentials first, as every storage request does, so one that cannot reach storage claims nothing.
 if (!refusal && options.has('--retry') && !(await (await import('../../artifacts/api-server/src/lib/export-download')).storageCredentialsAvailable())) {

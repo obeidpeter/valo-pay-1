@@ -63,12 +63,12 @@ if (!sidecarListening) {
     assert.match(unanswered.stderr, /Private storage credentials could not be obtained here within 5 seconds, so --retry was refused and no file was claimed/);
   }
 }
-// A release is recorded by its warning line in this command's log output: where LOG_LEVEL would filter warnings out, or
-// names no level, it is refused before the database.
+// A release is recorded by its warning line in this command's log output, or the file LOG_FILE names: where LOG_LEVEL
+// would filter warnings out, or names no level, it is refused before the database.
 for (const level of ['error', 'silent', 'synthetic-level']) {
   const unlogged = await run(cleanup, ['--release', 'synthetic-export', '--reason', 'Synthetic review note'], { DATABASE_URL: unusableDatabase, LOG_LEVEL: level });
   assert.equal(unlogged.status, 1, level);
-  assert.match(unlogged.stderr, /The release was refused: its record, a warning line in this command's log output, would not be written with LOG_LEVEL as set/, level);
+  assert.match(unlogged.stderr, /The release was refused: its record, a warning line in this command's log output, or the file LOG_FILE names, would not be written with LOG_LEVEL as set/, level);
   assert.doesNotMatch(unlogged.output, /could not be checked|synthetic-level|Synthetic review note/, level);
 }
 // Releasing a parked file needs its export ID and a reason, and one action at a time; a refusal repeats no value.
@@ -79,10 +79,11 @@ for (const args of [['--release'], ['--release', 'synthetic-export'], ['--releas
   assert.match(refused.stderr, /^Use: pnpm run check:export-cleanup \[-- --retry \| --requeue EXPORT_ID \| --release EXPORT_ID --reason "why"\]/, args.join(' '));
   assert.ok(!refused.output.includes('synthetic-export') && !refused.output.includes('Synthetic review note'), args.join(' '));
 }
+const reasonRefusal = /^Give the release a reason of 1 to 200 characters on one line: it is written to this command's log output, or the file LOG_FILE names\./;
 for (const [args, refusal] of [[['--requeue', 'synthetic/export'], /^The export ID must be the queued export's ID/], [['--requeue', ''], /^The export ID must be the queued export's ID/],
   [['--release', '', '--reason', 'Synthetic review note'], /^The export ID must be the queued export's ID/], [['--release', 'synthetic-export', '--reason', '--Synthetic reason'], /^The reason after --reason begins with --/],
-  [['--release', 'synthetic-export', '--reason', ' '], /^Give the release a reason/],
-  [['--release', 'synthetic-export', '--reason', 'x'.repeat(201)], /^Give the release a reason/], [['--release', 'synthetic-export', '--reason', 'Synthetic\nsecond line'], /^Give the release a reason/]]) {
+  [['--release', 'synthetic-export', '--reason', ' '], reasonRefusal],
+  [['--release', 'synthetic-export', '--reason', 'x'.repeat(201)], reasonRefusal], [['--release', 'synthetic-export', '--reason', 'Synthetic\nsecond line'], reasonRefusal]]) {
   const refused = await run(cleanup, args, { DATABASE_URL: unusableDatabase });
   assert.equal(refused.status, 1, args.join(' '));
   assert.match(refused.stderr, refusal, args.join(' '));
