@@ -76,7 +76,7 @@ try {
   directory = await team();
   assert.deepEqual(directory.changes.map((change: any) => [change.id, change.memberId, change.requestedBy]), [[request.pendingChange.id, member.id, `Clerk:${people.adminA}`]]); checks += 1;
   refused(await call(`/v1/team/changes/${request.pendingChange.id}/approve`, "adminA", "POST"), 403, /A different administrator must approve this change/);
-  refused(await call(`/v1/team/changes/${request.pendingChange.id}/approve`, "finance", "POST"), 403, /administrator/);
+  refused(await call(`/v1/team/changes/${request.pendingChange.id}/approve`, "finance", "POST"), 403, /^Only an Admin can manage the team\.$/);
   const approved = ok(await call(`/v1/team/changes/${request.pendingChange.id}/approve`, "adminB", "POST"));
   assert.deepEqual([approved.role, approved.status, approved.pendingChange], ["Compliance reviewer", "active", null]); checks += 1;
   assert.equal((await team()).changes.length, 0); checks += 1;

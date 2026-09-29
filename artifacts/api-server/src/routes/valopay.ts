@@ -15,6 +15,7 @@ import { getGates } from "../lib/valopay-readiness";
 import { importCsv, withRowIdColumn } from "../lib/valopay-import";
 import { exportDescriptorForRecord, exportKinds, readExport } from "../lib/valopay-exports";
 import { withAuditName } from "../lib/action-names";
+import { onlyRoles } from "../lib/refusal-words";
 import { assertExportPermitted, exportJobView, publicExportRecord, queueExport, retryExport } from '../lib/export-jobs';
 import { assertRecordVersion, assertSettingsVersion, mergeData } from "../lib/edit-versions";
 import { schedulerStatus } from "../lib/close-scheduler";
@@ -230,7 +231,7 @@ router.patch("/v1/settings",async(req,res)=>{
  const body=settingsEdit.parse(req.body);
  const result=await withState(req,res,(state,ctx)=>{
   const {expectedRevision}=settingsVersion.parse(req.body);
-  if(ctx.role!=="Admin")fail("Only an Admin can change lender settings.",403);
+  if(ctx.role!=="Admin")fail(onlyRoles(["Admin"],"change lender settings",ctx.accessMode),403);
   assertSettingsVersion(state.settings,expectedRevision);
   const start=body.executionStart??state.settings.executionStart??executionWindow.defaultStartHour,end=body.executionEnd??state.settings.executionEnd??executionWindow.defaultEndHour;
   if(start<executionWindow.earliestHour||end>executionWindow.latestHour||start>=end)fail(`Set the collection window between ${executionWindow.earliestHour}:00 and ${executionWindow.latestHour}:00 West Africa Time, with the start before the end.`);

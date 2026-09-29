@@ -1,5 +1,6 @@
 /** Pure connected-workspace record and role predicates, shared by its capability workflows. */
 import type { Context, DomainState, ValopayRecord, RecordOf } from "./types";
+import { onlyRoles } from "../lib/refusal-words";
 
 export function reject(message: string, status = 400): never {
   throw Object.assign(new Error(message), { status });
@@ -20,9 +21,10 @@ export function owned<K extends string>(
     (r) => r.id === id && r.kind === kind && r.merchantId === state.merchant.id,
   ) ?? reject("Record not found in this workspace.", 404)) as RecordOf<K>;
 }
-export function allow(ctx: Context, roles: string[]) {
+/** Refuses a role the action does not allow: "Only an Admin or Operations can grant permissions." */
+export function allow(ctx: Context, roles: string[], action: string) {
   if (!roles.includes(ctx.role))
-    reject(`This action requires ${roles.join(" or ")} role.`, 403);
+    reject(onlyRoles(roles, action, ctx.accessMode), 403);
 }
 export function intentOpen(r: ValopayRecord) {
   return (

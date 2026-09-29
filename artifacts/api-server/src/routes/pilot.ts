@@ -56,6 +56,7 @@ import {
   coordinateCase,
 } from "../domain/pilot-workflow";
 import { routerOptions } from "./router-options";
+import { onlyRoles } from "../lib/refusal-words";
 
 const router: IRouter = Router(routerOptions);
 const idOf = pathId;
@@ -239,7 +240,7 @@ router.get("/v1/pilot/batches/:id", async (req, res) => {
       async (ctx) => {
         const state = await loadState(ctx, q.merchantId, "share");
         if (!["Admin", "Operations", "Finance"].includes(ctx.role))
-          fail("An import operator role is required to open source rows.", 403);
+          fail(onlyRoles(["Admin", "Operations", "Finance"], "open the rows of an import batch", ctx.accessMode), 403);
         const batch = state.records.find(
           (r) => r.kind === "import-batches" && r.id === id,
         );

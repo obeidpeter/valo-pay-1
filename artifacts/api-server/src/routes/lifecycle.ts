@@ -6,6 +6,7 @@ import { withState } from './valopay';
 import { lifecycleView, lifecycleRunView, saveLifecyclePolicy, setLifecycleHold, lifecyclePreview, approveLifecycleRun } from '../domain/lifecycle';
 import type { DomainState } from '../domain/types';
 import { routerOptions } from './router-options';
+import { onlyRoles } from '../lib/refusal-words';
 
 const router: IRouter = Router(routerOptions);
 const idOf = pathId;
@@ -15,11 +16,11 @@ const openRawSources = (ctx: StoreContext, state: DomainState) => ctx.role === '
 const viewOf = async (ctx: StoreContext, state: DomainState, offset = 0) => { const { external, journal } = await lifecycleInventory(ctx, state, { page: offset }); return lifecycleView(state, ctx, external, offset, journal); };
 router.get('/v1/lifecycle', async (req, res) => {
   const input = lenderPage(req);
-  res.json(await inWorkspace(req, res, async ctx => { if (ctx.role !== 'Admin') fail('An administrator is required to view retention controls.', 403); const state = await loadState(ctx, input.merchantId, 'share'); await openRawSources(ctx, state); return contractAnswer(lifecycleViewSchema, await viewOf(ctx, state, input.offset)); }, 'read'));
+  res.json(await inWorkspace(req, res, async ctx => { if (ctx.role !== 'Admin') fail(onlyRoles(['Admin'], 'view data retention', ctx.accessMode), 403); const state = await loadState(ctx, input.merchantId, 'share'); await openRawSources(ctx, state); return contractAnswer(lifecycleViewSchema, await viewOf(ctx, state, input.offset)); }, 'read'));
 });
 router.get('/v1/lifecycle/runs/:id', async (req, res) => {
   const input = lenderQuery(req), id = idOf(req.params.id);
-  res.json(await inWorkspace(req, res, async ctx => { if (ctx.role !== 'Admin') fail('An administrator is required to view retention controls.', 403); const state = await loadState(ctx, input.merchantId, 'share'), run = state.records.find(record => record.merchantId === state.merchant.id && record.kind === 'retention-runs' && record.id === id); if (!run) fail('Retention run not found in this lender.', 404); return contractAnswer(lifecycleRunViewSchema, lifecycleRunView(state, run)); }, 'read'));
+  res.json(await inWorkspace(req, res, async ctx => { if (ctx.role !== 'Admin') fail(onlyRoles(['Admin'], 'view data retention', ctx.accessMode), 403); const state = await loadState(ctx, input.merchantId, 'share'), run = state.records.find(record => record.merchantId === state.merchant.id && record.kind === 'retention-runs' && record.id === id); if (!run) fail('Retention run not found in this lender.', 404); return contractAnswer(lifecycleRunViewSchema, lifecycleRunView(state, run)); }, 'read'));
 });
 router.post('/v1/lifecycle/policy', async (req, res) => {
   requiredKey(req); const input = retentionPolicyInputSchema.parse(req.body);
@@ -39,6 +40,6 @@ router.post('/v1/lifecycle/runs/:id/approve', async (req, res) => {
 });
 router.post('/v1/lifecycle/runs/:id/execute', async (req, res) => {
   requiredKey(req); const id = idOf(req.params.id), input = lifecycleExecuteInputSchema.parse(req.body);
-  res.json(await withState(req, res, async (state, ctx) => { if (ctx.role !== 'Admin') fail('An administrator is required to execute retention controls.', 403); await openRawSources(ctx, state); const run = state.records.find(record => record.kind === 'retention-runs' && record.id === id && record.merchantId === state.merchant.id); if (!run) fail('Retention run not found in this lender.', 404); if (run.data.previewDigest !== input.previewDigest) fail('The approved preview does not match this request. Refresh its saved status.', 409); return executeLifecycleRun(ctx, state, id); }, true, lifecycleRunViewSchema));
+  res.json(await withState(req, res, async (state, ctx) => { if (ctx.role !== 'Admin') fail(onlyRoles(['Admin'], 'carry out a deletion run', ctx.accessMode), 403); await openRawSources(ctx, state); const run = state.records.find(record => record.kind === 'retention-runs' && record.id === id && record.merchantId === state.merchant.id); if (!run) fail('Retention run not found in this lender.', 404); if (run.data.previewDigest !== input.previewDigest) fail('The approved preview does not match this request. Refresh its saved status.', 409); return executeLifecycleRun(ctx, state, id); }, true, lifecycleRunViewSchema));
 });
 export default router;

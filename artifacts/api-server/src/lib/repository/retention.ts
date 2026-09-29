@@ -1,5 +1,6 @@
 /** Internal repository retention. Import through valopay-store; external access is rejected by the boundary check. */
 import { canonicalDigest } from "../digests";
+import { onlyRoles } from "../refusal-words";
 import type { PoolClient } from "@workspace/db";
 import type { DomainState } from "../../domain/types";
 import type {
@@ -124,7 +125,7 @@ export function createRetentionRepository(dependencies: Dependencies) {
       !merchantId ||
       state.merchant.id !== merchantId
     )
-      fail("An administrator in this lender is required.", 403);
+      fail(onlyRoles(["Admin"], "manage data retention", context.accessMode), 403);
     const files = state.records
       .filter(
         (r) =>
@@ -264,7 +265,7 @@ export function createRetentionRepository(dependencies: Dependencies) {
       session.access !== "write" ||
       state.merchant.id !== merchantId
     )
-      fail("An administrator in this lender is required.", 403);
+      fail(onlyRoles(["Admin"], "carry out a deletion run", context.accessMode), 403);
     const run = state.records.find(
       (r) => r.id === id && r.kind === "retention-runs",
     );

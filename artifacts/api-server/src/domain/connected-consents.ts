@@ -27,7 +27,7 @@ export function addConsent(
   ctx: Context,
   data: Record<string, unknown>,
 ) {
-  allow(ctx, ["Admin", "Operations"]);
+  allow(ctx, ["Admin", "Operations"], "grant permissions");
   const input = z
     .object({
       purpose: z.enum(consentPurposes),
@@ -78,7 +78,7 @@ export function addConsent(
 
 /** Revocation changes the current grant version; it never changes a recorded payment outcome. */
 export function revokeConsent(state: DomainState, ctx: Context, input: ConnectedActionInput) {
-  allow(ctx, ["Admin", "Operations", "Compliance reviewer"]);
+  allow(ctx, ["Admin", "Operations", "Compliance reviewer"], "withdraw permissions");
   const consent = owned(state, input.recordId, "connected-consents");
   if (consent.status === "revoked") return consent;
   consent.status = "revoked";

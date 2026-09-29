@@ -9,6 +9,7 @@ import { reject, payable, intentOpen, externalScheduled } from "./connected-cont
 import { consentPurposes, purposeLabels, consentActive, addConsent, revokeConsent } from "./connected-consents";
 import { connectedRevision } from "./connected-revision";
 import { paymentAction } from "./connected-checkout";
+import { onlyRoles } from "../lib/refusal-words";
 
 // Preserve the connected-workspace public contract while its workflows have separate ownership.
 export const connectedActionSchema = connectedActionInputSchema;
@@ -99,7 +100,7 @@ function connectedAction(
       403,
     );
   if (ctx.role === "Read-only")
-    reject("Read-only role cannot change the workspace.", 403);
+    reject(onlyRoles(["Admin", "Operations", "Finance", "Compliance reviewer"], "make changes in connected banking", ctx.accessMode), 403);
   if (input.expectedRevision !== connectedRevision(state))
     reject(
       "The workspace changed. Refresh and review before trying again.",

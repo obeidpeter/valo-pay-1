@@ -70,6 +70,13 @@ assert.deepEqual(journalReceipt({ id: "export-1", kind: "customers", format: "cs
   assert.deepEqual(withAuditName(entry), { kind: "audit", name: "Instalment added", data: { action: "post.records.due-items" } });
   assert.equal(entry.name, "post.records.due-items", "the stored entry is not changed");
   assert.deepEqual(withAuditName({ kind: "customers", name: "post.records", data: {} }).name, "post.records", "only an audit entry is renamed");
+  // A role refusal has one shape; the sandbox adds where to change the demo role, and a team member never reads it.
+  const { onlyRoles, roleList } = await import("../src/lib/refusal-words.js");
+  assert.deepEqual([roleList(["Admin"]), roleList(["Finance"]), roleList(["Admin", "Operations"]), roleList(["Admin", "Operations", "Finance"])], ["an Admin", "Finance", "an Admin or Operations", "an Admin, Operations or Finance"]);
+  assert.equal(onlyRoles(["Admin", "Operations"], "grant permissions", "sandbox"), "Only an Admin or Operations can grant permissions. Change your demo role in Settings.");
+  assert.equal(onlyRoles(["Admin", "Operations"], "grant permissions", undefined), "Only an Admin or Operations can grant permissions. Change your demo role in Settings.");
+  assert.equal(onlyRoles(["Admin"], "manage the team", "staff"), "Only an Admin can manage the team.", "a team member reads no demo wording");
+  assert.equal(onlyRoles(["Admin", "Finance"], "create exports", "staff", "Read-only can still download exports already made."), "Only an Admin or Finance can create exports. Read-only can still download exports already made.");
   assert.equal(summariseRequest(facts("POST", "/v1/lifecycle/runs/run-1/approve"))?.resultKind, "retention-runs", "an answer that names no kind is the kind its route saves");
   assert.equal(summariseRequest(facts("POST", "/v1/team/invitations")), null, "a route the journal does not record has no summary");
   assert.equal(summariseRequest({ ...facts("POST", "/v1/actions"), method: null, path: null }), null, "nor has a sealed or purged request");

@@ -11,6 +11,7 @@ import {
   type CreditReviewRecord,
 } from "./connected-credit";
 import { makeRecord } from "./records";
+import { onlyRoles } from "../lib/refusal-words";
 import { permissionActive } from "./connected-permission-validity";
 import type { Context, DomainState, ValopayRecord } from "./types";
 
@@ -249,10 +250,7 @@ export function runCreditAction(
     reject("Explain the reason for this exercise in 8–500 characters.");
   if (input.action === "credit.assess") {
     if (!assessor(ctx))
-      reject(
-        "Admin or Operations role is required to prepare an assessment.",
-        403,
-      );
+      reject(onlyRoles(assessorRoles, "run an assessment", ctx.accessMode), 403);
     const data = z
       .object({
         customerId: z.string().min(1).max(100),
@@ -342,7 +340,7 @@ export function runCreditAction(
   }
   if (input.action === "credit.review") {
     if (!reviewer(ctx))
-      reject("Admin, Finance or Compliance reviewer role is required.", 403);
+      reject(onlyRoles(reviewerRoles, "review an assessment", ctx.accessMode), 403);
     const record =
       own(state, "connected-credit-assessments").find(
         (item) => item.id === input.recordId,

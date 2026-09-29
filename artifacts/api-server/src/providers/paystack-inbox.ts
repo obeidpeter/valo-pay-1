@@ -4,6 +4,7 @@ export { assertProviderEventChange, quarantinedWithoutDisagreement } from '../do
 import type { Context, DomainState, ValopayRecord } from "../domain/types";
 import { makeRecord } from "../domain/records";
 import { assertRecordVersion } from "../lib/edit-versions";
+import { onlyRoles } from "../lib/refusal-words";
 import { parsePaystackTestWebhook, reconcilePaystackEvidence, reconcilePaystackMandateEvidence, type PaystackWebhook } from "./paystack";
 
 function refuse(message: string, status = 400): never { throw Object.assign(new Error(message), { status }); }
@@ -46,7 +47,7 @@ export function receivePaystackEvent(state: DomainState, ctx: Context, event: Pa
 }
 
 export function replayProviderEvent(state: DomainState, ctx: Context, id: string, version: string, reason: string) {
-  if (!["Admin", "Finance"].includes(ctx.role)) refuse("Only Finance or an administrator can review a provider replay.", 403);
+  if (!["Admin", "Finance"].includes(ctx.role)) refuse(onlyRoles(["Admin", "Finance"], "recheck a saved receipt", ctx.accessMode), 403);
   const record = state.records.find(r => r.id === id && r.kind === "provider-events");
   if (!record) refuse("Provider receipt not found in this lender.", 404);
   assertRecordVersion(record, version);
@@ -60,7 +61,7 @@ export function replayProviderEvent(state: DomainState, ctx: Context, id: string
 
 /** Fixed local evidence never calls Paystack and is permanently labelled fixture mode. */
 export function runPaystackFixture(state: DomainState, ctx: Context, scenario: "payment" | "duplicate" | "amount_mismatch" | "out_of_order" | "tampered") {
-  if (!["Admin", "Operations", "Finance"].includes(ctx.role)) refuse("Your role cannot run source rehearsals.", 403);
+  if (!["Admin", "Operations", "Finance"].includes(ctx.role)) refuse(onlyRoles(["Admin", "Operations", "Finance"], "run sample Paystack events", ctx.accessMode), 403);
   const connection = { connectionId: `fixture:${state.merchant.id}`, mode: "fixture" as const };
   const key = ["sk", "test", "local", "fixture", "only", "0".repeat(20)].join("_");
   const payment = (amount: number) => ({ event: "charge.success", data: { domain: "test", id: "990000000001", status: "success", reference: "VALO-SYNTHETIC-ONLY-001", amount, currency: "NGN", channel: "direct_debit" } });

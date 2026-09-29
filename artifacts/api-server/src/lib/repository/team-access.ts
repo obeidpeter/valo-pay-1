@@ -28,6 +28,7 @@ import { contractAnswer } from "../contract";
 import { markRolledBack } from "../transaction-outcome";
 import type { DomainState } from "../../domain/types";
 import { requestFingerprint } from "../digests";
+import { onlyRoles } from "../refusal-words";
 import { seedMerchant } from "../valopay-seed";
 import type { StaffRow, StoreContext, Session, MerchantRow } from "./types";
 type Dependencies = Pick<
@@ -311,12 +312,11 @@ export function createTeamAccessRepository(dependencies: Dependencies) {
   }
   function teamAdmin(ctx: StoreContext) {
     const session = sessionFor(ctx);
-    if (
-      ctx.accessMode !== "staff" ||
-      ctx.role !== "Admin" ||
-      session.access !== "team"
-    )
-      fail("A verified pilot administrator with recent MFA is required.", 403);
+    // The sandbox has no team members to manage; a team member other than an Admin is told who can.
+    if (ctx.accessMode !== "staff")
+      fail("Team member accounts are not switched on here. Demo roles are for practice only.", 403);
+    if (ctx.role !== "Admin" || session.access !== "team")
+      fail(onlyRoles(["Admin"], "manage the team", ctx.accessMode), 403);
     return session;
   }
   async function staffEvent(
@@ -1272,7 +1272,7 @@ export function createTeamAccessRepository(dependencies: Dependencies) {
   ): Promise<{ lender: DomainState["merchant"]; repeated: boolean }> {
     const session = sessionFor(ctx);
     if (ctx.role !== "Admin" || session.access !== "team")
-      fail("An administrator must set up a lender.", 403);
+      fail(onlyRoles(["Admin"], "create a lender", ctx.accessMode), 403);
     // Workspace lock and deterministic ID make a repeated onboarding request safe.
     const id = digest(
         `onboarding:${session.workspace.id}:${session.owner}:${key}`,

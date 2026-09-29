@@ -39,6 +39,7 @@ import { pageQueue } from '../../api-server/src/lib/valopay-queues';
 import { importCsv, withRowIdColumn } from "../../api-server/src/lib/valopay-import";
 import { exportJobView, publicExportRecord, queueExport, retryExport } from '../../api-server/src/lib/export-jobs';
 import { withAuditName } from '../../api-server/src/lib/action-names';
+import { onlyRoles } from '../../api-server/src/lib/refusal-words';
 import { buildConsoleOverview, buildConsoleReports, buildConsoleSettings } from "../../api-server/src/lib/valopay-close-views";
 import type { CloseRuntime } from "../../api-server/src/domain/effective-close-schedule";
 import { auditEntryData, canonicalDigest, verifyAuditChain, walkAuditChain } from "../../api-server/src/lib/digests";
@@ -209,17 +210,17 @@ export function installFakeApi(options: { now?: string; role?: string; queuedExp
     ['POST', /^\/v1\/work\/notifications\/read$/, (_p,q,b) => withState(merchantOf(q),(s,c)=>workReceiptSchema.parse(recordWorkReceipt(s,c,roster(),'read',workReceiptInputSchema.parse(b))),{action:'work.read',objectId:'work',summary:'Read in-app notification'})],
     ['POST', /^\/v1\/work\/handovers\/acknowledge$/, (_p,q,b) => withState(merchantOf(q),(s,c)=>workReceiptSchema.parse(recordWorkReceipt(s,c,roster(),'acknowledge',workReceiptInputSchema.parse(b))),{action:'work.acknowledge',objectId:'work',summary:'Acknowledge case handover'})],
     ['GET', /^\/v1\/lifecycle$/, (_p,q) => contract(lifecycleViewSchema, lifecycleView(api.state(merchantOf(q)),context(),api.lifecycleExternal,Number(q.offset||0)))],
-    ['GET', /^\/v1\/lifecycle\/runs\/(?<id>[^/]+)$/, (p,q) => {if(api.role!=='Admin')fail('An administrator is required.',403);const s=api.state(merchantOf(q)),r=s.records.find(r=>r.kind==='retention-runs'&&r.id===p.id);if(!r)fail('Retention run not found in this lender.',404);return contract(lifecycleRunViewSchema, lifecycleRunView(s,r));}],
+    ['GET', /^\/v1\/lifecycle\/runs\/(?<id>[^/]+)$/, (p,q) => {if(api.role!=='Admin')fail(onlyRoles(['Admin'],'view data retention',undefined),403);const s=api.state(merchantOf(q)),r=s.records.find(r=>r.kind==='retention-runs'&&r.id===p.id);if(!r)fail('Retention run not found in this lender.',404);return contract(lifecycleRunViewSchema, lifecycleRunView(s,r));}],
     ['POST', /^\/v1\/lifecycle\/policy$/, (_p,q,b) => withState(merchantOf(q),(s,c)=>{saveLifecyclePolicy(s,c,b);return lifecycleView(s,c,api.lifecycleExternal);},{action:'retention.policy',objectId:'retention',summary:'Save synthetic retention policy'})],
     ['POST', /^\/v1\/lifecycle\/holds$/, (_p,q,b) => withState(merchantOf(q),(s,c)=>{setLifecycleHold(s,c,b,api.lifecycleExternal);return lifecycleView(s,c,api.lifecycleExternal);},{action:'retention.hold',objectId:'retention',summary:'Change preservation hold'})],
     ['POST', /^\/v1\/lifecycle\/runs$/, (_p,q,b) => withState(merchantOf(q),(s,c)=>lifecyclePreview(s,c,b,api.lifecycleExternal),{action:'retention.preview',objectId:'retention',summary:'Save bounded deletion preview'})],
     ['POST', /^\/v1\/lifecycle\/runs\/(?<id>[^/]+)\/approve$/, (p,q,b) => withState(merchantOf(q),(s,c)=>approveLifecycleRun(s,c,p.id!,b,api.lifecycleExternal),{action:'retention.approve',objectId:p.id!,summary:'Approve exact retention preview'})],
-    ['POST', /^\/v1\/lifecycle\/runs\/(?<id>[^/]+)\/execute$/, (p,q,b) => withStateAsync(merchantOf(q),async(s,c)=>{if(c.role!=='Admin')fail('An administrator is required.',403);const run=s.records.find(r=>r.kind==='retention-runs'&&r.id===p.id);if(!run||run.data.previewDigest!==b.previewDigest)fail('The approved preview does not match.',409);
+    ['POST', /^\/v1\/lifecycle\/runs\/(?<id>[^/]+)\/execute$/, (p,q,b) => withStateAsync(merchantOf(q),async(s,c)=>{if(c.role!=='Admin')fail(onlyRoles(['Admin'],'carry out a deletion run',c.accessMode),403);const run=s.records.find(r=>r.kind==='retention-runs'&&r.id===p.id);if(!run||run.data.previewDigest!==b.previewDigest)fail('The approved preview does not match.',409);
       // No journal or private storage here: a request payload is simply gone, and an export file is marked deleted on its record.
       const remove=async(candidate:{kind:string;sourceId:string}):Promise<'deleted'|'already_absent'>=>{if(candidate.kind!=='export_file')return 'deleted';const file=s.records.find(r=>r.kind==='exports'&&r.id===candidate.sourceId);if(!file)return 'already_absent';file.data.fileDeletedAt=c.now;file.data.fileRetentionRunId=run.id;return 'deleted';};
       return executeApprovedRun(s,c,run.id,api.lifecycleExternal,remove,{budgetMs:api.lifecycleStepBudgetMs});},{action:'retention.execute',objectId:p.id!,summary:'Execute approved synthetic retention run'})],
     ['GET', /^\/v1\/pilot\/batches$/, (_p,q)=>{const all=api.state(merchantOf(q)).records.filter(r=>r.kind==='import-batches');return contract(importBatchListSchema, {items:all.slice(Number(q.offset||0),Number(q.offset||0)+25).map(r=>batchView(r)),total:all.length,offset:Number(q.offset||0)});}],
-    ['GET', /^\/v1\/pilot\/batches\/(?<id>[^/]+)$/, (p,q)=>{const s=api.state(merchantOf(q)), batch=s.records.find(r=>r.kind==='import-batches'&&r.id===p.id);if(!batch)fail('Batch not found.',404);if(!['Admin','Operations','Finance'].includes(api.role))fail('An import operator role is required.',403);return contract(importBatchDetailSchema, {batch,revisions:s.records.filter(r=>r.kind==='import-revisions'&&r.data.batchId===p.id)});}],
+    ['GET', /^\/v1\/pilot\/batches\/(?<id>[^/]+)$/, (p,q)=>{const s=api.state(merchantOf(q)), batch=s.records.find(r=>r.kind==='import-batches'&&r.id===p.id);if(!batch)fail('Batch not found.',404);if(!['Admin','Operations','Finance'].includes(api.role))fail(onlyRoles(['Admin','Operations','Finance'],'open the rows of an import batch',undefined),403);return contract(importBatchDetailSchema, {batch,revisions:s.records.filter(r=>r.kind==='import-revisions'&&r.data.batchId===p.id)});}],
     ['POST', /^\/v1\/pilot\/batches$/, (_p,q,b)=>pilotWrite(q,(s,c)=>saveImportBatch(s,c,b))],
     ['POST', /^\/v1\/pilot\/batches\/(?<id>[^/]+)\/save$/, (p,q,b)=>pilotWrite(q,(s,c)=>saveImportBatch(s,c,b,p.id))],
     ['POST', /^\/v1\/pilot\/batches\/(?<id>[^/]+)\/commit$/, (p,q,b)=>pilotWrite(q,(s,c)=>commitImportBatch(s,c,p.id!,b.expectedUpdatedAt))],
@@ -309,7 +310,7 @@ export function installFakeApi(options: { now?: string; role?: string; queuedExp
     ["PATCH", /^\/v1\/settings$/, (_p, query, raw) => {
       const body = S.UpdateSettingsBody.parse(raw);
       return S.UpdateSettingsResponse.parse(withState(merchantOf(query), (state, ctx) => {
-        if (ctx.role !== "Admin") fail("Only an Admin can change lender settings.", 403);
+        if (ctx.role !== "Admin") fail(onlyRoles(["Admin"], "change lender settings", ctx.accessMode), 403);
         const start = body.executionStart ?? state.settings.executionStart ?? executionWindow.defaultStartHour, end = body.executionEnd ?? state.settings.executionEnd ?? executionWindow.defaultEndHour;
         if (start < executionWindow.earliestHour || end > executionWindow.latestHour || start >= end) fail(`Execution window must be WAT hours within ${executionWindow.earliestHour}:00 to ${executionWindow.latestHour}:00 with the start before the end (DEB-01).`);
         if (body.minimumTicketKobo !== undefined && body.minimumTicketKobo < ABSOLUTE_TICKET_FLOOR_KOBO) fail("The ₦5,000 floor cannot be overridden.");

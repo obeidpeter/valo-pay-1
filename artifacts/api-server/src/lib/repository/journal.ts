@@ -1,6 +1,7 @@
 /** Internal repository journal. Import through valopay-store; external access is rejected by the boundary check. */
 import { requestLabel, summariseRequest } from "../operation-summary";
 import { storedRequestLabel } from "../action-names";
+import { onlyRoles } from "../refusal-words";
 import { requestFingerprint } from "../digests";
 import {
   markOperationClosed,
@@ -248,7 +249,7 @@ export function createJournalRepository(dependencies: Dependencies) {
     if (raced) return raced;
     if (!(await receiptStored(session.client, merchantId, key, id))) unused?.();
     if (ctx.role === "Read-only")
-      fail("Your read-only role cannot submit operations.", 403);
+      fail(onlyRoles(["Admin", "Operations", "Finance", "Compliance reviewer"], "make changes", ctx.accessMode), 403);
     const count = Number(
       (
         await session.client.query<{ count: string }>(
@@ -542,7 +543,7 @@ export function createJournalRepository(dependencies: Dependencies) {
     const session = sessionFor(ctx);
     await readMerchant(ctx, merchantId, "none");
     if (ctx.role === "Read-only")
-      fail("Your read-only role cannot cancel operations.", 403);
+      fail(onlyRoles(["Admin", "Operations", "Finance", "Compliance reviewer"], "cancel requests", ctx.accessMode), 403);
     const owner = session.owner || session.principal,
       id = digest(`operation:${merchantId}:${owner}:${input.key}`);
     await session.client.query(

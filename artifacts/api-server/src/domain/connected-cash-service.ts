@@ -1,3 +1,4 @@
+import { onlyRoles } from "../lib/refusal-words";
 import { watMonth } from "./calendar";
 import { makeRecord, touch } from "./records";
 import { permissionActive } from "./connected-permission-validity";
@@ -169,9 +170,10 @@ function ownRecord(
   if (!record) throw refusal("This SME record was not found.", 404);
   return record;
 }
-function requireRole(ctx: Context, roles: string[]): void {
+/** Refuses a role the action does not allow: "Only an Admin or Operations can set up Cash Desk." */
+function requireRole(ctx: Context, roles: string[], action: string): void {
   if (!roles.includes(ctx.role))
-    throw refusal(`This action requires ${roles.join(" or ")} access.`, 403);
+    throw refusal(onlyRoles(roles, action, ctx.accessMode), 403);
 }
 function minor(value: unknown, fallback: number): number {
   if (value === undefined) return fallback;
@@ -784,7 +786,7 @@ export function runCashAction(
       },
     });
   if (input.action === "cash.initialize") {
-    requireRole(ctx, ["Admin", "Operations"]);
+    requireRole(ctx, ["Admin", "Operations"], "set up Cash Desk");
     requirePermission(state, "merchant_account_read", ctx.now);
     if (stored(state))
       return {
@@ -807,7 +809,7 @@ export function runCashAction(
       requirePermission(state, "merchant_account_read", ctx.now);
     const data = workspace(state, ctx);
     if (input.action === "cash.refresh_sample") {
-      requireRole(ctx, ["Admin", "Operations"]);
+      requireRole(ctx, ["Admin", "Operations"], "refresh sample balances");
       record = stored(state)!;
       const refreshed = structuredClone(data);
       refreshed.accounts = refreshed.accounts.map((a) => ({
@@ -820,7 +822,7 @@ export function runCashAction(
       message =
         "Sample balance timestamps refreshed. This did not contact a bank.";
     } else if (input.action === "cash.forecast") {
-      requireRole(ctx, ["Admin", "Operations", "Finance"]);
+      requireRole(ctx, ["Admin", "Operations", "Finance"], "save a forecast");
       const positions = consolidateCashPositions(
         scope,
         data.accounts,
@@ -852,7 +854,7 @@ export function runCashAction(
       );
       message = "Base and downside forecasts saved with their input version.";
     } else if (input.action === "cash.erp.prepare") {
-      requireRole(ctx, ["Admin", "Operations"]);
+      requireRole(ctx, ["Admin", "Operations"], "prepare an accounting draft");
       requirePermission(state, "erp_draft", ctx.now);
       if (ownRecords(state, "connected-cash-erp").length)
         throw new Error(
@@ -871,7 +873,7 @@ export function runCashAction(
       message =
         "The receipt, fee and credit note reconcile. A different Finance reviewer must approve the export.";
     } else if (input.action === "cash.erp.refresh") {
-      requireRole(ctx, ["Admin", "Operations"]);
+      requireRole(ctx, ["Admin", "Operations"], "refresh an accounting review");
       requirePermission(state, "erp_draft", ctx.now);
       record = ownRecord(state, "connected-cash-erp", input.recordId);
       const previous = record.data.draft as ErpDraft;
@@ -908,7 +910,7 @@ export function runCashAction(
       input.action === "cash.erp.review" ||
       input.action === "cash.erp.export"
     ) {
-      requireRole(ctx, ["Finance"]);
+      requireRole(ctx, ["Finance"], input.action === "cash.erp.review" ? "approve an accounting draft" : "prepare an accounting export file");
       requirePermission(state, "erp_draft", ctx.now);
       record = ownRecord(state, "connected-cash-erp", input.recordId);
       requireBoundAuthority(
@@ -977,7 +979,7 @@ export function runCashAction(
       }
       touch(record, ctx.now);
     } else if (input.action === "cash.vat.export") {
-      requireRole(ctx, ["Finance"]);
+      requireRole(ctx, ["Finance"], "save a VAT schedule");
       requirePermission(state, "erp_draft", ctx.now);
       const schedule = reconcileVatEvidence(
         scope,
@@ -995,7 +997,7 @@ export function runCashAction(
       message =
         "VAT review schedule saved with its evidence gaps. No return or payment was submitted.";
     } else if (input.action === "cash.payroll.prepare") {
-      requireRole(ctx, ["Admin", "Operations"]);
+      requireRole(ctx, ["Admin", "Operations"], "prepare a payroll funding plan");
       requirePermission(state, "payroll_prepare", ctx.now);
       if (ownRecords(state, "connected-cash-payroll").length)
         throw new Error(
@@ -1031,7 +1033,7 @@ export function runCashAction(
       message =
         "Funding plan prepared from approved net pay. Ask a different Finance reviewer to check it.";
     } else if (input.action === "cash.payroll.refresh") {
-      requireRole(ctx, ["Admin", "Operations"]);
+      requireRole(ctx, ["Admin", "Operations"], "refresh a payroll funding review");
       requirePermission(state, "payroll_prepare", ctx.now);
       record = ownRecord(state, "connected-cash-payroll", input.recordId);
       const oldPlan = record.data.plan as PayrollPlan;
@@ -1072,7 +1074,7 @@ export function runCashAction(
       input.action === "cash.payroll.export" ||
       input.action === "cash.payroll.reconcile"
     ) {
-      requireRole(ctx, ["Finance"]);
+      requireRole(ctx, ["Finance"], input.action === "cash.payroll.approve" ? "approve a payroll funding plan" : input.action === "cash.payroll.export" ? "prepare a payroll export file" : "record payroll outcomes");
       if (input.action !== "cash.payroll.reconcile")
         requirePermission(state, "payroll_prepare", ctx.now);
       record = ownRecord(state, "connected-cash-payroll", input.recordId);

@@ -6,6 +6,7 @@ import type { ExportInput } from './valopay-exports';
 import { reviewedCloseEvidence } from '../domain/close-review';
 import { sensitiveExportKinds, sensitiveExportRefusal } from '@workspace/valopay-schema';
 import { rolePermits } from './pilot-access';
+import { onlyRoles } from './refusal-words';
 
 export const EXPORT_LEASE_MS = 5 * 60_000;
 export const MAX_EXPORT_BYTES = 32 * 1024 * 1024;
@@ -39,6 +40,8 @@ export interface ExportJobView {
   stage: ExportStage; lastProgressAt: string; stalled: boolean; retryAllowed: boolean; recoveryAt?: string;
 }
 const fail = (message: string, status: number, details: { retryAfterSeconds?: number } = {}): never => { throw Object.assign(new Error(message), { status }, details); };
+/** Every role but Read-only, which may only download exports already made. */
+const EXPORT_MAKER_ROLES = ['Admin', 'Operations', 'Finance', 'Compliance reviewer'] as const;
 
 /** export_sensitive (lib/pilot-access.ts): a dispute pack, the customer register or the audit trail is queued, retried and downloaded only by an Admin, Finance or Compliance reviewer; anyone else is refused (403) in plain words. */
 export function assertExportPermitted(role: string, kind: unknown): void {
@@ -76,7 +79,7 @@ export function exportJobView(record: ValopayRecord, now = new Date().toISOStrin
 export function queueExport(state: DomainState, ctx: Context, input: ExportInput, privateDirectory: string): ExportJobView {
   // A sensitive kind is refused first, so a Read-only person is not told they may download it.
   assertExportPermitted(ctx.role, input.kind);
-  if (ctx.role === 'Read-only') fail('Your read-only role may download existing exports. Ask a colleague to generate new evidence.', 403);
+  if (ctx.role === 'Read-only') fail(onlyRoles(EXPORT_MAKER_ROLES, 'create exports', ctx.accessMode, 'Read-only can still download exports already made.'), 403);
   const review = input.kind === 'reviewed-close' ? reviewedCloseEvidence(state, input.closeReviewId || '', true) : undefined;
   if (!privateDirectory || !/^\/?[^/]+\/.+/.test(privateDirectory)) fail('Private export storage is not configured. Contact the workspace administrator.', 503);
   if (input.customerId && !state.records.some(record => record.kind === 'customers' && record.id === input.customerId)) fail('Customer not found in this lender.', 404);
@@ -93,7 +96,7 @@ export function exportIsClaimable(record: ValopayRecord, now: string): boolean {
 export function retryExport(state: DomainState, ctx: Context, id: string): ExportJobView {
   const record = findExportJob(state, id);
   assertExportPermitted(ctx.role, record.data.kind);
-  if (ctx.role === 'Read-only') fail('Your read-only role may download existing exports. Ask a colleague to retry evidence generation.', 403);
+  if (ctx.role === 'Read-only') fail(onlyRoles(EXPORT_MAKER_ROLES, 'retry exports', ctx.accessMode, 'Read-only can still download exports already made.'), 403);
   if(record.data.fileDeletedAt)fail('This export file expired under the retention policy. Start a new export if current evidence is needed.',410);
   if (record.status === 'ready' || record.status === 'queued') return exportJobView(record, ctx.now);
   if (record.status === 'running' && !exportIsClaimable(record, ctx.now)) return exportJobView(record, ctx.now);

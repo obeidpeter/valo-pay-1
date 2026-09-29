@@ -167,7 +167,7 @@ export function paymentAction(
   input: ConnectedAction,
   cleared: RecordOf<"exceptions">[],
 ) {
-  allow(ctx, ["Admin", "Operations", "Finance"]);
+  allow(ctx, ["Admin", "Operations", "Finance"], "work on checkouts");
   if (input.action === "payment.create") {
     const { dueItemId, amountKobo } = z
       .object({
@@ -343,7 +343,7 @@ export function paymentAction(
     return intent;
   }
   if (input.action === "payment.refund_request") {
-    allow(ctx, ["Admin", "Operations"]);
+    allow(ctx, ["Admin", "Operations"], "request a refund");
     if (intent.status !== "confirmed")
       reject("Only a confirmed payment can be requested for refund.", 409);
     if (intent.data.refundRequest)
@@ -360,7 +360,7 @@ export function paymentAction(
     input.action === "payment.refund_confirm" ||
     input.action === "payment.reverse"
   ) {
-    allow(ctx, ["Finance"]);
+    allow(ctx, ["Finance"], input.action === "payment.refund_confirm" ? "confirm a refund" : "record a reversal");
     if (intent.status !== "confirmed")
       reject("Only a confirmed receipt can be adjusted.", 409);
     if (

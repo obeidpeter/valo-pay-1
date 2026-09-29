@@ -4,6 +4,7 @@
  * Signature, issuer and authorised-party verification still belong to that middleware.
  */
 import { sensitiveExportRoles, type PilotAccessFailureCode } from '@workspace/valopay-schema';
+import { onlyRoles } from './refusal-words';
 export interface VerifiedClerkSession {
   userId?: string | null;
   sessionId?: string | null;
@@ -69,6 +70,11 @@ const rolesForAction: Record<PilotAction, readonly PilotRole[]> = {
   // Dispute packs, the customer register and the audit trail (sensitiveExportKinds): lib/export-jobs.ts checks it when one is queued, retried or downloaded.
   export_sensitive: sensitiveExportRoles,
 };
+/** Each action as a role refusal names it: "Only an Admin can change lender settings." */
+const actionWords: Record<PilotAction, string> = {
+  read: 'use this lender', record_operations: 'record collection work', confirm_match: 'confirm matches',
+  approve_policy: 'approve retry policies', manage_settings: 'change lender settings', export_sensitive: 'export sensitive records',
+};
 /** Whether a provisioned role may perform an action, by the table authorizePilotAccess checks. For a rule the per-request check does not name, such as export_sensitive, which depends on what is exported. */
 export function rolePermits(role: string, action: PilotAction): boolean {
   const allowed = Object.prototype.hasOwnProperty.call(rolesForAction, action) ? rolesForAction[action] : undefined;
@@ -101,7 +107,7 @@ export function authorizePilotAccess(auth: VerifiedClerkSession | null | undefin
   const validFrom = instant(membership.validFrom), expiresAt = instant(membership.expiresAt);
   if (membership.status !== 'active' || !Number.isFinite(validFrom) || !Number.isFinite(expiresAt) || validFrom > nowMs || expiresAt <= nowMs || expiresAt <= validFrom) refuse('membership_inactive', 'This membership is inactive or has expired.');
   const allowed = Object.prototype.hasOwnProperty.call(rolesForAction, request.action) ? rolesForAction[request.action] : undefined;
-  if (!allowed || !pilotRoles.includes(membership.role as PilotRole) || !allowed.includes(membership.role as PilotRole)) refuse('role_not_permitted', 'Your provisioned role cannot perform this action.');
+  if (!allowed || !pilotRoles.includes(membership.role as PilotRole) || !allowed.includes(membership.role as PilotRole)) refuse('role_not_permitted', allowed ? onlyRoles(allowed, actionWords[request.action], 'staff') : 'Your role does not allow this. Ask an Admin to check your role in Team and access.');
   const ages = auth.factorVerificationAge;
   if (!Array.isArray(ages) || ages.length !== 2 || ages.some(age => !Number.isSafeInteger(age) || age < 0)) refuse('mfa_required', 'Verify both your first and second authentication factors.');
   const maxAge = request.action === 'read' ? policy.maxFactorAgeMinutes : policy.maxSensitiveFactorAgeMinutes;
