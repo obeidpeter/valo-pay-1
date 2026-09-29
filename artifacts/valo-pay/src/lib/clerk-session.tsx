@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useLocation } from 'wouter';
 import { ClerkProvider, useAuth, useClerk } from '@clerk/react';
 import { publishableKeyFromHost } from '@clerk/react/internal';
+import type { LocalizationResource } from '@clerk/react/types';
 import { ErrorBoundary, type ErrorFallbackProps } from '@/components/error-boundary';
 import type { ClerkSlots, Session } from './auth';
 export { ClerkSignIn, ClerkSignUp } from '@/components/clerk-forms';
@@ -23,6 +24,71 @@ const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
 function stripBase(path: string): string {
   return basePath && path.startsWith(basePath) ? path.slice(basePath.length) || '/' : path;
 }
+
+/**
+ * Clerk's own words, in British English, where the sign-in, sign-up and
+ * invitation pages show them (docs/design/writing.md): the first step's title
+ * is the page's name (Sign in, Create an account), an organisation is spelt
+ * so, and a second factor is two-step verification, as Clerk's account screens
+ * already call it. Only these keys are set; every other word is Clerk's own.
+ * Not exported: the chunk's exports are its provider, forms and verification.
+ */
+const localization: LocalizationResource = {
+  locale: 'en-GB',
+  signIn: {
+    start: {
+      title: 'Sign in',
+      titleCombined: 'Sign in',
+      subtitle: 'Welcome back. Continue to your workspace.',
+      subtitleCombined: 'Welcome back. Continue to your workspace.',
+      actionText: 'Don’t have an account?',
+      actionLink: 'Create an account',
+    },
+    totpMfa: { title: 'Two-step verification' },
+    backupCodeMfa: { subtitle: 'Use one of the backup codes you saved when you set up two-step verification.' },
+  },
+  signUp: {
+    start: {
+      title: 'Create an account',
+      titleCombined: 'Create an account',
+      subtitle: 'Fill in your details to get your own workspace.',
+      subtitleCombined: 'Fill in your details to get your own workspace.',
+      actionText: 'Already have an account?',
+      actionLink: 'Sign in',
+    },
+  },
+  reverification: {
+    backupCodeMfa: { subtitle: 'Enter one of the backup codes you saved when you set up two-step verification.' },
+  },
+  organizationSwitcher: {
+    action__createOrganization: 'Create organisation',
+    action__openOrganizationSwitcher: 'Open organisation switcher',
+    action__closeOrganizationSwitcher: 'Close organisation switcher',
+    notSelected: 'No organisation selected',
+  },
+  taskChooseOrganization: {
+    chooseOrganization: {
+      title: 'Choose an organisation',
+      subtitle: 'Join an existing organisation or create a new one.',
+      subtitle__createOrganizationDisabled: 'Join an existing organisation.',
+      action__createOrganization: 'Create new organisation',
+    },
+    createOrganization: {
+      title: 'Set up your organisation',
+      subtitle: 'Enter your organisation’s details to continue.',
+      formFieldInputPlaceholder__name: 'My organisation',
+      formFieldInputPlaceholder__slug: 'my-organisation',
+    },
+    organizationCreationDisabled: {
+      title: 'You must belong to an organisation',
+      subtitle: 'Ask the person who invited you to add you to an organisation.',
+    },
+  },
+  unstable__errors: {
+    organization_not_found_or_unauthorized: 'You are no longer a member of this organisation. Choose or create another one.',
+    organization_not_found_or_unauthorized_with_create_organization_disabled: 'You are no longer a member of this organisation. Choose another one.',
+  },
+};
 
 export type ClerkSessionProps = { onSession: (session: Session) => void; slots: ClerkSlots };
 
@@ -60,6 +126,7 @@ export function ClerkSession({ onSession, slots }: ClerkSessionProps) {
     <ClerkProvider
       publishableKey={publishableKeyFromHost(window.location.hostname, configuredKey)}
       proxyUrl={clerkProxyUrl}
+      localization={localization}
       signInUrl={`${basePath}/sign-in`}
       signUpUrl={`${basePath}/sign-up`}
       routerPush={(to) => setLocation(stripBase(to))}
