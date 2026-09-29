@@ -36,7 +36,7 @@ const percentagePoints = (value: unknown) => typeof value === 'number' ? formatP
 const count = (value: unknown) => typeof value === 'number' ? formatNumber(value) : String(value ?? 0);
 const invoiceRows = (record: Unknown): Array<Record<string, any>> => Array.isArray(record?.invoices) ? (record!.invoices as Array<Record<string, any>>) : [];
 const adjustmentRows = (record: Unknown): Array<Record<string, any>> => Array.isArray(record?.pendingAdjustments) ? (record!.pendingAdjustments as Array<Record<string, any>>) : [];
-/** Issued invoices whose design-partner rate differs from the confirmed agreement; an older answer has none. */
+/** Issued invoices charged at another rate than the terms in effect for their month give, each with the service's explanation; an older answer has none. */
 const discrepancyRows = (record: Unknown): Array<Record<string, any>> => Array.isArray(record?.rateDiscrepancies) ? (record!.rateDiscrepancies as Array<Record<string, any>>) : [];
 const rateText = (rate: unknown) => typeof rate !== 'number' ? 'Not available' : rate > 0 ? `${formatPercent(rate)} discount` : 'Full public price';
 const billingSummaryKeys = new Set(['period', 'volumeTier', 'totalKobo', 'usageFeeKobo', 'successfulCollections', 'nextInvoicePeriod', 'pendingAdjustmentsKobo']);
@@ -253,15 +253,17 @@ export default function ReportsPage() {
                   )}
                 </div>
                 {discrepancyRows(reports.billing).length > 0 && <div role="status" className="space-y-3 rounded-xl border border-warning/40 bg-warning/5 p-4 text-sm">
-                  <p className="font-semibold">Issued invoices that differ from the confirmed agreement</p>
-                  <ScrollFrame label="Issued invoices that differ from the confirmed agreement" className="overflow-x-auto">
+                  <p className="font-semibold">Issued invoices that differ from the terms in effect</p>
+                  <ScrollFrame label="Issued invoices that differ from the terms in effect" className="overflow-x-auto">
                     <table className="w-full text-xs text-left tabular-nums">
-                      <thead className="text-muted-foreground border-b"><tr><th className="py-1 pr-2">Invoice</th><th className="py-1 pr-2">Month</th><th className="py-1 pr-2">Rate charged</th><th className="py-1 pr-2">Rate in the confirmed agreement</th></tr></thead>
-                      <tbody className="divide-y">
-                        {discrepancyRows(reports.billing).map(line => (
-                          <tr key={String(line.invoiceId)}><td className="py-1 pr-2">{String(line.invoiceReference)}</td><td className="py-1 pr-2">{String(line.period)}</td><td className="py-1 pr-2">{rateText(line.chargedRate)}</td><td className="py-1 pr-2">{rateText(line.agreedRate)}</td></tr>
-                        ))}
-                      </tbody>
+                      <thead className="text-muted-foreground border-b"><tr><th className="py-1 pr-2">Invoice</th><th className="py-1 pr-2">Month</th><th className="py-1 pr-2">Rate charged</th><th className="py-1 pr-2">Rate in the terms in effect</th></tr></thead>
+                      {/* Each difference with the service's explanation beneath it: the terms compared with, when they took effect and the whole-month rule. */}
+                      {discrepancyRows(reports.billing).map(line => (
+                        <tbody key={String(line.invoiceId)} className="border-b border-border/60 last:border-0">
+                          <tr><td className="pt-2 pr-2">{String(line.invoiceReference)}</td><td className="pt-2 pr-2">{String(line.period)}</td><td className="pt-2 pr-2">{rateText(line.chargedRate)}</td><td className="pt-2 pr-2">{rateText(line.agreedRate)}</td></tr>
+                          {!!line.explanation && <tr><td colSpan={4} className="pb-2 pr-2 font-sans text-muted-foreground [overflow-wrap:anywhere]">{String(line.explanation)}</td></tr>}
+                        </tbody>
+                      ))}
                     </table>
                   </ScrollFrame>
                   <p>{String(reports.billing?.rateDiscrepancyGuidance || 'Issued invoices cannot be changed. Agree any difference with the lender outside Valo Pay.')}</p>

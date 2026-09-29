@@ -51,7 +51,7 @@ describe("reports", () => {
     expect((screen.getByRole('button', { name: 'Issue invoice' }) as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it('lists issued invoices charged at another rate than the confirmed agreement gives, says what to do, and keeps invoicing available', async () => {
+  it('lists issued invoices charged at another rate than the terms in effect give, says why and what to do, and keeps invoicing available', async () => {
     api.setNow('2027-05-02T09:00:00.000Z');
     api.mutate((state, ctx) => {
       const terms = state.records.find(record => record.kind === 'commercial')!;
@@ -64,13 +64,38 @@ describe("reports", () => {
           designPartnerDiscount: { rate: 0.5, kobo: -30_000_000 }, totals: { netKobo: 30_000_000, vatBps: 750, vatKobo: 2_250_000, totalKobo: 32_250_000, creditNote: false } } }));
     });
     renderApp('/reports?view=billing');
-    const box = (await screen.findByText('Issued invoices that differ from the confirmed agreement')).parentElement!;
+    const box = (await screen.findByText('Issued invoices that differ from the terms in effect')).parentElement!;
     const rows = within(within(box).getByRole('table')).getAllByRole('row').map(row => Array.from(row.querySelectorAll('th,td')).map(cell => cell.textContent));
-    expect(rows).toEqual([['Invoice', 'Month', 'Rate charged', 'Rate in the confirmed agreement'], ['INV-2027-01-001', '2027-01', '50% discount', 'Full public price'], ['INV-2027-02-002', '2027-02', '50% discount', 'Full public price']]);
+    const name = api.state().records.find(record => record.kind === 'commercial')!.name;
+    // Each difference says why, in the service's words: the terms compared with, when they took effect, and the whole-month rule.
+    const why = (reference: string, month: string) => `${reference} for ${month} charged the 50% design-partner discount. A month takes the terms in effect by its end: for ${month} those are “${name}”, design-partner terms in effect from 2027-01-01, whose confirmed agreement SYN-AGREEMENT gives the full public price.`;
+    expect(rows).toEqual([['Invoice', 'Month', 'Rate charged', 'Rate in the terms in effect'],
+      ['INV-2027-01-001', '2027-01', '50% discount', 'Full public price'], [why('INV-2027-01-001', '2027-01')],
+      ['INV-2027-02-002', '2027-02', '50% discount', 'Full public price'], [why('INV-2027-02-002', '2027-02')]]);
     expect(box.textContent).toContain("An issued invoice is never changed, and Valo Pay has no way to correct an issued invoice's discount");
     expect(box.textContent).toContain('Agree any difference with the lender outside Valo Pay');
     expect((screen.getByRole('button', { name: 'Issue invoice' }) as HTMLButtonElement).disabled).toBe(false);
     expect(screen.queryByText('Commercial terms need review')).toBeNull();
+  });
+
+  it('says which terms each rate difference was compared with and when they took effect, such as a bridge signed partway through a month', async () => {
+    api.setNow('2027-09-02T09:00:00.000Z');
+    api.mutate((state, ctx) => {
+      // The pilot's terms, with no dates, billed June at half price; a bridge signed on 15 June, discount from July, was confirmed in August.
+      const pilot = state.records.find(record => record.kind === 'commercial')!;
+      Object.assign(pilot.data, { signed: true, designPartner: true, signedFullPriceTerms: true, effectiveDate: '2027-01-01' });
+      makeRecord(state, 'commercial', { name: 'Bridge signed 15 June', status: 'signed', createdAt: '2027-08-10T09:00:00.000Z', data: { signed: true, designPartner: true, signedFullPriceTerms: true, licenceKobo: 60_000_000, effectiveDate: '2027-06-15', discountStartDate: '2027-07-01', fullPriceStartDate: '2028-01-01', discountTermsReference: 'SYN-BRIDGE',
+        discountReview: { reviewedBy: 'Clerk:user_first', reviewedAt: '2027-08-10T09:00:00.000Z', proposedPrincipal: 'first', discountStartDate: '2027-07-01', fullPriceStartDate: '2028-01-01', termsReference: 'SYN-BRIDGE', confirmedBy: 'Clerk:user_second', confirmedPrincipal: 'second', confirmedAt: '2027-08-11T09:00:00.000Z' } } });
+      makeRecord(state, 'invoices', { name: 'Invoice 2027-06', status: 'issued', reference: 'INV-2027-06-001', createdAt: ctx.now,
+        data: { period: '2027-06', issuedAt: ctx.now, issuedBy: 'Sandbox Finance', sequence: 1, usageLines: [], adjustments: [], terms: { commercialId: pilot.id, prospect: pilot.name, contractedLicenceKobo: 60_000_000, designPartner: true, effectiveDate: '2027-01-01' },
+          designPartnerDiscount: { rate: 0.5, kobo: -30_000_000 }, totals: { netKobo: 30_000_000, vatBps: 750, vatKobo: 2_250_000, totalKobo: 32_250_000, creditNote: false } } });
+    });
+    renderApp('/reports?view=billing');
+    const box = (await screen.findByText('Issued invoices that differ from the terms in effect')).parentElement!;
+    const rows = within(within(box).getByRole('table')).getAllByRole('row').map(row => Array.from(row.querySelectorAll('th,td')).map(cell => cell.textContent));
+    expect(rows.slice(1)).toEqual([['INV-2027-06-001', '2027-06', '50% discount', 'Full public price'],
+      ['INV-2027-06-001 for 2027-06 charged the 50% design-partner discount. A month takes the terms in effect by its end: for 2027-06 those are “Bridge signed 15 June”, design-partner terms in effect from 2027-06-15, whose confirmed agreement SYN-BRIDGE gives the full public price.']]);
+    expect(box.textContent).toContain('While the design-partner terms in effect for a month are not confirmed, its invoices are not compared; confirming their discount dates compares them.');
   });
 
   it('keeps older report responses without pricing metadata usable', async () => {
