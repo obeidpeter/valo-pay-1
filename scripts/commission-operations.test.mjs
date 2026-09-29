@@ -7,7 +7,7 @@ import { commissioningReport, writeCommissioningReport } from './commission-oper
 
 const probe = {
   service: 'https://example.test', observedAt: '2026-09-26T10:00:00.000Z', codes: [], warnings: [],
-  observations: { liveness: 'ok', database: 'ok', schema: 'ok', scheduler: 'running', schedulerEvidence: 'fresh_process_heartbeat', closeBacklog: { overdue: 0, failing: 0 } },
+  observations: { liveness: 'ok', database: 'ok', schema: 'ok', scheduler: 'running', schedulerEvidence: 'fresh_process_heartbeat', closeBacklog: { overdue: 0, failing: 0 }, background: { state: 'running', cleanup: { state: 'ok' } } },
 };
 const configured = {
   VALOPAY_MONITOR_EXPECT_SCHEDULER: 'on', VALOPAY_OPERATIONS_HOST_MODE: 'reserved-vm',
@@ -24,6 +24,14 @@ assert.ok(report.acceptance.pending.includes('isolated_host_database_objects_and
 assert.ok(!JSON.stringify(report).includes('synthetic-token'), 'a receiver URL is never copied to the report');
 assert.ok(!JSON.stringify(report).includes('/private'), 'a private state path is never copied to the report');
 assert.deepEqual(report.observations.closeBacklog, { overdue: 0, failing: 0 }, 'the report reads what the scheduler still owes, as counts');
+for (const background of [undefined, 'not_reported', 'unverified']) {
+  const blockers = commissioningReport({ ...probe, observations: { ...probe.observations, background } }, configured).blockers;
+  assert.ok(blockers.includes(background === 'unverified' ? 'background_unverified' : 'background_not_reported'), 'unobserved workers cannot be commissioned');
+}
+for (const warning of ['background_starting', 'background_cleanup_pending']) {
+  assert.ok(commissioningReport({ ...probe, warnings: [warning] }, configured).blockers.includes(warning), 'first heartbeat/cleanup evidence must finish before commissioning');
+}
+assert.ok(commissioningReport({ ...probe, codes: ['background_cleanup_failed'] }, configured).blockers.includes('background_cleanup_failed'));
 
 // A lender still owed a close blocks commissioning until it closes; a build that cannot say so blocks it too.
 report = commissioningReport({ ...probe, codes: ['scheduler_close_failed', 'scheduler_closes_overdue'], observations: { ...probe.observations, schedulerEvidence: 'failed', closeBacklog: { overdue: 2, failing: 1 } } }, configured);

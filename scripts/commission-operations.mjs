@@ -19,6 +19,11 @@ export function commissioningReport(probe, env) {
   // A process too young to have read what is still owed has given no scheduler evidence yet, such as an instance the
   // check itself started on Autoscale: the check is run again once it has read.
   if (expected && probe.observations?.closeBacklog === 'pending') blockers.push('scheduler_backlog_pending');
+  // Worker evidence is independent of close scheduling. An old build or a first check still pending cannot prove it.
+  const background = probe.observations?.background;
+  if (!background || background === 'not_reported') blockers.push('background_not_reported');
+  if (background === 'unverified') blockers.push('background_unverified');
+  for (const warning of ['background_starting', 'background_cleanup_pending']) if (probe.warnings?.includes(warning)) blockers.push(warning);
   if (hostMode === 'unverified') blockers.push('host_operating_mode_unverified');
   if (delivery.status !== 'configured') blockers.push('alert_configuration_incomplete');
   if (!env.VALOPAY_MONITOR_STATE_FILE?.trim()) blockers.push('monitor_state_not_configured');

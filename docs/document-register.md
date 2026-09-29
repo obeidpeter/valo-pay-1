@@ -1,6 +1,6 @@
 # Valo Pay document register
 
-Version 1.1 · Release status updated 27 September 2026
+Version 1.2 · Release status updated 29 September 2026
 
 This register identifies the current core planning documents, repository guidance and dated supporting evidence. It distinguishes product intentions, implemented synthetic behaviour, deployed behaviour and outstanding acceptance. It covers the four supplied core documents and the repository documentation reviewed for this refresh, plus the supporting artifacts named below. It is not a claim that every historical download or external document has been reviewed.
 
@@ -22,8 +22,10 @@ This register identifies the current core planning documents, repository guidanc
 | PR #67, merge `0b556f5854f90ae0a687bc2918894936c0ce20cb` | Included in deployed PR #70 | [PR #67](https://github.com/obeidpeter/valo-pay/pull/67): this documentation refresh. It changes no acceptance gate, permission or live integration. |
 | PR #68, merge `e52b1c32cb4bcb08fc3f0b5319e7039806aecbcb` | Included in deployed PR #70 | [PR #68](https://github.com/obeidpeter/valo-pay/pull/68): the review fixes for PRs #61 to #67, with the steps before and after deploying it that [build status](BUILD_STATUS.md) lists. |
 | PR #69, merge `755334623ff3098262b82ed48ddc1185673bb0c4` | Included in deployed PR #70 | [PR #69](https://github.com/obeidpeter/valo-pay/pull/69): the follow-ups to PR #68, which count public sandboxes apart from lenders in the close backlog, report the backlog where a scheduled job runs the closes and correct the readiness log's advice for a missing column; its pull request lists the steps before deploying it. |
-| PR #70, merge `9715c265abde2c7f10555a6a5281ccf8e8633ca3` | Latest verified deployed release | [Deployment record](BUILD_STATUS.md), verified 27 September 2026 at approximately 12:01 UTC; scheduler off and external commissioning incomplete. |
-| Workflow recovery branch | Implemented, awaiting deployment | Pending correction work, audited reviewer reassignment, historical statements, reload recovery and durable export cleanup. Migration 013 is required on the sandbox service schema; acceptance and live gates are unchanged. |
+| PR #70, merge `9715c265abde2c7f10555a6a5281ccf8e8633ca3` | Earlier verified deployed release | [Deployment record](BUILD_STATUS.md), verified 27 September 2026 at approximately 12:01 UTC; scheduler off and external commissioning incomplete. |
+| PRs #71–#72, final merge `41b988f7ce0b285bcde4aec9299768ee76ba8116` | Deployed 27 September, included in PR #76 | Pending correction work, audited reviewer reassignment, historical statements, reload recovery and durable export cleanup. Migration 013 was applied and its schema and effective privileges verified; see [build status](BUILD_STATUS.md). |
+| PRs #73–#76, final merge `9054e534e93c5d32126423e9e5c4263c96337244` | Latest verified deployed release | [Deployment record](BUILD_STATUS.md), checked 29 September 2026: healthy API, database and schema; refactored repository, reconciliation and console workflows. All eight final-main CI jobs passed. No new migration or configuration change. |
+| Post-release cleanup branch | Implemented, awaiting deployment | Independent worker health, shared source models, cycle guard and release documentation. No migration or live activation; the latest verified deployed build remains PR #76 until publication is checked. |
 
 The deployed application remains a synthetic sandbox. The complete rehearsable pilot journey is lender setup → saved import batches → reconciliation → coordinated exceptions/cases → independent close review → evidence export, supported by a persistent request journal and recovery checks. Pay-by-bank, Credit Desk, Cash Desk and purpose-specific permissions also have persisted synthetic workflows. These are narrower than the planned live products.
 

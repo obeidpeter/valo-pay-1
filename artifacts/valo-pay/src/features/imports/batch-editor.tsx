@@ -5,6 +5,7 @@ import { PilotError, PilotPanel, RecoveryNotice } from "@/components/pilot-ui";
 import { Button } from "@/components/ui/button";
 import { useDialogFocusReturn } from "@/lib/focus";
 import { formatDate } from "@/lib/formatters";
+import { consoleSourcesViewSchema, type SourceProfile } from "@/lib/source-models";
 import {
   lenderPath,
   pilotRequest,
@@ -25,11 +26,9 @@ import { empty, samples, suggestedMapping, types } from "./mapping";
 import {
   batchDetailSchema,
   batchFormInput,
-  batchSourcesSchema,
   importBatchRecordSchema,
   type ExpectedSourceFile,
   type ImportBatch,
-  type SourceProfile,
 } from "./models";
 
 export function BatchEditor({
@@ -77,7 +76,7 @@ export function BatchEditor({
     [confirmingCommit, setConfirmingCommit] = useState(false);
   const sources = usePilotQuery(
     `/sources${form.businessDate ? `?businessDate=${encodeURIComponent(form.businessDate)}` : ""}`,
-    batchSourcesSchema,
+    consoleSourcesViewSchema,
   );
   const expectationApplied = useRef(false);
   const applyExpectation = (expectation: ExpectedSourceFile | undefined) => {

@@ -13,6 +13,8 @@ if (process.env.VALOPAY_RUN_INTEGRATION !== "1") {
 const { pool } = await import("@workspace/db");
 const { inWorkspace, listMerchants, listRecords, closeDatabase, overrideSweptExportRemoval, runExportCleanupPass, exportCleanupStatus } = await import("../src/lib/valopay-store.js");
 const { pageRecords } = await import("../src/lib/valopay-list.js");
+const { startExportCleanupWorker } = await import("../src/lib/export-cleanup-worker.js");
+const { createBackgroundHealth } = await import("../src/lib/background-health.js");
 const { default: express } = await import("express");
 const { default: router } = await import("../src/routes/valopay.js");
 type SweptExportFile = Parameters<Parameters<typeof overrideSweptExportRemoval>[0]>[0];
@@ -163,6 +165,20 @@ try {
     assert.equal(await exists('valopay_export_cleanup', stale.ready!), false, 'successful deletion removes its queue entry');
     assert.equal((await runExportCleanupPass({ ids: [stale.failed!] })).attempted, 0, 'retry respects its due time');
     assert.ok((await exportCleanupStatus()).pending >= 1, 'operator status shows the durable backlog');
+    const failuresBeforeRecovery = (await exportCleanupStatus()).failed;
+    assert.ok(failuresBeforeRecovery >= 1, 'aggregate status includes persisted failures even before their next due time');
+    const cleanupHealth = createBackgroundHealth();
+    cleanupHealth.configure({ closes: false, backlog: false, exports: true, cleanup: true }); cleanupHealth.starting();
+    const observeCleanup = async () => {
+      const worker = startExportCleanupWorker({ observed: result => cleanupHealth.observe({ type: 'cleanup', result }) },
+        options => runExportCleanupPass({ ...options, ids: [stale.failed!] }));
+      await worker.settle(); worker.stop();
+      return cleanupHealth.status().cleanup;
+    };
+    const duringBackoff = await observeCleanup();
+    assert.equal(duringBackoff.state, 'failed', 'a restarted observer still sees the persisted failure during backoff');
+    assert.deepEqual(duringBackoff.lastResult, { attempted: 0, removed: 0, deferred: 0, pendingFailures: failuresBeforeRecovery });
+    assert.equal(duringBackoff.lastSuccessAt, null, 'an empty due poll cannot invent a recovery timestamp');
 
     // Process restart is represented by a separate pass with no original sweep state. The queue alone identifies the file.
     outage = '';
@@ -171,6 +187,11 @@ try {
     assert.equal(await exists('valopay_export_cleanup', stale.failed!), true);
     assert.deepEqual(await runExportCleanupPass({ ids: [stale.failed!] }), { attempted: 1, removed: 1, deferred: 0 });
     assert.equal(await exists('valopay_export_cleanup', stale.failed!), false);
+    const afterRecovery = await observeCleanup();
+    assert.equal(afterRecovery.lastResult!.pendingFailures, failuresBeforeRecovery - 1, 'only actually clearing the failed tombstone reduces durable failure evidence');
+    if (failuresBeforeRecovery === 1) {
+      assert.equal(afterRecovery.state, 'ok'); assert.ok(afterRecovery.lastSuccessAt, 'positive aggregate clearance can establish recovery');
+    } else assert.equal(afterRecovery.state, 'failed', 'another remaining failed tombstone would still prevent recovery');
 
     // A lost worker's leased job is reclaimed only after its lease expires; two workers never claim it together.
     const abandoned = randomUUID();
@@ -187,6 +208,7 @@ try {
     try {
       const firstPass = runExportCleanupPass({ ids: [abandoned], limit: 1 });
       await started;
+      assert.equal((await exportCleanupStatus()).failed, failuresBeforeRecovery - 1, 'an ordinary first-attempt lease is not a persisted failure');
       assert.equal((await runExportCleanupPass({ ids: [abandoned] })).attempted, 0, 'another instance cannot claim the live lease');
       release(); await firstPass;
       assert.equal(await exists('valopay_export_cleanup', abandoned), false, 'an absent file is safely acknowledged');

@@ -58,6 +58,59 @@ try {
   assert.equal(received.at(-1).kind, 'recovery');
   assert.deepEqual((await probeService({ origin, expectScheduler: true, allowLocal: true })).codes, ['scheduler_not_running']);
   const now = Date.now();
+  // Worker liveness and cleanup are monitored even when the close scheduler is intentionally off.
+  const worker = {
+    state: 'running', jobs: { closes: false, backlog: false, exports: true, cleanup: true }, heartbeatIntervalMs: 10_000, staleAfterMs: 45_000,
+    startedAt: new Date(now - 600_000).toISOString(), lastHeartbeatAt: new Date(now).toISOString(), crashCount: 2, restartCount: 2, lastCrashAt: new Date(now - 600_000).toISOString(),
+    cleanup: { state: 'ok', intervalMs: 60_000, staleAfterMs: 195_000, lastCheckedAt: new Date(now).toISOString(), lastSuccessAt: new Date(now).toISOString(), lastErrorAt: null, lastResult: { attempted: 0, removed: 0, deferred: 0, pendingFailures: 0 } },
+  };
+  const workerProbe = (background, at = now) => probeService({ origin: 'https://example.com', now: at, fetchImpl: async url => new Response(JSON.stringify(url.endsWith('readyz') ? readiness() : { status: 'ok', scheduler: { state: 'off' }, background })) });
+  const workerOk = await workerProbe(worker);
+  assert.deepEqual(workerOk.codes, [], 'historical restarts and a successful empty cleanup poll are not current incidents');
+  assert.deepEqual(workerOk.observations.background.cleanup.lastResult, { attempted: 0, removed: 0, deferred: 0, pendingFailures: 0 });
+  assert.deepEqual((await workerProbe({ ...worker, state: 'restarting' })).codes, ['background_not_running'], 'a worker crash remains visible with the scheduler off');
+  assert.deepEqual((await workerProbe({ ...worker, lastHeartbeatAt: new Date(now - 45_001).toISOString() })).codes, ['background_stale'], 'the monitor checks freshness itself');
+  assert.deepEqual((await workerProbe({ ...worker, lastHeartbeatAt: new Date(now + 60_000).toISOString() })).codes, ['background_stale'], 'a heartbeat from the future is not fresh evidence');
+  assert.deepEqual((await workerProbe({ ...worker, cleanup: { ...worker.cleanup, state: 'failed', lastErrorAt: new Date(now).toISOString(), lastResult: { attempted: 1, removed: 0, deferred: 1, pendingFailures: 1 } } })).codes, ['background_cleanup_failed'], 'a live event loop does not hide a failed cleanup check');
+  assert.deepEqual((await workerProbe({ ...worker, cleanup: { ...worker.cleanup, state: 'failed', lastResult: { attempted: 0, removed: 0, deferred: 0, pendingFailures: 1 } } })).codes, ['background_cleanup_failed'], 'an empty poll does not hide a failed tombstone waiting in backoff');
+  assert.deepEqual((await workerProbe({ ...worker, cleanup: { ...worker.cleanup, lastCheckedAt: new Date(now - 195_001).toISOString() } })).codes, ['background_cleanup_stale'], 'cleanup freshness is independent of the worker heartbeat');
+  const disabledCleanup = { state: 'disabled', intervalMs: null, staleAfterMs: null, lastCheckedAt: null, lastSuccessAt: null, lastErrorAt: null, lastResult: null };
+  assert.deepEqual((await workerProbe({ ...worker, jobs: { ...worker.jobs, cleanup: false }, cleanup: disabledCleanup })).codes, [], 'restricted runtimes may intentionally disable service cleanup');
+  assert.deepEqual((await workerProbe({ ...worker, crashCount: '2' })).codes, ['background_unverified']);
+  for (const cleanup of [null, undefined, [], 'bad', {}, { ...worker.cleanup, lastResult: {} }]) {
+    assert.deepEqual((await workerProbe({ ...worker, cleanup })).codes, ['background_unverified'], 'malformed nested cleanup is unverified without crashing the probe');
+  }
+  assert.deepEqual((await workerProbe({ ...worker, cleanup: { ...worker.cleanup, lastResult: { attempted: 0, removed: 1, deferred: 0 } } })).codes, ['background_unverified']);
+  const privateMarker = 'synthetic-private-marker';
+  assert.ok(!JSON.stringify(await workerProbe({ ...worker, privatePath: privateMarker, jobs: { ...worker.jobs, secret: privateMarker }, cleanup: { ...worker.cleanup, lastResult: { ...worker.cleanup.lastResult, tenant: privateMarker } } })).includes(privateMarker), 'only allowlisted operational observations can enter alert delivery');
+  let workerState; const workerEvents = [];
+  const workerTransition = async probe => { const result = await deliverTransition(probe, workerState, async event => workerEvents.push(event), { owner: 'Synthetic operator' }); workerState = result.state; return result; };
+  await workerTransition(await workerProbe({ ...worker, state: 'restarting' }));
+  await workerTransition(await workerProbe({ ...worker, state: 'restarting' }));
+  const starting = at => ({ ...worker, state: 'starting', jobs: { ...worker.jobs, cleanup: false }, cleanup: disabledCleanup, startedAt: new Date(at).toISOString(), lastHeartbeatAt: null });
+  await workerTransition(await workerProbe(starting(now)));
+  assert.deepEqual(workerEvents.map(event => event.kind), ['incident'], 'a restarting worker without its first heartbeat cannot clear an incident');
+  await workerTransition(await workerProbe(undefined));
+  assert.equal(workerEvents.length, 1, 'a rollback to a build that does not report worker health cannot clear its incident');
+  await workerTransition(workerOk);
+  assert.deepEqual(workerEvents.map(event => event.kind), ['incident', 'recovery']);
+  workerState = undefined; workerEvents.length = 0;
+  for (const offset of [0, 60_000, 120_000]) await workerTransition(await workerProbe(starting(now + offset), now + offset));
+  assert.deepEqual(workerEvents.map(event => event.codes), [['background_stale']], 'a process or worker restarted before each first heartbeat eventually alerts');
+  workerState = undefined; workerEvents.length = 0;
+  for (const offset of [0, 200_000, 400_000]) {
+    const at = now + offset;
+    await workerTransition(await workerProbe({ ...worker, startedAt: new Date(at).toISOString(), lastHeartbeatAt: new Date(at).toISOString(), cleanup: { ...worker.cleanup, state: 'pending', lastCheckedAt: null, lastSuccessAt: null, lastResult: null } }, at));
+  }
+  assert.deepEqual(workerEvents.map(event => event.codes), [['background_cleanup_stale']], 'repeated first-cleanup grace periods cannot hide a worker that never checks');
+  workerState = undefined; workerEvents.length = 0;
+  const failedCleanup = { ...worker, cleanup: { ...worker.cleanup, state: 'failed', lastResult: { attempted: 1, removed: 0, deferred: 1, pendingFailures: 1 } } };
+  await workerTransition(await workerProbe(failedCleanup)); await workerTransition(await workerProbe(failedCleanup));
+  await workerTransition(await workerProbe({ ...worker, cleanup: { ...worker.cleanup, state: 'failed', lastResult: { attempted: 0, removed: 0, deferred: 0, pendingFailures: 1 } } }));
+  await workerTransition(await workerProbe({ ...worker, cleanup: { ...worker.cleanup, state: 'failed', lastResult: { attempted: 1, removed: 1, deferred: 0, pendingFailures: 1 } } }));
+  assert.deepEqual(workerEvents.map(event => event.kind), ['incident'], 'backoff and another successful file do not send false recovery');
+  await workerTransition(workerOk);
+  assert.deepEqual(workerEvents.map(event => event.kind), ['incident', 'recovery'], 'positive durable clearance permits recovery');
   const fake = (scheduler, schema = 'ok', uptimeSeconds) => async url => new Response(JSON.stringify(url.endsWith('readyz') ? readiness('ok', schema) : { status: 'ok', ...(uptimeSeconds === undefined ? {} : { uptimeSeconds }), scheduler }), { status: url.endsWith('readyz') && schema === 'incomplete' ? 503 : 200 });
   assert.deepEqual((await probeService({ origin: 'https://example.com', expectScheduler: true, now, fetchImpl: fake({ state: 'running', intervalMs: 1000, lastSuccessAt: new Date(now - 4000).toISOString() }) })).codes, ['scheduler_stale']);
   // A host whose closes run from a scheduled job (VALOPAY_CLOSE_SCHEDULER=external) must say so: reporting off would

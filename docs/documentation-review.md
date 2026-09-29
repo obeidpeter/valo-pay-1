@@ -2,9 +2,13 @@
 
 A review of the documents against the code they describe, made after the security, internationalisation and observability reviews and in the same manner: read every document and the code it names, test what can be tested here, fix what is this repository's to fix, and write down the rest. Its lasting part is a structural documentation check in the test suite. Passing that check does not establish that a product claim or planning assumption is current.
 
-## Currency review · 26 September 2026
+## Release-status review · 29 September 2026
 
-The current review compared the four core Word documents dated 21 September with the repository through PR #66 and the separately recorded deployed PR #64. The [document register](document-register.md) names their refreshed versions, role responsibilities, dated source records and review triggers.
+The README, build status, deployment guide and document register now identify deployed PR #76 and distinguish this branch's pending cleanup from that live release. Migration 013 was applied and verified with PRs #71–#72; its instructions remain prerequisites only for hosts that still lack it. Earlier release records retain their original dates and evidence. The worker-health guidance describes source functionality pending deployment, not an observation of the current live worker. Core Word planning versions and external acceptance gates are unchanged by this repository refresh.
+
+## Earlier currency review · 26 September 2026
+
+That review compared the four core Word documents dated 21 September with the repository through PR #66 and the separately recorded deployed PR #64. The [document register](document-register.md) names their refreshed versions, role responsibilities, dated source records and review triggers.
 
 The refresh corrects the inherited Technical Requirements v1.1 pointer, the obsolete FastAPI stack-deviation claim, Paystack saved-event verification status, the duplicated workspace-failure description and the claim that every imported CSV is discarded. It records PR #65 and PR #66 as draft changes rather than deployed functionality. The Word documents distinguish implemented synthetic journeys and rehearsed foundations from real-data, live-provider, hosted-recovery, independent security and human-pilot acceptance. Financial estimates retain their original planning date and need re-estimation before use as the remaining delivery budget.
 

@@ -2,8 +2,8 @@ import { useRef, useState } from "react";
 import { Link, useSearchParams } from "wouter";
 import type { SourceProfileInput } from "@workspace/valopay-schema";
 import { useWorkspace } from "@/lib/workspace-context";
-import { usePilotMutation, useTypedPilotMutation, usePilotQuery } from "@/lib/pilot";
-import { amountUnitName, paystackFixtureResultSchema, sourcesViewSchema } from "@workspace/valopay-schema";
+import { useTypedPilotMutation, usePilotQuery } from "@/lib/pilot";
+import { amountUnitName, paystackFixtureResultSchema, providerEventViewSchema } from "@workspace/valopay-schema";
 import { useUnsavedChanges, confirmUnsavedChanges } from "@/lib/unsaved-changes";
 import { PilotHeading, PilotPanel, PilotError, RecoveryNotice, pilotField } from "@/components/pilot-ui";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ import { formatWithOtherCurrencies } from "@/lib/currencies";
 import { readableLabel } from "@/components/record-label";
 import { SourceCompletenessPanel, SourceManifestEditor } from "@/components/source-manifest-editor";
 import { useFocusWhenLost } from "@/lib/focus";
+import { consoleSourcesViewSchema, sourceProfileRecordSchema, type SourceProfile, type ProviderEvent } from "@/lib/source-models";
 
 const kinds = { customers: "Customers", mandates: "Mandates", "due-items": "Instalments", attempts: "Collection attempts", observations: "Payment evidence" };
 const wat = (iso: string) => {
@@ -36,13 +37,13 @@ export default function SourcesPage() { const { merchantId } = useWorkspace(); r
 function Sources() {
   const { workspace } = useWorkspace(), [params] = useSearchParams();
   const [businessDate,setBusinessDate] = useState(params.get("businessDate") || new Date(Date.now()+3600000).toISOString().slice(0,10));
-  const query = usePilotQuery(`/sources?businessDate=${encodeURIComponent(businessDate)}`, sourcesViewSchema);
+  const query = usePilotQuery(`/sources?businessDate=${encodeURIComponent(businessDate)}`, consoleSourcesViewSchema);
   const problem = useRef<HTMLDivElement>(null), recovered = useRef<HTMLParagraphElement>(null);
   const recoveryKey = JSON.stringify([workspace?.actor, businessDate]);
   const [recovery, setRecovery] = useState<{ key: string } | null>(null);
   const currentRecovery = recovery?.key === recoveryKey && query.data ? recovery : null;
   useFocusWhenLost(recovered, currentRecovery, problem);
-  const [selected, setSelected] = useState<any>(null), [revision, setRevision] = useState(0), [message, setMessage] = useState("");
+  const [selected, setSelected] = useState<SourceProfile | null>(null), [revision, setRevision] = useState(0), [message, setMessage] = useState("");
   const fixture = useTypedPilotMutation(paystackFixtureResultSchema, result => setMessage(result.event.message));
   const canWrite = ["Admin", "Operations", "Finance"].includes(workspace?.role || "");
   const canReplay = ["Admin", "Finance"].includes(workspace?.role || "");
@@ -60,9 +61,9 @@ function Sources() {
       <p className="text-sm text-muted-foreground">Each source profile belongs to this lender and one record type. Expected totals are checked before a batch can be committed. A missed delivery remains visible even if a later delivery arrives.</p>
       {!query.data && <p className="text-sm text-muted-foreground">{query.error ? "Source profiles could not be loaded. Try again above." : "Loading source profiles…"}</p>}
       {query.data && !query.data.profiles.length && !query.error && <p className="text-sm">{canWrite ? "No source profiles yet. Add one below, then reuse it in Import batches." : "No source profiles yet. Ask an Admin, Operations or Finance team member to add a source profile."}</p>}
-      <div className="grid gap-3 lg:grid-cols-2">{query.data?.profiles.map((profile: any) => <article key={profile.id} className="rounded-lg border p-4 space-y-3">
+      <div className="grid gap-3 lg:grid-cols-2">{query.data?.profiles.map((profile) => <article key={profile.id} className="rounded-lg border p-4 space-y-3">
         <div className="flex flex-wrap justify-between gap-2"><h3 className="font-semibold">{profile.name}</h3><span className="rounded-full bg-muted px-2 py-1 text-xs">{readableLabel(profile.delivery.status)}</span></div>
-        <p className="text-sm">{profile.data.source} · {kinds[profile.data.kind as keyof typeof kinds] || profile.data.kind}</p>
+        <p className="text-sm">{profile.data.source} · {kinds[profile.data.kind]}</p>
         <dl className="text-sm space-y-1"><div><dt className="inline text-muted-foreground">Next expected: </dt><dd className="inline">{formatDate(profile.delivery.nextExpectedAt)}</dd></div><div><dt className="inline text-muted-foreground">Last committed: </dt><dd className="inline">{profile.delivery.lastCommittedAt ? formatDate(profile.delivery.lastCommittedAt) : "No delivery yet"}</dd></div><div><dt className="inline text-muted-foreground">Missed deliveries: </dt><dd className="inline">{profile.delivery.missedDeliveries}</dd></div></dl>
         <div className="flex flex-wrap gap-3">{canWrite && <Button variant="outline" onClick={() => { if (!confirmUnsavedChanges()) return; setSelected(profile); setRevision(n=>n+1); }}>Edit {profile.name}</Button>}<Link className="inline-flex min-h-11 items-center text-sm text-primary underline" href={`/imports?profile=${encodeURIComponent(profile.id)}`}>Use mapping</Link></div>
       </article>)}</div>
@@ -72,25 +73,25 @@ function Sources() {
       <p className="text-sm text-muted-foreground">Source totals include every uploaded row. Newly imported totals exclude rows already saved by an earlier batch. Each total adds the naira rows; money in another currency is listed beside it, never added to it. A batch committed by an earlier build keeps the totals it was committed with, which may add rows in other currencies. Open a batch to inspect its original source IDs and row checks.</p>
       {!query.data && <p className="text-sm text-muted-foreground">{query.error ? "Saved batches could not be loaded. Try again above." : "Loading saved batches…"}</p>}
       {query.data && !query.data.batches.length && !query.error && <p className="text-sm">Saved batches will appear here. <Link href="/imports" className="text-primary underline">Open Import batches</Link></p>}
-      {query.data && query.data.batches.length > 0 && <ScrollFrame label="Source batch checks"><table className="w-full min-w-[760px] text-sm"><thead><tr className="border-b text-left"><th className="p-3">Batch / source</th><th className="p-3">Source rows / total</th><th className="p-3">New rows / total</th><th className="p-3">Duplicates / conflicts</th><th className="p-3">Checks</th></tr></thead><tbody>{query.data.batches.map((batch: any) => <tr className="border-b align-top" key={batch.id}><td className="p-3"><Link className="font-medium text-primary underline" href={`/imports?batch=${encodeURIComponent(batch.id)}`}>{batch.name}</Link><p className="text-muted-foreground">{batch.source} · {batch.sourceBatchId}</p></td><td className="p-3 tabular-nums">{batch.quality.sourceRows}<p>{batch.quality.sourceAmountKobo == null ? "Not available" : formatWithOtherCurrencies(batch.quality.sourceAmountKobo, batch.quality.sourceOtherCurrencies, "row")}</p></td><td className="p-3 tabular-nums">{batch.quality.importedRows}<p>{batch.quality.importedAmountKobo == null ? "Not available" : formatWithOtherCurrencies(batch.quality.importedAmountKobo, batch.quality.importedOtherCurrencies, "row")}</p></td><td className="p-3">{batch.quality.duplicateRows} / {batch.quality.conflictRows}</td><td className="p-3 max-w-xs"><p>{readableLabel(batch.quality.status)}</p>{batch.quality.issues.map((issue: string) => <p className="mt-1 text-muted-foreground" key={issue}>{issue}</p>)}</td></tr>)}</tbody></table></ScrollFrame>}
+      {query.data && query.data.batches.length > 0 && <ScrollFrame label="Source batch checks"><table className="w-full min-w-[760px] text-sm"><thead><tr className="border-b text-left"><th className="p-3">Batch / source</th><th className="p-3">Source rows / total</th><th className="p-3">New rows / total</th><th className="p-3">Duplicates / conflicts</th><th className="p-3">Checks</th></tr></thead><tbody>{query.data.batches.map((batch) => <tr className="border-b align-top" key={batch.id}><td className="p-3"><Link className="font-medium text-primary underline" href={`/imports?batch=${encodeURIComponent(batch.id)}`}>{batch.name}</Link><p className="text-muted-foreground">{batch.source} · {batch.sourceBatchId}</p></td><td className="p-3 tabular-nums">{batch.quality.sourceRows}<p>{batch.quality.sourceAmountKobo == null ? "Not available" : formatWithOtherCurrencies(batch.quality.sourceAmountKobo, batch.quality.sourceOtherCurrencies, "row")}</p></td><td className="p-3 tabular-nums">{batch.quality.importedRows}<p>{batch.quality.importedAmountKobo == null ? "Not available" : formatWithOtherCurrencies(batch.quality.importedAmountKobo, batch.quality.importedOtherCurrencies, "row")}</p></td><td className="p-3">{batch.quality.duplicateRows} / {batch.quality.conflictRows}</td><td className="p-3 max-w-xs"><p>{readableLabel(batch.quality.status)}</p>{batch.quality.issues.map((issue) => <p className="mt-1 text-muted-foreground" key={issue}>{issue}</p>)}</td></tr>)}</tbody></table></ScrollFrame>}
     </PilotPanel>
     <PilotPanel title="Paystack test connection">
       <div className="rounded-lg border border-warning-border bg-warning/10 p-4 text-sm space-y-2"><p className="font-semibold">{query.data ? "External connection not verified" : query.error ? "Connection status unavailable" : "Loading connection status…"}</p><p>{query.data?.paystack.message || (query.error ? "Paystack test connection details could not be loaded. Try again above." : "Connection details will appear when the source information has loaded.")}</p><p>Fixtures use fixed local sample events to rehearse signed receipt handling. They do not contact Paystack, activate mandates or create payments.</p></div>
       <ol className="list-decimal pl-5 space-y-2 text-sm"><li>Create a Paystack account and obtain test credentials when ready.</li><li>Have the platform operator provision a test connection for the intended lender and configure its webhook address.</li><li>Verify a real test delivery and transaction independently before relying on it as evidence.</li></ol>
       {canWrite && query.data?.paystack.canRunFixtures && <div className="flex flex-wrap gap-2">{([ ["payment", "Receive sample payment"], ["duplicate", "Repeat delivery"], ["amount_mismatch", "Rehearse amount conflict"], ["out_of_order", "Rehearse out-of-order events"], ["tampered", "Check tampered signature"] ] as const).map(([scenario,label]) => <Button key={scenario} variant="outline" disabled={fixture.isPending || fixture.hasUnconfirmedOutcome} onClick={() => fixture.mutate({ path: "/sources/paystack/fixtures", data: { scenario, syntheticOnly: true } })}>{label}</Button>)}</div>}
       <RecoveryNotice mutation={fixture} /><p role="status" className="text-sm">{message}</p>
-      <div className="space-y-3">{query.data?.paystack.events.map((event: any) => <EventCard key={event.id} event={event} canReplay={canReplay} />)}</div>
+      <div className="space-y-3">{query.data?.paystack.events.map((event) => <EventCard key={event.id} event={event} canReplay={canReplay} />)}</div>
       {query.data && query.data.paystack.total > 50 && <p className="text-sm text-muted-foreground">Showing the latest 50 of {formatNumber(query.data.paystack.total)} receipts. Earlier receipts remain saved.</p>}
     </PilotPanel>
   </div>;
 }
 
-function ProfileEditor({ profile, onSaved, onNew }: { profile: any; onSaved(): void; onNew(): void }) {
-  const [input, setInput] = useState<SourceProfileInput>(() => profile ? { ...blank(), ...profile.data, name: profile.name, status: profile.status, expectedUpdatedAt: profile.updatedAt } : blank());
+function ProfileEditor({ profile, onSaved, onNew }: { profile: SourceProfile | null; onSaved(): void; onNew(): void }) {
+  const [input, setInput] = useState<SourceProfileInput>(() => profile ? { ...blank(), ...profile.data, name: profile.name, status: profile.status, expectedUpdatedAt: profile.updatedAt, syntheticOnly: true } : blank());
   const [deliveryDraft, setDeliveryDraft] = useState(() => wat(input.firstExpectedAt)), [deliveryInvalid, setDeliveryInvalid] = useState(false);
   const [dirty, setDirty] = useState(false), [mappingRows, setMappingRows] = useState(() => Object.entries(input.mapping).map(([from,to]) => ({from,to})));
   useUnsavedChanges(dirty);
-  const mutation = usePilotMutation(() => { setDirty(false); onSaved(); });
+  const mutation = useTypedPilotMutation(sourceProfileRecordSchema, () => { setDirty(false); onSaved(); });
   const update = (patch: Partial<SourceProfileInput>) => { setInput(v=>({...v,...patch})); setDirty(true); };
   const locked = mutation.isPending || mutation.hasUnconfirmedOutcome;
   return <PilotPanel title={profile ? `Edit ${profile.name}` : "Add a source profile"}><form className="space-y-4" onSubmit={e=>{e.preventDefault(); const parsedDelivery = deliveryInstant(deliveryDraft); if (!parsedDelivery) { setDeliveryInvalid(true); document.getElementById("source-first-delivery")?.focus(); return; } const { name, source, kind, identityColumn, amountUnit, cadenceHours, graceMinutes, expectedRows, expectedAmountKobo, status, expectedUpdatedAt } = input; const firstExpectedAt = deliveryDraft === wat(input.firstExpectedAt) ? input.firstExpectedAt : parsedDelivery; mutation.mutate({path: profile ? `/sources/profiles/${profile.id}/save` : "/sources/profiles", data: { name, source, kind, identityColumn, amountUnit, firstExpectedAt, cadenceHours, graceMinutes, expectedRows, expectedAmountKobo, status, expectedUpdatedAt, syntheticOnly: true, mapping: Object.fromEntries(mappingRows.filter(r=>r.from).map(r=>[r.from,r.to])) } });}}>
@@ -114,7 +115,7 @@ function ProfileEditor({ profile, onSaved, onNew }: { profile: any; onSaved(): v
 
 /** Receipts the service will not replay: a quarantine or rejected fixture it cannot clear, and verified evidence it must not replace. */
 const replayRefused = ["quarantined", "rejected_fixture", "verified"];
-function EventCard({ event, canReplay }: { event: any; canReplay: boolean }) {
-  const [reason,setReason] = useState(""), mutation = usePilotMutation(()=>setReason(""));
+function EventCard({ event, canReplay }: { event: ProviderEvent; canReplay: boolean }) {
+  const [reason,setReason] = useState(""), mutation = useTypedPilotMutation(providerEventViewSchema, ()=>setReason(""));
   return <article className="rounded-lg border p-4 space-y-2"><div className="flex flex-wrap justify-between gap-2"><h3 className="font-medium">{event.name}</h3><span className="text-xs rounded-full bg-muted px-2 py-1">{event.mode === "fixture" ? "Synthetic fixture" : "Signed test event"} · {readableLabel(event.status)}</span></div><p className="text-sm">{event.message}</p><p className="text-xs text-muted-foreground">{formatDate(event.createdAt)} · {formatCount(event.deliveryCount, "delivery", "deliveries")} · {formatCount(event.replayCount, "replay")} · No financial records created</p>{canReplay && !replayRefused.includes(event.status) && <form className="flex flex-wrap gap-2" onSubmit={e=>{e.preventDefault();mutation.mutate({path:`/sources/events/${event.id}/replay`,data:{expectedUpdatedAt:event.updatedAt,reason}});}}><label className="flex-1 min-w-[180px] text-sm">Reason to recheck this receipt<input className={pilotField} minLength={3} maxLength={500} required value={reason} disabled={mutation.isPending||mutation.hasUnconfirmedOutcome} onChange={e=>setReason(e.target.value)}/></label><Button className="self-end" variant="outline" disabled={mutation.isPending||mutation.hasUnconfirmedOutcome} type="submit">Recheck saved receipt</Button></form>}<RecoveryNotice mutation={mutation}/></article>;
 }

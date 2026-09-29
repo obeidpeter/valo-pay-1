@@ -107,7 +107,7 @@ try {
   const base = `http://127.0.0.1:${port}`;
 
   const health = await fetch(`${base}/api/healthz?token=should-not-be-logged`);
-  const healthBody = await health.json() as { status: string; build: string; startedAt: string; uptimeSeconds: number; scheduler: { state: string; ticks: number; backlog: unknown } };
+  const healthBody = await health.json() as { status: string; build: string; startedAt: string; uptimeSeconds: number; scheduler: { state: string; ticks: number; backlog: unknown }; background: { state: string; crashCount: number; restartCount: number; cleanup: { state: string } } };
   assert.equal(health.status, 200);
   assert.equal(healthBody.status, "ok");
   assert.equal(healthBody.build, BUILD);
@@ -116,6 +116,7 @@ try {
   assert.match(healthBody.startedAt, /^\d{4}-\d{2}-\d{2}T/);
   assert.equal(healthBody.scheduler.state, "not_started", "nothing started the scheduler in this process");
   assert.equal(healthBody.scheduler.backlog, null, "what is still owed is unknown until a pass reads it");
+  assert.deepEqual([healthBody.background.state, healthBody.background.crashCount, healthBody.background.restartCount, healthBody.background.cleanup.state], ["not_started", 0, 0, "disabled"], "the public contract carries worker observations without starting a worker or querying its queue");
   assert.equal(health.headers.get("cache-control"), "no-store");
   assert.match(health.headers.get("x-request-id") ?? "", /^[0-9a-f]{16}$/, "every answer names its request");
   markSchedulerOff();

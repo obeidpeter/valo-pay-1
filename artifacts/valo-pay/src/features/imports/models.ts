@@ -5,8 +5,6 @@ import {
   importResultSchema,
   recordDataSchemas,
   sourceCompletenessSchema,
-  sourceProfileViewSchema,
-  sourcesViewSchema,
   valopayRecordSchema,
   type BatchInput,
 } from "@workspace/valopay-schema";
@@ -51,24 +49,9 @@ export const batchDetailSchema = importBatchDetailSchema.extend({
   revisions: z.array(revisionRecordSchema),
 });
 
-const profileSchema = sourceProfileViewSchema.extend({
-  data: recordDataSchemas["source-profiles"].extend({
-    source: z.string(),
-    kind: z.enum(importKinds),
-    mapping: z.record(z.string()),
-    amountUnit: z.enum(["naira", "kobo"]),
-    identityColumn: z.string(),
-  }),
-});
-export const batchSourcesSchema = sourcesViewSchema.extend({
-  profiles: z.array(profileSchema),
-});
-
 export type ImportBatch = z.infer<typeof importBatchRecordSchema>;
 export type ImportCheck = z.infer<typeof importResultSchema>;
 export type ImportRevision = z.infer<typeof revisionRecordSchema>;
-export type BatchSources = z.infer<typeof batchSourcesSchema>;
-export type SourceProfile = z.infer<typeof profileSchema>;
 export type ExpectedSourceFile = z.infer<
   typeof sourceCompletenessSchema
 >["files"][number];

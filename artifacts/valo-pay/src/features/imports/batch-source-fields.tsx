@@ -2,7 +2,8 @@ import { PilotError, pilotField } from "@/components/pilot-ui";
 import { amountUnitName, type BatchInput } from "@workspace/valopay-schema";
 import { Link } from "wouter";
 import { types } from "./mapping";
-import type { BatchSources, SetBatchField } from "./models";
+import type { SourcesView } from "@/lib/source-models";
+import type { SetBatchField } from "./models";
 
 type Props = {
   id: string | null;
@@ -11,7 +12,7 @@ type Props = {
   disabled: boolean;
   selectedProfile: string;
   initialProfile: string | null;
-  sources: BatchSources | undefined;
+  sources: SourcesView | undefined;
   sourcesLoading: boolean;
   sourcesError: unknown;
   onProfileChange: (id: string) => void;

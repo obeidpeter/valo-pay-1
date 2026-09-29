@@ -22,6 +22,20 @@ export const healthCheckResponseSchedulerBacklogOnePublicSandboxesFailingMin = 0
 
 
 
+export const healthCheckResponseBackgroundCrashCountMin = 0;
+
+export const healthCheckResponseBackgroundRestartCountMin = 0;
+
+export const healthCheckResponseBackgroundCleanupLastResultOneAttemptedMin = 0;
+
+export const healthCheckResponseBackgroundCleanupLastResultOneRemovedMin = 0;
+
+export const healthCheckResponseBackgroundCleanupLastResultOneDeferredMin = 0;
+
+export const healthCheckResponseBackgroundCleanupLastResultOnePendingFailuresMin = 0;
+
+
+
 export const HealthCheckResponse = zod.object({
   "status": zod.string(),
   "build": zod.string(),
@@ -56,8 +70,38 @@ export const HealthCheckResponse = zod.object({
   "failing": zod.number().int().min(healthCheckResponseSchedulerBacklogOnePublicSandboxesFailingMin)
 }).optional().describe('The same counts for public anonymous sandboxes, the synthetic lenders a visitor\'s sandbox is seeded with or creates, whose own data can make a close fail: counted apart from the lenders, so they never raise an incident or fail the one-shot close pass. Absent from builds before they were counted apart, which count them among the lenders.')
 }).describe('The lenders still owed a scheduled close, as this process last read them from the database, counted without naming any: overdue, those whose automatic close is on and whose pending close is more than lateAfterMinutes past its time; failing, those with a failed scheduled attempt at their pending time, which only that lender\'s own close, or a change to its schedule, ends: not other lenders\' closes, nor a restart. Neither counts public anonymous sandboxes, whose own counts are publicSandboxes. checkedAt is when they were read, on the API host\'s clock.'),zod.null()]).optional().describe('What this process last read from the database as still owed: at the end of each pass or, with external, every intervalMs; null until its first read, and kept as last read while the scheduler is stopped or failing, or a read fails, so its checkedAt ages. Absent from builds before it was added, which report only lastRun; builds before the external read report null with external.')
-}).describe('Whether closes are scheduled in this process, how often it looks, when it last looked, its last pass with work and what it last read as still owed.')
-}).describe('The liveness answer: the build, when the process started, its uptime and what the close scheduler is doing.')
+}).describe('Whether closes are scheduled in this process, how often it looks, when it last looked, its last pass with work and what it last read as still owed.'),
+  "background": zod.object({
+  "state": zod.enum(['not_started', 'starting', 'running', 'restarting', 'stale', 'stopping', 'stopped']),
+  "jobs": zod.object({
+  "closes": zod.boolean(),
+  "backlog": zod.boolean(),
+  "exports": zod.boolean(),
+  "cleanup": zod.boolean()
+}).describe('Which jobs this instance configured in its worker. Enabled describes configuration, not evidence of a successful job. Restricted tenant runtimes leave service cleanup disabled.'),
+  "heartbeatIntervalMs": zod.number().int().min(1),
+  "staleAfterMs": zod.number().int().min(1),
+  "startedAt": zod.string().nullable(),
+  "lastHeartbeatAt": zod.string().nullable(),
+  "crashCount": zod.number().int().min(healthCheckResponseBackgroundCrashCountMin),
+  "restartCount": zod.number().int().min(healthCheckResponseBackgroundRestartCountMin),
+  "lastCrashAt": zod.string().nullable(),
+  "cleanup": zod.object({
+  "state": zod.enum(['disabled', 'pending', 'ok', 'failed', 'stale']),
+  "intervalMs": zod.number().int().nullable(),
+  "staleAfterMs": zod.number().int().nullable(),
+  "lastCheckedAt": zod.string().nullable(),
+  "lastSuccessAt": zod.string().nullable(),
+  "lastErrorAt": zod.string().nullable(),
+  "lastResult": zod.union([zod.object({
+  "attempted": zod.number().int().min(healthCheckResponseBackgroundCleanupLastResultOneAttemptedMin),
+  "removed": zod.number().int().min(healthCheckResponseBackgroundCleanupLastResultOneRemovedMin),
+  "deferred": zod.number().int().min(healthCheckResponseBackgroundCleanupLastResultOneDeferredMin),
+  "pendingFailures": zod.number().int().min(healthCheckResponseBackgroundCleanupLastResultOnePendingFailuresMin)
+}).describe('Attempted, removed and deferred counts from one bounded pass, plus pendingFailures: the count of all durable cleanup tombstones with last_failure set, including leased or delayed retries. A quiet poll or another file\'s success cannot clear a pending failure. No storage paths or tenant identities. Use the operator cleanup status command for full backlog depth and age.'),zod.null()])
+}).describe('The worker\'s most recent bounded cleanup pass and aggregate queue read. Empty polls count as success only when no persisted failed tombstones remain. A rejected pass/read, deferred removal or pendingFailures above zero is failed; lastSuccessAt remains the last successful check. Null lastResult means no check or a rejected check. After a restart, pending until this worker checks; older timestamps remain evidence. Stale after three intervals plus 15 seconds without a completed check. This is not proof all queued files were deleted; ordinary leases or delayed work can remain.')
+}).optional().describe('This instance\'s worker, independently of scheduler mode. The main thread timestamps heartbeats received every 10 seconds; starting or running becomes stale after 45 seconds without one. restartCount counts new start attempts after the first; crashCount includes failed starts and unexpected exits. Both reset with the API process, not after a steady worker run. No tenant identities or error bodies are exposed.')
+}).describe('The liveness answer: the build, when the process started, its uptime, close scheduler and background worker observations. Background status is optional for older builds. Liveness stays ok while a worker fails; the monitor separately raises worker incidents.')
 
 
 /**

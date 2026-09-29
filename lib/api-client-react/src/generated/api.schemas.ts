@@ -81,8 +81,97 @@ export interface SchedulerStatus {
   backlog?: SchedulerBacklog | null;
 }
 
+export type BackgroundStatusState = typeof BackgroundStatusState[keyof typeof BackgroundStatusState];
+
+
+export const BackgroundStatusState = {
+  not_started: 'not_started',
+  starting: 'starting',
+  running: 'running',
+  restarting: 'restarting',
+  stale: 'stale',
+  stopping: 'stopping',
+  stopped: 'stopped',
+} as const;
+
 /**
- * The liveness answer: the build, when the process started, its uptime and what the close scheduler is doing.
+ * Which jobs this instance configured in its worker. Enabled describes configuration, not evidence of a successful job. Restricted tenant runtimes leave service cleanup disabled.
+ */
+export interface BackgroundJobs {
+  closes: boolean;
+  backlog: boolean;
+  exports: boolean;
+  cleanup: boolean;
+}
+
+export type BackgroundCleanupState = typeof BackgroundCleanupState[keyof typeof BackgroundCleanupState];
+
+
+export const BackgroundCleanupState = {
+  disabled: 'disabled',
+  pending: 'pending',
+  ok: 'ok',
+  failed: 'failed',
+  stale: 'stale',
+} as const;
+
+/**
+ * Attempted, removed and deferred counts from one bounded pass, plus pendingFailures: the count of all durable cleanup tombstones with last_failure set, including leased or delayed retries. A quiet poll or another file's success cannot clear a pending failure. No storage paths or tenant identities. Use the operator cleanup status command for full backlog depth and age.
+ */
+export interface CleanupPassResult {
+  /** @minimum 0 */
+  attempted: number;
+  /** @minimum 0 */
+  removed: number;
+  /** @minimum 0 */
+  deferred: number;
+  /** @minimum 0 */
+  pendingFailures: number;
+}
+
+/**
+ * The worker's most recent bounded cleanup pass and aggregate queue read. Empty polls count as success only when no persisted failed tombstones remain. A rejected pass/read, deferred removal or pendingFailures above zero is failed; lastSuccessAt remains the last successful check. Null lastResult means no check or a rejected check. After a restart, pending until this worker checks; older timestamps remain evidence. Stale after three intervals plus 15 seconds without a completed check. This is not proof all queued files were deleted; ordinary leases or delayed work can remain.
+ */
+export interface BackgroundCleanup {
+  state: BackgroundCleanupState;
+  /** @nullable */
+  intervalMs: number | null;
+  /** @nullable */
+  staleAfterMs: number | null;
+  /** @nullable */
+  lastCheckedAt: string | null;
+  /** @nullable */
+  lastSuccessAt: string | null;
+  /** @nullable */
+  lastErrorAt: string | null;
+  lastResult: CleanupPassResult | null;
+}
+
+/**
+ * This instance's worker, independently of scheduler mode. The main thread timestamps heartbeats received every 10 seconds; starting or running becomes stale after 45 seconds without one. restartCount counts new start attempts after the first; crashCount includes failed starts and unexpected exits. Both reset with the API process, not after a steady worker run. No tenant identities or error bodies are exposed.
+ */
+export interface BackgroundStatus {
+  state: BackgroundStatusState;
+  jobs: BackgroundJobs;
+  /** @minimum 1 */
+  heartbeatIntervalMs: number;
+  /** @minimum 1 */
+  staleAfterMs: number;
+  /** @nullable */
+  startedAt: string | null;
+  /** @nullable */
+  lastHeartbeatAt: string | null;
+  /** @minimum 0 */
+  crashCount: number;
+  /** @minimum 0 */
+  restartCount: number;
+  /** @nullable */
+  lastCrashAt: string | null;
+  cleanup: BackgroundCleanup;
+}
+
+/**
+ * The liveness answer: the build, when the process started, its uptime, close scheduler and background worker observations. Background status is optional for older builds. Liveness stays ok while a worker fails; the monitor separately raises worker incidents.
  */
 export interface HealthStatus {
   status: string;
@@ -90,6 +179,7 @@ export interface HealthStatus {
   startedAt: string;
   uptimeSeconds: number;
   scheduler: SchedulerStatus;
+  background?: BackgroundStatus;
 }
 
 export type DatabaseCheckStatus = typeof DatabaseCheckStatus[keyof typeof DatabaseCheckStatus];
