@@ -4,7 +4,7 @@ import { seedMerchant } from '../src/lib/valopay-seed';
 import { queueExport, retryExport, exportJobView, exportHealth, exportIsClaimable, processExportJob, retryExportWrite, EXPORT_WRITE_ATTEMPTS, EXPORT_LEASE_MS, EXPORT_STALL_MS, EXPORT_CONFIRM_LEASE_MS, MAX_EXPORT_BYTES, type ClaimedExport, type ExportArtifact, type ExportJobRepository, type ExportJobStorage, type ExportStage } from '../src/lib/export-jobs';
 import type { DomainState } from '../src/domain/types';
 import { makeRecord } from '../src/domain/records';
-import { bindCloseReviewBasis, closeReviewIssues, closeSummary, decideCloseReview, prepareCloseReview } from '../src/domain/close-review';
+import { bindCloseReviewBasis, closeReviewIssues, decideCloseReview, prepareCloseReview, summariseLoadedClose } from '../src/domain/close-review';
 // Imports initialize the shared pool, but this suite never connects to it.
 process.env.DATABASE_URL ||= 'postgres://unused:unused@127.0.0.1:1/unused';
 const {generateExportArtifact,exportDescriptor}=await import('../src/lib/valopay-exports');
@@ -352,7 +352,7 @@ await assert.rejects(renderDisputePackPdf(oversizedField),(error:any)=>error.exp
   // Later business dates' closes leave the 1 September close more than seven days older than the newest.
   for (let day = 2; day <= 10; day++) daily(day);
   const input = { kind: 'reviewed-close', format: 'json' as const, closeReviewId: review.id };
-  const summarised = { ...structuredClone(lender), records: structuredClone(lender).records.map(record => record.id === close.id ? closeSummary(record) : record) };
+  const summarised = { ...structuredClone(lender), records: structuredClone(lender).records.map(record => record.id === close.id ? summariseLoadedClose(record) : record) };
   assert.throws(() => queueExport(summarised, ctx, input, '/private/test'), (error: any) => error.status === 409 && /no longer current/.test(error.message), 'with its close only a summary, the check cannot find the review current');
   assert.equal(queueExport(structuredClone(lender), ctx, input, '/private/test').status, 'queued', 'with its close whole, the current review exports');
   const changed = structuredClone(lender);
