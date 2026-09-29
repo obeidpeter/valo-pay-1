@@ -41,13 +41,13 @@ describe('UX-I01 import outcome and correction guidance', () => {
     const csv = 'row_id,name,reference,consentProvenance\nr1,Valid,UX-I01-VALID,Synthetic\nr2,Invalid,UX-I01-INVALID,';
     const user = await customerImport(csv);
     const results = screen.getByRole('region', { name: 'Check results' });
-    expect(within(results).getByText(/Row 3 · Invalid/)).toBeTruthy();
+    expect(within(results).getByText(/Row 3 · Needs fixing/)).toBeTruthy();
     expect(within(results).getByText('Consent source or reference (column consentProvenance): Enter a value; it is blank on this row.')).toBeTruthy();
     expect(within(results).queryByText(/Row 2 · Valid/)).toBeNull();
     expect(api.state().records.some(record => record.reference === 'UX-I01-VALID')).toBe(false);
     await user.click(screen.getByRole('button', { name: 'Show all row results' }));
     expect(within(results).getByText(/Row 2 · Valid/)).toBeTruthy();
-    await user.click(screen.getByRole('button', { name: 'Correct CSV' }));
+    await user.click(screen.getByRole('button', { name: 'Edit CSV' }));
     expect(document.activeElement).toBe(screen.getByLabelText('CSV content'));
     expect(screen.getByLabelText('CSV content')).toHaveProperty('value', csv);
     const referenceMap = screen.getByLabelText('Map reference');

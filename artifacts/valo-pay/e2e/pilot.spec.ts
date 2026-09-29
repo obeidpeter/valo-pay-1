@@ -18,9 +18,9 @@ test("saved import and case handover work across reload with accessible responsi
     .getByRole("button", { name: /Customers sample.*Pilot sample/ })
     .click();
   await expect(page.getByLabel("CSV content")).toHaveValue(/PILOT-C001/);
-  await page.getByRole("button", { name: "Commit checked batch" }).click();
+  await page.getByRole("button", { name: "Import checked batch" }).click();
   await expect(
-    page.getByRole("heading", { name: "Import complete" }),
+    page.getByRole("heading", { name: "Batch imported" }),
   ).toBeVisible();
   await page.addScriptTag({
     path: path.resolve("node_modules/axe-core/axe.min.js"),
@@ -124,16 +124,16 @@ test("an import whose name falls back warns, suggests the column and asks before
   await page.getByRole("combobox", { name: "full_name" }).selectOption("");
   await page.getByRole("button", { name: "Save and check batch" }).click();
   await expect(results.getByRole("heading", { name: "Saved check results" })).toBeVisible();
-  await page.getByRole("button", { name: "Commit checked batch" }).click();
-  const dialog = page.getByRole("dialog", { name: "Commit with fallback values?" });
+  await page.getByRole("button", { name: "Import checked batch" }).click();
+  const dialog = page.getByRole("dialog", { name: "Import with default values?" });
   await expect(dialog.getByText(warning)).toBeVisible();
   await dialog.getByRole("button", { name: "Review the mapping" }).click();
   await expect(dialog).toBeHidden();
-  await expect(page.getByRole("button", { name: "Commit checked batch" })).toBeFocused();
-  await page.getByRole("button", { name: "Commit checked batch" }).click();
-  await page.getByRole("dialog", { name: "Commit with fallback values?" }).getByRole("button", { name: "Commit anyway" }).click();
-  await expect(page.getByRole("heading", { name: "Import complete" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Saved with fallback values" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Import checked batch" })).toBeFocused();
+  await page.getByRole("button", { name: "Import checked batch" }).click();
+  await page.getByRole("dialog", { name: "Import with default values?" }).getByRole("button", { name: "Import anyway" }).click();
+  await expect(page.getByRole("heading", { name: "Batch imported" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Imported with default values" })).toBeVisible();
 });
 test("an unknown case says so at once, after a single request", async ({
   page,

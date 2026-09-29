@@ -36,7 +36,7 @@ test("onboards an empty lender, persists imports and discovers a lost acknowledg
     expect(result.status()).toBe(200);
     await route.abort("connectionreset");
   });
-  await page.getByRole("button", { name: "Commit checked batch" }).click();
+  await page.getByRole("button", { name: "Import checked batch" }).click();
   await expect(
     page.getByText("Outcome not confirmed", { exact: true }),
   ).toBeVisible();

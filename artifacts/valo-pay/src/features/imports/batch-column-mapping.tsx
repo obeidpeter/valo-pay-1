@@ -51,7 +51,7 @@ export function BatchColumnMapping({
               >
                 <option value="">
                   {column === form.identityColumn
-                    ? "Source identity only"
+                    ? "Source row ID only"
                     : "Skip column"}
                 </option>
                 {options.map((field) => (

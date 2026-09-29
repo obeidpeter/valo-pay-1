@@ -39,9 +39,9 @@ it("saves source rows, reopens them and commits a checked batch exactly once", a
     ).toContain("PILOT-C001"),
   );
   await user.click(
-    screen.getByRole("button", { name: "Commit checked batch" }),
+    screen.getByRole("button", { name: "Import checked batch" }),
   );
-  await screen.findByRole("heading", { name: "Import complete" });
+  await screen.findByRole("heading", { name: "Batch imported" });
   expect(
     api
       .state()
@@ -50,7 +50,7 @@ it("saves source rows, reopens them and commits a checked batch exactly once", a
       ),
   ).toHaveLength(1);
   expect(
-    screen.queryByRole("button", { name: "Commit checked batch" }),
+    screen.queryByRole("button", { name: "Import checked batch" }),
   ).toBeNull();
   expect(JSON.stringify(localStorage)).not.toContain("PILOT-C001");
 });
@@ -72,7 +72,7 @@ it("keeps a rejected batch available for correction and guards unsaved changes",
   expect(
     (
       screen.getByRole("button", {
-        name: "Commit checked batch",
+        name: "Import checked batch",
       }) as HTMLButtonElement
     ).disabled,
   ).toBe(true);
@@ -92,7 +92,7 @@ it("keeps a rejected batch available for correction and guards unsaved changes",
     expect(
       (
         screen.getByRole("button", {
-          name: "Commit checked batch",
+          name: "Import checked batch",
         }) as HTMLButtonElement
       ).disabled,
     ).toBe(false),

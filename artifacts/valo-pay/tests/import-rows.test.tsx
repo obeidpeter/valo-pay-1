@@ -43,7 +43,7 @@ describe('Import batches check results', () => {
       '"Row","Status","What to fix","Technical detail"',
       '"3","invalid","Consent source or reference (column consentProvenance): Enter a value; it is blank on this row.","consentProvenance: String must contain at least 1 character(s)"',
     ]);
-    await user.click(within(results).getByRole('button', { name: 'Correct CSV' }));
+    await user.click(within(results).getByRole('button', { name: 'Edit CSV' }));
     expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'CSV content' }));
     // The mapping offers each field in the shared words.
     expect(within(screen.getByRole('combobox', { name: 'consentProvenance' })).getByRole('option', { name: 'Consent source or reference' })).toBeTruthy();
@@ -52,8 +52,8 @@ describe('Import batches check results', () => {
   it('call a row imported before already imported, as the quick import does', async () => {
     const csv = 'source_row_id,name,consentProvenance\nrow-1,Imported once,Synthetic consent';
     const user = await batch(csv, 'once-001');
-    await user.click(screen.getByRole('button', { name: 'Commit checked batch' }));
-    await screen.findByRole('heading', { name: 'Import complete' });
+    await user.click(screen.getByRole('button', { name: 'Import checked batch' }));
+    await screen.findByRole('heading', { name: 'Batch imported' });
     await user.click(screen.getByRole('button', { name: 'Start another batch' }));
     await user.type(await screen.findByRole('textbox', { name: 'Batch name' }), 'The same rows again');
     await user.type(screen.getByRole('textbox', { name: 'Source name' }), 'Loan system export');

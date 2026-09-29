@@ -18,8 +18,8 @@ test("a dated declaration becomes complete only after its matching source file i
   await page.getByLabel("Batch name",{exact:true}).fill("Late customer source file");
   await page.getByLabel("CSV content",{exact:true}).fill("source_row_id,name,reference,consentProvenance\nsource-1,Synthetic browser customer,BROWSER-SOURCE-1,Synthetic consent evidence");
   await page.getByRole("button",{name:"Save and check batch",exact:true}).click();
-  await page.getByRole("button",{name:"Commit checked batch",exact:true}).click();
-  await expect(page.getByRole("heading",{name:"Import complete",exact:true})).toBeVisible();
+  await page.getByRole("button",{name:"Import checked batch",exact:true}).click();
+  await expect(page.getByRole("heading",{name:"Batch imported",exact:true})).toBeVisible();
   await page.goto("/sources?businessDate=2026-09-18");
   await expect(page.getByText(/1 of 1 expected files complete/)).toBeVisible();
   await expect(page.getByText("Every declared file is committed and its source totals agree.",{exact:true})).toBeVisible();

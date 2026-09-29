@@ -26,14 +26,14 @@ it('takes an empty lender from corrected sample imports to a reviewed payment an
   async function saveAndCheck() {
     await user.click(screen.getByRole('button', { name: 'Save and check batch' }));
     await screen.findByRole('heading', { name: 'Saved check results' });
-    expect(screen.getByText(/Your source and mapping are saved. No business records are imported/)).toBeTruthy();
+    expect(screen.getByText(/Your file and column mapping are saved. Nothing is imported until no rows need fixing/)).toBeTruthy();
   }
   async function commitOnce() {
     const before = writes().filter(call => /\/commit$/.test(call.path)).length;
-    expect(screen.getByRole('button', { name: 'Commit checked batch' })).toHaveProperty('disabled', false);
-    await user.click(screen.getByRole('button', { name: 'Commit checked batch' }));
-    await screen.findByRole('heading', { name: 'Import complete' });
-    expect(screen.queryByRole('button', { name: 'Commit checked batch' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Import checked batch' })).toHaveProperty('disabled', false);
+    await user.click(screen.getByRole('button', { name: 'Import checked batch' }));
+    await screen.findByRole('heading', { name: 'Batch imported' });
+    expect(screen.queryByRole('button', { name: 'Import checked batch' })).toBeNull();
     expect(writes().filter(call => /\/commit$/.test(call.path))).toHaveLength(before + 1);
   }
   async function startSample(kind: string) {
@@ -55,8 +55,8 @@ it('takes an empty lender from corrected sample imports to a reviewed payment an
   expect(customerSample).toContain('PILOT-C001');
   await replaceCsv(customerSample.replace('Synthetic pilot consent', ''));
   await saveAndCheck();
-  expect(screen.getByRole('button', { name: 'Commit checked batch' })).toHaveProperty('disabled', true);
-  expect(screen.getByText(/Row 2 · Invalid/)).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Import checked batch' })).toHaveProperty('disabled', true);
+  expect(screen.getByText(/Row 2 · Needs fixing/)).toBeTruthy();
   expect(screen.getByText(/Consent source or reference.*Enter a value; it is blank on this row/)).toBeTruthy();
   expect(records('customers')).toHaveLength(0);
 
@@ -67,7 +67,7 @@ it('takes an empty lender from corrected sample imports to a reviewed payment an
   await user.click(await screen.findByRole('button', { name: /Customers sample.*Pilot sample/ }));
   await screen.findByRole('heading', { name: 'Saved check results' });
   expect(csv().value).toBe(customerSample.replace('Synthetic pilot consent', ''));
-  await user.click(screen.getByRole('button', { name: 'Correct CSV' }));
+  await user.click(screen.getByRole('button', { name: 'Edit CSV' }));
   expect(document.activeElement).toBe(csv());
   await replaceCsv(customerSample);
   await saveAndCheck();

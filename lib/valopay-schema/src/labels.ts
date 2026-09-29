@@ -36,6 +36,8 @@ export const valueLabels: Readonly<Record<string, string>> = {
   MANDATE_LIMIT_EXCEEDED: "Mandate limit exceeded", BANK_UNAVAILABLE: "Bank unavailable",
   PROVIDER_ERROR: "Provider error", TIMEOUT_UNKNOWN: "Outcome unknown",
   DUPLICATE: "Duplicate instruction", CUSTOMER_DISPUTED: "Customer disputed the debit", UNKNOWN: "Unclassified failure",
+  // Import batches, Data sources, Data retention and Team and access.
+  committed: "Imported", awaiting_review: "Waiting for review",
 };
 
 /** A stored value in words: its label, or the value spelled out ("pending_review" as "Pending review"). */

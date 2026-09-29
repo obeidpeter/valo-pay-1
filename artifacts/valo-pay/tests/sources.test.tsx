@@ -114,12 +114,12 @@ it("reuses a saved source mapping and opens its committed batch from a direct li
   await user.type(screen.getByLabelText("CSV content"),"source_row_id,name,reference,consentProvenance\nrow-1,Sample customer,MAP-C-001,Synthetic consent");
   await user.click(screen.getByRole("button",{name:"Save and check batch"}));
   await screen.findByRole("heading",{name:"Source quality checks"});
-  await user.click(screen.getByRole("button",{name:"Commit checked batch"}));
-  await screen.findByRole("heading",{name:"Import complete"});
+  await user.click(screen.getByRole("button",{name:"Import checked batch"}));
+  await screen.findByRole("heading",{name:"Batch imported"});
   const batch=api.state().records.find(r=>r.kind==='import-batches')!;
   expect(batch.data.sourceQuality.profileId).toBe(profile.id);
   cleanup();renderApp(`/imports?batch=${batch.id}`);
-  await screen.findByRole("heading",{name:"Import complete"});
+  await screen.findByRole("heading",{name:"Batch imported"});
   expect((screen.getByLabelText("Source batch ID") as HTMLInputElement).value).toBe("batch-001");
 });
 

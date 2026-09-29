@@ -137,7 +137,7 @@ describe('CSV amount units', () => {
     await user.paste('source_row_id,reference,customerId,amount,ccy,source,eventId\no1,BATCH-JPY-1,DEMO-C1001,"1,000",JPY,webhook,evt-b-j1\no2,BATCH-USD-1,DEMO-C1001,10.00,usd,webhook,evt-b-u1\no3,BATCH-NGN-1,DEMO-C1001,10.00,NGN,webhook,evt-b-n1\no4,BATCH-NGN-2,DEMO-C1001,5.00,,webhook,evt-b-n2');
     await user.click(screen.getByRole('button', { name: 'Save and check batch' }));
     let results = await screen.findByRole('region', { name: 'Saved batch results' });
-    const rowsShown = async () => [...(await within(results).findByText('Converted amounts · first rows')).parentElement!.querySelectorAll('p')].map(row => row.textContent);
+    const rowsShown = async () => [...(await within(results).findByText('Converted amounts in the first rows')).parentElement!.querySelectorAll('p')].map(row => row.textContent);
     // The currency column is found as the service finds it: a column the mapping leaves out names its own field, so ccy is no currency until mapped.
     expect(await rowsShown()).toEqual(['Row 2: ₦1,000.00', 'Row 3: ₦10.00', 'Row 4: ₦10.00', 'Row 5: ₦5.00']);
     await user.selectOptions(screen.getByLabelText('ccy'), 'currency');
@@ -147,8 +147,8 @@ describe('CSV amount units', () => {
     await waitFor(async () => expect((await rowsShown())[0]).toBe('Row 2: JPY\u00a01,000'));
     expect(await rowsShown()).toEqual(['Row 2: JPY\u00a01,000', 'Row 3: USD\u00a010.00', 'Row 4: ₦10.00', 'Row 5: ₦5.00']);
     expect(within(results).getByText(/source total$/).textContent).toBe('4 source rows · ₦15.00, JPY\u00a01,000 (1 row) and USD\u00a010.00 (1 row) source total');
-    await user.click(screen.getByRole('button', { name: 'Commit checked batch' }));
-    await screen.findByRole('heading', { name: 'Import complete' });
+    await user.click(screen.getByRole('button', { name: 'Import checked batch' }));
+    await screen.findByRole('heading', { name: 'Batch imported' });
     results = screen.getByRole('region', { name: 'Saved batch results' });
     expect(await rowsShown()).toEqual(['Row 2: JPY\u00a01,000', 'Row 3: USD\u00a010.00', 'Row 4: ₦10.00', 'Row 5: ₦5.00']);
     expect(within(results).getByText(/newly imported total$/).textContent).toBe('4 newly imported rows · ₦15.00, JPY\u00a01,000 (1 row) and USD\u00a010.00 (1 row) newly imported total');

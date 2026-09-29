@@ -141,7 +141,7 @@ test("following a link to a page low in the list brings its entry into view in t
   test.skip(info.project.name.startsWith("mobile"), "The sidebar is the desktop's navigation.");
   await page.goto("/imports");
   await settle(page, "Import batches");
-  await page.getByRole("link", { name: "Manage source schedules, mappings and totals" }).click();
+  await page.getByRole("link", { name: "Open Data sources" }).click();
   await settle(page, "Data sources");
   await expectCurrentPageInView(page, "Data sources");
 });
