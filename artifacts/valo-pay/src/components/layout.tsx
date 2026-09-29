@@ -124,6 +124,7 @@ function NavLinks({ location, spacious = false, onNavigate, pending = 0 }: { loc
   const id = useId();
   const { workspace } = useWorkspace();
   const [filter, setFilter] = useState('');
+  const searchBox = useRef<HTMLInputElement>(null);
   const normalise = (value: string) => value.toLocaleLowerCase().replace(/[-&]/g, ' ').replace(/\s+/g, ' ').trim();
   const query = normalise(filter);
   const groups = navGroups.map(group => ({ ...group, items: group.items.filter(item =>
@@ -133,11 +134,14 @@ function NavLinks({ location, spacious = false, onNavigate, pending = 0 }: { loc
   const pageCount = groups.reduce((count, group) => count + group.items.length, 0);
   return (
     <>
-      <div className="mb-3 space-y-1">
-        <label htmlFor={`${id}-find-page`} className="block px-1 text-xs font-medium">Find a page</label>
-        <input id={`${id}-find-page`} type="search" value={filter} onChange={event => setFilter(event.target.value)} onKeyDown={event => { if (event.key === 'Escape' && filter) { event.stopPropagation(); setFilter(''); } }} placeholder="Try payments or payroll" className="min-h-10 w-full rounded-lg border bg-background px-3 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" />
-        {query && <p role="status" className="px-1 text-xs text-muted-foreground">{pageCount} {pageCount === 1 ? 'page' : 'pages'} found. This searches page names, not records.</p>}
-        {query && <button type="button" onClick={() => setFilter('')} className="min-h-9 px-1 text-xs font-medium underline">Clear page search</button>}
+      <div className="mb-3">
+        <label htmlFor={`${id}-find-page`} className="mb-1 block px-1 text-xs font-medium">Find a page</label>
+        <input ref={searchBox} id={`${id}-find-page`} type="search" value={filter} onChange={event => setFilter(event.target.value)} onKeyDown={event => { if (event.key === 'Escape' && filter) { event.stopPropagation(); setFilter(''); } }} placeholder="Try payments or payroll" className="min-h-10 w-full rounded-lg border bg-background px-3 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" />
+        {/* Kept on the page while empty, since a screen reader announces a live region's changes, not its arrival: polite
+            and whole like a status, without a second status role beside the page's own. Empty, its margin adds no space. */}
+        <p aria-live="polite" aria-atomic="true" className="mt-1 px-1 text-xs text-muted-foreground">{query && `${pageCount} ${pageCount === 1 ? 'page' : 'pages'} found. This searches page names, not records.`}</p>
+        {/* Clearing removes this button, so focus goes back to the search rather than falling to the page or the drawer. */}
+        {query && <button type="button" onClick={() => { setFilter(''); searchBox.current?.focus(); }} className="mt-1 min-h-9 px-1 text-xs font-medium underline">Clear page search</button>}
       </div>
       {groups.map((group, index) => (
         <div key={group.id} role="group" aria-labelledby={`${id}-${group.id}`} className="space-y-0.5">
@@ -269,7 +273,10 @@ export function Layout({ children }: { children: ReactNode }) {
   const pageTitle = navItems.find(n => n.href === location)?.label || (location.startsWith('/cases/') ? 'Case handling' : 'Customer timeline');
   const baseRoute = location.startsWith('/cases/') ? '/exceptions' : location.startsWith('/customers/') ? '/customers' : location;
   const cashView = new URLSearchParams(search).get('view');
-  const helpTopic: HelpTopicId = baseRoute === '/cash-desk' && ['accounting', 'vat', 'payroll'].includes(cashView || '') ? cashView as HelpTopicId : helpTopics[baseRoute] || 'start';
+  // A Cash Desk section has a guide of its own, and its help returns to that section rather than to the first.
+  const cashSection = baseRoute === '/cash-desk' && ['accounting', 'vat', 'payroll'].includes(cashView || '') ? cashView as HelpTopicId : null;
+  const helpTopic: HelpTopicId = cashSection || helpTopics[baseRoute] || 'start';
+  const helpReturn = cashSection ? `${baseRoute}?view=${cashSection}` : baseRoute;
   const [printedAt, setPrintedAt] = useState(() => formatDate(new Date().toISOString()));
   useEffect(() => {
     const stamp = () => setPrintedAt(formatDate(new Date().toISOString()));
@@ -365,7 +372,7 @@ export function Layout({ children }: { children: ReactNode }) {
             <p aria-live="polite" className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs"><span>{workspace?.accessMode === 'staff' ? 'Role' : 'Demo role'}: <strong className="font-semibold">{workspace?.role || 'Loading…'}</strong></span>{lender?.mode && <span>Mode: <strong className="font-semibold">{lender.mode}</strong></span>}<span className="text-muted-foreground">Times in WAT</span></p>
           </div>
           <div className="console-content p-4 sm:p-6 md:p-8 max-w-[1440px] mx-auto print:max-w-none print:p-0" aria-busy={isLoading && !workspace}>
-            {!embedded && <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-b pb-3 text-xs print:hidden"><p className="text-muted-foreground">{pageDescriptions[baseRoute]}</p><ContextualHelp topic={helpTopic} returnTo={baseRoute} /></div>}
+            {!embedded && <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-b pb-3 text-xs print:hidden"><p className="text-muted-foreground">{pageDescriptions[baseRoute]}</p><ContextualHelp topic={helpTopic} returnTo={helpReturn} /></div>}
             {/* Print only: the provenance the screen's banner and sidebar carried. */}
             <div className="hidden print:block mb-6 border-b pb-3">
               <div className="flex items-baseline justify-between gap-4 text-sm">
