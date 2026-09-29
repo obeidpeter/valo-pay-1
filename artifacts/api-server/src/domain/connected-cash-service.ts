@@ -1,5 +1,6 @@
 import { watMonth } from "./calendar";
 import { makeRecord, touch } from "./records";
+import { permissionActive } from "./connected-permission-validity";
 import type {
   ActionResult,
   Context,
@@ -74,14 +75,15 @@ function authoritySnapshot(
       (r) =>
         r.merchantId === state.merchant.id &&
         r.kind === "connected-consents" &&
-        r.status === "active" &&
         r.data.purpose === purpose &&
         r.data.subjectId === "sme" &&
         r.data.entityId === entityScope(state).legalEntityId &&
-        Date.parse(String(r.data.validFrom ?? r.createdAt)) <= at &&
-        Date.parse(String(r.data.expiresAt)) > at &&
-        Number.isSafeInteger(r.data.version) &&
-        Number(r.data.version) > 0,
+        permissionActive({
+          status: r.status,
+          validFrom: r.data.validFrom ?? r.createdAt,
+          expiresAt: r.data.expiresAt,
+          version: r.data.version,
+        }, now),
     );
     if (grants.length !== 1) return undefined;
     const grant = grants[0]!;

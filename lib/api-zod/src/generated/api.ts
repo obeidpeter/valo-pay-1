@@ -333,7 +333,7 @@ export const CreateRecordBody = zod.object({
   "reference": zod.string().max(createRecordBodyReferenceMax).optional(),
   "amountKobo": zod.number().int().min(createRecordBodyAmountKoboMin).optional(),
   "customerId": zod.string().max(createRecordBodyCustomerIdMax).optional(),
-  "data": zod.record(zod.string(), zod.unknown()).optional().describe('A record\'s data: the fields the kind\'s schema declares, and anything else a caller stored.')
+  "data": zod.record(zod.string(), zod.unknown()).optional().describe('Per-kind fields validated by the shared record schema. Commercial design-partner terms may supply discountStartDate and fullPriceStartDate as first-of-month dates, discountTermsReference and signedFullPriceTerms. The service alone records discountReview attribution when signed dates are saved. Legacy records without reviewed dates remain readable but cannot issue a new design-partner invoice.')
 }).describe('A new record: only the name is required, and it cannot be empty; the kind\'s default status applies when none is given. A status is at most 100 characters, a reference 200 and a customerId 100.')
 
 export const CreateRecordResponse = zod.object({
@@ -399,7 +399,7 @@ export const UpdateRecordBody = zod.object({
   "reference": zod.string().max(updateRecordBodyReferenceMax).optional(),
   "amountKobo": zod.number().int().min(updateRecordBodyAmountKoboMin).optional(),
   "customerId": zod.string().max(updateRecordBodyCustomerIdMax).optional(),
-  "data": zod.record(zod.string(), zod.unknown()).optional().describe('A record\'s data: the fields the kind\'s schema declares, and anything else a caller stored.'),
+  "data": zod.record(zod.string(), zod.unknown()).optional().describe('Per-kind update fields, merged with the stored record after the expectedUpdatedAt check. Commercial date edits are reviewed by the authorised writer and restamp discountReview on the service. A client cannot supply different review attribution. Issued invoice records are immutable.'),
   "expectedUpdatedAt": zod.string().min(1).describe('Required: the updatedAt of the record as the edit read it. A request without it is refused (400, naming it); a record changed since is 409. Compared as an instant.')
 }).describe('The fields to change on a record, with the version they were made on (expectedUpdatedAt, required); omitted fields keep their values. In data, a field sent as null is removed. A name cannot be empty, and a status, reference or customerId is bounded as a new record\'s is.')
 
@@ -643,7 +643,7 @@ export const GetReportsResponse = zod.object({
   "unit": zod.string(),
   "detail": zod.string()
 }).describe('A named measurement with its unit and the basis it was derived from.')),
-  "billing": zod.record(zod.string(), zod.unknown()).describe('A record\'s data: the fields the kind\'s schema declares, and anything else a caller stored.'),
+  "billing": zod.record(zod.string(), zod.unknown()).describe('Billing statement and invoice history. Additive pricingReady/pricingExplanation and nextInvoicePricingReady/nextInvoicePricingExplanation distinguish a statement or next invoice held for review. When signed design-partner discount dates are unreviewed, totalKobo and revenue-derived unitEconomics values are null, not zero; existing issued invoices are unchanged. New invoice issuance returns 409 until Finance or Admin records the reviewed monthly contract dates and signed agreement reference. Older responses may omit this metadata.'),
   "experiment": zod.record(zod.string(), zod.unknown()).describe('A record\'s data: the fields the kind\'s schema declares, and anything else a caller stored.'),
   "operational": zod.record(zod.string(), zod.unknown()).describe('A record\'s data: the fields the kind\'s schema declares, and anything else a caller stored.'),
   "closes": zod.array(zod.object({

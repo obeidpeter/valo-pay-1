@@ -2,7 +2,7 @@
 
 What the Replit deployment runs, what holds a release back, what Replit Autoscale means for the work the API process does on its own, and the two ways to run scheduled daily closes on time. The owner chooses the deployment type in Replit's publishing settings; nothing in this repository changes it.
 
-The latest verified live build is PR #76 (`9054e53 2026-09-29T07:44:52.966Z`), checked on 29 September 2026. Workflow recovery and durable export cleanup were deployed with PRs #71–#72; migration 013 was applied and verified on the sandbox service schema on 27 September. PRs #73–#76 added no migration or configuration change. This branch's additional worker-health reporting has not yet been deployed; use [build status](BUILD_STATUS.md) for dated verification and current commissioning gaps.
+The latest verified live build is PR #77 (`cd9d81c 2026-09-29T08:41:32.879Z`), checked on 29 September 2026 with advancing worker heartbeat and successful empty cleanup polls. Workflow recovery and durable export cleanup were deployed with PRs #71–#72; migration 013 was applied and verified on the sandbox service schema on 27 September. PRs #73–#77 added no migration or configuration change. Use [build status](BUILD_STATUS.md) for dated verification and current commissioning gaps. The subsequent [refactoring candidate](refactor-2026-09-29/README.md) remains undeployed; read its prospective billing compatibility and reversal conditions before releasing it.
 
 ## What is deployed
 

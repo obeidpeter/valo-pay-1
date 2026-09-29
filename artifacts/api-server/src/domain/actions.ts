@@ -10,7 +10,7 @@ import {
   currencyOf, heldBatchToConfirm, identityExceptionHeld, paymentRefunded, paymentReversed, reconcile, recordPaymentRefund, refreshHeldEvidence, reinstateAllocation, releaseDispute, releaseDuplicateHold, rememberRejectedMatch, reportsReversal,
   settlePaymentStatus, supersedeAllocation, supersededByReview, withdrawPayerIdentification,
 } from "./reconciliation";
-import { resolveUnknownCheckout } from "./connected";
+import { resolveUnknownCheckout } from "./connected-checkout";
 import { buildReports } from "./reports";
 import { buildCloseReport, closeSchedule, followingCloseInstant, openingSnapshot, owedCloseDates, scheduledCloseBusinessDate, storedCloseCursor } from "./close";
 import { watDate } from "./calendar";

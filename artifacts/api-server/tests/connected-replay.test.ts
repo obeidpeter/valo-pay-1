@@ -96,6 +96,17 @@ for (const change of ["mapping", "closed_period", "recorded_receipt"] as const) 
   checks += 2;
   denied(() => assertConnectedReplayAllowed(f.state, { ...operations, role: "Read-only" }, "credit.assess", saved), 403);
 }
+{
+  const f = fixture();
+  f.grant("account_read", false);
+  const grant = f.grant("credit_assessment", false);
+  const saved = f.credit();
+  const before = structuredClone(saved);
+  grant.data.validFrom = "2026-09-27T10:00:00.000Z";
+  denied(() => assertConnectedReplayAllowed(f.state, operations, "credit.assess", saved), 403);
+  assert.deepEqual(saved, before, "withholding a receipt preserves its immutable original result");
+  checks++;
+}
 for (const action of ["cash.initialize", "cash.forecast", "cash.vat.export"]) {
   const f = fixture();
   if (action !== "cash.initialize") f.cash("cash.initialize");

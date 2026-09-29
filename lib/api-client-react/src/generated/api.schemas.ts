@@ -277,6 +277,7 @@ export interface RecordInput {
   amountKobo?: number;
   /** @maxLength 100 */
   customerId?: string;
+  /** Per-kind fields validated by the shared record schema. Commercial design-partner terms may supply discountStartDate and fullPriceStartDate as first-of-month dates, discountTermsReference and signedFullPriceTerms. The service alone records discountReview attribution when signed dates are saved. Legacy records without reviewed dates remain readable but cannot issue a new design-partner invoice. */
   data?: RecordData;
 }
 
@@ -294,6 +295,7 @@ export interface RecordUpdate {
   amountKobo?: number;
   /** @maxLength 100 */
   customerId?: string;
+  /** Per-kind update fields, merged with the stored record after the expectedUpdatedAt check. Commercial date edits are reviewed by the authorised writer and restamp discountReview on the service. A client cannot supply different review attribution. Issued invoice records are immutable. */
   data?: RecordData;
   /**
      * Required: the updatedAt of the record as the edit read it. A request without it is refused (400, naming it); a record changed since is 409. Compared as an instant.
@@ -540,6 +542,7 @@ export interface ImportResult {
  */
 export interface Report {
   metrics: Metric[];
+  /** Billing statement and invoice history. Additive pricingReady/pricingExplanation and nextInvoicePricingReady/nextInvoicePricingExplanation distinguish a statement or next invoice held for review. When signed design-partner discount dates are unreviewed, totalKobo and revenue-derived unitEconomics values are null, not zero; existing issued invoices are unchanged. New invoice issuance returns 409 until Finance or Admin records the reviewed monthly contract dates and signed agreement reference. Older responses may omit this metadata. */
   billing: RecordData;
   experiment: RecordData;
   operational: RecordData;

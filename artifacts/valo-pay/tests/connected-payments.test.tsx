@@ -39,6 +39,8 @@ it("walks through authorisation, unconfirmed browser return and a canonical rece
       api.state().records.find((r) => r.kind === "connected-intents")?.status,
     ).toBe("pending"),
   );
+  expect(screen.getByRole("heading", { name: "Await a verified receipt" })).toBeTruthy();
+  expect(within(screen.getByRole("list", { name: "Payment steps" })).getByText("3. Verified receipt").closest("li")!.textContent).not.toContain("Recorded");
   expect(
     api
       .state()
@@ -50,6 +52,8 @@ it("walks through authorisation, unconfirmed browser return and a canonical rece
     screen.getByRole("button", { name: "Simulate confirmed receipt" }),
   );
   await screen.findByRole("link", { name: "View reconciliation" });
+  expect(screen.getByRole("heading", { name: "Receipt recorded for reconciliation" })).toBeTruthy();
+  expect(within(screen.getByRole("list", { name: "Payment steps" })).getByText("3. Verified receipt").closest("li")!.textContent).toContain("Recorded");
   expect(
     api
       .state()

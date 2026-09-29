@@ -10,6 +10,7 @@ import type { Context, DomainState, RecordOf, TypedRecord, ValopayRecord } from 
 import { addBusinessDays, watDate } from "./calendar";
 import { countedAttempts, minimumTicketKobo, policySummary } from "./policy-engine";
 import { exceptionActionFields, exceptionReviewSubjectChanged } from './exception-integrity';
+import { discountDateProblem, reviewedDiscount } from './commercial-terms';
 
 const roleSet = new Set<string>(roles);
 const editable = new Set<string>(editableKinds);
@@ -390,6 +391,15 @@ export function validateRecord(
   }
   if (["evidence", "experiments"].includes(kind)) requireRole(ctx, ["Admin"]);
   if (["commercial", "costs", "settlement-batches"].includes(kind)) requireRole(ctx, ["Admin", "Finance"]);
+  if (kind === 'commercial') {
+    if (!isDeepStrictEqual(data.discountReview, existing?.data.discountReview)) throw new Error('The discount review identity is recorded by the service and cannot be supplied or edited.');
+    const problem = discountDateProblem(data);
+    if (problem) throw new Error(problem);
+    const reviewed = reviewedDiscount(data, ctx);
+    const pricingKeys = ['signed', 'signedFullPriceTerms', 'designPartner', 'discountStartDate', 'fullPriceStartDate', 'discountTermsReference'];
+    if (reviewed && (!existing?.data.discountReview || pricingKeys.some(key => !isDeepStrictEqual(data[key], existing?.data[key])))) data.discountReview = reviewed;
+    else if (!reviewed) delete data.discountReview;
+  }
   // SCH-04: the business calendar decides when collections run, so only the roles that run them maintain it.
   if (kind === "calendar") requireRole(ctx, ["Admin", "Operations"]);
   // MEA-05: a fortnightly review is recorded by its reviewer at the service's time; neither is typed in.

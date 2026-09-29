@@ -98,6 +98,96 @@ try {
   const q = (path: string, merchantId = lender) => `${path}${path.includes("?") ? "&" : "?"}merchantId=${merchantId}`;
   const act = async (data: Record<string, unknown>, merchantId = lender) => ok(await call(q("/v1/actions", merchantId), "POST", { reason: "Contract check of a synthetic action", ...data }, { key: key() }));
 
+  // ---- BIL-02: reviewed contract dates survive real transport, persistence and later corrections ----
+  // Separate synthetic workspace: these invoices must not alter the contract journey's
+  // retained-request fixtures below. All answers still pass the OpenAPI assertions in call().
+  {
+    const billingCookie = `valopay_sandbox=${randomBytes(32).toString("hex")}`;
+    const billingWorkspace = ok(await call("/v1/workspace", "GET", undefined, { cookie: billingCookie }));
+    const billingLender = billingWorkspace.merchants[0].id as string;
+    cleanupWorkspaces.add(await workspaceOf(billingLender));
+    const bq = (path: string) => q(path, billingLender);
+    const billingCall = (path: string, method = "GET", body?: unknown) =>
+      call(bq(path), method, body, { cookie: billingCookie, ...(method === "GET" ? {} : { key: key() }) });
+    const billingAct = (action: string, data: Record<string, unknown> = {}, recordId?: string) =>
+      billingCall("/v1/actions", "POST", { action, data, recordId, reason: "Verify reviewed synthetic billing terms and their preserved invoice history." });
+    const { previousMonth, monthOf } = await import("../src/domain/billing");
+    const currentPeriod = monthOf(new Date().toISOString());
+    const secondPeriod = previousMonth(`${currentPeriod}-15T12:00:00.000Z`);
+    const firstPeriod = previousMonth(`${secondPeriod}-15T12:00:00.000Z`);
+    const licenceKobo = 1_500_000;
+    let terms = ok(await billingCall("/v1/records/commercial", "POST", {
+      name: "Reviewed contract fixture", status: "signed", reference: "SYN-BILLING-TERMS",
+      data: { signed: true, signedFullPriceTerms: true, designPartner: true, licenceKobo, effectiveDate: `${firstPeriod}-01` },
+    }));
+    assert.equal(terms.data.discountReview, undefined, "legacy terms receive no invented dates or review");
+    const counts = async () => (await pool.query("SELECT kind,count(*)::int AS count FROM valopay_records WHERE merchant_id=$1 GROUP BY kind ORDER BY kind", [billingLender])).rows;
+    const beforeRefusal = await counts();
+    const blocked = await billingAct("issue_invoice", { period: firstPeriod });
+    assert.equal(blocked.status, 409, JSON.stringify(blocked.data));
+    assert.deepEqual(await counts(), beforeRefusal, "a refused invoice changes neither financial records nor audit evidence (its refusal journal is separate)");
+
+    const dates = { discountStartDate: `${firstPeriod}-01`, fullPriceStartDate: `${currentPeriod}-01`, discountTermsReference: "SYN-REVIEWED-AGREEMENT" };
+    ok(await billingAct("set_role", { role: "Read-only" }));
+    assert.equal((await billingCall(`/v1/records/commercial/${terms.id}`, "PATCH", { expectedUpdatedAt: terms.updatedAt, data: dates })).status, 403,
+      "read-only access cannot review commercial dates");
+    ok(await billingAct("set_role", { role: "Finance" }));
+    const forged = await billingCall(`/v1/records/commercial/${terms.id}`, "PATCH", {
+      expectedUpdatedAt: terms.updatedAt,
+      data: { ...dates, discountReview: { reviewedBy: "Someone else", reviewedAt: new Date().toISOString(), ...dates, termsReference: dates.discountTermsReference } },
+    });
+    assert.equal(forged.status, 400, JSON.stringify(forged.data));
+    assert.match(forged.data.error, /review identity/);
+    terms = ok(await billingCall(`/v1/records/commercial/${terms.id}`, "PATCH", { expectedUpdatedAt: terms.updatedAt, data: dates }));
+    assert.equal(terms.data.discountReview.reviewedBy, "Sandbox Finance");
+    assert.equal(terms.data.discountReview.reviewedAt, terms.updatedAt, "the database transaction supplies the reviewer time");
+    const reviewed = structuredClone(terms.data.discountReview);
+    terms = ok(await billingCall(`/v1/records/commercial/${terms.id}`, "PATCH", { expectedUpdatedAt: terms.updatedAt, name: "Reviewed contract fixture, renamed" }));
+    assert.deepEqual(terms.data.discountReview, reviewed, "PATCH without data or review preserves the recorded review");
+    assert.deepEqual(ok(await billingCall("/v1/records/commercial")).items.find((row: any) => row.id === terms.id).data.discountReview, reviewed,
+      "the reviewed terms are durable and survive a fresh API read");
+
+    // One canonical historical synthetic receipt, stored through the real scoped
+    // repository. Later correction and both invoices run through HTTP commands.
+    const fixtureRequest = { headers: { cookie: billingCookie }, secure: false, auth: Object.assign(() => ({ userId: null }), { [Symbol.for("@clerk/express.auth")]: true }) } as any;
+    const allocationId = await store.inWorkspace(fixtureRequest, { cookie() {} } as any, async (ctx) => {
+      const state = await store.loadState(ctx, billingLender);
+      const customer = state.records.find((record) => record.kind === "customers")!;
+      const due = makeRecord(state, "due-items", { name: "Synthetic billed instalment", status: "paid", reference: "SYN-BILLING-DUE", customerId: customer.id, amountKobo: 2_500_000,
+        createdAt: ctx.now, data: { dueDate: `${firstPeriod}-10`, owner: "lms", outstandingKobo: 0 } });
+      const payment = makeRecord(state, "payments", { name: "Synthetic historical direct debit", status: "allocated", reference: "SYN-BILLING-RECEIPT", customerId: customer.id, amountKobo: due.amountKobo,
+        createdAt: ctx.now, data: { channel: "direct_debit", collectionStatus: "succeeded", settlementStatus: "settled", observedAt: `${firstPeriod}-10T08:00:00.000Z`, settledAt: `${firstPeriod}-10T08:00:00.000Z`, reversalStatus: "none", refundStatus: "none", allocatedKobo: due.amountKobo, dueItemId: due.id } });
+      const allocation = makeRecord(state, "allocations", { name: "R1", status: "confirmed", customerId: customer.id, amountKobo: due.amountKobo, createdAt: ctx.now,
+        data: { paymentId: payment.id, dueItemId: due.id, rule: "R1", confidence: "certain", automatic: true } });
+      store.appendAudit(state, ctx, "test.billing.fixture", payment.id, "Created labelled synthetic canonical billing evidence.");
+      await store.saveState(ctx, state);
+      return allocation.id;
+    });
+    const firstInvoice = ok(await billingAct("issue_invoice", { period: firstPeriod })).record;
+    assert.equal(firstInvoice.data.designPartnerDiscount.rate, 0.5);
+    assert.equal(firstInvoice.data.usageLines.length, 1);
+    assert.equal(firstInvoice.data.usageLines[0].chargedKobo, 3_750);
+    assert.deepEqual(firstInvoice.data.terms.discountReview, reviewed);
+    const originalInvoice = structuredClone(firstInvoice);
+    const previousTermsVersion = terms.updatedAt;
+    terms = ok(await billingCall(`/v1/records/commercial/${terms.id}`, "PATCH", {
+      expectedUpdatedAt: previousTermsVersion, data: { fullPriceStartDate: `${secondPeriod}-01`, discountTermsReference: "SYN-REVIEWED-AGREEMENT-AMENDED" },
+    }));
+    assert.equal(terms.data.discountReview.fullPriceStartDate, `${secondPeriod}-01`);
+    assert.notEqual(terms.data.discountReview.reviewedAt, reviewed.reviewedAt);
+    assert.equal((await billingCall(`/v1/records/commercial/${terms.id}`, "PATCH", { expectedUpdatedAt: previousTermsVersion, name: "Stale change" })).status, 409);
+    ok(await billingAct("review_allocation", { correct: false }, allocationId));
+    const secondInvoice = ok(await billingAct("issue_invoice", { period: secondPeriod })).record;
+    assert.equal(secondInvoice.data.designPartnerDiscount.rate, 0, "the newly reviewed dates apply to the next invoice");
+    assert.equal(secondInvoice.data.adjustments.length, 1);
+    assert.deepEqual([secondInvoice.data.adjustments[0].originalInvoiceId, secondInvoice.data.adjustments[0].discountRate, secondInvoice.data.adjustments[0].kobo],
+      [firstInvoice.id, 0.5, -3_750], "the correction refunds the original discounted charge, never the new public price");
+    const savedInvoices = ok(await billingCall("/v1/records/invoices")).items;
+    assert.deepEqual(savedInvoices.find((row: any) => row.id === firstInvoice.id), originalInvoice, "changed terms and a later adjustment never rewrite an issued invoice");
+    ok(await billingAct("set_role", { role: "Admin" }));
+    console.log("Billing HTTP/PostgreSQL contract checks passed: service review attribution, omitted PATCH fields, role/version refusals, atomic invoice refusal, amended future pricing and immutable historical-rate corrections.");
+  }
+
   // ---- The sandbox team directory has the lenders its contract requires ----
   const team = ok(await call("/v1/team"));
   assert.equal(team.mode, "sandbox");

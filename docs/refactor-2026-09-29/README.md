@@ -1,0 +1,59 @@
+# Refactoring programme · 29 September 2026
+
+This is the engineering release record for branch `codex/comprehensive-refactor-2026-09-29`, starting from merged PR #77, revision `cd9d81c665ca08c29429e26bb3ed0d78863b5966` in `obeidpeter/valo-pay`. The initial checkout was clean and no open pull request was returned. The latest verified publication remains PR #77; this candidate is **not deployed** and advances no live gate.
+
+## Scope and decisions
+
+The [repository assessment](repository-assessment.md) dispositions every area in the mandate with concrete code pointers. Existing persistence, reconciliation, money, recovery, identity, worker and security components were retained where inspection and fresh characterisation supported them. A repository-wide refactor does not require rewriting sound files. The stack remains the TypeScript/Node modular monolith with Express, Zod, Drizzle/PostgreSQL and React/Vite. No dependency, hosting configuration, public route prefix, authoritative storage cutover or SQL migration changed.
+
+All five controlled Word documents were read. The [source notes](source-status-notes.md) preserve their dated claims and seven conflicts, including deployment currency, migration 013, F05/F14 scope and legacy v1 unkeyed writes. The [matrix](traceability.json) retains exactly 251 requirements (171 legacy and 80 Connected), F01–F18 and 14 gates. Its source locators and hashes identify private originals; concise original summaries avoid republishing the full business documents. Code pointers, executed tests, deployment and independent acceptance are separate. The validator runs in the offline runner and CI's pure checks.
+
+| Package | Classification and concrete result | Contract preserved |
+| --- | --- | --- |
+| RF-BACKEND | Behaviour-preserving capability extraction, current-permission bug fix and executable boundary control. Core imports checkout recovery through a narrow module; consents, context and revision handling have explicit ownership. Effective-time/version validity is shared by purpose-specific consumers. | Existing exports and absent-validFrom fallback remain. Future or invalid grant versions cannot disclose/use retained credit evidence. No grant is manufactured. Checkout transitions retain their characterised structure. |
+| RF-BILLING | Separately approved behaviour change: the owner instructed “Use reviewed contract dates.” Service-attributed monthly discount dates replace the fixed 2027 calendar rule for future invoices. Legacy/stale/malformed review evidence blocks new pricing with actionable guidance. | Existing invoices and their correction rates remain immutable. Ordinary signed terms retain full-price behaviour. No agreement receives assumed dates, no invoice is rewritten and no recovery fee is activated. |
+| RF-EXPERIENCE | Cash URL navigation/draft preservation, payment-state progress, print-safe evidence disclosures, role-specific guidance, keyboard-scroll tables and missing credit/pricing evidence rendered as unavailable. | Saved server state remains financial authority. Original recovery identities, independent approval and existing safe forms remain. No optimistic payment or permission success. |
+| RF-TRACEABILITY | Executable source/code/test catalogue, full repository disposition, current release/runbook corrections and proposed controlled-document revision triggers. | Original Word documents, historical audits, source IDs, release gates and dated financial assumptions remain unchanged. |
+
+See the [backend decision record](backend-package.md), [design rationale](../design/console.md), [frontend contract](../frontend-contract.md) and [migration catalogue](../database-migrations.md). These are implemented improvements, not new live provider products.
+
+## Verification provenance
+
+Baseline and candidate use the same local Windows workstation, Node 24.19, pnpm 10.26.1, installed locked dependencies and a disposable loopback PostgreSQL 16.14 instance. CI/deployment retain their pinned runtime; local results do not substitute for those jobs. Fixtures are repository synthetic data, not customer records. Raw local logs and measurements are retained in the task's private `comprehensive-refactor-2026-09-29` evidence directory; exact candidate source identity belongs to the PR commits and CI runs. No separate lint script is configured; typechecks, AST boundary checks and documentation validators run instead.
+
+| Check / command | Baseline | Candidate evidence |
+| --- | --- | --- |
+| `PORT=3000 BASE_PATH=/ pnpm run build` (environment set using host syntax) | Passed full typechecks and all builds. | Passed; final source and CI verification recorded before release review. |
+| `pnpm run check:contract` | Passed exact OpenAPI/client/Zod regeneration. | Optional-field descriptions regenerated; final clean regeneration required. |
+| `node scripts/run-tests.mjs` | Passed all offline suites, including 762 UI tests in 99 files. | Combined final run recorded below after completion. |
+| `VALOPAY_RUN_INTEGRATION=1 node scripts/run-integration-tests.mjs` against disposable PostgreSQL | All 37 suites passed, including restricted runtime role, pooled RLS, concurrency, migrations and synthetic instruction recovery. | Combined final run recorded below after completion. |
+| Focused regressions | Reproduced future-start grant disclosure, null credit liquidity as zero, unreviewed future invoice acceptance and Cash section loss on reload. | Permission/replay, financial and UI checks pass. A further malformed persisted review regression reproduced a TypeError before its correction. |
+| HTTP/PostgreSQL billing contract | Existing API suite characterised baseline behaviour. | Role checks, server review attribution, partial PATCH preservation, stale versions, forged reviews, blocked invoice/no write, changed future rates and immutable original invoice/correction rates passed. |
+| `pnpm audit --audit-level=high` | Fresh advisory audit against installed lockfile. | No known vulnerabilities reported; no dependency changes. This is not an independent security assessment. |
+| `node docs/refactor-2026-09-29/validate-traceability.mjs` | New control. | Catalogue and explicit scoped evidence links pass. |
+
+Targeted UI evidence contains 97 passing tests across nine files, including 23 automated semantic accessibility cases. These checks include payment states, Cash deep links/back/drafts, print restoration, unavailable/zero values and old-report metadata compatibility. Physical devices, assistive-technology research and independent human acceptance are not inferred.
+
+## Comparable measurements
+
+Single local runs are diagnostic comparisons, not p95 service levels or statistically established improvements. The 1,000-customer/25,400-record fixture visits 2,005,600 records in whole-array filters. Baseline reconciliation/close/repeated close were 163.5/234.2/177.0 ms; CSV/JSON/PDF exports were 81.1/53.2/116.2 ms with sizes 3,169,983/4,613,733/33,074 bytes. Final values are recorded below after combined verification. Existing workload assumptions and TRD production sizing remain acceptance targets.
+
+The meaningful architecture result is reduced capability coupling: the Core action closure no longer imports the Credit and Cash coordinators. The full closure changes from 38 to 36 modules despite adding the commercial-date module; this count is not a latency claim. The final console entry is 187.73 kB (57.17 kB gzip), versus 187.59 (57.11) at baseline; Connected is 120.29 (31.89), versus 119.94 (31.82). Answers remains 278.27 (90.15). The small increase supports new guidance/navigation, not a claimed bundle reduction.
+
+## Compatibility, release and reversal
+
+The v1 schema adds optional commercial dates/reference and server-attributed review metadata, plus optional report readiness metadata. See the contract for nullable unpriced totals. Existing signed agreements remain readable and editable; no bulk backfill occurs. Admin or Finance must check the actual signed agreement and save dates/reference before issuing new design-partner invoices. Dates must be first-of-month because the existing billing model prices whole months. A mid-month negotiated price change requires a separately reviewed proration design; never move contract dates just to pass validation.
+
+Issued invoices preserve the reviewed terms at issuance. Amendments affect eligible future invoices and never alter prior totals. Linked reversals/corrections continue to use the original billed rate. New invoice creation fails before mutation if review is missing, stale or invalid. Statement revenue remains unavailable until review, while underlying receipt/cost facts remain visible.
+
+Before any shared release, review the exact candidate and passing CI, compare its source tree, confirm no unrelated host changes, retain the current release and publish the matching build/monitor together. This turn checked visible GitHub workflow and Replit hooks: no publication step is attached to this branch; private webhooks or external automation are not visible. No shared-host config or publication was changed. Recheck health/readiness, the worker heartbeat and successful cleanup poll after at least 90 seconds, and inspect commercial guidance using synthetic records. Keep the scheduler and all independent gates unchanged. Migration 013 is already applied on the sandbox service; do not promote 010–012.
+
+Reversal is not a financial undo. Additive review fields need no database rollback and must be retained. Older code uses the calendar-year billing rule: do not issue new design-partner invoices on that code after reverting the application. Withhold invoice issuance through reviewed operational access until a compatible forward fix or separately reviewed release is available; no automatic product toggle is invented here. Preserve issued invoices, audit events, journals and cleanup tombstones. Existing external effects would require their own authorised investigation/compensation, never a replay justified by source rollback.
+
+## Remaining acceptance and next decision
+
+No critical known defect in the changed package is accepted as a residual risk; combined checks must pass before it is called complete. Broader source requirements remain partial/unverified where the matrix says so. In particular, enforcing keys on legacy unkeyed v1 consumers needs a versioned compatibility migration; isolated financial projection and journal rehearsals do not prove production conservation cutover or independent hosted custody.
+
+Provider accounts/keys and contractual access, independent alert delivery/monitoring, scheduler commissioning, hosted backup/object/key recovery, genuine separate-person approvals, legal acceptance and physical-device/user research remain owned by the appropriate product, finance, provider, operations, security or research reviewer. The safe fallback remains synthetic observation with no live financial instructions. The five Word documents should receive a controlled status revision after release review, with the source conflicts resolved by their accountable owners; no historical originals or financial models are overwritten.
+
+G0, G-DATA, G-CORE, G-OB, G-A2A, G-CREDIT, G-MODEL, G-AUTO, G-ERP, G-PAYOUT, G-TAX, FUND-M9, RECOVERY and PORTABILITY remain unchanged. No live banking, validated underwriting, tax submission, hosted RPO/RTO, production peak-load result or human satisfaction claim follows from these checks. The next consequential decision is review of this candidate for merge and a separately controlled deployment.

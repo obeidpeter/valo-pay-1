@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { ScrollFrame } from "@/components/scroll-frame";
 import { formatDate } from "@/lib/formatters";
 import { Download, FileCheck2 } from "lucide-react";
 import { amount, label, Metric, saveJson, Section } from "./shared";
@@ -27,6 +28,7 @@ export function CashVatSection({
         action={
           <Button
             variant="outline"
+            aria-describedby="vat-review-help"
             disabled={
               !canOperate || !finance || !cash.permissions.erp || pending
             }
@@ -44,6 +46,12 @@ export function CashVatSection({
           </Button>
         }
       >
+        <p id="vat-review-help" className="mb-4 text-xs leading-relaxed text-muted-foreground">
+          {!finance ? "A Finance reviewer saves the review schedule after checking the evidence."
+            : !cash.permissions.erp ? "Grant accounting-draft permission in Permissions & readiness before saving this schedule."
+            : !canOperate ? "Set up the sample Cash Desk with active business-account read permission first."
+            : "Keep evidence gaps visible in the saved schedule for the accountant to resolve. This action does not file a return."}
+        </p>
         {cash.vat ? (
           <div className="space-y-5">
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -68,7 +76,7 @@ export function CashVatSection({
                 detail="Ledger control less expected balance"
               />
             </div>
-            <div className="overflow-x-auto">
+            <ScrollFrame label={`VAT invoice evidence for ${cash.vat.period}`}>
               <table className="w-full text-sm">
                 <caption className="sr-only">
                   VAT invoice evidence for {cash.vat.period}
@@ -103,7 +111,7 @@ export function CashVatSection({
                   ))}
                 </tbody>
               </table>
-            </div>
+            </ScrollFrame>
             <div className="rounded-xl border bg-secondary/30 p-4">
               <p className="text-sm font-medium">
                 {amount(cash.vat.excludedBankCreditsMinor)} of bank credits

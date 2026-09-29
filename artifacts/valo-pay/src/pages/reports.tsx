@@ -1,14 +1,16 @@
 import { CloseHistorySection } from '@/components/close-history-section';
 import { ExportJobControl } from '@/components/export-job-control';
 import { useSafePerformAction as usePerformAction } from '@/lib/safe-mutations';
-import React, { useEffect, useRef, useState, type ReactNode } from 'react';
+import React, { useEffect, useState } from 'react';
+import { EvidenceDisclosure as ReportDisclosure } from '@/components/evidence-disclosure';
+import { SectionNavigation } from '@/components/section-navigation';
 import { ScrollFrame } from '@/components/scroll-frame';
 import { EmptyRow, EmptyState } from '@/components/empty-state';
 import { Loading } from '@/components/loading';
 import { DailyCloseStatus } from '@/components/daily-close-status';
 import { useWorkspace } from '@/lib/workspace-context';
 import { useGetReports, getGetReportsQueryKey, useListRecords, getListRecordsQueryKey } from '@workspace/api-client-react';
-import { BarChart3, FileText, CheckSquare, RefreshCcw, ChevronDown } from 'lucide-react';
+import { BarChart3, FileText, CheckSquare, RefreshCcw } from 'lucide-react';
 import { PermissionButton as Button } from '@/components/permission-button';
 import { formatKobo, formatDate, formatCount, formatNumber, formatPercent, formatPercentagePoints } from '@/lib/formatters';
 import { formatWithOtherCurrencies } from '@/lib/currencies';
@@ -35,6 +37,7 @@ const count = (value: unknown) => typeof value === 'number' ? formatNumber(value
 const invoiceRows = (record: Unknown): Array<Record<string, any>> => Array.isArray(record?.invoices) ? (record!.invoices as Array<Record<string, any>>) : [];
 const adjustmentRows = (record: Unknown): Array<Record<string, any>> => Array.isArray(record?.pendingAdjustments) ? (record!.pendingAdjustments as Array<Record<string, any>>) : [];
 const billingSummaryKeys = new Set(['period', 'volumeTier', 'totalKobo', 'usageFeeKobo', 'successfulCollections', 'nextInvoicePeriod', 'pendingAdjustmentsKobo']);
+const billingReadinessKeys = new Set(['pricingReady', 'pricingExplanation', 'nextInvoicePricingReady', 'nextInvoicePricingExplanation']);
 const billingLabels: Record<string, string> = {
   period: 'Billing month', volumeTier: 'Licence plan', totalKobo: 'Statement total',
   usageRateBps: 'Usage fee rate', usageCapKobo: 'Maximum usage fee per collection', vatBps: 'VAT rate',
@@ -52,24 +55,6 @@ const checkLabels: Record<string, string> = {
   sampleMet: 'Required sample reached', analysisDateReached: 'Analysis date reached',
 };
 
-/** Long evidence stays available on demand and expands for a complete printed report. */
-function ReportDisclosure({ title, children }: { title: string; children: ReactNode }) {
-  const ref = useRef<HTMLDetailsElement>(null);
-  useEffect(() => {
-    let wasOpen: boolean | undefined;
-    const before = () => { if (ref.current) { wasOpen ??= ref.current.open; ref.current.open = true; } };
-    const after = () => { if (ref.current && wasOpen !== undefined) { ref.current.open = wasOpen; wasOpen = undefined; } };
-    window.addEventListener('beforeprint', before);
-    window.addEventListener('afterprint', after);
-    return () => { window.removeEventListener('beforeprint', before); window.removeEventListener('afterprint', after); };
-  }, []);
-  return <details ref={ref} className="group rounded-lg border bg-card">
-    <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors hover:bg-secondary/30 [&::-webkit-details-marker]:hidden">
-      {title}<ChevronDown aria-hidden="true" className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180 motion-reduce:transition-none" />
-    </summary>
-    <div className="border-t px-4 py-4">{children}</div>
-  </details>;
-}
 function renderValue(key: string, value: unknown): string {
   if (value === null || value === undefined) return 'Not available';
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
@@ -107,6 +92,9 @@ export default function ReportsPage() {
     { query: { enabled: !!merchantId, refetchInterval: 60_000, queryKey: getGetReportsQueryKey({ merchantId: merchantId!, includeCloses: 'false' as const }) } }
   );
   const { data: reports, isLoading, error: reportsError, isFetching: fetchingReports, refetch } = reportsQuery;
+  const invoiceNeedsReview = reports?.billing?.nextInvoicePricingReady === false;
+  const statementNeedsReview = reports?.billing?.pricingReady === false;
+  const pricingExplanation = (value: unknown) => typeof value === 'string' && value.trim() ? value : 'Review the design-partner discount dates in the signed commercial terms before issuing this invoice.';
   useHashTarget('daily-closes', view === 'operations' && !!merchantId && !!reports && !isLoading && !reportsError);
 
   const dailyClose = usePerformAction({
@@ -151,7 +139,7 @@ export default function ReportsPage() {
         </div>
         <div className="flex flex-wrap items-center gap-3">
           {view === 'billing' && <><ExportJobControl kind="billing" formats={['csv']} label="Export billing CSV" />
-          <Button variant="outline" className="gap-2" action="issue_invoice" onClick={() => setInvoiceDialogOpen(true)}>
+          <Button variant="outline" className="gap-2" action="issue_invoice" disabled={invoiceNeedsReview} aria-describedby={invoiceNeedsReview ? 'invoice-pricing-review' : undefined} onClick={() => setInvoiceDialogOpen(true)}>
             <FileText className="h-4 w-4" /> Issue invoice
           </Button></>}
           {view === 'operations' && <><div className="max-w-64 space-y-1">
@@ -168,10 +156,17 @@ export default function ReportsPage() {
           </Button></>}
         </div>
       </header>
-      <nav aria-label="Report views" className="flex flex-wrap gap-2 rounded-xl border bg-card p-2 print:hidden">
-        {([{ key: 'operations', label: 'Operations' }, { key: 'billing', label: 'Billing' }, { key: 'evidence', label: 'Pilot evidence' }]).map(item => <Button key={item.key} variant={view === item.key ? 'default' : 'ghost'} aria-current={view === item.key ? 'page' : undefined} onClick={() => setReportFilter('view', item.key)}>{item.label}</Button>)}
-      </nav>
-      <p className="text-sm text-muted-foreground">{view === 'operations' ? 'Current operational totals and recorded daily closes. Use the date range to compare past closing positions.' : view === 'billing' ? 'Current-period charges, issued invoices and adjustments. The billing export covers the current statement.' : 'Review the evidence needed to assess a pilot. Sample data cannot establish live performance.'}</p>
+      <SectionNavigation label="Report views" value={view} onChange={value => setReportFilter('view', value)} sections={[
+        { id: 'operations', label: 'Operations', description: 'Current operational totals and recorded daily closes. Use the date range to compare past closing positions.' },
+        { id: 'billing', label: 'Billing', description: 'Current-period charges, issued invoices and adjustments. The billing export covers the current statement.' },
+        { id: 'evidence', label: 'Pilot evidence', description: 'Review the evidence needed to assess a pilot. Sample data cannot establish live performance.' },
+      ]} />
+      {view === 'billing' && (invoiceNeedsReview || statementNeedsReview) && <div id="invoice-pricing-review" role="status" className="rounded-xl border border-warning/40 bg-warning/5 p-4 text-sm">
+        <p className="font-semibold">Commercial terms need review</p>
+        {statementNeedsReview && <p className="mt-2">Current statement: {pricingExplanation(reports?.billing?.pricingExplanation)}</p>}
+        {invoiceNeedsReview && <p className="mt-2">Next invoice: {pricingExplanation(reports?.billing?.nextInvoicePricingExplanation)}</p>}
+        <Link href="/evidence" className="mt-3 inline-flex min-h-10 items-center font-medium text-primary underline underline-offset-4">Review commercial terms in Go-live evidence</Link>
+      </div>}
       {closeResult?.merchantId === merchantId && <div role={closeResult.failed ? 'alert' : 'status'} className={`rounded-lg border p-5 text-sm ${closeResult.failed ? 'border-destructive/30 bg-destructive/5' : 'bg-card'}`}>
         <p className="font-semibold">{closeResult.failed ? 'Daily close could not be confirmed' : 'Daily close completed'}</p>
         <p className="mt-2 text-muted-foreground">{closeResult.message}{closeResult.failed && dailyClose.hasUnconfirmedOutcome && <> {KEPT_IN_OPERATIONS}</>}</p>
@@ -240,7 +235,7 @@ export default function ReportsPage() {
               </div>
               <div className="space-y-4 p-5">
                 <div className="flex flex-wrap items-end justify-between gap-4 rounded-xl bg-secondary/35 p-4">
-                  <div><p className="text-xs text-muted-foreground">Current statement total</p><p className="mt-2 text-3xl font-semibold tracking-tight tabular-nums">{typeof reports.billing?.totalKobo === 'number' ? formatKobo(reports.billing.totalKobo) : 'Not available'}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Current statement total</p><p className="mt-2 text-3xl font-semibold tracking-tight tabular-nums">{statementNeedsReview ? 'Needs review' : typeof reports.billing?.totalKobo === 'number' ? formatKobo(reports.billing.totalKobo) : 'Not available'}</p></div>
                   <div className="text-xs text-muted-foreground"><p>Period {String(reports.billing?.period || 'not available')}</p><p className="mt-1">We never hold money.</p></div>
                 </div>
                 <div className="grid grid-cols-1 gap-x-5 gap-y-3 text-sm sm:grid-cols-2">
@@ -256,7 +251,7 @@ export default function ReportsPage() {
                 </div>
                 <ReportDisclosure title="Billing rates & rules">
                   <dl className="space-y-3 text-xs">
-                    {scalarEntries(reports.billing).filter(([key]) => !billingSummaryKeys.has(key)).map(([key, value]) => (
+                    {scalarEntries(reports.billing).filter(([key]) => !billingSummaryKeys.has(key) && !billingReadinessKeys.has(key)).map(([key, value]) => (
                       <div key={key} className="grid gap-1 border-b border-border/60 pb-3 last:border-0 last:pb-0">
                         <dt className="font-medium">{billingLabels[key] || labelOf(key)}</dt>
                         <dd className="leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">{renderValue(key, value)}</dd>
@@ -266,7 +261,7 @@ export default function ReportsPage() {
                 </ReportDisclosure>
                 <ReportDisclosure title={`Statement lines · ${formatNumber(billingLines(reports.billing).length)}`}>
                   {billingLines(reports.billing).length === 0 ? (
-                    <p className="text-xs text-muted-foreground">No signed partner terms apply to this period, so there are no billable statement lines.</p>
+                    <p className="text-xs text-muted-foreground">{statementNeedsReview ? 'Statement lines are withheld until the design-partner discount dates have been reviewed. This does not mean there are no signed terms or that nothing is owed.' : 'No signed partner terms apply to this period, so there are no billable statement lines.'}</p>
                   ) : (
                     <ScrollFrame label="Statement lines" className="overflow-x-auto">
                       <table className="w-full text-xs text-left tabular-nums">
@@ -307,9 +302,10 @@ export default function ReportsPage() {
                 <ReportDisclosure title="Revenue and costs">
                   {(() => { const e = reports.billing?.unitEconomics as Record<string, any> | undefined; if (!e) return <p className="text-xs text-muted-foreground">Not available.</p>; return (
                     <div className="text-xs tabular-nums space-y-1">
-                      <p>Successful collections: {count(e.successfulCollections)}. Usage fees: {formatKobo(Number(e.usageFeeKobo || 0))}. Licence fees: {formatKobo(Number(e.licenceKobo || 0))} ({String(e.volumeTier)} plan). Recurring revenue: {formatKobo(Number(e.recurringKobo || 0))}.</p>
+                      {e.pricingReady === false && <p className="font-sans font-medium">Revenue and margin need reviewed commercial terms. Recorded collection costs remain available.</p>}
+                      <p>Successful collections: {count(e.successfulCollections)}. Usage fees: {renderValue('usageFeeKobo', e.usageFeeKobo)}. Licence fees: {renderValue('licenceKobo', e.licenceKobo)} ({String(e.volumeTier)} plan). Recurring revenue: {renderValue('recurringKobo', e.recurringKobo)}.</p>
                       <p>Collection costs: {formatKobo(Number(e.variableCostKobo || 0))}{e.estimated ? ' (estimated at ₦15 per collection)' : ' (recorded)'}. Cost per collection: {e.costPerCollectionKobo === null ? 'not available' : formatKobo(Number(e.costPerCollectionKobo))}. Plan target: {formatKobo(Number(e.planCostPerCollectionKobo || 0))}.</p>
-                      <p>Gross margin (share of revenue left after collection costs): {e.grossMargin === null ? 'not available' : percent(e.grossMargin)}. Plan target: {percent(e.planGrossMargin?.low)} to {percent(e.planGrossMargin?.high)}. Recurring revenue at an annual rate: {formatKobo(Number(e.annualisedRecurringRevenueKobo || 0))}, from licence and usage fees only.</p>
+                      <p>Gross margin (share of revenue left after collection costs): {e.grossMargin === null ? 'not available' : percent(e.grossMargin)}. Plan target: {percent(e.planGrossMargin?.low)} to {percent(e.planGrossMargin?.high)}. Recurring revenue at an annual rate: {renderValue('annualisedRecurringRevenueKobo', e.annualisedRecurringRevenueKobo)}, from licence and usage fees only.</p>
                       <p className="font-sans text-muted-foreground">{String(e.note || '')}</p>
                     </div>
                   ); })()}

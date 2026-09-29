@@ -707,6 +707,40 @@ test("revocation hides retained score without mutating audit snapshot", () => {
   assert.equal(view.assessments[0]!.permissionRestricted, true);
   assert.equal(JSON.stringify(record), snapshot);
 });
+test("a stored future permission start blocks credit inference despite an earlier creation time", () => {
+  const { state, operator } = serviceFixture();
+  state.records.find((record) => record.kind === "connected-consents")!.data.validFrom =
+    "2026-09-22T10:00:00.000Z";
+  const record = runCreditAction(state, operator, assessAction);
+  assert.equal(record.data.result.state, "blocked");
+  assert.equal(record.data.result.score, null);
+  assert.equal(record.data.result.features, null);
+});
+test("a changed permission start withholds retained credit results and refuses review", () => {
+  const { state, operator, finance } = serviceFixture();
+  const assessment = runCreditAction(state, operator, assessAction);
+  const snapshot = JSON.stringify(assessment);
+  state.records.find((record) => record.kind === "connected-consents")!.data.validFrom =
+    "2026-09-22T10:00:00.000Z";
+  const view = creditView(state, operator);
+  assert.equal(view.permissions[0]!.accountRead, false);
+  assert.equal(view.assessments[0]!.permissionRestricted, true);
+  assert.equal(view.assessments[0]!.result.score, null);
+  assert.equal(JSON.stringify(assessment), snapshot);
+  const { currentGrants: _, ...data } = reviewInput();
+  rejects(() => runCreditAction(state, finance, {
+    action: "credit.review", recordId: assessment.id,
+    reason: "Review the original synthetic assessment", data,
+  }), "REVIEW_AUTHORITY_UNAVAILABLE");
+});
+test("invalid current permission versions are withheld by the credit read model", () => {
+  const { state, operator } = serviceFixture();
+  runCreditAction(state, operator, assessAction);
+  state.records.find((record) => record.kind === "connected-consents")!.data.version = 0;
+  const view = creditView(state, operator);
+  assert.equal(view.permissions[0]!.accountRead, false);
+  assert.equal(view.assessments[0]!.permissionRestricted, true);
+});
 test("service review is append-only and role-distinct", () => {
   const { state, operator, finance } = serviceFixture();
   const assessment = runCreditAction(state, operator, assessAction);

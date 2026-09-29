@@ -34,6 +34,7 @@ export function CashPayrollSection({
           detail="Use the approved net-pay run to check the source account, other commitments, fees and buffer. Payroll calculations remain in your payroll system."
           action={
             <Button
+              aria-describedby="payroll-prepare-help"
               disabled={
                 !canOperate ||
                 !maker ||
@@ -55,6 +56,13 @@ export function CashPayrollSection({
             </Button>
           }
         >
+          <p id="payroll-prepare-help" className="mb-4 text-xs leading-relaxed text-muted-foreground">
+            {cash.payrollPlans.length > 0 ? "A funding plan already exists. Continue its review below; successful or unknown items must not be exported again."
+              : !maker ? "An Admin or Operations user prepares the plan; a different Finance reviewer checks the funding."
+              : !cash.permissions.payroll ? "Grant payroll-preparation permission in Permissions & readiness before preparing a plan."
+              : !canOperate ? "Set up the sample Cash Desk with active business-account read permission first."
+              : "Prepare a funding plan for the approved net-pay run. A planning buffer does not reserve bank funds."}
+          </p>
           {!cash.payrollPlans.length ? (
             <div className="rounded-xl border border-dashed p-8 text-center">
               <Users className="mx-auto h-8 w-8 text-muted-foreground" />

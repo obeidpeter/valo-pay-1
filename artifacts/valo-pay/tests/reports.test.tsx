@@ -11,6 +11,48 @@ beforeEach(() => { api = installFakeApi(); });
 afterEach(() => { api.uninstall(); vi.restoreAllMocks(); });
 
 describe("reports", () => {
+  it('explains blocked pricing without turning unavailable revenue into zero or claiming no signed terms', async () => {
+    const user = userEvent.setup();
+    const baseFetch = globalThis.fetch;
+    globalThis.fetch = async (input, init) => {
+      const response = await baseFetch(input, init);
+      if (!String(input).includes('/api/v1/reports')) return response;
+      const body = await response.json();
+      Object.assign(body.billing, { pricingReady: false, pricingExplanation: 'Review the signed discount period.', nextInvoicePricingReady: false, nextInvoicePricingExplanation: 'Review discount dates for the next invoice.', totalKobo: null, lines: [] });
+      Object.assign(body.billing.unitEconomics, { pricingReady: false, licenceKobo: null, usageFeeKobo: null, recurringKobo: null, annualisedRecurringRevenueKobo: null, grossMargin: null });
+      return new Response(JSON.stringify(body), { status: response.status, headers: response.headers });
+    };
+    renderApp('/reports?view=billing');
+    await screen.findByText('Commercial terms need review');
+    const issue = screen.getByRole('button', { name: 'Issue invoice' });
+    expect((issue as HTMLButtonElement).disabled).toBe(true);
+    expect(document.getElementById(issue.getAttribute('aria-describedby')!)!.textContent).toContain('Review discount dates for the next invoice');
+    expect(screen.getByRole('link', { name: 'Review commercial terms in Go-live evidence' }).getAttribute('href')).toBe('/evidence');
+    expect(screen.getByText('Current statement total').parentElement!.textContent).toContain('Needs review');
+    await user.click(screen.getByText('Statement lines · 0'));
+    expect(screen.getByText(/Statement lines are withheld until/)).toBeTruthy();
+    expect(screen.queryByText(/No signed partner terms apply/)).toBeNull();
+    await user.click(screen.getByText('Revenue and costs'));
+    expect(screen.getByText(/Usage fees: Not available. Licence fees: Not available/)).toBeTruthy();
+    expect(screen.getByText(/Recurring revenue at an annual rate: Not available/)).toBeTruthy();
+    await user.click(issue);
+    expect(screen.queryByRole('dialog', { name: 'Issue the monthly invoice' })).toBeNull();
+  });
+
+  it('keeps older report responses without pricing metadata usable', async () => {
+    const baseFetch = globalThis.fetch;
+    globalThis.fetch = async (input, init) => {
+      const response = await baseFetch(input, init);
+      if (!String(input).includes('/api/v1/reports')) return response;
+      const body = await response.json();
+      for (const key of ['pricingReady', 'pricingExplanation', 'nextInvoicePricingReady', 'nextInvoicePricingExplanation']) delete body.billing[key];
+      return new Response(JSON.stringify(body), { status: response.status, headers: response.headers });
+    };
+    renderApp('/reports?view=billing');
+    await screen.findByText('Current statement total');
+    expect((screen.getByRole('button', { name: 'Issue invoice' }) as HTMLButtonElement).disabled).toBe(false);
+    expect(screen.queryByText('Commercial terms need review')).toBeNull();
+  });
   it('checks a selected source business date without backdating the financial close', async () => {
     const user = userEvent.setup();
     renderApp('/reports');
@@ -161,7 +203,8 @@ describe("reports", () => {
 
   it('invoices every month in order and names the month to issue first', async () => {
     api.setNow('2027-04-03T09:00:00.000Z');
-    api.mutate(state => { const terms = state.records.find(record => record.kind === 'commercial')!; terms.data.signed = true; terms.data.effectiveDate = '2027-01-01'; });
+    // This assertion concerns invoice ordering. Use signed full-price terms so it does not depend on discount review.
+    api.mutate(state => { const terms = state.records.find(record => record.kind === 'commercial')!; terms.data.signed = true; terms.data.designPartner = false; terms.data.effectiveDate = '2027-01-01'; });
     const user = userEvent.setup();
     renderApp('/reports?view=billing');
     expect(await screen.findByText(/^No invoice has been issued\. The next covers 2027-01\./)).toBeTruthy();

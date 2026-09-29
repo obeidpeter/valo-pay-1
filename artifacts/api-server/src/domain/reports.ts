@@ -221,6 +221,7 @@ export function test5Report(state: DomainState, now: string) {
 
 /** MEA-03: unit economics per merchant for the billing period against the plan's NGN 15 per collection and 85–90% margin. */
 export function unitEconomics(state: DomainState, now: string, statement: Record<string, any>) {
+  const pricingReady = statement.pricingReady !== false;
   const period = String(statement.period);
   const collections = Number(statement.successfulCollections || 0);
   const licenceKobo = sumMoney(statement.lines.map((line: any) => Number(line.licenceKobo || 0)));
@@ -234,12 +235,12 @@ export function unitEconomics(state: DomainState, now: string, statement: Record
   const costPerCollectionKobo = collections ? Math.round(variableCostKobo / collections) : null;
   const grossMargin = recurringKobo > 0 ? Number(((recurringKobo - variableCostKobo) / recurringKobo).toFixed(4)) : null;
   return {
-    period, successfulCollections: collections, usageFeeKobo: usageKobo, licenceKobo, volumeTier: statement.volumeTier, recurringKobo,
+    period, successfulCollections: collections, pricingReady, usageFeeKobo: pricingReady ? usageKobo : null, licenceKobo: pricingReady ? licenceKobo : null, volumeTier: statement.volumeTier, recurringKobo: pricingReady ? recurringKobo : null,
     variableCostKobo, costsRecorded: byName, estimated, costPerCollectionKobo, planCostPerCollectionKobo: VARIABLE_COST_PER_COLLECTION_KOBO,
     grossMargin, planGrossMargin: PLAN_GROSS_MARGIN,
-    annualisedRecurringRevenueKobo: multiplyDivideMoney(recurringKobo, 12, 1), implementationExcluded: true, recoveryFeeIncluded: false,
+    annualisedRecurringRevenueKobo: pricingReady ? multiplyDivideMoney(recurringKobo, 12, 1) : null, implementationExcluded: true, recoveryFeeIncluded: false,
     checks: { costPerCollectionWithinPlan: costPerCollectionKobo === null ? null : costPerCollectionKobo <= VARIABLE_COST_PER_COLLECTION_KOBO, marginWithinPlan: grossMargin === null ? null : grossMargin >= PLAN_GROSS_MARGIN.low },
-    note: estimated ? "No costs have been recorded for this period. The estimate uses NGN 15 per collection until infrastructure, notification and support costs are entered." : "Based on the costs recorded for this period.",
+    note: !pricingReady ? 'Revenue and margin are unavailable until the signed discount dates have been reviewed. Cost evidence is shown separately.' : estimated ? "No costs have been recorded for this period. The estimate uses NGN 15 per collection until infrastructure, notification and support costs are entered." : "Based on the costs recorded for this period.",
     synthetic: true,
   };
 }

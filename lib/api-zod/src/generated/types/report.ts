@@ -14,6 +14,7 @@ import type { ValopayRecord } from './valopayRecord';
  */
 export interface Report {
   metrics: Metric[];
+  /** Billing statement and invoice history. Additive pricingReady/pricingExplanation and nextInvoicePricingReady/nextInvoicePricingExplanation distinguish a statement or next invoice held for review. When signed design-partner discount dates are unreviewed, totalKobo and revenue-derived unitEconomics values are null, not zero; existing issued invoices are unchanged. New invoice issuance returns 409 until Finance or Admin records the reviewed monthly contract dates and signed agreement reference. Older responses may omit this metadata. */
   billing: RecordData;
   experiment: RecordData;
   operational: RecordData;

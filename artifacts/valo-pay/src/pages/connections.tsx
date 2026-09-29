@@ -8,6 +8,7 @@ import {
   ConnectedState,
 } from "@/components/connected-frame";
 import { Button } from "@/components/ui/button";
+import { EvidenceDisclosure } from "@/components/evidence-disclosure";
 import { Loading } from "@/components/loading";
 import { LoadProblem } from "@/components/load-problem";
 import { useConnected } from "@/lib/connected";
@@ -369,8 +370,10 @@ function ConnectionsContent({ api }: { api: ReturnType<typeof useConnected> }) {
                 />
                 {g.name}
               </h3>
-              <p className="mt-1">{g.requires}</p>
               <p className="mt-2 font-medium">Not enabled for live use</p>
+              <div className="mt-3"><EvidenceDisclosure title={`Required evidence for ${g.name}`}>
+                <p>{g.requires}</p>
+              </EvidenceDisclosure></div>
             </div>
           ))}
         </div>

@@ -1,6 +1,6 @@
 # Valo Pay
 
-The [build status](docs/BUILD_STATUS.md) records the latest verified deployed release, PR #76 (29 September 2026), its verification and the remaining commissioning work. Migration 013 was applied and verified during the earlier PR #71–#72 deployment. The release includes operational checks, a repeatable pilot rehearsal and isolated financial recovery rehearsals. Financial staging remains disabled on the deployed sandbox, and automatic daily closes remain off.
+The [build status](docs/BUILD_STATUS.md) records the latest verified deployed release, PR #77 (29 September 2026), its verification and the remaining commissioning work. Migration 013 was applied and verified during the earlier PR #71–#72 deployment. The release includes operational checks, a repeatable pilot rehearsal and isolated financial recovery rehearsals. Financial staging remains disabled on the deployed sandbox, and automatic daily closes remain off. The [29 September refactoring programme](docs/refactor-2026-09-29/README.md) records the subsequent candidate, its verification and unchanged activation boundaries.
 
 Observation-first collections operations and connected banking workflows for Nigerian lenders and SMEs. This application is a **synthetic sandbox**, not a live payment service or an approved system for real customer data. Pay-by-bank, Credit Desk, Cash Desk and purpose-specific permissions have working sample journeys; each live capability remains independently gated.
 
@@ -27,6 +27,12 @@ Keep the workspace together: the frontend and API depend on shared packages.
 | --- | --- |
 | `README.md` | This file: what the application is, how to install, run, check and change it. |
 | `docs/document-register.md` | Current planning-document versions, repository guidance, dated audits, responsible roles, review triggers and the distinction between deployed and draft work. |
+| `docs/refactor-2026-09-29/README.md` | Programme release record, baseline/final verification, compatibility, release and reversal conditions. |
+| `docs/refactor-2026-09-29/repository-assessment.md` | Repository-wide assessment and the disposition of every engineering area. |
+| `docs/refactor-2026-09-29/backend-package.md` | Capability boundary decision, permission defect evidence and PostgreSQL contract checks. |
+| `docs/refactor-2026-09-29/source-status-notes.md` | Controlled-document provenance, conflicts and proposed revisions; preserves historical originals. |
+| `docs/refactor-2026-09-29/traceability.json` | All 251 requirements, F01–F18 and 14 gates with source, code, tests and separate acceptance fields. |
+| `docs/refactor-2026-09-29/validate-traceability.mjs` | Executable catalogue, source-locator, implementation and evidence integrity checks. |
 | `docs/BUILD_STATUS.md` | What this build delivers, the deviations from the specification, the closed production gates and the verification boundary. |
 | `docs/connected-banking.md` | Connected Banking implementation, sample journeys, authority boundaries, API and remaining live dependencies. |
 | `docs/DATABASE_SECURITY.md` | The security boundary: what the scoped repository enforces, what it does not, the opt-in database layers, and the publishing rules. |

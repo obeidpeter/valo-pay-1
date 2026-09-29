@@ -34,6 +34,13 @@ describe("accessibility", () => {
     ["/evidence", "Go-live evidence"],
     ["/audit", "Audit log"],
     ["/settings", "Settings & administration"],
+    ["/pay-by-bank", "Pay-by-bank"],
+    ["/credit-desk", "Credit Desk"],
+    ["/cash-desk", "Cash Desk"],
+    ["/cash-desk?view=accounting", "Cash Desk"],
+    ["/cash-desk?view=vat", "Cash Desk"],
+    ["/cash-desk?view=payroll", "Cash Desk"],
+    ["/connections", "Permissions & readiness"],
   ])("finds no violation on %s", async (path, heading) => {
     renderApp(path);
     await screen.findByRole("heading", { name: heading });

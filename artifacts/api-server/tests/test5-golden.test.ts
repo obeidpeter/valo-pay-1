@@ -122,6 +122,9 @@ const finance = (now: string) => ctxAt(now, "Finance");
   const state = seedMerchant("economics");
   const terms = recordsOf(state, "commercial")[0]!;
   terms.data.signed = true; terms.data.effectiveDate = "2027-01-01";
+  terms.data.signedFullPriceTerms = true;
+  terms.data.discountStartDate = '2027-01-01'; terms.data.fullPriceStartDate = '2028-01-01'; terms.data.discountTermsReference = 'synthetic-economics-agreement';
+  terms.data.discountReview = { reviewedBy: 'Synthetic Finance', reviewedAt: '2026-12-01T09:00:00.000Z', discountStartDate: terms.data.discountStartDate, fullPriceStartDate: terms.data.fullPriceStartDate, termsReference: terms.data.discountTermsReference };
   for (const payment of recordsOf(state, "payments")) payment.data.channel = "transfer";
   const customer = recordsOf(state, "customers")[0]!;
   for (let i = 0; i < 3; i++) {

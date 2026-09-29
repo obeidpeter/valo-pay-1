@@ -11,6 +11,7 @@ import {
   type CreditReviewRecord,
 } from "./connected-credit";
 import { makeRecord } from "./records";
+import { permissionActive } from "./connected-permission-validity";
 import type { Context, DomainState, ValopayRecord } from "./types";
 
 const scenarios = [
@@ -81,9 +82,9 @@ function currentGrants(
       ? (consent.status as CreditGrant["status"])
       : "suspended",
     accountIds: [syntheticCreditAccountId(customerId)],
-    validFrom: consent.createdAt,
+    validFrom: String(consent.data.validFrom ?? consent.createdAt),
     expiresAt: String(consent.data.expiresAt),
-    version: Number(consent.data.version),
+    version: typeof consent.data.version === "number" ? consent.data.version : Number.NaN,
   }));
 }
 function permissionsAvailable(
@@ -94,13 +95,7 @@ function permissionsAvailable(
 ) {
   const grants = currentGrants(state, customerId, index);
   const active = (purpose: CreditGrant["purpose"]) =>
-    grants.some(
-      (grant) =>
-        grant.purpose === purpose &&
-        grant.status === "active" &&
-        Date.parse(grant.validFrom) <= Date.parse(now) &&
-        Date.parse(grant.expiresAt) > Date.parse(now),
-    );
+    grants.some((grant) => grant.purpose === purpose && permissionActive(grant, now));
   return {
     accountRead: active("applicant_account_read"),
     creditAssessment: active("credit_assessment"),

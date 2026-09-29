@@ -32,12 +32,13 @@ export function inspectEffectBoundaries(root = defaultRoot) {
     const found = choices.map(path => relative(root, path).split(sep).join('/')).find(path => contents.has(path));
     return found;
   }
-  function inspect(file, chain, creditRoot = false) {
+  function inspect(file, chain, creditRoot = false, coreRoot = false) {
     // A helper already checked for general purity must still be checked under
-    // credit's stricter workflow boundary. Preserve that context through every
+    // Core's or credit's stricter workflow boundary. Preserve that context through every
     // dependency, including shared helpers and schema barrels.
     creditRoot ||= /\/connected-credit(?:-service)?\.ts$/.test(file);
-    const visitKey = `${creditRoot ? 'credit' : 'domain'}:${file}`;
+    coreRoot ||= /\/(?:actions|policy-engine|reconciliation|billing|close)\.ts$/.test(file);
+    const visitKey = `${creditRoot ? 'credit' : 'domain'}:${coreRoot ? 'core' : 'shared'}:${file}`;
     if (visited.has(visitKey)) return;
     visited.add(visitKey);
     active.add(file);
@@ -52,7 +53,7 @@ export function inspectEffectBoundaries(root = defaultRoot) {
         report(node, `Circular runtime dependency: ${cycle.join(' -> ')}`);
         return;
       }
-      inspect(target, [...chain, target], creditRoot);
+      inspect(target, [...chain, target], creditRoot, coreRoot);
     }
     function dependency(node, specifier) {
       if (specifier.startsWith('.')) {
@@ -62,8 +63,15 @@ export function inspectEffectBoundaries(root = defaultRoot) {
         // Credit may share plain records and hashes, never another financial
         // workflow or a barrel that exports initiation/cash/payroll actions.
         if (creditRoot && target.startsWith(domain)
-          && !/\/(?:connected-credit(?:-service)?|records|record-index|types)\.ts$/.test(target)) {
+          && !/\/(?:connected-credit(?:-service)?|connected-permission-validity|records|record-index|types)\.ts$/.test(target)) {
           report(node, 'Credit computation cannot import collection, cash, payroll or payment workflows.');
+        }
+        // Core may resolve a checkout outcome through its narrow module; it
+        // must never acquire the whole connected coordinator or unrelated
+        // Credit/Cash/ERP/payroll workflows, including through a shared helper.
+        if (coreRoot && target.startsWith(domain)
+          && /\/connected(?:-(?:credit|cash)(?:-service)?)?\.ts$/.test(target)) {
+          report(node, 'Core workflows cannot import the connected coordinator, Credit or Cash workflows; use the narrow checkout outcome interface.');
         }
         inspectDependency(node, target);
       } else if (specifier === '@workspace/valopay-schema' && contents.has('lib/valopay-schema/src/index.ts')) {
@@ -107,5 +115,5 @@ export function inspectEffectBoundaries(root = defaultRoot) {
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   const result = inspectEffectBoundaries();
   if (result.issues.length) { console.error(result.issues.join('\n')); process.exitCode = 1; }
-  else console.log(`Effect boundaries passed across ${result.checked} domain and helper modules; no circular runtime dependencies, network, credentials, database or provider imports.`);
+  else console.log(`Effect boundaries passed across ${result.checked} domain and helper modules; Core and Credit capability isolation, no circular runtime dependencies, network, credentials, database or provider imports.`);
 }
