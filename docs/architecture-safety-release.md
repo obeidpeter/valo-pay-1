@@ -30,6 +30,19 @@ The disposable PostgreSQL concurrency suite sends 100 competing allocation reque
 
 These are tests of the existing lender transaction and application controls. They do not prove provider-side exactly-once execution or protection against a privileged direct SQL writer.
 
+## Workflow refactor · 29 September 2026
+
+The refactor starts from PR #72's merged source, `41b988f`. It separates responsibilities within the existing TypeScript application:
+
+- `artifacts/api-server/src/domain/final-state-integrity.ts` checks the loaded and proposed lender state, including immutable evidence, references and allocation limits. `valopay-store.ts` still supplies the trusted snapshot and calls the check inside its existing locked transaction before saving. The domain module receives no database client.
+- `artifacts/api-server/src/domain/provider-event-integrity.ts` owns the pure rules for changes to saved provider evidence. The provider adapter still owns ingress and verification; moving the guard does not give domain code provider access.
+- `artifacts/api-server/src/domain/reconciliation-exceptions.ts` owns exception currency, creation, condition clearing and outcome confirmation. Shared record values live in `reconciliation-values.ts`; reconciliation still controls the order of the financial workflow. Existing public imports remain available through explicit re-exports.
+- `artifacts/valo-pay/src/lib/submission-attempt.ts` owns the request key, original input, prepared payload, pending/uncertain state and recovery marker lifecycle for both console mutation adapters. Pure error classification lives in `submission-outcomes.ts`. The adapters retain receipt validation, transport, React Query callbacks and their distinct completion policies.
+
+For connected actions, the first prepared payload includes the original workspace revision; retries never substitute a refreshed revision. A withheld saved answer ends a connected request, while ordinary generated and pilot mutations retain their existing recovery policy. Scope changes detach the in-memory attempt, and any late answer settles only according to its original scope and adapter policy. Browser storage still holds only the opaque request identity, never the payload or fingerprint. A storage refusal still prevents transmission.
+
+This is a source refactor, not a change to HTTP contracts, stored records, monetary calculations or permissions. It introduces no migration, dependency, environment setting or deployment step. Existing golden financial tests, mounted console recovery tests and PostgreSQL workflow tests exercise the same public entrypoints; the domain effect guard now also covers the extracted integrity checks and their dependencies.
+
 ## Validation and release boundary
 
 The normal offline runner includes exact-money oracle/rounding tests, database-money parsing, authority revocation/regrant, Paystack verification and command refusal, source-boundary mutation tests and the affected console tests. Database-backed workflows check real persistence, concurrent writes, access isolation, journal behaviour and saved response contracts. All test figures are synthetic; timings are local measurements, not production guarantees.

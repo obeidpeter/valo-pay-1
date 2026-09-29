@@ -1,9 +1,22 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import { assertFinalState } from "../src/domain/final-state-integrity";
 
-// The pure guard does not connect, but the repository module verifies that a
-// database URL exists while it is loaded.
+// A fresh process catches accidental persistence initialisation even when this
+// test runner already has a database URL or cached repository dependencies.
+const guardEnvironment = { ...process.env };
+delete guardEnvironment.DATABASE_URL;
+const isolatedGuard = spawnSync(process.execPath, [
+  fileURLToPath(new URL("../../../scripts/node_modules/tsx/dist/cli.mjs", import.meta.url)),
+  fileURLToPath(new URL("../src/domain/final-state-integrity.ts", import.meta.url)),
+], { env: guardEnvironment, encoding: "utf8", timeout: 30_000 });
+assert.equal(isolatedGuard.status, 0, `Final-state validation must load without database configuration: ${isolatedGuard.error?.message ?? isolatedGuard.stderr}`);
+
+// Final-state rules load independently of persistence. The remaining audit,
+// journal and readiness helpers still initialise the repository (without connecting).
 process.env.DATABASE_URL ||= "postgres://unused:unused@127.0.0.1:1/unused";
-const { assertFinalState, appendAudit, expiredWorkspaceCleanupEnabled, verifyAudit, journalReceipt } = await import("../src/lib/valopay-store.js");
+const { appendAudit, expiredWorkspaceCleanupEnabled, verifyAudit, journalReceipt } = await import("../src/lib/valopay-store.js");
 const { canonicalJson } = await import("@workspace/valopay-schema");
 const { seedMerchant } = await import("../src/lib/valopay-seed.js");
 
