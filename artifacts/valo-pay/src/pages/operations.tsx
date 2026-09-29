@@ -43,7 +43,7 @@ export default function OperationsPage() {
   });
   const action = usePilotMutation((result) => {
     setMessage(
-      result.message ||
+      (typeof result.message === 'string' && result.message) ||
         "The original request has completed. Its records have been refreshed.",
     );
   });

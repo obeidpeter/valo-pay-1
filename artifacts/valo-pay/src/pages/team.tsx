@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
 import { useWorkspace } from "@/lib/workspace-context";
-import { usePilotMutation, usePilotQuery } from "@/lib/pilot";
-import { staffDirectorySchema, type StaffDirectory } from "@workspace/valopay-schema";
+import { useTypedPilotMutation, usePilotQuery } from "@/lib/pilot";
+import { invitationCreatedSchema, messageSchema, staffChangeResultSchema, staffLenderAccessSchema, staffDirectorySchema, type StaffDirectory } from "@workspace/valopay-schema";
 import {
   PilotError,
   PilotHeading,
@@ -18,6 +18,12 @@ import { formatCount, formatDate } from "@/lib/formatters";
 import { useUnsavedChanges } from "@/lib/unsaved-changes";
 import { AccessReadiness } from '@/components/access-readiness';
 
+type DirectoryMember = StaffDirectory['members'][number];
+type DirectoryLenders = StaffDirectory['lenders'];
+type ChangeMutation = ReturnType<typeof useTypedPilotMutation<typeof staffChangeResultSchema>>;
+type GrantMutation = ReturnType<typeof useTypedPilotMutation<typeof staffLenderAccessSchema>>;
+type MessageMutation = ReturnType<typeof useTypedPilotMutation<typeof messageSchema>>;
+
 const roles = [
   "Admin",
   "Operations",
@@ -32,16 +38,16 @@ export default function TeamPage() {
     [role, setRole] = useState("Operations"),
     [link, setLink] = useState(""),
     [message, setMessage] = useState("");
-  const invite = usePilotMutation((result) => {
+  const invite = useTypedPilotMutation(invitationCreatedSchema, (result) => {
     setLink(
       `${window.location.origin}${import.meta.env.BASE_URL}team-invite#${result.token}`,
     );
     setMessage(result.message);
     setEmail("");
   });
-  const revoke = usePilotMutation((result) => setMessage(result.message));
+  const revoke = useTypedPilotMutation(messageSchema, (result) => setMessage(result.message));
   const [decision, setDecision] = useState("");
-  const decide = usePilotMutation((result) => setDecision(result.message));
+  const decide = useTypedPilotMutation(messageSchema, (result) => setDecision(result.message));
   // A decision clears the last one's message as it starts, so the next takes focus even when worded the same.
   const choose = (path: string) => { setDecision(""); decide.mutate({ path, lender: false }); };
   // Operations does not record team changes: while one is unanswered, leaving or reloading would lose the only check.
@@ -85,7 +91,7 @@ export default function TeamPage() {
           <PilotPanel title="Staff members">
             <p className="text-sm text-muted-foreground">Administrators manage every lender in this workspace. Other roles need explicit lender access. New invitations and role changes start with no lender grants.</p>
             <div className="space-y-3">
-              {directory.members.map((member: any) => (
+              {directory.members.map((member) => (
                 <Member
                   key={member.id}
                   member={member}
@@ -172,7 +178,7 @@ export default function TeamPage() {
                 {message}
               </p>
               <div className="space-y-3">
-                {directory.invitations.map((item: any) => (
+                {directory.invitations.map((item) => (
                   <div
                     key={item.id}
                     className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3 text-sm"
@@ -208,13 +214,13 @@ export default function TeamPage() {
           {admin && (
             <PilotPanel title="Access history">
               <ol className="space-y-3 text-sm">
-                {directory.events.map((event: any) => (
+                {directory.events.map((event) => (
                   <li key={event.id} className="border-b pb-3">
                     <strong>{event.action.replaceAll(".", " ")}</strong>
                     <p className="text-xs text-muted-foreground">
                       {event.actor} · {formatDate(event.createdAt)}
                     </p>
-                    {event.detail.reason && (
+                    {typeof event.detail.reason === "string" && event.detail.reason && (
                       <p className="mt-1">{event.detail.reason}</p>
                     )}
                   </li>
@@ -239,8 +245,8 @@ export default function TeamPage() {
  * so after any change they show the membership as it now stands. What a change made here did, or a change whose
  * outcome is unconfirmed, stays on the card rather than going with the form the new version replaced.
  */
-function Member({ member, editable, shared, lenders }: { member: any; editable: boolean; shared: boolean; lenders: any[] }) {
-  const change = usePilotMutation(), grant = usePilotMutation();
+function Member({ member, editable, shared, lenders }: { member: DirectoryMember; editable: boolean; shared: boolean; lenders: DirectoryLenders }) {
+  const change = useTypedPilotMutation(staffChangeResultSchema), grant = useTypedPilotMutation(staffLenderAccessSchema);
   useUnsavedChanges([change, grant].some((mutation) => mutation.isPending || mutation.hasUnconfirmedOutcome));
   // The button that made a change goes with that form, so focus then goes to what the change did; and a change the
   // service refused, or whose answer was lost, sends it to the problem notice that says so, as does lender access,
@@ -280,9 +286,9 @@ function Member({ member, editable, shared, lenders }: { member: any; editable: 
  * A membership's role and access as one version of it stands, and the change sent against that version. `answer` is
  * where the member's card says what a change did or why it did not happen.
  */
-function AccessForm({ member, mutation, answer }: { member: any; mutation: ReturnType<typeof usePilotMutation>; answer: () => HTMLElement | null }) {
-  const [role, setRole] = useState(member.role),
-    [status, setStatus] = useState(member.status),
+function AccessForm({ member, mutation, answer }: { member: DirectoryMember; mutation: ChangeMutation; answer: () => HTMLElement | null }) {
+  const [role, setRole] = useState<string>(member.role),
+    [status, setStatus] = useState<string>(member.status),
     [reason, setReason] = useState(""),
     // Revoking cannot be undone here, so it takes one more step after its reason; other changes save at once.
     [confirming, setConfirming] = useState(false);
@@ -395,7 +401,7 @@ function AccessForm({ member, mutation, answer }: { member: any; mutation: Retur
  * administrator who asked cannot approve (the service refuses it too), but may withdraw a change; the person a change
  * is for neither approves nor declines it (refused too).
  */
-function Approvals({ directory, actor, decide, choose, message }: { directory: StaffDirectory; actor?: string; decide: ReturnType<typeof usePilotMutation>; choose: (path: string) => void; message: string }) {
+function Approvals({ directory, actor, decide, choose, message }: { directory: StaffDirectory; actor?: string; decide: MessageMutation; choose: (path: string) => void; message: string }) {
   const invitations = directory.invitations.filter((item) => item.status === "pending" && item.approval === "awaiting");
   const busy = decide.isPending || decide.hasUnconfirmedOutcome;
   // A decision removes its item, and its button with it, so focus then goes to what the decision did.
@@ -441,7 +447,7 @@ function Approvals({ directory, actor, decide, choose, message }: { directory: S
 }
 
 /** A member's lenders as one version of the membership stands; what a save did stays on the member's card. */
-function LenderGrants({ member, lenders, mutation }: { member: any; lenders: any[]; mutation: ReturnType<typeof usePilotMutation> }) {
+function LenderGrants({ member, lenders, mutation }: { member: DirectoryMember; lenders: DirectoryLenders; mutation: GrantMutation }) {
   const [selected, setSelected] = useState<string[]>(member.lenderIds || []), [reason, setReason] = useState("");
   const busy = mutation.isPending || mutation.hasUnconfirmedOutcome;
   // A saved change's reason is spent, even before the new version renews this form.

@@ -100,7 +100,13 @@ const receipts: Array<{ path: RegExp; schema: ZodTypeAny; matches?: (answer: Rec
 export function pilotReceipt(path: string) {
   return receipts.find((receipt) => receipt.path.test(path));
 }
-export function usePilotMutation(onSuccess?: (data: any) => void) {
+/** A mixed-route mutation exposes only fields the caller has narrowed. */
+export function usePilotMutation(onSuccess?: (data: Record<string, unknown>) => void) {
+  return useTypedPilotMutation(operationReplaySchema, onSuccess);
+}
+
+/** A workflow's own receipt schema keeps its callback and result typed, after the route and lender checks. */
+export function useTypedPilotMutation<S extends ZodTypeAny>(schema: S, onSuccess?: (data: z.output<S>) => void) {
   const { merchantId, workspace } = useWorkspace(),
     cache = useQueryClient();
   return useSafeMutation(
@@ -127,7 +133,9 @@ export function usePilotMutation(onSuccess?: (data: any) => void) {
       );
       if (receipt.matches && !receipt.matches(result as Receipt, (v.data ?? {}) as Record<string, unknown>, merchantId, workspace?.actor))
         throw answerProblem("The confirmation does not match this lender or request. Check Operations before submitting again.");
-      return result;
+      const answer = readAnswer(schema, result);
+      if (answer === undefined) throw answerProblem(INCOMPLETE_CONFIRMATION);
+      return answer;
     },
     {
       recovery: v => v.lender === false ? null : submissionIdentity(v.method || 'POST', `/v1${v.path}`, merchantId || '', v.data),

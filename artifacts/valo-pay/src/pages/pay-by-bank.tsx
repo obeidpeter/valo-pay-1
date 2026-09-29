@@ -126,16 +126,16 @@ function PaymentContent({ api }: { api: ReturnType<typeof useConnected> }) {
       ["Admin", "Operations", "Finance"].includes(api.data.role),
     checkoutExpired =
       !!intent &&
-      Date.parse(intent.data.expiresAt) <= Date.parse(api.data.asOf);
+      Date.parse(intent.data.expiresAt ?? '') <= Date.parse(api.data.asOf);
   // Instalments reconciliation holds for a renewed reversal review: the service refuses their checkouts.
   const heldForReview = new Set(payments.heldForReversalReview),
     dueHeld = !!due && heldForReview.has(due.id),
     intentHeld = !!intent && heldForReview.has(String(intent.data.dueItemId));
   // When the outcome became unknown: after 24 hours the daily close raises an exception for Finance, which the checkout names.
-  const unknownSince = (intent?.data.events as { at: string; status: string }[] | undefined)?.find(
+  const unknownSince = intent?.data.events?.find(
       (e) => e.status === "unknown",
     )?.at,
-    outcomeExceptionId = intent?.data.outcomeExceptionId as string | undefined;
+    outcomeExceptionId = intent?.data.outcomeExceptionId;
   const openReview = (
     action: string,
     title: string,
@@ -385,7 +385,7 @@ function PaymentContent({ api }: { api: ReturnType<typeof useConnected> }) {
                   · One-time sample payment
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Authorise before {formatDate(intent.data.expiresAt)}
+                  Authorise before {formatDate(intent.data.expiresAt ?? '')}
                 </p>
               </div>
               <ol
@@ -596,7 +596,7 @@ function PaymentContent({ api }: { api: ReturnType<typeof useConnected> }) {
               )}
               <h3 className="font-semibold text-sm pt-3">Journey history</h3>
               <ol className="connected-timeline">
-                {intent.data.events.map(
+                {intent.data.events?.map(
                   (
                     e: { at: string; status: string; detail: string },
                     i: number,
