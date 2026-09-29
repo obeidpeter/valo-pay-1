@@ -227,9 +227,9 @@ it("opens this exception in Exceptions from its case, even when it is resolved",
   const row = await waitFor(() => { const found = document.getElementById(`record-${item.id}`); if (!found) throw new Error("row not shown"); return found; });
   expect(within(screen.getByRole("table")).getAllByRole("row")).toHaveLength(2);
   await waitFor(() => expect(document.activeElement).toBe(row));
-  expect(within(row).getByText(/Resolution:/)).toBeTruthy();
+  expect(within(row).getByText(/Outcome:/)).toBeTruthy();
   // The queue comes back with its filters when asked for.
-  await user.click(screen.getByRole("button", { name: "View exception queue" }));
+  await user.click(screen.getByRole("button", { name: "Show all exceptions" }));
   expect(await screen.findByRole("tablist", { name: "Exception filter" })).toBeTruthy();
   expect(new URLSearchParams(window.location.search).get("record")).toBeNull();
 });

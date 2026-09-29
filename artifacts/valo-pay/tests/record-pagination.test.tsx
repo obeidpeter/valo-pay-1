@@ -390,7 +390,7 @@ describe('a page that fails to load', () => {
     await failingNext(user, await screen.findByRole('button', { name: 'Next page of customers' }), /^\/v1\/records\/customers$/, /^Unable to load customers/);
     unmount();
     const exceptions = renderApp('/exceptions');
-    await failingNext(user, await screen.findByRole('button', { name: 'Next page of exceptions' }), /^\/v1\/queues\/exceptions$/, /^Exceptions could not be loaded/);
+    await failingNext(user, await screen.findByRole('button', { name: 'Next page of exceptions' }), /^\/v1\/queues\/exceptions$/, /^We could not load exceptions/);
     exceptions.unmount();
     renderApp('/reconciliation');
     // A table's notice has no button of its own (Refresh queue sits above), so the notice itself takes the focus.
@@ -534,7 +534,7 @@ describe('the notice of the list whose page failed', () => {
       state.records.push(...Array.from({ length: 60 }, (_, index) => ({ ...structuredClone(sample), id: randomUUID(), reference: `PAGER-exceptions-${index}` })));
     });
     renderApp('/exceptions');
-    await tryAgain(user, await screen.findByRole('button', { name: 'Next page of exceptions' }), /^\/v1\/queues\/exceptions$/, /^Exceptions could not be loaded/, () => screen.findByText(/^26–50 of \d+ exceptions$/));
+    await tryAgain(user, await screen.findByRole('button', { name: 'Next page of exceptions' }), /^\/v1\/queues\/exceptions$/, /^We could not load exceptions/, () => screen.findByText(/^26–50 of \d+ exceptions$/));
   }, 30_000);
 
   it('keeps the focus through Try again on Saved exports', async () => {

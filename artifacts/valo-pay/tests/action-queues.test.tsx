@@ -16,7 +16,7 @@ describe('actionable operational queues', () => {
     expect((await screen.findByRole('tab', { name: 'Overdue (1)' })).getAttribute('aria-selected')).toBe('true');
     expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(2);
     expect(within(screen.getByRole('table')).getByText('Missing consent evidence')).toBeTruthy();
-    await user.selectOptions(screen.getByLabelText('Filter exceptions by owner'), 'Finance');
+    await user.selectOptions(screen.getByLabelText('Filter exceptions by team'), 'Finance');
     expect(await screen.findByText('No exceptions match these filters')).toBeTruthy();
     expect(new URLSearchParams(window.location.search).get('view')).toBe('overdue');
     expect(new URLSearchParams(window.location.search).get('owner')).toBe('Finance');

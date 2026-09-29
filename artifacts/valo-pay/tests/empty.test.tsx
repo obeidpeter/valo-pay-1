@@ -50,6 +50,6 @@ describe("empty states", () => {
     const user = userEvent.setup();
     renderApp("/exceptions");
     await user.click(await screen.findByRole("tab", { name: /Resolved/ }));
-    await waitFor(() => expect(screen.getByText("Nothing resolved yet").closest('[role="status"]')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("No resolved exceptions yet").closest('[role="status"]')).toBeTruthy());
   });
 });

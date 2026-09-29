@@ -89,12 +89,12 @@ describe("forms", () => {
     const user = userEvent.setup();
     const exception = api.state().records.find((record) => record.kind === "exceptions" && record.data.owner && record.data.severity && !record.data.case && record.status === "open")!;
     renderApp(`/exceptions?record=${exception.id}`);
-    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    await user.click(await screen.findByRole("button", { name: "Edit exception" }));
     const dialog = await screen.findByRole("dialog", { name: "Edit exception" });
-    const owner = within(dialog).getByLabelText("Assigned owner") as HTMLInputElement;
+    const owner = within(dialog).getByLabelText("Team") as HTMLInputElement;
     expect(owner.value).toBe(exception.data.owner);
     await user.clear(owner);
-    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    await user.click(within(dialog).getByRole("button", { name: "Save changes" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     // Sent as null, which the service reads as "remove this field"; the other fields are unchanged, and the
     // severity, which an exception always has, is not a field an edit can empty (tests/exceptions.test.tsx).

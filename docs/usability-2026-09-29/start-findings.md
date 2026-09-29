@@ -42,7 +42,7 @@ The follow-up document-scroll guard is intentional: changing the root to `overfl
 3. Leave for Overview, see Needs attention, return to the saved batch and recover the exact CSV. Use Correct CSV, restore the consent source and save/check. The customer still does not exist until the explicit one-time commit.
 4. Import the format-matched sample instalment. Import two statement observations: one identifies the sample payer and matches its instalment's amount/date, without an instalment reference; the other remains unidentified. Each batch is checked and committed once. Importing evidence alone creates no payment allocation.
 5. Run reconciliation. Inspect the Finance R5 proposal's payment reference, instalment, settlement status and recorded explanation. Attempt confirmation without a reason: no action is sent and focus returns to the required reason. Enter a reason and confirm once.
-6. Find the allocated receipt in the customer's history. Open the separate unidentified receipt's unallocated-payment exception and its Case & handover page. The case remains open; coordination does not silently resolve or allocate anything.
+6. Find the allocated receipt in the customer's history. Open the separate unidentified receipt's unallocated-payment exception and its case page (Open case). The case remains open; coordination does not silently resolve or allocate anything.
 
 Assertions also preserve the other lender unchanged, maintain the Finance role, reject unexpected HTTP failures, and check that sample identifiers were not saved in browser storage. This is an engineering walkthrough, not independent-user evidence.
 

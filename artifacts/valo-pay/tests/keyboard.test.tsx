@@ -77,7 +77,7 @@ describe("keyboard", () => {
     expect(high.getAttribute("aria-selected")).toBe("true");
     await user.keyboard("{End}");
     expect(document.activeElement).toBe(resolved);
-    expect(await screen.findByText("Nothing resolved yet")).toBeTruthy();
+    expect(await screen.findByText("No resolved exceptions yet")).toBeTruthy();
     await user.keyboard("{Home}");
     expect(document.activeElement).toBe(open);
     expect(open.getAttribute("aria-selected")).toBe("true");

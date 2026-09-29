@@ -18,9 +18,9 @@ describe('console efficiency', () => {
     await user.type(screen.getByLabelText('View name'), 'Finance follow-up');
     await user.click(screen.getByRole('button', { name: 'Save current view' }));
     expect(await screen.findByText('Saved Finance follow-up.')).toBeTruthy();
-    await user.selectOptions(screen.getByLabelText('Filter exceptions by owner'), '');
+    await user.selectOptions(screen.getByLabelText('Filter exceptions by team'), '');
     await user.click(screen.getByRole('button', { name: 'Finance follow-up' }));
-    await waitFor(() => expect((screen.getByLabelText('Filter exceptions by owner') as HTMLSelectElement).value).toBe('Finance'));
+    await waitFor(() => expect((screen.getByLabelText('Filter exceptions by team') as HTMLSelectElement).value).toBe('Finance'));
     expect(Object.fromEntries(new URLSearchParams(window.location.search))).toMatchObject({ view: 'overdue', owner: 'Finance', type: 'unallocated_payment' });
     expect(JSON.parse(localStorage.getItem(`valopay-queue-views-v2:Sandbox Admin:${api.merchantIds[0]}:exceptions`) || 'null')).toEqual([
       { name: 'Finance follow-up', view: 'overdue', owner: 'Finance', type: 'unallocated_payment' },
@@ -85,7 +85,7 @@ describe('console efficiency', () => {
     expect(api.calls.filter(call => call.path === '/v1/queues/exceptions').map(call => call.query.offset)).toEqual(['0', '25']);
     expect(api.calls.some(call => /^\/v1\/records\/(exceptions|customers)$/.test(call.path))).toBe(false);
     await user.click(screen.getByRole('tab', { name: 'Resolved (0)' }));
-    await screen.findByText('Nothing resolved yet');
+    await screen.findByText('No resolved exceptions yet');
     expect(api.calls.filter(call => call.path === '/v1/queues/exceptions').at(-1)?.query.offset).toBe('0');
   });
 

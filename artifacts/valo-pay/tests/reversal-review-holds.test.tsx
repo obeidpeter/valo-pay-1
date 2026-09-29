@@ -52,7 +52,7 @@ describe('renewed reversal reviews', () => {
     api.role = 'Operations';
     renderApp('/exceptions?view=open&type=provider_status_mismatch');
     const row = (await screen.findByText('Earlier decision recorded without a rule version.')).closest('tr')!;
-    const button = within(row).getByRole('button', { name: 'Resolve' });
+    const button = within(row).getByRole('button', { name: 'Resolve exception' });
     expect(button.getAttribute('aria-disabled')).toBe('true');
     expect(reasonFor(button)).toBe('Requires Admin or Finance: a renewed review of an earlier reversal decision is Finance’s to record.');
     await userEvent.setup().click(button);

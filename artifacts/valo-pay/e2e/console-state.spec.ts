@@ -57,7 +57,7 @@ test("browser Back and Forward ask before an unsaved draft is discarded", async 
 test("browser Back keeps a case note when the person chooses to keep editing", async ({ page }) => {
   const asked = confirms(page);
   await page.goto("/exceptions");
-  await page.getByRole("link", { name: "Case & handover" }).first().click();
+  await page.getByRole("link", { name: "Open case" }).first().click();
   const note = page.getByRole("textbox", { name: "Handover or progress note" });
   await note.fill("Draft note for the next person");
   await page.goBack();

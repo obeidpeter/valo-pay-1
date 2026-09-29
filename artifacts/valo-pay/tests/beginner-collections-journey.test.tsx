@@ -147,7 +147,7 @@ it('takes an empty lender from corrected sample imports to a reviewed payment an
 
   // The separate unidentified receipt remains unresolved, with a recoverable case.
   await user.click(screen.getByRole('link', { name: 'Exceptions' }));
-  const caseLink = await screen.findByRole('link', { name: 'Case & handover' });
+  const caseLink = await screen.findByRole('link', { name: 'Open case' });
   const caseRow = caseLink.closest('tr')!;
   expect(within(caseRow).getByText('Unallocated payment')).toBeTruthy();
   expect(within(caseRow).getByText('No certain or confirmed allocation after 24 hours.')).toBeTruthy();
