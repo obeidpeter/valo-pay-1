@@ -78,9 +78,11 @@ export default function OverviewPage() {
         <span className="ml-auto rounded-md bg-secondary px-2 py-1 font-medium capitalize">{overview.environment}</span>
       </div>
 
-      <section aria-labelledby="overview-metrics-title">
+      <section aria-labelledby="overview-metrics-title" className="@container">
         <h2 id="overview-metrics-title" className="sr-only">Key metrics</h2>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-4 print:grid-cols-2">
+        {/* Columns follow the section's own width, since from 768 px the sidebar takes part of the window: at 36rem a card
+            holds a 15-character amount on one line, and at 72rem four cards do. */}
+        <div className="grid grid-cols-1 gap-4 @xl:grid-cols-2 @6xl:grid-cols-4 print:grid-cols-2">
           {overview.metrics.map((metric, index) => {
             const Icon = metricIcons[index % metricIcons.length];
             return (
@@ -89,10 +91,13 @@ export default function OverviewPage() {
                   <p className="text-xs font-medium text-muted-foreground">{metric.label}</p>
                   <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${metric.key === 'settled' ? 'bg-success/10 text-success' : metric.key === 'exceptions' ? 'bg-warning text-warning-foreground' : 'bg-secondary/60 text-muted-foreground'}`}><Icon aria-hidden="true" className="h-4 w-4" /></span>
                 </div>
-                <p className="mt-4 overflow-x-auto whitespace-nowrap text-[1.75rem] font-semibold leading-tight tracking-tight tabular-nums">
-                  {metric.unit === 'kobo' ? formatKobo(metric.value) : metric.unit === 'percent' ? formatPercent(metric.value / 100) : formatNumber(metric.value)}
-                  {metric.unit !== 'kobo' && metric.unit !== 'percent' && metric.unit !== 'count' && <span className="ml-1 text-sm font-normal text-muted-foreground">{metric.unit}</span>}
-                </p>
+                {/* An amount stays on one line; one wider than its card still scrolls in a frame a keyboard can reach. */}
+                <ScrollFrame label={metric.label} className="mt-4 overflow-x-auto">
+                  <p className="whitespace-nowrap text-[1.75rem] font-semibold leading-tight tracking-tight tabular-nums">
+                    {metric.unit === 'kobo' ? formatKobo(metric.value) : metric.unit === 'percent' ? formatPercent(metric.value / 100) : formatNumber(metric.value)}
+                    {metric.unit !== 'kobo' && metric.unit !== 'percent' && metric.unit !== 'count' && <span className="ml-1 text-sm font-normal text-muted-foreground">{metric.unit}</span>}
+                  </p>
+                </ScrollFrame>
                 {metric.detail && <p className="mt-3 text-xs leading-relaxed text-muted-foreground">{metric.detail}</p>}
               </div>
             );
