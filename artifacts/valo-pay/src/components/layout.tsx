@@ -124,6 +124,7 @@ function NavLinks({ location, spacious = false, onNavigate, pending = 0 }: { loc
   const id = useId();
   const { workspace } = useWorkspace();
   const [filter, setFilter] = useState('');
+  const searchBox = useRef<HTMLInputElement>(null);
   const normalise = (value: string) => value.toLocaleLowerCase().replace(/[-&]/g, ' ').replace(/\s+/g, ' ').trim();
   const query = normalise(filter);
   const groups = navGroups.map(group => ({ ...group, items: group.items.filter(item =>
@@ -133,11 +134,14 @@ function NavLinks({ location, spacious = false, onNavigate, pending = 0 }: { loc
   const pageCount = groups.reduce((count, group) => count + group.items.length, 0);
   return (
     <>
-      <div className="mb-3 space-y-1">
-        <label htmlFor={`${id}-find-page`} className="block px-1 text-xs font-medium">Find a page</label>
-        <input id={`${id}-find-page`} type="search" value={filter} onChange={event => setFilter(event.target.value)} onKeyDown={event => { if (event.key === 'Escape' && filter) { event.stopPropagation(); setFilter(''); } }} placeholder="Try payments or payroll" className="min-h-10 w-full rounded-lg border bg-background px-3 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" />
-        {query && <p role="status" className="px-1 text-xs text-muted-foreground">{pageCount} {pageCount === 1 ? 'page' : 'pages'} found. This searches page names, not records.</p>}
-        {query && <button type="button" onClick={() => setFilter('')} className="min-h-9 px-1 text-xs font-medium underline">Clear page search</button>}
+      <div className="mb-3">
+        <label htmlFor={`${id}-find-page`} className="mb-1 block px-1 text-xs font-medium">Find a page</label>
+        <input ref={searchBox} id={`${id}-find-page`} type="search" value={filter} onChange={event => setFilter(event.target.value)} onKeyDown={event => { if (event.key === 'Escape' && filter) { event.stopPropagation(); setFilter(''); } }} placeholder="Try payments or payroll" className="min-h-10 w-full rounded-lg border bg-background px-3 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" />
+        {/* Kept on the page while empty, since a screen reader announces a live region's changes, not its arrival: polite
+            and whole like a status, without a second status role beside the page's own. Empty, its margin adds no space. */}
+        <p aria-live="polite" aria-atomic="true" className="mt-1 px-1 text-xs text-muted-foreground">{query && `${pageCount} ${pageCount === 1 ? 'page' : 'pages'} found. This searches page names, not records.`}</p>
+        {/* Clearing removes this button, so focus goes back to the search rather than falling to the page or the drawer. */}
+        {query && <button type="button" onClick={() => { setFilter(''); searchBox.current?.focus(); }} className="mt-1 min-h-9 px-1 text-xs font-medium underline">Clear page search</button>}
       </div>
       {groups.map((group, index) => (
         <div key={group.id} role="group" aria-labelledby={`${id}-${group.id}`} className="space-y-0.5">

@@ -16,11 +16,52 @@ describe('beginner navigation and access recovery', () => {
     const nav = screen.getByRole('navigation', { name: 'Pages' });
     expect(within(nav).getByRole('link', { name: 'Reconciliation' })).toBeTruthy();
     expect(within(nav).queryByRole('link', { name: 'Team & access' })).toBeNull();
-    expect(within(nav).getByRole('status').textContent).toContain('not records');
+    expect(within(nav).getByText(/This searches page names, not records\./)).toBeTruthy();
     await user.click(within(nav).getByRole('link', { name: 'Reconciliation' }));
     await screen.findByRole('heading', { name: 'Reconciliation' });
     expect((screen.getByRole('searchbox', { name: 'Find a page' }) as HTMLInputElement).value).toBe('');
     expect(api.calls.filter(call => call.method !== 'GET')).toEqual([]);
+  });
+
+  it('keeps the page search live region in place before the first search, so its first count is announced', async () => {
+    const user = userEvent.setup();
+    renderApp('/overview');
+    await screen.findByRole('heading', { name: 'Operations overview' });
+    const nav = screen.getByRole('navigation', { name: 'Pages' });
+    // A screen reader announces a change to a live region, not a region that arrives with its first message.
+    const region = nav.querySelector('[role="status"], [aria-live="polite"]');
+    expect(region?.textContent).toBe('');
+    await user.type(within(nav).getByRole('searchbox', { name: 'Find a page' }), 'payroll');
+    expect(nav.querySelector('[role="status"], [aria-live="polite"]')).toBe(region);
+    expect(region?.textContent).toBe('1 page found. This searches page names, not records.');
+  });
+
+  it('returns focus to the page search when Clear page search removes itself', async () => {
+    const user = userEvent.setup();
+    renderApp('/overview');
+    await screen.findByRole('heading', { name: 'Operations overview' });
+    const nav = screen.getByRole('navigation', { name: 'Pages' });
+    const pageSearch = within(nav).getByRole('searchbox', { name: 'Find a page' });
+    await user.type(pageSearch, 'payroll');
+    await user.click(within(nav).getByRole('button', { name: 'Clear page search' }));
+    expect((pageSearch as HTMLInputElement).value).toBe('');
+    expect(document.activeElement).toBe(pageSearch);
+  });
+
+  it('returns focus to the drawer’s page search, not the drawer, when its search is cleared from the keyboard', async () => {
+    const user = userEvent.setup();
+    renderApp('/overview');
+    await screen.findByRole('heading', { name: 'Operations overview' });
+    await user.click(screen.getByRole('button', { name: 'Menu' }));
+    const drawer = await screen.findByRole('dialog', { name: 'Menu' });
+    const search = within(drawer).getByRole('searchbox', { name: 'Find a page' });
+    await user.type(search, 'payroll');
+    await user.tab();
+    expect(document.activeElement).toBe(within(drawer).getByRole('button', { name: 'Clear page search' }));
+    await user.keyboard('{Enter}');
+    expect((search as HTMLInputElement).value).toBe('');
+    expect(document.activeElement).toBe(search);
+    expect(screen.getByRole('dialog', { name: 'Menu' })).toBeTruthy();
   });
 
   it('keeps help reachable with no navigation matches and restores the full menu', async () => {
