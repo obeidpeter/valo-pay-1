@@ -507,6 +507,12 @@ export const recordDataSchemas = {
     startCondition: z.string().optional(),
     conversationComplete: z.boolean().optional(),
     designPartner: z.boolean().optional(),
+    /** Reviewed monthly pricing dates. Missing legacy dates never imply a calendar-year rollover. */
+    discountStartDate: isoDay.optional(),
+    fullPriceStartDate: isoDay.optional(),
+    discountTermsReference: z.string().max(500).optional(),
+    /** Assigned by the service when signed dates are saved by Finance or Admin. */
+    discountReview: z.object({ reviewedBy: z.string(), reviewedAt: isoDateOrTimestamp, discountStartDate: isoDay, fullPriceStartDate: isoDay, termsReference: z.string() }).optional(),
   }).passthrough(),
   reviews: z.object({
     ...common,
@@ -616,7 +622,7 @@ export const recordDataSchemas = {
     issuedAt: isoDateOrTimestamp,
     issuedBy: z.string().min(1),
     sequence: z.number().int().min(1).optional(),
-    terms: z.object({ commercialId: z.string(), prospect: z.string(), contractedLicenceKobo: z.number().int(), designPartner: z.boolean(), effectiveDate: z.string().nullable() }).nullable().optional(),
+    terms: z.object({ commercialId: z.string(), prospect: z.string(), contractedLicenceKobo: z.number().int(), designPartner: z.boolean(), effectiveDate: z.string().nullable(), discountReview: z.object({ reviewedBy: z.string(), reviewedAt: isoDateOrTimestamp, discountStartDate: isoDay, fullPriceStartDate: isoDay, termsReference: z.string() }).optional() }).nullable().optional(),
     issueReason: z.string().optional(),
     collectionsCounted: z.number().int().min(0).optional(),
     licence: z.object({ kobo: z.number().int(), volumeTier: z.string().optional(), volumeTierLicenceKobo: z.number().int().optional(), tierMismatch: z.boolean().optional(), note: z.string().optional() }).optional(),

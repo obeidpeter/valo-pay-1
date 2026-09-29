@@ -511,7 +511,13 @@ await check(async () => {
     assert.equal(report.exitCode, exitCode, `${outcome} exits ${exitCode}`);
     assert.ok(report.message);
   }
-  const unexpected = paystackVerificationReport(new Error(`postgres://user:${key}@db.invalid/valopay`));
+  const credentialErrorUrl = new URL("postgres://unused:unused@127.0.0.1:1/unused");
+  credentialErrorUrl.username = "user";
+  credentialErrorUrl.password = key;
+  credentialErrorUrl.hostname = "db.invalid";
+  credentialErrorUrl.port = "";
+  credentialErrorUrl.pathname = "/valopay";
+  const unexpected = paystackVerificationReport(new Error(credentialErrorUrl.toString()));
   assert.deepEqual([unexpected.result, unexpected.exitCode], ["failed", 1]);
   assert.ok(!unexpected.message.includes(key), "an unexpected error's own words are never printed");
   const awaiting = paystackVerificationReport({ status: "awaiting_verification", outcome: "credentials_refused", message: "Kept.", observationCreated: false, financialRecordsCreated: 0, instructions: "disabled" });

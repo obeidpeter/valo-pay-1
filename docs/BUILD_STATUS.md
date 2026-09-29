@@ -1,6 +1,18 @@
 # Valo Pay — build status
 
-## Latest verified deployed release · PR #76 · 29 September 2026
+## Latest verified deployed release · PR #77 · 29 September 2026
+
+[PR #77](https://github.com/obeidpeter/valo-pay/pull/77), merged as `cd9d81c665ca08c29429e26bb3ed0d78863b5966`, was published to [Valo Pay — Stage 1](https://valo-pay.replit.app). The verified live build was `cd9d81c 2026-09-29T08:41:32.879Z`; publication completed at 08:47 UTC. Its source tree exactly matched the reviewed candidate. The [main CI run](https://github.com/obeidpeter/valo-pay/actions/runs/36543762013) passed all eight jobs. No migration or hosting configuration change was introduced; the publication schema comparison was empty.
+
+At 08:48:26 and 08:49:56 UTC, health and readiness returned 200 with database/schema healthy. The same instance's background heartbeat and successful cleanup-poll timestamps advanced; worker crashes/restarts and pending cleanup failures remained zero. A read-only production query found the cleanup queue empty. The matching monitor passed with no codes or warnings and no delivery attempted. These dated empty-poll observations establish worker health, not a production deletion or recovery rehearsal. Data sources and Import batches loaded without captured browser errors; no records were saved by those smoke checks.
+
+The scheduler remains **off**, financial staging disabled and existing live gates unchanged. Independent monitoring/delivery, provider access, hosted recovery and human operator acceptance remain outstanding.
+
+## Refactoring candidate · not deployed
+
+The [programme release record](refactor-2026-09-29/README.md) describes the subsequent capability-boundary, current-permission, reviewed-contract-date and experience improvements in [draft PR #78](https://github.com/obeidpeter/valo-pay/pull/78). Implemented commit `c02147b3c8904d3175e55156ee7457f8ea3e1e63` passed all eight CI jobs, 793 local UI tests across 100 files, all offline checks and 37 PostgreSQL suites; CI also passed pilot, real API/browser and synthetic backup/restore rehearsals. The release record separately records baseline, candidate verification and external acceptance. This candidate adds no database migration, dependency or shared-host setting. Reviewed contract dates govern future design-partner pricing only after a service-attributed review; issued invoices remain immutable. Publication and activation are separate decisions.
+
+## Earlier deployed release · PR #76 · 29 September 2026
 
 [PR #76](https://github.com/obeidpeter/valo-pay/pull/76), merged as `9054e534e93c5d32126423e9e5c4263c96337244`, was published to [Valo Pay — Stage 1](https://valo-pay.replit.app). The observed live build was `9054e53 2026-09-29T07:44:52.966Z`. Health and readiness returned HTTP 200; database and schema were healthy. A read-only monitor check at 07:49 UTC returned no codes or warnings. The scheduler remained **off**. These are dated observations, not continuous monitoring.
 
@@ -10,9 +22,9 @@ Live browser checks loaded the landing and Clerk sign-in pages, Cash Desk sectio
 
 The production cleanup queue was empty at 07:48 UTC. Worker startup/crash logs could not be retrieved for this deployment, so neither successful cleanup execution nor zero crashes is claimed from that check. An empty queue proves no queued cleanup work, not a completed file deletion. Independent monitor scheduling and durable state, alert delivery, automatic-close commissioning, Paystack credentials, hosted recovery and human operator acceptance remain outstanding.
 
-## Post-release cleanup · implemented, awaiting deployment
+## Post-release cleanup · included in deployed PR #77
 
-This branch adds independent background-worker health, shared typed Data sources/Imports models and a reconciliation import-cycle guard, and updates the release guidance. These changes require no migration or configuration change. Their presence in source does not change the latest verified deployed revision above. Deploy the build and its monitor together, then check the worker heartbeat and a successful cleanup poll after the instance has run for at least 90 seconds. An empty successful poll is health evidence, not proof of a production file deletion or recovery rehearsal.
+PR #77 added independent background-worker health, shared typed Data sources/Imports models and a reconciliation import-cycle guard, and updated the release guidance. These changes required no migration or configuration change. The build and matching monitor were deployed together and the advancing worker heartbeat and successful cleanup polls were checked as recorded above. An empty successful poll is health evidence, not proof of a production file deletion or recovery rehearsal.
 
 ## Earlier deployed release · PR #70 · 27 September 2026
 

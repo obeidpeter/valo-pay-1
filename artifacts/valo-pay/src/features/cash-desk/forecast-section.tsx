@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { ScrollFrame } from "@/components/scroll-frame";
 import { formatCompactDate, formatCount, formatDate } from "@/lib/formatters";
 import {
   ArrowDownLeft,
@@ -104,7 +105,7 @@ export function CashForecastSection({
                 downside={stress}
                 opening={cash.forecast.openingMinor}
               />
-              <div className="overflow-x-auto">
+              <ScrollFrame label="Weekly base and downside cash balances">
                 <table className="w-full text-sm">
                   <caption className="sr-only">
                     Weekly base and downside cash balances
@@ -136,7 +137,7 @@ export function CashForecastSection({
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </ScrollFrame>
               <p className="mt-3 text-xs text-muted-foreground">
                 Planning buffer: {amount(cash.forecast.planningBufferMinor)}.
                 The buffer does not change your bank balance.
@@ -255,11 +256,17 @@ export function CashForecastSection({
             <Button
               className="w-full"
               disabled={!canOperate || !canPrepareForecast || pending}
+              aria-describedby="forecast-save-help"
               onClick={reviewForecast}
             >
               Save forecast
               <ArrowRight />
             </Button>
+            <p id="forecast-save-help" className="text-xs leading-relaxed text-muted-foreground">
+              {!canPrepareForecast ? "An Admin, Operations or Finance user can save a forecast."
+                : !canOperate ? "Set up the sample Cash Desk with active business-account read permission before saving."
+                : "Review these assumptions before confirming a new forecast version. Existing versions remain in history."}
+            </p>
             <p className="flex items-start gap-2 text-xs leading-relaxed text-muted-foreground">
               <CircleHelp className="mt-0.5 h-4 w-4 shrink-0" />
               Only information known at the forecast date is included. Draft

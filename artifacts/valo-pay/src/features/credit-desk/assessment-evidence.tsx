@@ -1,4 +1,5 @@
 import { TabsContent } from "@/components/ui/tabs";
+import { EvidenceDisclosure } from "@/components/evidence-disclosure";
 import { formatCount, formatDate, formatNumber } from "@/lib/formatters";
 import { Amount } from "./amount";
 import type { Assessment } from "./types";
@@ -51,7 +52,7 @@ export function AssessmentEvidence({
             />
             <Amount
               label="Median observed liquidity"
-              value={result.features.liquidityBufferKobo ?? 0}
+              value={result.features.liquidityBufferKobo}
             />
           </dl>
           <p className="text-sm">
@@ -73,10 +74,7 @@ export function AssessmentEvidence({
             review.
           </p>
           {result.features.excludedTransactions.length > 0 && (
-            <details>
-              <summary className="cursor-pointer text-sm font-medium">
-                Excluded observations
-              </summary>
+            <EvidenceDisclosure title="Excluded observations">
               <ul className="mt-3 space-y-2 text-xs">
                 {result.features.excludedTransactions.map((item) => (
                   <li key={item.reference} className="break-all">
@@ -84,12 +82,11 @@ export function AssessmentEvidence({
                   </li>
                 ))}
               </ul>
-            </details>
+            </EvidenceDisclosure>
           )}
         </>
       )}
-      <div className="border-t pt-4">
-        <p className="text-xs font-medium">Immutable evidence fingerprint</p>
+      <EvidenceDisclosure title="Immutable evidence fingerprint">
         <p className="break-all text-xs text-muted-foreground mt-2 font-mono">
           {result.snapshotHash}
         </p>
@@ -97,7 +94,7 @@ export function AssessmentEvidence({
           Rulecard {result.score?.rulecardVersion ?? modelVersion} · Policy
           version {result.policy.version}
         </p>
-      </div>
+      </EvidenceDisclosure>
     </TabsContent>
   );
 }

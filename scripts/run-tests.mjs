@@ -31,6 +31,7 @@ const steps = [
   ["node", ["scripts/check-db-boundary.mjs"]],
   ["node", ["scripts/github-snapshot.test.mjs"]],
   ["node", ["scripts/check-docs.mjs"]],
+  ["node", ["docs/refactor-2026-09-29/validate-traceability.mjs"]],
   ["node", ["scripts/monitor-valopay.test.mjs"]],
   ["node", ["scripts/operator-commands.test.mjs"]],
   ["node", ["scripts/tooling.test.mjs"]],

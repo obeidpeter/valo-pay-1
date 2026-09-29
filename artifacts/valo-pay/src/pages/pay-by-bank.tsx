@@ -26,6 +26,7 @@ import { useFormDraft } from "@/lib/unsaved-changes";
 import { useWorkspace } from "@/lib/workspace-context";
 import { useDialogFocusReturn, useFocusWhenLost } from "@/lib/focus";
 import { reversalReviewRefusals } from "@/lib/permissions";
+import { PaymentProgress } from "@/features/pay-by-bank/payment-progress";
 const TITLE = "Pay-by-bank",
   DESCRIPTION =
     "A clear journey from bank authorisation to a verified receipt, tied to the instalment it pays.";
@@ -388,14 +389,7 @@ function PaymentContent({ api }: { api: ReturnType<typeof useConnected> }) {
                   Authorise before {formatDate(intent.data.expiresAt ?? '')}
                 </p>
               </div>
-              <ol
-                className="flex flex-wrap gap-3 text-xs text-muted-foreground"
-                aria-label="Payment steps"
-              >
-                <li>1. Review details</li>
-                <li>2. Bank authorisation</li>
-                <li>3. Verified receipt</li>
-              </ol>
+              <PaymentProgress status={intent.status} expired={checkoutExpired} held={intentHeld} refundRequested={!!intent.data.refundRequest} />
               <div className="flex flex-wrap gap-2">
                 {intent.status === "created" && (
                   <>
@@ -590,8 +584,9 @@ function PaymentContent({ api }: { api: ReturnType<typeof useConnected> }) {
                   <Link href="/settings" className="underline">
                     Settings
                   </Link>{" "}
-                  to review independently. Sample refund evidence never sends
-                  funds.
+                  to explore the reviewer step. A demo role switch does not
+                  establish independent human approval. Sample refund evidence
+                  never sends funds.
                 </p>
               )}
               <h3 className="font-semibold text-sm pt-3">Journey history</h3>

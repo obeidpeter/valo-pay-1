@@ -104,9 +104,9 @@ export function vatKobo(netKobo: number, bps: number = DEFAULT_VAT_BPS): number 
   return multiplyDivideMoney(netKobo, validMoneyBps(bps), 10_000);
 }
 
-/** Design partners pay half in 2027 and full public prices from 1 January 2028. */
+/** Historical source compatibility only. Current billing requires reviewed contract dates, never this year. */
 export const DESIGN_PARTNER_DISCOUNT_YEAR = "2027";
-/** The share of the public price a design partner pays in the discount year. */
+/** The share of the public price a design partner pays during its reviewed discount period. */
 export const DESIGN_PARTNER_DISCOUNT = 0.5;
 
 /**

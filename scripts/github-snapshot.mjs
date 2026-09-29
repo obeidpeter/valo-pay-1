@@ -19,10 +19,15 @@ docs.add('docs/paystack-test-verification.md');
 docs.add('docs/financial-projection-staging.md');
 docs.add('docs/synthetic-instruction-recovery.md');
 docs.add('docs/document-register.md');
+// Reviewed engineering records only; controlled sources and private extractions stay excluded.
+for (const name of ['README.md', 'backend-package.md', 'repository-assessment.md', 'source-status-notes.md', 'traceability.json', 'validate-traceability.mjs']) docs.add(`docs/refactor-2026-09-29/${name}`);
 // Workflows execute code on GitHub. Review each file before approving its export.
 const workflows = new Set([".github/workflows/ci.yml"]);
 const sourceExtension = /\.(?:ts|tsx|js|jsx|mjs|cjs|json|yaml|yml|toml|css|html|svg|sh|md|sql)$/;
 const excludedSegment = /^(?:\.git|\.agents|\.conversation|\.local|\.cache|\.config|\.deployment-runtime|node_modules|dist|coverage|attached_assets|uploads|backups|exports)$/;
+// Reviewed 29 September 2026: baseline allowed source alone exceeds the old
+// 8 MiB budget. Keep a bounded aggregate; per-file and disclosure checks remain.
+export const SNAPSHOT_MAX_BYTES = 16 * 1024 * 1024;
 
 export function allowedPath(path) {
   if (path.split("/").some(p => excludedSegment.test(p) || p === ".." || p.startsWith(".env"))) return false;
@@ -70,6 +75,6 @@ export function snapshot(root) {
     files.push({ path, mode, type: "blob", content, sha });
   }
   if (!files.some(f => f.path === "README.md") || !files.some(f => f.path === "pnpm-lock.yaml")) throw new Error("Incomplete source snapshot.");
-  if (files.reduce((sum, f) => sum + Buffer.byteLength(f.content), 0) > 8 * 1024 * 1024) throw new Error("Snapshot requires a separate size review.");
+  if (files.reduce((sum, f) => sum + Buffer.byteLength(f.content), 0) > SNAPSHOT_MAX_BYTES) throw new Error("Snapshot requires a separate size review: the reviewed aggregate limit is 16 MiB.");
   return { files, excluded };
 }

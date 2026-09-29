@@ -30,6 +30,7 @@ export function CashAccountingSection({
         detail="Match the bank receipt, invoice residual, fee and credit note before exporting an accounting draft. Xero is the first planned integration; live posting is gated."
         action={
           <Button
+            aria-describedby="accounting-prepare-help"
             disabled={
               !canOperate ||
               !maker ||
@@ -51,6 +52,13 @@ export function CashAccountingSection({
           </Button>
         }
       >
+        <p id="accounting-prepare-help" className="mb-4 text-xs leading-relaxed text-muted-foreground">
+          {cash.erpDrafts.length > 0 ? "A sample draft already exists. Continue its review below; preparing another draft for the same receipt is unavailable."
+            : !maker ? "An Admin or Operations user prepares the draft; a different Finance reviewer checks it."
+            : !cash.permissions.erp ? "Grant accounting-draft permission in Permissions & readiness before preparing a draft."
+            : !canOperate ? "Set up the sample Cash Desk with active business-account read permission first."
+            : "Prepare the draft, review its invoice and fee evidence, then hand it to a different Finance reviewer."}
+        </p>
         {!cash.erpDrafts.length ? (
           <div className="rounded-xl border border-dashed p-8 text-center">
             <FileCheck2 className="mx-auto h-8 w-8 text-muted-foreground" />

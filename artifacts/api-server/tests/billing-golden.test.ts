@@ -10,6 +10,7 @@ import { supersedeAllocation } from "../src/domain/reconciliation.js";
 import { makeRecord, recordsOf } from "../src/domain/records.js";
 import { seedMerchant } from "../src/lib/valopay-seed.js";
 import type { DomainState, TypedRecord, ValopayRecord } from "../src/domain/types.js";
+import { validateRecord } from '../src/domain/validation.js';
 
 const { assertFinalState } = await import("../src/lib/valopay-store.js");
 let checks = 0;
@@ -22,6 +23,11 @@ function fixture(id: string, effectiveDate = "2027-06-01"): { state: DomainState
   const state = seedMerchant(id);
   const terms = recordsOf(state, "commercial")[0]!;
   terms.data.signed = true; terms.data.effectiveDate = effectiveDate;
+  // These dates describe this fixture's reviewed agreement, not a platform calendar default.
+  terms.data.signedFullPriceTerms = true;
+  terms.data.discountStartDate = '2027-01-01'; terms.data.fullPriceStartDate = '2028-01-01';
+  terms.data.discountTermsReference = 'synthetic-agreement';
+  validateRecord(state, finance(wat('2026-12-01T09:00:00')), 'commercial', terms);
   // The seeded receipts become transfers so only the collections each case creates are billable (BIL-01 is covered in measurement-golden).
   for (const payment of recordsOf(state, "payments")) payment.data.channel = "transfer";
   const customer = recordsOf(state, "customers")[0]!;
@@ -41,6 +47,109 @@ assert.equal(periodEnd("2027-06"), "2027-06-30T22:59:59.999Z", "June ends at mid
 assert.equal(monthOf(wat("2028-01-01T00:30:00")), "2028-01", "00:30 WAT on 1 January is January, though it is still December in UTC");
 assert.equal(previousMonth(wat("2028-02-01T00:30:00")), "2028-01", "at 00:30 WAT on 1 February the previous month is January");
 checks += 5;
+
+// BIL-02: a calendar year is not signed authority to end the pilot/bridge discount.
+{
+  const { state } = fixture('unreviewed-discount', '2028-01-01');
+  delete recordsOf(state, 'commercial')[0]!.data.discountReview;
+  state.settings.billingPeriod = '2028-01';
+  const before = structuredClone(state);
+  assert.throws(() => issueInvoice(state, finance(wat('2028-02-02T09:00:00')), { period: '2028-01' }), /review.*discount dates/i,
+    'Older design-partner agreements need reviewed contract dates before a new invoice, not an automatic full-price calendar rollover.');
+  assert.deepEqual(state, before, 'Refused pricing creates no invoice or financial change');
+  const billing = buildReports(state, wat('2028-02-02T09:00:00')).billing;
+  assert.equal(billing.totalKobo, null); assert.equal(billing.pricingReady, false);
+  assert.equal(billing.nextInvoicePricingReady, false);
+  assert.deepEqual(billing.lines, []);
+  assert.equal(billing.unitEconomics.recurringKobo, null);
+  assert.equal(billing.unitEconomics.annualisedRecurringRevenueKobo, null);
+  checks += 8;
+}
+
+// The funded contract may cover a different year; the server records the review and keeps its exact evidence on the invoice.
+{
+  const { state, collection } = fixture('contract-dates', '2028-05-01');
+  const terms = recordsOf(state, 'commercial')[0]!;
+  const edit = structuredClone(terms);
+  Object.assign(edit.data, { discountStartDate: '2028-05-01', fullPriceStartDate: '2028-07-01', discountTermsReference: 'reviewed-pilot-and-bridge' });
+  const ctx = finance(wat('2028-04-20T09:00:00'));
+  validateRecord(state, ctx, 'commercial', edit, true);
+  Object.assign(terms.data, edit.data);
+  assert.equal(terms.data.discountReview?.reviewedBy, ctx.actor);
+  assert.equal(terms.data.discountReview?.reviewedAt, ctx.now);
+  collection('CONTRACT-RECEIPT', wat('2028-05-10T09:00:00'));
+  const may = invoiceFor(state, '2028-05', wat('2028-06-02T09:00:00'));
+  assert.equal(may.data.designPartnerDiscount?.rate, 0.5);
+  assert.match(may.data.designPartnerDiscount?.note ?? '', /full price from 2028-07-01/);
+  assert.deepEqual(may.data.terms?.discountReview, terms.data.discountReview);
+  const immutable = structuredClone(may);
+  assert.equal(invoiceFor(state, '2028-06', wat('2028-07-02T09:00:00')).data.designPartnerDiscount?.rate, 0.5);
+  assert.equal(invoiceFor(state, '2028-07', wat('2028-08-02T09:00:00')).data.designPartnerDiscount?.rate, 0);
+  assert.deepEqual(may, immutable, 'Later billing never reprices issued evidence');
+  terms.data.fullPriceStartDate = '2028-09-01';
+  assert.throws(() => invoiceFor(state, '2028-08', wat('2028-09-02T09:00:00')), /review.*discount dates/i, 'A persisted date changed outside its review cannot reuse stale review evidence');
+  assert.deepEqual(may, immutable);
+  checks += 10;
+}
+
+// Dates are reviewed by an authorised writer, never by a supplied identity or an inferred calendar.
+{
+  const { state } = fixture('date-validation');
+  const terms = recordsOf(state, 'commercial')[0]!;
+  const changed = (patch: Record<string, unknown>) => ({ ...structuredClone(terms), data: { ...structuredClone(terms.data), ...patch } });
+  for (const patch of [{ fullPriceStartDate: '2027-01-01' }, { discountStartDate: '2027-02-30' }, { discountStartDate: '2027-06-15' }, { discountTermsReference: '' }]) {
+    assert.throws(() => validateRecord(state, finance(wat('2027-06-02T09:00:00')), 'commercial', changed(patch), true));
+  }
+  assert.throws(() => validateRecord(state, finance(wat('2027-06-02T09:00:00')), 'commercial', changed({ discountReview: { ...terms.data.discountReview, reviewedBy: 'Someone else' } }), true), /review identity/);
+  assert.throws(() => validateRecord(state, ctxAt(wat('2027-06-02T09:00:00'), 'Read-only'), 'commercial', changed({ fullPriceStartDate: '2028-02-01' }), true), /read-only access/);
+  const cleared = changed({ signedFullPriceTerms: false });
+  validateRecord(state, finance(wat('2027-06-02T09:00:00')), 'commercial', cleared, true);
+  assert.equal(cleared.data.discountReview, undefined);
+  const untouched = structuredClone(terms);
+  validateRecord(state, finance(wat('2027-06-02T09:00:00')), 'commercial', untouched, true);
+  assert.deepEqual(untouched.data.discountReview, terms.data.discountReview, 'Unrelated edits retain the original review time');
+  checks += 8;
+}
+
+// Persisted legacy JSON did not validate these formerly unknown commercial
+// fields on read. Malformed review evidence must request review, not crash
+// the reports page or be copied into newly issued invoice evidence.
+{
+  const { state: baseline } = fixture('malformed-review');
+  baseline.settings.billingPeriod = '2027-06';
+  const review = structuredClone(recordsOf(baseline, 'commercial')[0]!.data.discountReview!);
+  const malformed: Array<[string, Record<string, unknown>]> = [
+    ['numeric reviewer', { discountReview: { ...review, reviewedBy: 42 } }],
+    ['numeric review timestamp', { discountReview: { ...review, reviewedAt: 42 } }],
+    ['array review timestamp', { discountReview: { ...review, reviewedAt: ['2027-01-01'] } }],
+    ['array review', { discountReview: [review] }],
+    ['scalar review', { discountReview: 'reviewed' }],
+    ['malformed review date', { discountReview: { ...review, discountStartDate: ['2027-01-01'] } }],
+    ['malformed review reference', { discountReview: { ...review, termsReference: 42 } }],
+    ['malformed contract date', { discountStartDate: 42 }],
+    ['malformed contract reference', { discountTermsReference: ['synthetic-agreement'] }],
+  ];
+  for (const [label, patch] of malformed) {
+    const state = structuredClone(baseline);
+    Object.assign(recordsOf(state, 'commercial')[0]!.data, patch);
+    const before = structuredClone(state);
+    const billing = buildReports(state, wat('2027-07-02T09:00:00')).billing;
+    assert.equal(billing.pricingReady, false, `${label}: malformed stored evidence needs review`);
+    assert.equal(billing.totalKobo, null, `${label}: no assumed price`);
+    assert.throws(() => issueInvoice(state, finance(wat('2027-07-02T09:00:00')), { period: '2027-06' }), /review.*discount dates/i,
+      `${label}: a documented pricing refusal, not an incidental TypeError`);
+    assert.deepEqual(state, before, `${label}: refusal and report preserve historical state`);
+    checks += 4;
+  }
+  const state = structuredClone(baseline);
+  Object.assign(recordsOf(state, 'commercial')[0]!.data, { designPartner: false, discountReview: { reviewedBy: 42 } });
+  const before = structuredClone(state);
+  const invoice = invoiceFor(state, '2027-06', wat('2027-07-02T09:00:00'));
+  assert.equal(invoice.data.designPartnerDiscount.rate, 0, 'ordinary commercial terms retain public pricing');
+  assert.equal(invoice.data.terms!.discountReview, undefined, 'an irrelevant malformed legacy review is never issued as invoice evidence');
+  assert.deepEqual(recordsOf(state, 'commercial'), recordsOf(before, 'commercial'), 'issuing an invoice does not rewrite legacy terms');
+  checks += 3;
+}
 
 // ---------- BIL-04: the first invoice: licence from the signed terms, one usage line per billable collection, discount, VAT shown ----------
 {

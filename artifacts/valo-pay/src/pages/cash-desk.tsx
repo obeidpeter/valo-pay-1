@@ -6,6 +6,8 @@ import {
 import { LoadProblem } from "@/components/load-problem";
 import { Loading } from "@/components/loading";
 import { Button } from "@/components/ui/button";
+import { SectionNavigation } from "@/components/section-navigation";
+import { useSearchParams } from "wouter";
 import {
   Dialog,
   DialogContent,
@@ -40,12 +42,24 @@ import { useEffect, useRef, useState } from "react";
 const TITLE = "Cash Desk",
   DESCRIPTION =
     "A clearer view of business cash, commitments and the work ahead.";
+const cashSections = [
+  { id: "cash", label: "Cash & forecast", icon: ChartNoAxesCombined, description: "Review timestamped balances and assumptions before saving a forecast. Planning buffers do not reserve bank funds." },
+  { id: "accounting", label: "Accounting", icon: FileCheck2, description: "Operations prepares the draft; a different Finance reviewer checks it before export. The accounting system remains authoritative." },
+  { id: "vat", label: "VAT evidence", icon: ShieldCheck, description: "Review invoice, bank and ledger evidence with an accountant. Preparing a schedule does not file or pay a tax return." },
+  { id: "payroll", label: "Payroll funding", icon: Users, description: "Check an approved net-pay run, obtain independent review and track every item. Funding approval and export do not establish payment." },
+] as const;
 export default function CashDeskPage() {
   const api = useConnected();
   const { data, isLoading, error, refetch, run, pending, canWrite } = api;
   const { workspace, merchantId } = useWorkspace();
   const cash = data?.cash;
-  const [tab, setTab] = useState("cash");
+  const [search, setSearch] = useSearchParams();
+  const tab = cashSections.some(section => section.id === search.get("view")) ? search.get("view")! : "cash";
+  const setTab = (view: string) => setSearch(current => {
+    const next = new URLSearchParams(current);
+    if (view === "cash") next.delete("view"); else next.set("view", view);
+    return next;
+  });
   const [action, setAction] = useState<PendingAction | null>(null);
   const [reason, setReason] = useState("");
   const [problem, setProblem] = useState("");
@@ -75,7 +89,6 @@ export default function CashDeskPage() {
     setDownside("70");
     setDelay("7");
     setBuffer("1500000");
-    setTab("cash");
     draft.reset({ downside: "70", delay: "7", buffer: "1500000", reason: "" });
   }, [merchantId]);
   const maker = ["Admin", "Operations"].includes(workspace?.role ?? "");
@@ -230,6 +243,7 @@ export default function CashDeskPage() {
           </div>
           <Button
             disabled={!maker || !canWrite || !cash.permissions.read || pending}
+            aria-describedby="cash-setup-help"
             onClick={() =>
               ask({
                 action: "cash.initialize",
@@ -242,6 +256,12 @@ export default function CashDeskPage() {
             Set up sample Cash Desk
             <ArrowRight />
           </Button>
+          <p id="cash-setup-help" className="w-full text-xs text-muted-foreground">
+            {!maker ? "An Admin or Operations user must set up this sample workspace."
+              : !canWrite ? "This workspace is read-only. Ask an administrator to review your access."
+              : !cash.permissions.read ? "Grant business-account read permission in Permissions & readiness first."
+              : "Save the sample workspace, then prepare a forecast or choose a review task below."}
+          </p>
         </div>
       ) : !cash.permissions.read ? (
         <Gate text="Business-account permission has expired or been revoked. New forecasts and preparation actions are paused." />
@@ -249,28 +269,8 @@ export default function CashDeskPage() {
       {!cash.permissions.read && !cash.initialised && (
         <Gate text="Business-account read permission is needed before saving changes." />
       )}
-      <nav
-        aria-label="Cash Desk sections"
-        className="flex gap-1 overflow-x-auto rounded-xl border bg-card p-1.5"
-      >
-        {[
-          { id: "cash", title: "Cash & forecast", Icon: ChartNoAxesCombined },
-          { id: "accounting", title: "Accounting", Icon: FileCheck2 },
-          { id: "vat", title: "VAT evidence", Icon: ShieldCheck },
-          { id: "payroll", title: "Payroll funding", Icon: Users },
-        ].map(({ id, title, Icon }) => (
-          <button
-            key={id}
-            type="button"
-            aria-pressed={tab === id}
-            onClick={() => setTab(id)}
-            className={`flex min-h-11 shrink-0 items-center gap-2 rounded-lg px-4 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${tab === id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-secondary"}`}
-          >
-            <Icon className="h-4 w-4" aria-hidden="true" />
-            {title}
-          </button>
-        ))}
-      </nav>
+      <SectionNavigation label="Cash Desk sections" sections={cashSections} value={tab} onChange={setTab} controls="cash-desk-view" />
+      <div id="cash-desk-view">
       {tab === "cash" && (
         <CashForecastSection
           cash={cash}
@@ -321,6 +321,7 @@ export default function CashDeskPage() {
           ask={ask}
         />
       )}
+      </div>
 
       <div className="flex items-start gap-3 rounded-xl border bg-secondary/20 p-4 text-xs leading-relaxed text-muted-foreground">
         <Wallet className="mt-0.5 h-4 w-4 shrink-0" />

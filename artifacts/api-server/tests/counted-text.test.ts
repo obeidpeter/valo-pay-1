@@ -88,6 +88,7 @@ const empty = (id: string) => { const state = seedMerchant(id, true); state.reco
   const state = seedMerchant("counted-invoice");
   const terms = recordsOf(state, "commercial")[0]!;
   terms.data.signed = true; terms.data.effectiveDate = "2027-06-01";
+  terms.data.designPartner = false; // Wording fixture uses ordinary signed terms; pricing authority is tested separately.
   for (const payment of recordsOf(state, "payments")) payment.data.channel = "transfer";
   const customer = recordsOf(state, "customers")[0]!, observedAt = wat("2027-06-10T06:20:00"), amountKobo = 2_500_000;
   const due = makeRecord(state, "due-items", { name: "Counted collection", status: "paid", customerId: customer.id, amountKobo, reference: "DUE-COUNTED", data: { dueDate: observedAt.slice(0, 10), owner: "lms", outstandingKobo: 0 } });

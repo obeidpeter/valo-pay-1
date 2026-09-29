@@ -21,5 +21,6 @@ export interface RecordInput {
   amountKobo?: number;
   /** @maxLength 100 */
   customerId?: string;
+  /** Per-kind fields validated by the shared record schema. Commercial design-partner terms may supply discountStartDate and fullPriceStartDate as first-of-month dates, discountTermsReference and signedFullPriceTerms. The service alone records discountReview attribution when signed dates are saved. Legacy records without reviewed dates remain readable but cannot issue a new design-partner invoice. */
   data?: RecordData;
 }

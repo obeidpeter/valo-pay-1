@@ -80,6 +80,7 @@ function billingFixture(licenceKobo: number) {
   state.records = state.records.filter((record) => record.kind === "commercial");
   const terms = recordsOf(state, "commercial")[0]!;
   terms.data.signed = true;
+  terms.data.designPartner = false; // This fixture tests full-price exact arithmetic, not discount authority.
   terms.data.effectiveDate = "2028-02-01";
   terms.data.licenceKobo = licenceKobo;
   state.settings.vatBps = 750;

@@ -9,6 +9,102 @@ beforeEach(() => { api = installFakeApi(); });
 afterEach(() => { api.uninstall(); vi.restoreAllMocks(); });
 
 describe('evidence register and operational reviews', () => {
+  it.each([
+    ['wrong shape', []],
+    ['missing reviewer', { reviewedBy: '', reviewedAt: '2026-09-29T09:00:00Z', discountStartDate: '2027-02-01', fullPriceStartDate: '2028-02-01', termsReference: 'SYNTHETIC-TERMS' }],
+    ['stale dates', { reviewedBy: 'Sandbox Admin', reviewedAt: '2026-09-29T09:00:00Z', discountStartDate: '2027-01-01', fullPriceStartDate: '2028-02-01', termsReference: 'SYNTHETIC-TERMS' }],
+  ])('does not describe an unverified legacy discount review as ready (%s)', async (_label, discountReview) => {
+    api.mutate(state => {
+      const terms = state.records.find(record => record.kind === 'commercial')!;
+      Object.assign(terms.data, { signed: true, designPartner: true, signedFullPriceTerms: true, discountStartDate: '2027-02-01', fullPriceStartDate: '2028-02-01', discountTermsReference: 'SYNTHETIC-TERMS', discountReview });
+    });
+    renderApp('/evidence');
+    const section = (await screen.findByRole('heading', { name: 'Commercial commitments' })).closest('section')!;
+    expect(await within(section).findByText('Discount dates need review before a new invoice can be issued.')).toBeTruthy();
+    expect(within(section).queryByText(/^Discount from/)).toBeNull();
+    expect(screen.queryByText('Page error')).toBeNull();
+  });
+  it('keeps a legacy design-partner agreement editable without inventing discount dates or a review', async () => {
+    const user = userEvent.setup();
+    api.mutate(state => {
+      const terms = state.records.find(record => record.kind === 'commercial')!;
+      Object.assign(terms.data, { signed: true, designPartner: true, signedFullPriceTerms: true });
+      for (const key of ['discountStartDate', 'fullPriceStartDate', 'discountTermsReference', 'discountReview']) delete terms.data[key];
+    });
+    renderApp('/evidence');
+    const section = (await screen.findByRole('heading', { name: 'Commercial commitments' })).closest('section')!;
+    expect(await within(section).findByText('Discount dates need review before a new invoice can be issued.')).toBeTruthy();
+    await user.click(within(section).getByRole('button', { name: 'Edit' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Edit commercial terms' });
+    expect((within(dialog).getByLabelText('50% discount starts on') as HTMLInputElement).value).toBe('');
+    expect((within(dialog).getByLabelText('Full-price billing starts on') as HTMLInputElement).value).toBe('');
+    expect(within(dialog).getByText(/Leave dates blank until the agreement has been reviewed/)).toBeTruthy();
+    await user.clear(within(dialog).getByLabelText(/^Lender name/));
+    await user.type(within(dialog).getByLabelText(/^Lender name/), 'Updated legacy agreement');
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    const saved = api.state().records.find(record => record.kind === 'commercial')!;
+    expect(saved.name).toBe('Updated legacy agreement');
+    expect(saved.data.discountReview).toBeUndefined();
+    expect(saved.data.discountStartDate).toBeUndefined();
+    expect(saved.data.fullPriceStartDate).toBeUndefined();
+    expect(within(section).getByText('Discount dates need review before a new invoice can be issued.')).toBeTruthy();
+  });
+
+  it('submits explicit signed flags and dates while the service alone records the review identity and time', async () => {
+    const user = userEvent.setup();
+    api.mutate(state => {
+      const terms = state.records.find(record => record.kind === 'commercial')!;
+      Object.assign(terms.data, { signed: false, designPartner: false, signedFullPriceTerms: false });
+      for (const key of ['discountStartDate', 'fullPriceStartDate', 'discountTermsReference', 'discountReview']) delete terms.data[key];
+    });
+    renderApp('/evidence');
+    const section = (await screen.findByRole('heading', { name: 'Commercial commitments' })).closest('section')!;
+    await user.click(await within(section).findByRole('button', { name: 'Edit' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Edit commercial terms' });
+    for (const label of ['Signed', 'Design-partner agreement', 'Full-price terms are signed']) await user.click(within(dialog).getByRole('checkbox', { name: label }));
+    fireEvent.change(within(dialog).getByLabelText('50% discount starts on'), { target: { value: '2027-02-01' } });
+    fireEvent.change(within(dialog).getByLabelText('Full-price billing starts on'), { target: { value: '2028-02-01' } });
+    await user.type(within(dialog).getByLabelText('Signed agreement reference for these dates'), 'SYNTHETIC-AGREEMENT-2027');
+    expect(within(dialog).queryByLabelText(/Reviewed by|Review time|Review date/)).toBeNull();
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    const submitted = api.calls.findLast(call => call.method === 'PATCH' && call.path.includes('/records/commercial/'))!;
+    expect(submitted.body).toMatchObject({ data: { signed: true, designPartner: true, signedFullPriceTerms: true, discountStartDate: '2027-02-01', fullPriceStartDate: '2028-02-01', discountTermsReference: 'SYNTHETIC-AGREEMENT-2027' } });
+    expect((submitted.body as { data: Record<string, unknown> }).data).not.toHaveProperty('discountReview');
+    expect(api.state().records.find(record => record.kind === 'commercial')!.data.discountReview).toEqual({ reviewedBy: 'Sandbox Admin', reviewedAt: api.now, discountStartDate: '2027-02-01', fullPriceStartDate: '2028-02-01', termsReference: 'SYNTHETIC-AGREEMENT-2027' });
+    expect(within(section).queryByText('Discount dates need review before a new invoice can be issued.')).toBeNull();
+  });
+
+  it('preserves a refused partial or mid-month discount draft until the dates and agreement reference are corrected', async () => {
+    const user = userEvent.setup();
+    api.mutate(state => {
+      const terms = state.records.find(record => record.kind === 'commercial')!;
+      Object.assign(terms.data, { signed: true, designPartner: true, signedFullPriceTerms: true });
+      for (const key of ['discountStartDate', 'fullPriceStartDate', 'discountTermsReference', 'discountReview']) delete terms.data[key];
+    });
+    renderApp('/evidence');
+    const section = (await screen.findByRole('heading', { name: 'Commercial commitments' })).closest('section')!;
+    await user.click(await within(section).findByRole('button', { name: 'Edit' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Edit commercial terms' });
+    const start = within(dialog).getByLabelText('50% discount starts on') as HTMLInputElement;
+    const fullPrice = within(dialog).getByLabelText('Full-price billing starts on') as HTMLInputElement;
+    const reference = within(dialog).getByLabelText('Signed agreement reference for these dates') as HTMLInputElement;
+    fireEvent.change(start, { target: { value: '2027-02-15' } });
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    expect(await within(dialog).findByText(/Enter both discount dates and the signed agreement reference/)).toBeTruthy();
+    expect(start.value).toBe('2027-02-15');
+    fireEvent.change(fullPrice, { target: { value: '2028-02-01' } });
+    await user.type(reference, 'SYNTHETIC-CORRECTED-AGREEMENT');
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    expect(await within(dialog).findByText(/Discount dates must be the first day of a real billing month/)).toBeTruthy();
+    expect([start.value, fullPrice.value, reference.value]).toEqual(['2027-02-15', '2028-02-01', 'SYNTHETIC-CORRECTED-AGREEMENT']);
+    expect(api.state().records.find(record => record.kind === 'commercial')!.data.discountReview).toBeUndefined();
+    fireEvent.change(start, { target: { value: '2027-02-01' } });
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(api.state().records.find(record => record.kind === 'commercial')!.data.discountReview).toMatchObject({ discountStartDate: '2027-02-01', termsReference: 'SYNTHETIC-CORRECTED-AGREEMENT' });
+  });
   it('keeps evidence for every decision visible, searchable and editable after saving', async () => {
     const user = userEvent.setup();
     api.mutate((state, ctx) => {

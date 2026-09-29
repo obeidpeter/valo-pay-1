@@ -6,7 +6,7 @@ export function Amount({
   strong = false,
 }: {
   label: string;
-  value: number;
+  value: number | null;
   strong?: boolean;
 }) {
   return (
@@ -15,7 +15,7 @@ export function Amount({
       <dd
         className={`tabular-nums text-right ${strong ? "font-semibold" : ""}`}
       >
-        {formatKobo(value)}
+        {value === null ? "Unavailable" : formatKobo(value)}
       </dd>
     </div>
   );

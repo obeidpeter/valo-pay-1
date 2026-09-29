@@ -45,6 +45,27 @@ try {
   assert.deepEqual(inspectEffectBoundaries(fixture).issues, []);
   write('domain/connected-credit.ts', 'import type { Payroll } from "./types";');
   assert.deepEqual(inspectEffectBoundaries(fixture).issues, []);
+  write('domain/connected-permission-validity.ts', 'export const active = () => true;');
+  write('domain/connected-credit.ts', 'import { active } from "./connected-permission-validity";');
+  assert.deepEqual(inspectEffectBoundaries(fixture).issues, []);
+  write('domain/connected.ts', 'export { payroll } from "./connected-cash";');
+  write('domain/actions.ts', 'import "./connected";');
+  assert.match(inspectEffectBoundaries(fixture).issues.join('\n'), /Core workflows cannot import/);
+  // Core checking must revisit a helper inspected previously through an
+  // ordinary root, and refuse a hidden dependency on another capability.
+  write('domain/actions.ts', 'import "./records";');
+  write('domain/records.ts', 'export { payroll } from "./connected-cash";');
+  const coreTransitive = inspectEffectBoundaries(fixture).issues.join('\n');
+  assert.match(coreTransitive, /records\.ts:1: Core workflows cannot import/);
+  assert.match(coreTransitive, /via .*actions\.ts -> .*records\.ts/);
+  write('domain/records.ts', 'export const pure = 1;');
+  write('domain/connected-checkout.ts', 'import "./records"; export const resolveUnknownCheckout = () => 1;');
+  write('domain/actions.ts', 'import { resolveUnknownCheckout } from "./connected-checkout"; import type { Credit } from "./connected-credit";');
+  assert.deepEqual(inspectEffectBoundaries(fixture).issues, []);
+  write('domain/connected-checkout.ts', 'export { payroll } from "./connected-cash";');
+  assert.match(inspectEffectBoundaries(fixture).issues.join('\n'), /connected-checkout\.ts:1: Core workflows cannot import/);
+  write('domain/connected-checkout.ts', 'import "./records"; export const resolveUnknownCheckout = () => 1;');
+  assert.deepEqual(inspectEffectBoundaries(fixture).issues, []);
   // Reconciliation's two branches may depend on the same plain records module.
   // This diamond must not be mistaken for a cycle by the visited-file cache.
   write('domain/reconciliation.ts', 'import "./reconciliation-matching"; import "./reconciliation-payments"; export type Result = number; export const reconcile = () => 1;');
@@ -72,5 +93,5 @@ try {
   assert.match(inspectEffectBoundaries(fixture).issues.join('\n'), /Circular runtime dependency:/);
   write('domain/reconciliation-records.ts', 'import "./reconciliation-records";');
   assert.match(inspectEffectBoundaries(fixture).issues.join('\n'), /reconciliation-records\.ts:1: Circular runtime dependency: .*reconciliation-records\.ts -> .*reconciliation-records\.ts/);
-  console.log('Effect-boundary mutation fixtures passed: direct/transitive imports, re-exports, ambient keys, dynamic code, network aliases, credit isolation and cycle detection with shared acyclic dependencies.');
+  console.log('Effect-boundary mutation fixtures passed: direct/transitive imports, re-exports, ambient keys, dynamic code, network aliases, Core/credit capability isolation and cycle detection with shared acyclic dependencies.');
 } finally { rmSync(fixture, { recursive: true, force: true }); }

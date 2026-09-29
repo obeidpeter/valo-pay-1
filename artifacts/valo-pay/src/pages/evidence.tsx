@@ -12,6 +12,19 @@ import { RecordDialog } from '@/components/record-dialog';
 import { readableLabel } from '@/components/record-label';
 import { LoadProblem } from '@/components/load-problem';
 import { ReviewDialog, reviewJobs } from '@/components/review-dialog';
+import { recordDataSchemas } from '@workspace/valopay-schema';
+
+/** Display only service-attributed evidence bound to these terms; invoice authority remains server-side. */
+function hasReviewedDiscountDates(value: unknown): boolean {
+  const parsed = recordDataSchemas.commercial.safeParse(value);
+  if (!parsed.success) return false;
+  const data = parsed.data, review = data.discountReview;
+  return data.signed === true && data.signedFullPriceTerms === true && data.designPartner === true && !!review?.reviewedBy.trim()
+    && typeof data.discountStartDate === 'string' && /^\d{4}-\d{2}-01$/.test(data.discountStartDate)
+    && typeof data.fullPriceStartDate === 'string' && /^\d{4}-\d{2}-01$/.test(data.fullPriceStartDate) && data.fullPriceStartDate > data.discountStartDate
+    && !!data.discountTermsReference?.trim() && review.discountStartDate === data.discountStartDate
+    && review.fullPriceStartDate === data.fullPriceStartDate && review.termsReference === data.discountTermsReference.trim();
+}
 
 /** The prerequisite and decision ids the gate register matches evidence on (data.gateId). */
 const gateOptions = [
@@ -248,6 +261,7 @@ export default function EvidencePage() {
                         <span className="text-warning-strong text-xs font-bold">Not signed</span>
                       )}
                       {!!comm.data?.effectiveDate && <p className="text-[10px] text-muted-foreground mt-1">From {formatDate(String(comm.data.effectiveDate))}</p>}
+                      {comm.data?.designPartner === true && <p className="mt-1 max-w-64 text-xs text-muted-foreground">{hasReviewedDiscountDates(comm.data) ? `Discount from ${formatDate(String(comm.data.discountStartDate))}; full price from ${formatDate(String(comm.data.fullPriceStartDate))}.` : 'Discount dates need review before a new invoice can be issued.'}</p>}
                     </td>
                     <td className="px-6 py-4 text-right">
                       <Button size="sm" variant="outline" kind="commercial" record={comm} onClick={() => handleEdit(comm, 'commercial')}>Edit</Button>
@@ -325,7 +339,12 @@ export default function EvidencePage() {
             { name: 'usageBps', label: 'Usage rate (basis points; 100 = 1%)', type: 'number', isData: true, required: true },
             { name: 'usageCapKobo', label: 'Usage fee cap per collection (kobo)', type: 'number', isData: true, required: true },
             { name: 'signed', label: 'Signed', type: 'checkbox', isData: true },
-            { name: 'effectiveDate', label: 'Takes effect on', type: 'date', isData: true, help: 'Each invoice month is billed from the latest signed terms in effect by its end, for the whole month. Leave blank for terms that apply from the start.' }
+            { name: 'effectiveDate', label: 'Takes effect on', type: 'date', isData: true, help: 'Each invoice month is billed from the latest signed terms in effect by its end, for the whole month. Leave blank for terms that apply from the start.' },
+            { name: 'designPartner', label: 'Design-partner agreement', type: 'checkbox', isData: true },
+            { name: 'signedFullPriceTerms', label: 'Full-price terms are signed', type: 'checkbox', isData: true },
+            { name: 'discountStartDate', label: '50% discount starts on', type: 'date', isData: true, help: 'Use the first day of the billing month agreed in the signed contract. There is no automatic 2027 discount.' },
+            { name: 'fullPriceStartDate', label: 'Full-price billing starts on', type: 'date', isData: true, help: 'Use the first day of the agreed billing month after the pilot and bridge. No mid-month proration is calculated.' },
+            { name: 'discountTermsReference', label: 'Signed agreement reference for these dates', type: 'text', isData: true, help: 'Saving signed design-partner terms with these dates records your name and the review time. Existing invoices stay unchanged. Leave dates blank until the agreement has been reviewed; new invoices will wait.' }
           ] : []
         }
       />

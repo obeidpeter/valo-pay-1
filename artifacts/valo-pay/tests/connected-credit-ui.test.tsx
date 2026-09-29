@@ -81,6 +81,16 @@ beforeEach(() => {
   };
 });
 describe("Credit Desk synthetic journeys", () => {
+  it.each([null, 0])("keeps missing liquidity distinct from a measured zero (%s)", async (value) => {
+    const saved = structuredClone(assessment());
+    saved.result.features!.liquidityBufferKobo = value;
+    mocks.api.data.credit.assessments = [saved];
+    render(<CreditDeskPage />);
+    await userEvent.click(screen.getByRole("tab", { name: "Evidence" }));
+    const amount = screen.getByText("Median observed liquidity").parentElement!;
+    expect(amount.querySelector("dd")!.textContent).toBe(value === null ? "Unavailable" : "₦0.00");
+    expect(mocks.api.run).not.toHaveBeenCalled();
+  });
   it("shows missing separate permissions and a working setup destination", () => {
     mocks.api.data.credit.permissions[0].creditAssessment = false;
     render(<CreditDeskPage />);

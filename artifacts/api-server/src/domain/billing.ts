@@ -7,7 +7,7 @@
  */
 import {
   counted, sumMoney, multiplyDivideMoney, legacyDiscountMoney, nonnegativeMoney, validMoneyBps, MoneyArithmeticError,
-  DEFAULT_REVERSAL_WINDOW_DAYS, DEFAULT_VAT_BPS, DESIGN_PARTNER_DISCOUNT, DESIGN_PARTNER_DISCOUNT_YEAR, RECOVERY_FEE_KOBO, USAGE_FEE_BPS, USAGE_FEE_CAP_KOBO,
+  DEFAULT_REVERSAL_WINDOW_DAYS, DEFAULT_VAT_BPS, RECOVERY_FEE_KOBO, USAGE_FEE_BPS, USAGE_FEE_CAP_KOBO,
   billableChannels, experimentRules, isBillableChannel, isKobo, licenceTierFor, nairaText, paymentAppliedKobo, usageFeeKobo, vatKobo, type AdjustmentReason,
 } from "@workspace/valopay-schema";
 import { makeRecord, recordsOf } from "./records";
@@ -16,6 +16,7 @@ import { paymentObservedAt, paymentRefunded, paymentReversed } from "./reconcili
 import { inNaira, type OtherCurrencies } from "./close";
 import { attemptTime } from "./policy-engine";
 import { watMonth, watMonthStart } from "./calendar";
+import { designPartnerDiscount } from './commercial-terms';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** The billing month (YYYY-MM) of an instant: calendar months are counted in West Africa Time. */
@@ -280,14 +281,14 @@ function nextInvoicePeriod(state: DomainState, now: string): string {
   const first = firstTermsPeriod(state), previous = previousMonth(now);
   return first && first < previous ? first : previous;
 }
-/** The design-partner share taken off a period's licence and usage: half in the discount year, nothing otherwise. */
-const discountRateFor = (terms: TypedRecord<"commercial"> | undefined, period: string): number => terms?.data.designPartner === true && period.startsWith(DESIGN_PARTNER_DISCOUNT_YEAR) ? 1 - DESIGN_PARTNER_DISCOUNT : 0;
-
 /** The monthly statement for the console and the billing export: what the period's receipts are worth and what the next invoice will carry. */
 export function buildBillingStatement(state: DomainState, now: string): Record<string, any> {
   const payments = recordsOf(state, "payments");
   const period = String(state.settings.billingPeriod || monthOf(now));
   const terms = termsFor(state, period);
+  const pricing = designPartnerDiscount(terms?.data, period);
+  const nextPeriod = nextInvoicePeriod(state, now);
+  const nextPricing = designPartnerDiscount(termsFor(state, nextPeriod)?.data, nextPeriod);
   const inPeriod = payments.filter((item) => monthOf(String(item.data.observedAt || item.createdAt)) === period);
   const billablePayments = inPeriod.filter((item) => billableCollection(state, item, now));
   const usageBase = sumMoney(billablePayments.map(paymentAppliedKobo));
@@ -304,8 +305,8 @@ export function buildBillingStatement(state: DomainState, now: string): Record<s
   }
   // Collections that pass every BIL-01 check except the reversal window are billed on a later statement, never lost.
   const withheld = inPeriod.filter((item) => billableCollection(state, item, now, false) && !billableCollection(state, item, now));
-  const lines = terms ? [(() => {
-    const rate = discountRateFor(terms, period);
+  const lines = terms && pricing.ready ? [(() => {
+    const rate = pricing.rate!;
     const usage = sumMoney(billablePayments.map((item) => chargedAtRate(usageFeeKobo(paymentAppliedKobo(item)), rate)));
     const contractedLicence = nonnegativeMoney(terms.data.licenceKobo ?? 0);
     const licence = chargedAtRate(contractedLicence, rate);
@@ -322,8 +323,9 @@ export function buildBillingStatement(state: DomainState, now: string): Record<s
     billableChannels: [...billableChannels], billableRule: "A collection can be billed when the direct debit succeeded (its webhook or its settlement line says so), the payment is settled and still has applied money that was not reversed or refunded at the invoice date, and the provider's reversal window has passed since it settled.",
     eligibleAllocatedKobo: usageBase, successfulCollections: billablePayments.length, usageFeeKobo: usageFee, volumeTier: tier.name,
     channelBreakdown, withheldInsideReversalWindow: withheld.length,
-    lines, totalKobo: sumMoney(lines.map((line) => line.totalKobo)),
-    invoices, nextInvoicePeriod: nextInvoicePeriod(state, now),
+    lines, totalKobo: pricing.ready ? sumMoney(lines.map((line) => line.totalKobo)) : null,
+    pricingReady: pricing.ready, pricingExplanation: pricing.explanation,
+    invoices, nextInvoicePeriod: nextPeriod, nextInvoicePricingReady: nextPricing.ready, nextInvoicePricingExplanation: nextPricing.explanation,
     pendingAdjustments: adjustments, pendingAdjustmentsKobo: sumMoney(adjustments.map((line) => line.kobo)),
     adjustmentRule: "If a billed collection is reversed, refunded, confirmed as a duplicate or affected by an invalidated allocation, the correction appears as a credit or debit on the next invoice. Issued invoices are never changed. A correction is priced at the rate of the invoice that first billed the collection.",
     recoveryFee: recoveryFeeLines(state, period).note,
@@ -359,7 +361,9 @@ export function issueInvoice(state: DomainState, ctx: Context, input: { period?:
   const end = Date.parse(periodEnd(period));
   const ledger = billedLedger(state);
   const terms = termsFor(state, period);
-  const rate = discountRateFor(terms, period);
+  const pricing = designPartnerDiscount(terms?.data, period);
+  if (!pricing.ready) throw Object.assign(new Error(pricing.explanation), { status: 409 });
+  const rate = pricing.rate!;
   const usageLines = recordsOf(state, "payments")
     .filter((payment) => !ledger.has(payment.id) && paymentObservedAt(payment) <= end && billableCollection(state, payment, now))
     .sort((a, b) => paymentObservedAt(a) - paymentObservedAt(b) || a.reference.localeCompare(b.reference))
@@ -384,10 +388,10 @@ export function issueInvoice(state: DomainState, ctx: Context, input: { period?:
     name: `Invoice ${period}`, status: "issued", reference: `INV-${period}-${String(sequence).padStart(3, "0")}`, amountKobo: Math.max(0, totalKobo), createdAt: now,
     data: {
       period, periodEnd: new Date(end).toISOString(), issuedAt: now, issuedBy: ctx.actor, sequence,
-      terms: terms ? { commercialId: terms.id, prospect: terms.name, contractedLicenceKobo: contractedLicence, designPartner: terms.data.designPartner === true, effectiveDate: terms.data.effectiveDate ?? null } : null,
+      terms: terms ? { commercialId: terms.id, prospect: terms.name, contractedLicenceKobo: contractedLicence, designPartner: terms.data.designPartner === true, effectiveDate: terms.data.effectiveDate ?? null, ...(terms.data.designPartner === true && terms.data.discountReview ? { discountReview: structuredClone(terms.data.discountReview) } : {}) } : null,
       licence: { kobo: contractedLicence, volumeTier: tier.name, volumeTierLicenceKobo: tier.licenceKobo, tierMismatch: contractedLicence !== tier.licenceKobo, note: terms ? "Contracted monthly licence from the signed terms in effect this month, for the whole month; the tier for this month's count is shown for comparison." : "No signed terms: no licence is billed." },
       usageLines, collectionsCounted: usageLines.length, usageRateBps: USAGE_FEE_BPS, usageCapKobo: USAGE_FEE_CAP_KOBO,
-      designPartnerDiscount: { rate, kobo: discountKobo, note: `${rate > 0 ? `Design-partner discount of ${Math.round(rate * 100)}% in ${DESIGN_PARTNER_DISCOUNT_YEAR} on the licence and this invoice's usage lines; full public price from 1 January ${Number(DESIGN_PARTNER_DISCOUNT_YEAR) + 1}.` : "Full public price."}${adjustments.length ? " Adjustment lines carry the rate of the invoice that first billed each collection." : ""}` },
+      designPartnerDiscount: { rate, kobo: discountKobo, note: `${pricing.explanation}${adjustments.length ? " Adjustment lines carry the rate of the invoice that first billed each collection." : ""}` },
       adjustments, recoveryFee,
       subtotals: { licenceKobo: contractedLicence, usageKobo, adjustmentsKobo, discountKobo, recoveryKobo: recoveryFee.kobo },
       totals: { netKobo, vatBps, vatKobo: vat, totalKobo, creditNote: totalKobo < 0 },
