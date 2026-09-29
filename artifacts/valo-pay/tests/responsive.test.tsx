@@ -114,7 +114,7 @@ describe("responsive layout", () => {
   it("opens the drawer on the current page's link, wherever it sits in the list", async () => {
     const user = userEvent.setup();
     renderApp("/presentation");
-    await screen.findByRole("heading", { level: 1, name: /Show how a lender/ });
+    await screen.findByRole("heading", { level: 1, name: "Presentation" });
     await user.click(screen.getByRole("button", { name: "Menu" }));
     const drawer = await screen.findByRole("dialog", { name: "Menu" });
     const current = within(drawer).getByRole("link", { name: "Presentation" });
