@@ -3,9 +3,11 @@
 // ones that failed; the migration rehearsals skip, saying why, where they
 // cannot build a throwaway database, and fail instead under CI; and the
 // recovery rehearsal fails under CI when its opt-ins are missing rather than
-// passing with no evidence; and the traceability validator refuses a code
-// pointer whose symbol its file no longer declares. Nothing here reaches a
-// database: the suites stop at their checks before they connect.
+// passing with no evidence; the traceability validator refuses a code pointer
+// whose symbol its file no longer declares; and the integration runner and the
+// read-index command, started through a symlinked path, still reach their
+// refusals instead of exiting silently. Nothing here reaches a database: the
+// suites and commands stop at their checks before they connect.
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
@@ -134,4 +136,23 @@ try {
   rmSync(scratch, { recursive: true, force: true });
 }
 
-console.log(`Tooling checks passed (${checks}): the build stamp marks uncommitted tracked changes, the integration runner runs every suite and names the failures, the migration rehearsals skip with their reason (and fail under CI) where they cannot build a throwaway database, the recovery rehearsal never passes in CI without its opt-ins, and the traceability validator refuses a code pointer whose symbol its file no longer declares, however the declaration is formatted.`);
+// ---- Started through a symlinked path, the integration runner and the read-index command still run ----
+// Node gives a module its real path; a guard comparing that with the path the command was started by once made both
+// exit 0 without a word. Without their opt-ins and DATABASE_URL they reach their refusals, never a database.
+const links = mkdtempSync(join(tmpdir(), "valopay-linked-scripts-")), linkedScripts = join(links, "scripts");
+symlinkSync(join(root, "scripts"), linkedScripts, "junction");
+try {
+  const linkedRun = (script) => spawnSync(process.execPath, [join(linkedScripts, script)], { cwd: root, env: clean, encoding: "utf8", timeout: 60_000 });
+  result = linkedRun("run-integration-tests.mjs");
+  assert.equal(result.status, 1, "started through a symlinked path, the integration runner still refuses without VALOPAY_RUN_INTEGRATION=1");
+  assert.match(result.stderr, /Set VALOPAY_RUN_INTEGRATION=1 to run the database-backed suites/);
+  result = linkedRun("apply-record-list-indexes.mjs");
+  assert.equal(result.status, 1, "started through a symlinked path, the read-index command still refuses without DATABASE_URL");
+  assert.match(result.stderr, /^DATABASE_URL must be supplied by the deployment environment/m);
+  checks += 4;
+} finally {
+  unlinkSync(linkedScripts); // the link alone, never the scripts it names
+  rmSync(links, { recursive: true, force: true });
+}
+
+console.log(`Tooling checks passed (${checks}): the build stamp marks uncommitted tracked changes, the integration runner runs every suite and names the failures, the migration rehearsals skip with their reason (and fail under CI) where they cannot build a throwaway database, the recovery rehearsal never passes in CI without its opt-ins, the traceability validator refuses a code pointer whose symbol its file no longer declares, however the declaration is formatted, and the integration runner and the read-index command started through a symlinked path still reach their refusals.`);

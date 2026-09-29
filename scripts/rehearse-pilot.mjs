@@ -2,9 +2,9 @@
 // This is an automated synthetic rehearsal, not an observed usability study.
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(import.meta.dirname, '..');
 export const rehearsalSuites = [
@@ -95,7 +95,10 @@ export function runRehearsal({ run, fingerprint, now = () => new Date(), clock =
   };
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+// Real paths: started through a symlinked path, argv names the link while this module's URL names the file, and the
+// rehearsal would exit 0 without running or refusing.
+const startedDirectly = () => { try { return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)); } catch { return false; } };
+if (startedDirectly()) {
   try {
     validateRehearsalEnvironment(process.env, process.argv.slice(2));
     const output = process.env.VALOPAY_PILOT_REHEARSAL_REPORT;

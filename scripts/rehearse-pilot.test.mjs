@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { mkdtempSync, rmSync, symlinkSync, unlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { rehearsalEnvironment, rehearsalSuites, runRehearsal, validateRehearsalEnvironment } from './rehearse-pilot.mjs';
 
@@ -52,4 +54,14 @@ for (const overrides of [{ DATABASE_URL: 'postgres://do-not-print@remote.example
   const child = spawnSync(process.execPath, [path.join(root, 'scripts/rehearse-pilot.mjs')], { env: { ...process.env, ...enabled, ...overrides }, encoding: 'utf8', timeout: 10_000 });
   assert.equal(child.status, 1); assert.doesNotMatch(child.stdout + child.stderr, /do-not-print|private-fixture/); checks += 2;
 }
-console.log(`Pilot rehearsal command checks passed (${checks}): unsafe destinations refused, host credentials excluded, all failures retained, source changes detected, and evidence stays free of child output.`);
+// Started through a symlinked path the command still runs, here to its refusal without the opt-ins: Node gives the
+// module its real path, and a guard comparing that with the path it was started by once exited 0 without a word.
+const links = mkdtempSync(path.join(tmpdir(), 'valopay-linked-rehearsal-')), linked = path.join(links, 'scripts');
+symlinkSync(path.join(root, 'scripts'), linked, 'junction');
+try {
+  const unset = Object.fromEntries(Object.entries(process.env).filter(([name]) => !/^(?:VALOPAY_|DATABASE_URL$)/.test(name)));
+  const child = spawnSync(process.execPath, [path.join(linked, 'rehearse-pilot.mjs')], { env: unset, encoding: 'utf8', timeout: 10_000 });
+  assert.equal(child.status, 1, 'started through a symlinked path, the rehearsal still refuses without its opt-ins');
+  assert.match(child.stderr, /^Set VALOPAY_RUN_INTEGRATION=1 and VALOPAY_RUN_PILOT_REHEARSAL=1/m); checks += 2;
+} finally { unlinkSync(linked); rmSync(links, { recursive: true, force: true }); }
+console.log(`Pilot rehearsal command checks passed (${checks}): unsafe destinations refused, host credentials excluded, all failures retained, source changes detected, evidence stays free of child output, and a run started through a symlinked path still refuses.`);
