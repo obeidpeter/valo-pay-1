@@ -556,7 +556,7 @@ assert.equal(
   // proposal's saved input, and each digest of a close or a review reads its report or its snapshot: both are counted.
   const state = fresh(), admin = { actor: "Clerk:admin", principalId: "person-admin", role: "Admin", now: "2026-09-24T09:00:00.000Z" };
   const people = [{ ...finance, name: "Synthetic Finance reviewer" }, { ...admin, name: "Synthetic administrator" }];
-  const rows = Array.from({ length: 6 }, (_, row) => `c-${row},Synthetic customer ${row},WORK-C-${row},Synthetic consent`).join("\n");
+  const rows = Array.from({ length: 20 }, (_, row) => `c-${row},Synthetic customer ${row},WORK-C-${row},Synthetic consent`).join("\n");
   const { batch } = imported(state, "customers", `source_row_id,name,reference,consentProvenance\n${rows}`);
   let comparisons = 0, evidenceReads = 0;
   const counted = (object: Record<string, unknown>, key: string, count: () => void) => {
@@ -575,8 +575,8 @@ assert.equal(
     const input = { batchId: batch.id, targetId: target.id, expectedUpdatedAt: target.updatedAt, changes: { name: `${target.name} corrected` }, syntheticOnly: true as const };
     return proposeImportCorrection(state, ctx, { ...input, previewDigest: previewImportCorrection(state, ctx, input).previewDigest, reviewer: finance.actor, reason: "Correct the synthetic source name", evidence: "SYNTHETIC-WORK-COUNT" }, reviewers);
   });
-  for (const [index, action] of (["reject", "approve", "withdraw", "reject", "approve"] as const).entries()) {
-    const decided = proposals[index + 1]!;
+  for (const [index, decided] of proposals.slice(1).entries()) {
+    const action = (["reject", "approve", "withdraw"] as const)[index % 3]!;
     decideImportCorrection(state, action === "withdraw" ? ctx : finance, decided.id, { proposalDigest: decided.proposalDigest, action, reason: "Synthetic decision for the count" }, reviewers);
   }
   const countComparisons = (id: string) => counted(state.records.find((r) => r.id === id)!.data, "input", () => { comparisons += 1; });
@@ -592,7 +592,8 @@ assert.equal(
   assert.equal(derivePersonalWork(state, admin, people, { scope: "team" }).total, 1);
   assert.deepEqual([comparisons, evidenceReads], [1, 0], "the team workload likewise");
   reset();
-  assert.deepEqual(listImportCorrections(state, finance, batch.id).proposals.map((proposal) => proposal.status).sort(), ["approved", "approved", "awaiting_review", "rejected", "rejected", "withdrawn"]);
+  const statuses = listImportCorrections(state, finance, batch.id).proposals.map((proposal) => proposal.status);
+  assert.deepEqual(Object.fromEntries(["approved", "awaiting_review", "rejected", "withdrawn"].map((status) => [status, statuses.filter((saved) => saved === status).length])), { approved: 6, awaiting_review: 1, rejected: 7, withdrawn: 6 });
   assert.deepEqual([comparisons, evidenceReads], [1, 0], "the batch's correction list compares only its pending correction");
   reset();
   assert.equal(read(own.items[0]!).duplicate, false);
