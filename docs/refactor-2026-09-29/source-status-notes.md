@@ -12,7 +12,7 @@ The `components` inventory identifies related baseline files and test sources. I
 
 The Technical Requirements feature selectors control technical expansion. Cross-document discrepancies are preserved below. Features not assigning a particular shared requirement do not exempt that requirement: tenancy, security, API, observability and operational obligations also apply across feature boundaries. Every operating gate remains unchanged by this matrix. Named accountable owners and formal acceptance are not invented.
 
-Run `node docs/refactor-2026-09-29/validate-traceability.mjs` after editing the matrix. This validates identifier preservation, references, evidence classification, public-source boundaries and that every code pointer's symbol is still declared at the top level of its current file (an import, a binding taken from `require()` or `import()` or an ambient `declare` does not count). It cannot validate business approval, legal applicability, provider access or operational acceptance.
+Run `node docs/refactor-2026-09-29/validate-traceability.mjs` after editing the matrix. This validates identifier preservation, references, evidence classification, public-source boundaries and that every code pointer's symbol is still declared at the top level of its current file (an import, an ambient `declare`, or a binding whose value is a `require()` or `import()` call, directly or through `await`, parentheses, type assertions or property reads, does not count; the validator's comment lists the forms syntax cannot tell apart). It cannot validate business approval, legal applicability, provider access or operational acceptance.
 
 ## Source conflicts and dated status
 

@@ -38,10 +38,12 @@ assert.equal(conflicts.size, matrix.source_conflict_records.length);
 assert.equal(changes.size, matrix.change_packages.length);
 for (const source of matrix.sources) assert.match(source.sha256, digest);
 // A file's top-level declarations, parsed rather than matched by line or excerpt, so moved or reformatted
-// code still counts. An import, a re-export, a call or a comment declares nothing; nor does a binding taken
-// from require() or import(), however the value is unwrapped, nor an ambient `declare`, which describes code
-// kept elsewhere. Syntax alone cannot tell a constant that aliases an imported binding, or a type of the same
-// name, from the code a pointer names, so those still count.
+// code still counts. An import, a re-export, a call or a comment declares nothing; nor does an ambient `declare`,
+// which describes code kept elsewhere, nor a binding whose value is a require() or import() call, directly or
+// through await, parentheses, type assertions (as, satisfies, <T>, !) and property or element reads. Syntax alone
+// cannot tell the code a pointer names from a constant aliasing an imported binding, a type of the same name, or an
+// import reached another way: through ?? or a conditional, .then(), a renamed createRequire, (0, require)(...) or a
+// let assigned later. Those still count; review has to catch them.
 const declared = new Map();
 const loaded = expression => {
   while (ts.isAwaitExpression(expression) || ts.isParenthesizedExpression(expression) || ts.isAsExpression(expression) || ts.isSatisfiesExpression(expression)
