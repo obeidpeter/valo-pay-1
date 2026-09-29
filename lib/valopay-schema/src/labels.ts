@@ -37,7 +37,9 @@ export const valueLabels: Readonly<Record<string, string>> = {
   PROVIDER_ERROR: "Provider error", TIMEOUT_UNKNOWN: "Outcome unknown",
   DUPLICATE: "Duplicate instruction", CUSTOMER_DISPUTED: "Customer disputed the debit", UNKNOWN: "Unclassified failure",
   // Import batches, Data sources, Data retention and Team and access.
-  committed: "Imported", awaiting_review: "Waiting for review",
+  committed: "Imported", awaiting_review: "Waiting for review", awaiting_first_delivery: "Waiting for the first delivery",
+  awaiting_verification: "Waiting for a Paystack check", quarantined: "Held for review", ignored_stale: "Ignored: older message",
+  rejected_fixture: "Rejected: signature did not match",
 };
 
 /** A stored value in words: its label, or the value spelled out ("pending_review" as "Pending review"). */
