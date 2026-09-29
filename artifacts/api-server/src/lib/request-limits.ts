@@ -179,7 +179,7 @@ export function createRequestLimits(options: { principalLimit?: number; networkL
   const { principalLimit = PRINCIPAL_REQUEST_LIMIT, networkLimit = NETWORK_REQUEST_LIMIT, windowMs = REQUEST_WINDOW_MS, sandboxes = servedSandboxes } = options;
   const networks = createWindowCounter({ limit: networkLimit, windowMs, maxKeys: 20_000 });
   const principals = createWindowCounter({ limit: principalLimit, windowMs, maxKeys: 50_000 });
-  const error = "Request limit reached. Please try again in one minute.";
+  const error = "Too many requests. Try again in one minute.";
   return {
     network(req, res, next) {
       const key = clientNetwork(req.ip);

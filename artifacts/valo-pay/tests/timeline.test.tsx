@@ -141,9 +141,9 @@ describe("customer timeline", () => {
   });
 
   it("keeps a temporary case loading failure retryable", async () => {
-    api.failNext(/^\/v1\/pilot\/cases\/no-such-case$/, { status: 503, error: "The service is busy. Try again in a moment." });
+    api.failNext(/^\/v1\/pilot\/cases\/no-such-case$/, { status: 503, error: "Valo Pay is busy. Try again in a moment." });
     renderApp("/cases/no-such-case");
-    expect(await screen.findByText(/^The service is busy\. Try again in a moment\./)).toBeTruthy();
+    expect(await screen.findByText(/^Valo Pay is busy\. Try again in a moment\./)).toBeTruthy();
     expect(screen.getByRole("heading", { level: 1, name: "Coordinate a case" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy();
   });

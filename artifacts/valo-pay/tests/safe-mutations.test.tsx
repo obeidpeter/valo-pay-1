@@ -230,7 +230,7 @@ describe('safe mutation intentions', () => {
     const keys:string[]=[];
     globalThis.fetch=async(_input,options)=>{
       keys.push(new Headers(options?.headers).get('Idempotency-Key')!);
-      return keys.length===1?jsonAnswer(503,{error:'This request is still running. Wait a moment, then retry the same request to see its result.',operation:'running',requestId:'r1'}):jsonAnswer(200,{message:'Saved',data:{}});
+      return keys.length===1?jsonAnswer(503,{error:'This request is still running. Wait a moment, then check the original request to see its result.',operation:'running',requestId:'r1'}):jsonAnswer(200,{message:'Saved',data:{}});
     };
     const {result}=hookFor();
     await act(async()=>{await result.current.mutateAsync(actionVariables()).catch(()=>{});});

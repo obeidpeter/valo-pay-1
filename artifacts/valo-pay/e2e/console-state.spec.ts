@@ -75,7 +75,7 @@ async function breakWorkspace(page: Page, status: number, headers: Record<string
     await route.fulfill({
       status,
       headers: { "content-type": html ? "text/html" : "application/json", ...headers },
-      body: html ? "<html><body>502 Bad Gateway</body></html>" : JSON.stringify({ error: "Request limit reached. Please try again in one minute.", requestId: "browser-limit" }),
+      body: html ? "<html><body>502 Bad Gateway</body></html>" : JSON.stringify({ error: "Too many requests. Try again in one minute.", requestId: "browser-limit" }),
     });
   };
   await page.route("**/api/v1/workspace", handler);
@@ -169,7 +169,7 @@ test("a 429 on the refresh keeps the page and waits as long as the service asks"
   expect(limited.refused()).toBe(1);
   const problem = page.getByRole("status").filter({ hasText: "Your workspace could not be refreshed." });
   await expect(problem).toBeVisible();
-  await expect(problem).toContainText("Request limit reached. Please try again in one minute.");
+  await expect(problem).toContainText("Too many requests. Try again in one minute.");
   await expect(dialog.getByLabel(/^Full name/)).toHaveValue("Half-written customer");
   await expect(page.getByRole("heading", { name: "Please wait before trying again" })).toHaveCount(0);
 

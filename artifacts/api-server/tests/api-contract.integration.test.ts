@@ -436,7 +436,7 @@ try {
   await pool.query(`UPDATE valopay_idempotency SET response=response #- '{record,kind}' WHERE merchant_id=$1 AND id=$2`, [lender, receiptId]);
   logged.length = 0;
   const unanswerable = await call(q("/v1/connected/actions"), "POST", replayGrant, { key: replayKey });
-  assert.deepEqual([unanswerable.status, unanswerable.data.error, unanswerable.data.committed, unanswerable.data.operation], [500, "This request was saved, but the service could not give its answer. Retry the same request, or check Operations, to see its saved result.", undefined, "completed"], "a saved request is never answered as saving nothing: the answer says it was saved");
+  assert.deepEqual([unanswerable.status, unanswerable.data.error, unanswerable.data.committed, unanswerable.data.operation], [500, "Valo Pay saved this request but could not send its answer. Check the original request in Request history to see the saved result.", undefined, "completed"], "a saved request is never answered as saving nothing: the answer says it was saved");
   assert.deepEqual(events("response.invalid").map((line) => [line.level, line.fields.replayed]), [["error", true]]);
   assert.equal(await consents(), consentCount, "the consent was saved once");
   assert.equal((await pool.query("SELECT status FROM valopay_operations WHERE merchant_id=$1 AND request_key=$2", [lender, replayKey])).rows[0].status, "completed", "and its journal entry stays completed");
@@ -459,7 +459,7 @@ try {
   await pool.query(`UPDATE valopay_records SET data=jsonb_set(data,'{expiresAt}','"next Tuesday"') WHERE merchant_id=$1 AND id=$2`, [lender, storedRun]);
   logged.length = 0;
   const unreadable = await call(q("/v1/lifecycle"));
-  assert.deepEqual([unreadable.status, unreadable.data], [500, { error: "The service could not prepare this answer. Try again, and quote this reference if it happens again.", requestId: unreadable.data.requestId }], "a read's failure, without committed");
+  assert.deepEqual([unreadable.status, unreadable.data], [500, { error: "We could not load this. Try again, and quote this reference if it happens again.", requestId: unreadable.data.requestId }], "a read's failure, without committed");
   assert.deepEqual([events("response.invalid").map((line) => line.level), events("request.rejected").length], [["error"], 0], "logged as an invalid answer, never as a rejected request");
   await pool.query("DELETE FROM valopay_records WHERE merchant_id=$1 AND id=$2", [lender, storedRun]);
 
@@ -482,7 +482,7 @@ try {
   const otherState = await store.inWorkspace(sandboxRequest(), response, async (ctx) => { const state = await store.loadState(ctx, other); makeRecord(state, "connected-credit-assessments", { name: "Malformed assessment", status: "blocked", createdAt: ctx.now, data: { result: { evidence: { grantVersions: [], issues: [] }, policy: {}, score: "not a score" }, scenario: "ready", createdBy: "Sandbox Operations" } }); store.appendAudit(state, ctx, "test.contract.malformed", other, "Stored a malformed synthetic forecast."); await store.saveState(ctx, state); return state.merchant.id; });
   const malformed = await call(q("/v1/connected", otherState));
   assert.equal(malformed.status, 500, "a malformed stored assessment fails the read");
-  assert.deepEqual([malformed.data.error, malformed.data.committed], ["The service could not prepare this answer. Try again, and quote this reference if it happens again.", undefined], "in a read's words: a read saves nothing either way");
+  assert.deepEqual([malformed.data.error, malformed.data.committed], ["We could not load this. Try again, and quote this reference if it happens again.", undefined], "in a read's words: a read saves nothing either way");
 
   // ---- New sandboxes from one address are limited, and the refusal says when to retry (429, Retry-After an hour) ----
   // Last of this suite's sandboxes: the limit is per process and address, and the staff host below needs none.

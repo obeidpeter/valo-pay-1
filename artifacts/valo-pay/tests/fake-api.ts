@@ -112,7 +112,7 @@ function toHttpError(error: unknown): { status: number; body: unknown } {
   const message = error instanceof Error ? error.message : String(error);
   const carried = (error as { status?: number } | null)?.status;
   const status = carried || (/not permitted|requires.*role|only.*admin|read-only|disabled|gate|instruction mode/i.test(message) ? 403 : 400);
-  return { status, body: { error: message || "The operation was rejected." } };
+  return { status, body: { error: message || "This request was refused." } };
 }
 
 type Handler = (params: Record<string, string>, query: Record<string, string>, body: any) => unknown;

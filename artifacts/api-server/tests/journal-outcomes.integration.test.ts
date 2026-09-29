@@ -172,7 +172,7 @@ try {
       assert.equal(duplicate.status, 503, JSON.stringify(duplicate.data));
       assert.ok(Date.now() - started < 2_000, "turned away at once, not after a lock wait");
       assert.equal(duplicate.headers.get("retry-after"), "2");
-      assert.deepEqual([duplicate.data.committed, duplicate.data.operation, duplicate.data.error], [undefined, "running", "This request is still running. Wait a moment, then retry the same request to see its result."], "a non-definitive 'still running' answer");
+      assert.deepEqual([duplicate.data.committed, duplicate.data.operation, duplicate.data.error], [undefined, "running", "This request is still running. Wait a moment, then check the original request to see its result."], "a non-definitive 'still running' answer");
       assert.deepEqual((await entryOf(key)).map((entry) => entry.status), ["pending"], "the duplicate left the entry to the original");
     } finally { finish.resolve(); }
     const record = await running;
@@ -189,7 +189,7 @@ try {
     const release = await holdLender();
     const repeat = await call(q("/v1/records/customers"), "POST", body, key).finally(release);
     assert.equal(repeat.status, 503, JSON.stringify(repeat.data));
-    assert.deepEqual([repeat.data.committed, repeat.data.operation, repeat.data.error], [undefined, "pending", "This lender is busy with another change. Its outcome is not confirmed yet. Try again in a moment."], "the entry is still waiting for confirmation, and the answer says so");
+    assert.deepEqual([repeat.data.committed, repeat.data.operation, repeat.data.error], [undefined, "pending", "This lender is busy with another change. We do not know yet whether it was saved. Try again in a moment."], "the entry is still waiting for confirmation, and the answer says so");
     assert.deepEqual((await entryOf(key)).map((entry) => [entry.id, entry.status]), [[id, "pending"]], "the repeat did not cancel it");
     ok(await call(q("/v1/records/customers"), "POST", body, key));
     assert.deepEqual([(await entryOf(key))[0]!.status, await saved(body.reference)], ["completed", 1], "so a later repeat can still save it");
