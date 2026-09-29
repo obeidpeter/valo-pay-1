@@ -13,6 +13,7 @@ import {
   assertImportedCorrectionChange,
   assertNoDirectImportedCorrection,
   reassignImportCorrection,
+  importCorrectionComparison,
 } from "../src/domain/import-corrections";
 import { derivePersonalWork, recordWorkReceipt } from "../src/domain/personal-work";
 import type { DomainState } from "../src/domain/types";
@@ -58,6 +59,43 @@ function imported(
     batch,
     target: s.records.find((r) => r.data.importIdentity?.batchId === batch.id)!,
   };
+}
+/** A lender as loadState reads it (closeSummarySql): every close more than
+ * seven days older than the newest keeps its data without the report's detail
+ * and the operational and metrics parts, with the report's unallocated and
+ * exception totals. */
+function asLoaded(s: DomainState): DomainState {
+  const loaded = structuredClone(s),
+    closes = loaded.records.filter((r) => r.kind === "closes");
+  const cutoff =
+    Math.max(...closes.map((r) => Date.parse(r.createdAt))) - 7 * 86_400_000;
+  for (const close of closes.filter((r) => Date.parse(r.createdAt) < cutoff)) {
+    const { report, operational: _operational, metrics: _metrics, ...kept } =
+      close.data;
+    close.data =
+      "report" in close.data
+        ? { ...kept, report: { unallocated: report?.unallocated ?? null, exceptions: report?.exceptions ?? null } }
+        : kept;
+  }
+  return loaded;
+}
+/** A proposal as builds before impact versions stored it: no version, and
+ * impact and preview digests of the affected records whole. */
+function asEarlierBuild(s: DomainState, id: string) {
+  const stored = s.records.find((r) => r.id === id)!;
+  const { impactVersion: _version, proposalDigest: _digest, ...data } =
+    stored.data;
+  const earlier = importCorrectionComparison(s, finance, { ...stored, data });
+  const evidence = {
+    ...data,
+    impactDigest: earlier.impactDigest,
+    preview: { ...data.preview, previewDigest: earlier.preview.previewDigest },
+  };
+  stored.data = {
+    ...evidence,
+    proposalDigest: canonicalDigest(evidence, "legacy-en-us-replacer"),
+  };
+  return String(stored.data.proposalDigest);
 }
 const s = fresh();
 const { batch, target } = imported(
@@ -510,6 +548,35 @@ assert.equal(
   state.records.find(r => r.id === target.id)!.name = 'Changed upstream record';
   assert.throws(() => decideImportCorrection(state, finance, proposal.id, { ...decision, assignmentEventId: second.assignmentEventId }, reviewers), /evidence changed/);
   assert.equal(decideImportCorrection(state, finance, proposal.id, { ...decision, action: 'reject', assignmentEventId: second.assignmentEventId }, reviewers).status, 'rejected', 'new reviewer can close stale work without applying it');
+}
+{
+  // Review of PR #71: a proposal's impact digest covered every close recorded before it as loadState returns it, and
+  // loadState summarises a close more than seven days older than the newest. A week of later daily closes changed an
+  // unchanged proposal's digest: it read as stale and approval was refused, so a replacement reviewer could only reject.
+  const state = fresh(), { batch } = imported(state, "customers", "source_row_id,name,reference,consentProvenance\nc-1,Synthetic customer,DRIFT-C-1,Synthetic consent\nc-2,Earlier synthetic customer,DRIFT-C-2,Synthetic consent");
+  const [target, earlierTarget] = state.records.filter((r) => r.data.importIdentity?.batchId === batch.id);
+  const report = { unallocated: { count: 0 }, proposed: { count: 1, kobo: 500 }, possibleDuplicates: { count: 0 }, positionRebuild: { mismatches: [] }, variances: { count: 0, batches: [] } };
+  const earlier = makeRecord(state, "closes" as string, { status: "completed", createdAt: "2026-09-03T18:00:00.000Z", name: "Synthetic close 3 September", data: { closedAt: "2026-09-03T18:00:00.000Z", report, operational: { attempts: 3 }, metrics: { matched: 2 } } });
+  makeRecord(state, "close-reviews" as string, { status: "changes_requested", createdAt: "2026-09-03T19:00:00.000Z", name: "Synthetic review 3 September", data: { closeId: earlier.id, reviewer: finance.actor, snapshot: structuredClone(earlier) } });
+  const proposer = { ...ctx, now: "2026-09-10T09:00:00.000Z" }, reviewer = { ...finance, now: "2026-09-20T10:00:00.000Z" };
+  const people = [{ ...finance, name: "Synthetic Finance reviewer" }];
+  const propose = (record: typeof target) => {
+    const input = { batchId: batch.id, targetId: record!.id, expectedUpdatedAt: record!.updatedAt, changes: { name: `${record!.name} corrected` }, syntheticOnly: true as const };
+    return proposeImportCorrection(state, proposer, { ...input, previewDigest: previewImportCorrection(state, proposer, input).previewDigest, reviewer: finance.actor, reason: "Correct the misspelled source name", evidence: "SYNTHETIC-DRIFT-EVIDENCE" }, reviewers);
+  };
+  const proposal = propose(target), saved = propose(earlierTarget);
+  asEarlierBuild(state, saved.id);
+  // Nine daily closes after the proposals: the 3 September close is now more than seven days older than the newest.
+  for (let day = 11; day <= 19; day++) makeRecord(state, "closes" as string, { status: "completed", createdAt: `2026-09-${day}T18:00:00.000Z`, name: `Synthetic close ${day} September`, data: { closedAt: `2026-09-${day}T18:00:00.000Z`, report } });
+  const loaded = asLoaded(state), current = (lender: DomainState) => Object.fromEntries(listImportCorrections(lender, reviewer, batch.id).proposals.map((p) => [p.id, p.current]));
+  assert.equal(loaded.records.find((r) => r.id === earlier.id)!.data.operational, undefined, "the load summarises the earlier close");
+  assert.deepEqual(current(state), { [proposal.id]: true, [saved.id]: true }, "both are current while every close loads whole");
+  // A proposal saved before impact versions keeps the check it was saved with, so it can still only be rejected or withdrawn.
+  assert.deepEqual(current(loaded), { [proposal.id]: true, [saved.id]: false }, "an unchanged proposal stays current when an earlier close loads as its summary");
+  assert.equal(derivePersonalWork(loaded, reviewer, people, { filter: "review" }).items.find((item) => item.sourceId === proposal.id)?.reviewCurrent, true, "My work agrees");
+  const before = structuredClone(loaded);
+  assert.equal(decideImportCorrection(loaded, reviewer, proposal.id, { proposalDigest: proposal.proposalDigest, action: "approve", reason: "Independently compared the source" }, reviewers).status, "approved");
+  assert.doesNotThrow(() => assertImportedCorrectionChange(before.records.find((r) => r.id === target!.id)!, loaded.records.find((r) => r.id === target!.id)!, before, loaded), "the save's check uses the same rule");
 }
 console.log(
   "Import correction checks passed: immutable provenance, exact comparison, independent approval, stale dependencies, controlled financial changes, the proposer's own authority, withdrawal and isolation.",
