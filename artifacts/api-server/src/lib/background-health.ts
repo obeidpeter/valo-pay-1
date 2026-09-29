@@ -2,7 +2,8 @@
 export const BACKGROUND_HEARTBEAT_MS = 10_000;
 export const BACKGROUND_STALE_MS = 45_000;
 export const EXPORT_CLEANUP_INTERVAL_MS = 60_000;
-export type CleanupResult = { attempted: number; removed: number; deferred: number; pendingFailures: number };
+/** pendingFailures: files waiting for a retry after a failed attempt; parked: files parked for an operator's review. */
+export type CleanupResult = { attempted: number; removed: number; deferred: number; pendingFailures: number; parked?: number };
 export type BackgroundObservation = { type: "heartbeat" } | { type: "cleanup"; result: CleanupResult | null };
 type Jobs = { closes: boolean; backlog: boolean; exports: boolean; cleanup: boolean };
 type Lifecycle = "not_started" | "starting" | "running" | "restarting" | "stopping" | "stopped";
@@ -24,8 +25,10 @@ export function createBackgroundHealth(clock: () => number = Date.now) {
       if (lifecycle !== "starting" && lifecycle !== "running") return;
       if (message.type === "heartbeat") { heartbeatAt = clock(); lifecycle = "running"; }
       else if (jobs.cleanup) {
-        checkedAt = clock(); currentCheck = true; lastResult = message.result ? { attempted: message.result.attempted, removed: message.result.removed, deferred: message.result.deferred, pendingFailures: message.result.pendingFailures } : null;
-        cleanupFailed = !message.result || message.result.deferred > 0 || message.result.pendingFailures > 0;
+        const result = message.result;
+        checkedAt = clock(); currentCheck = true; lastResult = result ? { attempted: result.attempted, removed: result.removed, deferred: result.deferred, pendingFailures: result.pendingFailures, ...(result.parked === undefined ? {} : { parked: result.parked }) } : null;
+        // A parked file keeps the check failed too, so a monitor that does not read the count still raises it.
+        cleanupFailed = !result || result.deferred > 0 || result.pendingFailures > 0 || (result.parked ?? 0) > 0;
         if (cleanupFailed) errorAt = checkedAt;
         else successAt = checkedAt;
       }

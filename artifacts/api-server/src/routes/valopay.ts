@@ -21,7 +21,7 @@ import { requestDailyAuditCheck } from "../lib/background-worker";
 import { buildConsoleOverview, buildConsoleReports, buildConsoleSettings } from "../lib/valopay-close-views";
 import { listQueue } from '../lib/valopay-store';
 import { completeOperation, viewerScope } from '../lib/valopay-store';
-import { contractAnswer, lenderQuery, optionalKey, replayedAnswer } from '../lib/contract';
+import { contractAnswer, lenderQuery, optionalKey, replayedAnswer, requiredKey } from '../lib/contract';
 import { routerOptions } from './router-options';
 
 const router:IRouter=Router(routerOptions);
@@ -151,6 +151,8 @@ router.patch("/v1/records/:kind/:id",async(req,res)=>{
 router.post("/v1/actions",async(req,res)=>{
  const {merchantId}=lenderQuery(req);
  const body=S.PerformActionBody.parse(req.body);
+ // A second person's confirmation of discount dates is a financial decision: it is keyed, so the operations journal records it.
+ if(body.action==="confirm_discount_terms")requiredKey(req);
  // A person's first close of the day: once it commits, the background worker checks the lender's whole audit chain.
  let auditCheckDue=false;
  const result=await withState(req,res,async(state,ctx)=>{
@@ -247,7 +249,10 @@ router.post("/v1/exports",async(req,res)=>{
  const body=S.CreateExportBody.parse(req.body);
  if(!kinds.has(body.kind)&&!(exportKinds as readonly string[]).includes(body.kind))fail("Unknown export kind.");
  if(["customer-pack","dispute-pack"].includes(body.kind)&&!body.customerId)fail("A dispute pack needs customerId.");
-  const result=await withState(req,res,(state,ctx)=>queueExport(state,ctx,body,process.env.PRIVATE_OBJECT_DIR||''),true,S.CreateExportResponse);
+ // A reviewed close is checked as current against its whole close, which the load keeps as a summary once more than a
+ // week older than the newest: that one close is loaded whole, as for the review's decision.
+ const whole=body.kind==='reviewed-close'&&body.closeReviewId?{closeReviewIds:[body.closeReviewId]}:{};
+  const result=await withState(req,res,(state,ctx)=>queueExport(state,ctx,body,process.env.PRIVATE_OBJECT_DIR||''),true,S.CreateExportResponse,{},whole);
  req.log.info({event:"export.queued",kind:body.kind,format:body.format,exportId:result.id},"Export queued durably");
  res.json(result);
 });

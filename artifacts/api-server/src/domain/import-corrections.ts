@@ -74,6 +74,28 @@ function ownedTarget(state: DomainState, batch: ValopayRecord, id: string) {
     refuse("This imported record does not belong to the selected batch.", 404);
   return target;
 }
+/** A record as the comparison lists it among the affected records. */
+const listed = ({ id, kind, name, reference, status, updatedAt }: ValopayRecord) => ({ id, kind, name, reference, status, updatedAt });
+/** From impact version 2 a proposal covers each close and close review
+ * recorded before it as the comparison lists it: its name, reference, status
+ * and version. loadState keeps a close more than a week older than the newest
+ * as its summary, so a digest of whole closes changed when later daily closes
+ * moved that cutoff. Closes never change once recorded (saveState refuses),
+ * any change to a review moves its version, and its frozen snapshot never
+ * changes. A proposal saved without a version (1) keeps its first rule: every
+ * affected record whole, as loaded. */
+const IMPACT_VERSION = 2;
+const impactVersion = (proposal: ValopayRecord) =>
+  proposal.data.impactVersion === IMPACT_VERSION ? IMPACT_VERSION : 1;
+function impactDigestOf(affected: ValopayRecord[], version: number) {
+  return digest(
+    version === 1
+      ? affected
+      : affected.map((r) =>
+          r.kind === "closes" || r.kind === "close-reviews" ? listed(r) : r,
+        ),
+  );
+}
 /** The records a correction touches: the target's financial dependents, and
  * the closes and close reviews recorded up to the comparison time. A close
  * recorded after a proposal contains the same uncorrected value but does not
@@ -105,6 +127,7 @@ function calculate(
   raw: ImportCorrectionPreviewInput,
   asOf = ctx.now,
   role = ctx.role,
+  version = IMPACT_VERSION,
 ) {
   const input = importCorrectionPreviewInputSchema.parse(raw),
     batch = ownedBatch(state, input.batchId),
@@ -184,17 +207,8 @@ function calculate(
       );
     }
   }
-  const affectedView = affected.map(
-    ({ id, kind, name, reference, status, updatedAt }) => ({
-      id,
-      kind,
-      name,
-      reference,
-      status,
-      updatedAt,
-    }),
-  );
-  const impactDigest = digest(affected),
+  const affectedView = affected.map(listed);
+  const impactDigest = impactDigestOf(affected, version),
     previewDigest = digest({
       batchId: batch.id,
       before: target,
@@ -243,40 +257,65 @@ function decisionOf(state: DomainState, id: string) {
     (r) => r.merchantId === state.merchant.id && r.kind === "import-correction-events" && r.data.proposalId === id && ["approve", "reject", "withdraw"].includes(r.data.action),
   );
 }
-/** Reassignment never rewrites the proposal. Follow its versioned event chain; ambiguous history fails closed. */
-export function importCorrectionAssignment(state: DomainState, proposal: ValopayRecord) {
+/** A saved proposal's comparison made again now, with its proposer's role and
+ * the impact rule it was saved with: the view, the decision and the save all
+ * judge it by this. */
+export function importCorrectionComparison(
+  state: DomainState,
+  ctx: Context,
+  proposal: ValopayRecord,
+) {
+  return calculate(
+    state,
+    ctx,
+    proposal.data.input,
+    proposal.createdAt,
+    proposerRole(proposal),
+    impactVersion(proposal),
+  );
+}
+export const inconsistentAssignment =
+  "This correction has inconsistent assignment history. Ask an administrator to investigate the recorded events.";
+/** Reassignment never rewrites the proposal. Follow its versioned event chain
+ * as far as it is unambiguous: `consistent` is false where it forks, breaks or
+ * leaves events off the chain, which only bad data does. A read shows that one
+ * proposal as far as its history agrees; a decision refuses it. */
+export function followImportCorrectionAssignment(state: DomainState, proposal: ValopayRecord) {
   const events = state.records.filter(r => r.merchantId === state.merchant.id && r.kind === "import-correction-events" && r.data.proposalId === proposal.id && r.data.action === "reassign");
   let reviewer = String(proposal.data.reviewer), eventId: string | null = null, updatedAt = proposal.createdAt;
   const history: Array<{ id: string; fromReviewer: string; reviewer: string; actor: string; reason: string; at: string }> = [];
   while (history.length < events.length) {
     const next = events.filter(r => r.data.previousAssignmentEventId === eventId);
     if (next.length !== 1 || next[0]!.data.fromReviewer !== reviewer || next[0]!.data.proposalDigest !== proposal.data.proposalDigest || history.some(r => r.id === next[0]!.id))
-      refuse("This correction has inconsistent assignment history. Ask an administrator to investigate the recorded events.");
+      return { reviewer, eventId, updatedAt, history, consistent: false };
     const event = next[0]!;
     history.push({ id: event.id, fromReviewer: reviewer, reviewer: event.data.reviewer, actor: event.data.actor, reason: event.data.reason, at: event.createdAt });
     reviewer = event.data.reviewer; eventId = event.id; updatedAt = event.createdAt;
   }
-  return { reviewer, eventId, updatedAt, history };
+  return { reviewer, eventId, updatedAt, history, consistent: true };
+}
+/** The current assignment for a decision or reassignment: ambiguous history fails closed. */
+export function importCorrectionAssignment(state: DomainState, proposal: ValopayRecord) {
+  const { consistent, ...assignment } = followImportCorrectionAssignment(state, proposal);
+  if (!consistent) refuse(inconsistentAssignment);
+  return assignment;
 }
 export function importCorrectionView(
   state: DomainState,
   ctx: Context,
   proposal: ValopayRecord,
+  assignment = followImportCorrectionAssignment(state, proposal),
 ) {
-  const decision = decisionOf(state, proposal.id), assignment = importCorrectionAssignment(state, proposal);
+  const decision = decisionOf(state, proposal.id);
   let current = false;
-  try {
-    const comparison = calculate(
-        state,
-        ctx,
-        proposal.data.input,
-        proposal.createdAt,
-        proposerRole(proposal),
-      ).preview;
-    current = comparison.blockers.length === 0 && comparison.previewDigest === proposal.data.preview.previewDigest;
-  } catch {
-    /* changed source or dependencies */
-  }
+  // A decided proposal is never current, so it is not compared again.
+  if (!decision)
+    try {
+      const comparison = importCorrectionComparison(state, ctx, proposal).preview;
+      current = comparison.blockers.length === 0 && comparison.previewDigest === proposal.data.preview.previewDigest;
+    } catch {
+      /* changed source or dependencies */
+    }
   return contractAnswer(importCorrectionViewSchema, {
     id: proposal.id,
     merchantId: state.merchant.id,
@@ -298,7 +337,7 @@ export function importCorrectionView(
           ? "withdrawn"
           : "rejected"
       : "awaiting_review",
-    current: !decision && current,
+    current,
     preview: proposal.data.preview,
     decision: decision
       ? {
@@ -399,6 +438,7 @@ export function proposeImportCorrection(
     before: structuredClone(checked.target),
     after: checked.after,
     impactDigest: checked.impactDigest,
+    impactVersion: IMPACT_VERSION,
     preview: checked.preview,
     proposedBy: ctx.actor,
     proposedPrincipal: principal(ctx),
@@ -429,8 +469,11 @@ export function reassignImportCorrection(
   if (input.proposalDigest !== proposal.data.proposalDigest || input.expectedAssignmentEventId !== assignment.eventId)
     refuse("This correction or its assignment changed. Refresh it before reassigning the reviewer.");
   if (input.reviewer === assignment.reviewer) refuse("Choose a different active Finance reviewer.");
-  if (input.reviewer === proposal.data.proposedBy || input.reviewer === `Clerk:${proposal.data.proposedPrincipal}` || !reviewers.some(r => r.actor === input.reviewer && r.role === "Finance"))
+  // The proposer's principal is a digest of their identity, never an actor: the decision compares it.
+  if (input.reviewer === proposal.data.proposedBy || !reviewers.some(r => r.actor === input.reviewer && r.role === "Finance"))
     refuse("Choose another active Finance reviewer with access to this lender, independent of the proposer.", 403);
+  // A demo persona is the same browser person as the proposer, so it could never decide, as for a close review.
+  if (input.reviewer.startsWith("Sandbox ")) refuse("Choose a staff Finance reviewer. Demo roles cannot provide independent review.", 403);
   makeRecord(state, "import-correction-events", {
     name: "Import correction reviewer reassigned", status: "recorded", createdAt: ctx.now, updatedAt: ctx.now,
     data: { proposalId: id, targetId: proposal.data.targetId, batchId: proposal.data.batchId, proposalDigest: proposal.data.proposalDigest,
@@ -481,13 +524,7 @@ export function decideImportCorrection(
       );
   }
   if (input.action === "approve") {
-    const checked = calculate(
-      state,
-      ctx,
-      proposal.data.input,
-      proposal.createdAt,
-      proposerRole(proposal),
-    );
+    const checked = importCorrectionComparison(state, ctx, proposal);
     if (
       checked.preview.blockers.length ||
       checked.preview.previewDigest !== proposal.data.preview.previewDigest
@@ -570,7 +607,7 @@ export function assertImportedCorrectionChange(
   const { proposalDigest, ...evidence } = proposal.data;
   if (digest(evidence) !== proposalDigest)
     refuse("The correction proposal evidence failed its integrity check.");
-  const checked = calculate(
+  const checked = importCorrectionComparison(
     snapshot,
     {
       actor: event!.data.actor,
@@ -578,16 +615,16 @@ export function assertImportedCorrectionChange(
       role: "Finance",
       now: after.updatedAt,
     },
-    proposal.data.input,
-    proposal.createdAt,
-    proposerRole(proposal),
+    proposal,
   );
   if (
     checked.preview.blockers.length ||
     checked.preview.previewDigest !== proposal.data.preview.previewDigest ||
     !sameJson(checked.after, proposal.data.after) ||
-    digest(affectedRecords(state, before, proposal.createdAt)) !==
-      proposal.data.impactDigest
+    impactDigestOf(
+      affectedRecords(state, before, proposal.createdAt),
+      impactVersion(proposal),
+    ) !== proposal.data.impactDigest
   )
     refuse("Correction dependencies changed; prepare a fresh proposal.");
 }

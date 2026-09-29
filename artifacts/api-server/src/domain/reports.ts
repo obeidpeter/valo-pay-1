@@ -240,7 +240,7 @@ export function unitEconomics(state: DomainState, now: string, statement: Record
     grossMargin, planGrossMargin: PLAN_GROSS_MARGIN,
     annualisedRecurringRevenueKobo: pricingReady ? multiplyDivideMoney(recurringKobo, 12, 1) : null, implementationExcluded: true, recoveryFeeIncluded: false,
     checks: { costPerCollectionWithinPlan: costPerCollectionKobo === null ? null : costPerCollectionKobo <= VARIABLE_COST_PER_COLLECTION_KOBO, marginWithinPlan: grossMargin === null ? null : grossMargin >= PLAN_GROSS_MARGIN.low },
-    note: !pricingReady ? 'Revenue and margin are unavailable until the signed discount dates have been reviewed. Cost evidence is shown separately.' : estimated ? "No costs have been recorded for this period. The estimate uses NGN 15 per collection until infrastructure, notification and support costs are entered." : "Based on the costs recorded for this period.",
+    note: !pricingReady ? `Revenue and margin are unavailable until the commercial terms can price this month. ${statement.pricingExplanation} Cost evidence is shown separately.` : estimated ? "No costs have been recorded for this period. The estimate uses NGN 15 per collection until infrastructure, notification and support costs are entered." : "Based on the costs recorded for this period.",
     synthetic: true,
   };
 }

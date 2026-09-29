@@ -36,6 +36,9 @@ const percentagePoints = (value: unknown) => typeof value === 'number' ? formatP
 const count = (value: unknown) => typeof value === 'number' ? formatNumber(value) : String(value ?? 0);
 const invoiceRows = (record: Unknown): Array<Record<string, any>> => Array.isArray(record?.invoices) ? (record!.invoices as Array<Record<string, any>>) : [];
 const adjustmentRows = (record: Unknown): Array<Record<string, any>> => Array.isArray(record?.pendingAdjustments) ? (record!.pendingAdjustments as Array<Record<string, any>>) : [];
+/** Issued invoices charged at another rate than the terms in effect for their month give, each with the service's explanation; an older answer has none. */
+const discrepancyRows = (record: Unknown): Array<Record<string, any>> => Array.isArray(record?.rateDiscrepancies) ? (record!.rateDiscrepancies as Array<Record<string, any>>) : [];
+const rateText = (rate: unknown) => typeof rate !== 'number' ? 'Not available' : rate > 0 ? `${formatPercent(rate)} discount` : 'Full public price';
 const billingSummaryKeys = new Set(['period', 'volumeTier', 'totalKobo', 'usageFeeKobo', 'successfulCollections', 'nextInvoicePeriod', 'pendingAdjustmentsKobo']);
 const billingReadinessKeys = new Set(['pricingReady', 'pricingExplanation', 'nextInvoicePricingReady', 'nextInvoicePricingExplanation']);
 const billingLabels: Record<string, string> = {
@@ -249,9 +252,25 @@ export default function ReportsPage() {
                     <EmptyState title="No billing data for this period" className="px-0 py-4">A collection can be billed only after the direct debit succeeds, settles and remains unreversed beyond the provider's reversal period.</EmptyState>
                   )}
                 </div>
+                {discrepancyRows(reports.billing).length > 0 && <div role="status" className="space-y-3 rounded-xl border border-warning/40 bg-warning/5 p-4 text-sm">
+                  <p className="font-semibold">Issued invoices that differ from the terms in effect</p>
+                  <ScrollFrame label="Issued invoices that differ from the terms in effect" className="overflow-x-auto">
+                    <table className="w-full text-xs text-left tabular-nums">
+                      <thead className="text-muted-foreground border-b"><tr><th className="py-1 pr-2">Invoice</th><th className="py-1 pr-2">Month</th><th className="py-1 pr-2">Rate charged</th><th className="py-1 pr-2">Rate in the terms in effect</th></tr></thead>
+                      {/* Each difference with the service's explanation beneath it: the terms compared with, when they took effect and the whole-month rule. */}
+                      {discrepancyRows(reports.billing).map(line => (
+                        <tbody key={String(line.invoiceId)} className="border-b border-border/60 last:border-0">
+                          <tr><td className="pt-2 pr-2">{String(line.invoiceReference)}</td><td className="pt-2 pr-2">{String(line.period)}</td><td className="pt-2 pr-2">{rateText(line.chargedRate)}</td><td className="pt-2 pr-2">{rateText(line.agreedRate)}</td></tr>
+                          {!!line.explanation && <tr><td colSpan={4} className="pb-2 pr-2 font-sans text-muted-foreground [overflow-wrap:anywhere]">{String(line.explanation)}</td></tr>}
+                        </tbody>
+                      ))}
+                    </table>
+                  </ScrollFrame>
+                  <p>{String(reports.billing?.rateDiscrepancyGuidance || 'Issued invoices cannot be changed. Agree any difference with the lender outside Valo Pay.')}</p>
+                </div>}
                 <ReportDisclosure title="Billing rates & rules">
                   <dl className="space-y-3 text-xs">
-                    {scalarEntries(reports.billing).filter(([key]) => !billingSummaryKeys.has(key) && !billingReadinessKeys.has(key)).map(([key, value]) => (
+                    {scalarEntries(reports.billing).filter(([key]) => !billingSummaryKeys.has(key) && !billingReadinessKeys.has(key) && key !== 'rateDiscrepancyGuidance').map(([key, value]) => (
                       <div key={key} className="grid gap-1 border-b border-border/60 pb-3 last:border-0 last:pb-0">
                         <dt className="font-medium">{billingLabels[key] || labelOf(key)}</dt>
                         <dd className="leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">{renderValue(key, value)}</dd>
@@ -261,7 +280,7 @@ export default function ReportsPage() {
                 </ReportDisclosure>
                 <ReportDisclosure title={`Statement lines · ${formatNumber(billingLines(reports.billing).length)}`}>
                   {billingLines(reports.billing).length === 0 ? (
-                    <p className="text-xs text-muted-foreground">{statementNeedsReview ? 'Statement lines are withheld until the design-partner discount dates have been reviewed. This does not mean there are no signed terms or that nothing is owed.' : 'No signed partner terms apply to this period, so there are no billable statement lines.'}</p>
+                    <p className="text-xs text-muted-foreground">{statementNeedsReview ? 'Statement lines are withheld until the design-partner terms can price this month, for the reason shown above. This does not mean there are no signed terms or that nothing is owed.' : 'No signed partner terms apply to this period, so there are no billable statement lines.'}</p>
                   ) : (
                     <ScrollFrame label="Statement lines" className="overflow-x-auto">
                       <table className="w-full text-xs text-left tabular-nums">
@@ -302,7 +321,7 @@ export default function ReportsPage() {
                 <ReportDisclosure title="Revenue and costs">
                   {(() => { const e = reports.billing?.unitEconomics as Record<string, any> | undefined; if (!e) return <p className="text-xs text-muted-foreground">Not available.</p>; return (
                     <div className="text-xs tabular-nums space-y-1">
-                      {e.pricingReady === false && <p className="font-sans font-medium">Revenue and margin need reviewed commercial terms. Recorded collection costs remain available.</p>}
+                      {e.pricingReady === false && <p className="font-sans font-medium">Revenue and margin wait until the commercial terms can price this month. Recorded collection costs remain available.</p>}
                       <p>Successful collections: {count(e.successfulCollections)}. Usage fees: {renderValue('usageFeeKobo', e.usageFeeKobo)}. Licence fees: {renderValue('licenceKobo', e.licenceKobo)} ({String(e.volumeTier)} plan). Recurring revenue: {renderValue('recurringKobo', e.recurringKobo)}.</p>
                       <p>Collection costs: {formatKobo(Number(e.variableCostKobo || 0))}{e.estimated ? ' (estimated at ₦15 per collection)' : ' (recorded)'}. Cost per collection: {e.costPerCollectionKobo === null ? 'not available' : formatKobo(Number(e.costPerCollectionKobo))}. Plan target: {formatKobo(Number(e.planCostPerCollectionKobo || 0))}.</p>
                       <p>Gross margin (share of revenue left after collection costs): {e.grossMargin === null ? 'not available' : percent(e.grossMargin)}. Plan target: {percent(e.planGrossMargin?.low)} to {percent(e.planGrossMargin?.high)}. Recurring revenue at an annual rate: {renderValue('annualisedRecurringRevenueKobo', e.annualisedRecurringRevenueKobo)}, from licence and usage fees only.</p>

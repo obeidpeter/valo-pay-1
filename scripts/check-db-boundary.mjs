@@ -1,9 +1,10 @@
 // A maintainability guard, not a sandbox against malicious code execution.
 import assert from "node:assert/strict";
+import { realpathSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import ts from "typescript";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 
 const defaultRoot = path.resolve(import.meta.dirname, "..");
 const repository = "artifacts/api-server/src/lib/valopay-store.ts";
@@ -33,7 +34,7 @@ const internalModules = new Set(
   ].map((name) => internalDirectory + name + ".ts"),
 );
 const publicRepositoryNames = new Set(
-  `roles digest bindOperation boundOperation tenantConnections lenderConnections fail ANONYMOUS_WORKSPACE_DAYS SANDBOX_LENDER_LIMIT expiredWorkspaceCleanupEnabled SYSTEM_ACTOR_PREFIX runtimeIsolationVerified systemWorkspaceMatches verifyWorkspaceEncryption protectWorkspacePayloads inWorkspace listMerchants chainSequenceSql loadState auditOverview writeAuditCheck verifyAuditTrail dailyAuditCheckDue checkAuditChainDaily revealImportPayloads settleChanges addedRecords auditObject changeRole saveState inMerchantAsSystem merchantInWorkspace dueScheduledCloses scheduledCloseBacklog recordScheduledCloseFailure sandboxInactiveFor initialiseCloseCursors appendAudit verifyAudit DailyAuditCheck OwedCloses StoreContext StoredRequest MerchantLock WorkspaceAccess SweptExportFile prepareOperation listOperations countPendingOperations readOperation receiptOf cancelOperation lookupOwnOperation cancelOwnOperation rejectOperation journalReceipt completeOperation findIdempotency findStoredAnswer saveIdempotency caseAssignees staffDirectory viewerScope inviteStaff approveInvitation updateStaff approveStaffChange declineStaffChange updateStaffLenders revokeInvitation acceptStaffInvitation provisionStaffWorkspace addStaffAdministrator renewStaffAdministrator createPilotLender OperatorProvisioning rewrapProtectedPayloads PayloadRewrap listRecords listQueue listReconciliation listCloseHistory getCloseDetail loadReportsView getCustomerHistory loadCustomerView loadSettingsView lifecycleInventory executeLifecycleRun JournalNeed sweepExpiredWorkspaces overrideSweptExportRemoval removeSweptExportFiles runExportCleanupPass exportCleanupStatus integrityGuards guardMigrations supersededGuards pingDatabase watchDatabase closeDatabase DatabaseReadiness assertFinalState`.split(
+  `roles digest bindOperation boundOperation tenantConnections lenderConnections fail ANONYMOUS_WORKSPACE_DAYS SANDBOX_LENDER_LIMIT expiredWorkspaceCleanupEnabled SYSTEM_ACTOR_PREFIX runtimeIsolationVerified systemWorkspaceMatches verifyWorkspaceEncryption protectWorkspacePayloads inWorkspace listMerchants chainSequenceSql loadState auditOverview writeAuditCheck verifyAuditTrail dailyAuditCheckDue checkAuditChainDaily revealImportPayloads settleChanges addedRecords auditObject changeRole saveState inMerchantAsSystem merchantInWorkspace dueScheduledCloses scheduledCloseBacklog recordScheduledCloseFailure sandboxInactiveFor initialiseCloseCursors appendAudit verifyAudit DailyAuditCheck OwedCloses StoreContext StoredRequest MerchantLock WorkspaceAccess SweptExportFile prepareOperation listOperations countPendingOperations readOperation receiptOf cancelOperation lookupOwnOperation cancelOwnOperation rejectOperation journalReceipt completeOperation findIdempotency findStoredAnswer saveIdempotency caseAssignees staffDirectory viewerScope inviteStaff approveInvitation updateStaff approveStaffChange declineStaffChange updateStaffLenders revokeInvitation acceptStaffInvitation provisionStaffWorkspace addStaffAdministrator renewStaffAdministrator createPilotLender OperatorProvisioning rewrapProtectedPayloads PayloadRewrap listRecords listQueue listReconciliation listCloseHistory getCloseDetail loadReportsView getCustomerHistory loadCustomerView loadSettingsView lifecycleInventory executeLifecycleRun JournalNeed sweepExpiredWorkspaces overrideSweptExportRemoval removeSweptExportFiles runExportCleanupPass exportCleanupStatus parkedExportFiles requeueParkedExportFile releaseParkedExportFile integrityGuards guardMigrations supersededGuards pingDatabase watchDatabase closeDatabase DatabaseReadiness assertFinalState`.split(
     /\s+/,
   ),
 );
@@ -253,10 +254,20 @@ export async function inspectDatabaseBoundaries(root = defaultRoot) {
   return { checked, violations };
 }
 
-if (
-  process.argv[1] &&
-  import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href
-) {
+// Real paths: started through a symlinked path, argv names the link while
+// this module's URL names the file, and the check would silently not run.
+function startedDirectly() {
+  try {
+    return (
+      realpathSync(process.argv[1]) ===
+      realpathSync(fileURLToPath(import.meta.url))
+    );
+  } catch {
+    return false;
+  }
+}
+
+if (startedDirectly()) {
   const { checked, violations } = await inspectDatabaseBoundaries();
   assert.equal(
     violations.length,

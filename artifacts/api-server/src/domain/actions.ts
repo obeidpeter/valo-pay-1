@@ -1,5 +1,5 @@
 import {
-  allocationDecisionDataSchema, counted, businessDateSchema,
+  allocationDecisionDataSchema, counted, businessDateSchema, discountConfirmationDataSchema,
   DEFAULT_ACTIVATION_WINDOW_DAYS, PLATFORM_OWNER, activationReminderCaps, closeRules, failureCodeList, handBackFallbackOwner, isKnownFailureCode,
   heldEvidenceCodes, heldEvidenceOf, moneyText, nairaText, nextCloseInstant, normaliseFailureCode, otherCurrenciesText, passRuleText, paymentUnappliedKobo, providerIdentityConfirmedCode, providerIdentityOf, providerIdentityParts, resolutionCodesForException, resolutionRuleVersion, resolveExceptionType, unseenReversalCodes, unseenReversalOf, withinQuietHours, templateTextProblems,
   type CloseTrigger,
@@ -15,6 +15,7 @@ import { buildReports } from "./reports";
 import { buildCloseReport, closeSchedule, followingCloseInstant, openingSnapshot, owedCloseDates, scheduledCloseBusinessDate, storedCloseCursor } from "./close";
 import { watDate } from "./calendar";
 import { issueInvoice } from "./billing";
+import { confirmDiscountTerms } from "./commercial-terms";
 import type { ActionInput, ActionResult, Context, DomainState, TypedRecord, ValopayRecord } from "./types";
 import { assertActionRole } from "./validation";
 import { countedAttempts, evaluateRetry, policyIdFor, policyLineage, policySummary, policyVersionOf, preregisterSample, samePolicyLineage } from "./policy-engine";
@@ -24,7 +25,7 @@ const requiresReason = new Set([
   "kill_switch", "approve_kill_switch_off", "mandate_suspend", "mandate_cancel", "mandate_reinstate", "mandate_reissue", "activation_reminder",
   "submit_policy", "approve_policy", "reject_policy", "new_policy_version", "submit_template", "approve_template", "reject_template", "new_template_version",
   "confirm_allocation", "reject_allocation", "manual_allocate", "review_allocation", "resolve_exception", "record_refund", "release_dispute",
-  "simulate_failure", "backtest_policy", "preregister_experiment", "hand_back", "mark_pack_used", "issue_invoice", "notify_policy_change", "apply_policy_version",
+  "simulate_failure", "backtest_policy", "preregister_experiment", "hand_back", "mark_pack_used", "issue_invoice", "confirm_discount_terms", "notify_policy_change", "apply_policy_version",
 ]);
 const DAY_MS = 24 * 60 * 60 * 1000, MINUTE_MS = 60 * 1000;
 
@@ -662,6 +663,17 @@ function runAction(state: DomainState, ctx: Context, input: ActionInput, audit?:
     if (consentRequired) { mandate.data.consentEvidence = String(data.consentEvidence); mandate.data.consentCapturedAt = now; }
     touch(mandate, now);
     return result(`Policy version ${target.data.version ?? 1} now applies to this mandate after the notice${consentRequired ? " and fresh consent" : ""}; the previous version stays on record.`, mandate, { policyId: target.id, noticeId: notice.id });
+  }
+  if (input.action === "confirm_discount_terms") {
+    // BIL-02: the second person of a design partner's discount dates, which the record write proposes.
+    assertActionRole(ctx, ["Admin", "Finance"]);
+    const checked = discountConfirmationDataSchema.parse(data, { path: ["data"] });
+    const terms = findRecord(state, String(input.recordId), "commercial");
+    const confirmed = confirmDiscountTerms(terms, ctx, checked);
+    const agreed = `50% discount from ${confirmed.discountStartDate}, full price from ${confirmed.fullPriceStartDate} (agreement ${confirmed.termsReference})`;
+    return result(`Discount dates confirmed: ${agreed}, proposed by ${confirmed.reviewedBy}. New invoices are priced from these dates; issued invoices are unchanged.`, terms, {
+      commercialId: terms.id, auditNote: `Confirmed the design-partner discount dates proposed by ${confirmed.reviewedBy} at ${confirmed.reviewedAt}: ${agreed}.`,
+    });
   }
   if (input.action === "issue_invoice") {
     assertActionRole(ctx, ["Admin", "Finance"]);

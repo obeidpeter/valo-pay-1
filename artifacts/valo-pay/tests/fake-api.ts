@@ -50,6 +50,10 @@ export interface FakeApi {
   role: string;
   /** One browser person remains the same when demo personas switch. Tests may set a second synthetic person explicitly. */
   principalId: string;
+  /** Staff colleagues the lender's assignee lists name after the demo personas (none by default), and the one requests
+   * run as instead of the persona of `role`, when a test sets it. */
+  staff: Array<{ actor: string; name: string; role: string }>;
+  actor?: string;
   /** The instant every request sees, fixed at install unless setNow is called. */
   now: string;
   scheduler: CloseRuntime;
@@ -119,7 +123,7 @@ export function installFakeApi(options: { now?: string; role?: string; queuedExp
   const failures: Array<{ pattern: RegExp; method?: string; failure: { status: number; error: string; details?: Array<{ field: string; message: string }>; headers?: Record<string, string> } | "offline" }> = [];
   const holds: Array<{ pattern: RegExp; promise: Promise<void> }> = [];
   const api: FakeApi = {
-    merchantIds: [], role: options.role ?? "Admin", principalId: 'synthetic-console-person-1', now, calls: [],
+    merchantIds: [], role: options.role ?? "Admin", principalId: 'synthetic-console-person-1', staff: [], now, calls: [],
     scheduler: { state: 'running', intervalMs: 60_000, lastTickAt: now, lastSuccessAt: now, lastErrorAt: null },
     state(merchantId) { const id = merchantId ?? api.merchantIds[0]!; return states.get(id) ?? fail("Lender not found in this workspace.", 404); },
     mutate(fn, merchantId) { return withState(merchantId ?? api.merchantIds[0]!, fn, { action: "test.mutation", objectId: "workspace", summary: "Arranged by a console test" }); },
@@ -135,7 +139,7 @@ export function installFakeApi(options: { now?: string; role?: string; queuedExp
     },
     uninstall() { globalThis.fetch = originalFetch; },
   };
-  const context = (): Context => ({ actor: `Sandbox ${api.role}`, role: api.role, now: api.now, principalId: api.principalId });
+  const context = (): Context => ({ actor: api.actor ?? `Sandbox ${api.role}`, role: api.role, now: api.now, principalId: api.principalId });
 
   // Two lenders, as the repository seeds a workspace, each with its first close cursor.
   for (const smaller of [false, true]) {
@@ -175,7 +179,7 @@ export function installFakeApi(options: { now?: string; role?: string; queuedExp
   }
   const merchantOf = (query: Record<string, string>) => S.GetOverviewQueryParams.parse(query).merchantId;
 
-  const roster = () => roles.filter(role => role !== 'Read-only').map(role => ({ actor: 'Sandbox ' + role, name: 'Sandbox ' + role, role }));
+  const roster = () => [...roles.filter(role => role !== 'Read-only').map(role => ({ actor: 'Sandbox ' + role, name: 'Sandbox ' + role, role })), ...api.staff];
   const pilotWrite = (q: Record<string,string>, fn: (s: DomainState,c: Context)=>ValopayRecord) => withState(merchantOf(q), (state,ctx) => { const before=structuredClone(state); const result=fn(state,ctx); advanceRecordVersions(before,state,ctx.now); return contract(valopayRecordSchema, result); }, { action:'pilot.change',objectId:'workspace',summary:'Synthetic pilot workflow' });
   const routes: Array<[string, RegExp, Handler]> = [
     ['GET', /^\/v1\/team$/, () => contract(staffDirectorySchema, {mode:'sandbox', actor:context().actor, members:[], lenders:[], invitations:[], changes:[], events:[], message:'Demo personas are active.'})],
@@ -232,7 +236,7 @@ export function installFakeApi(options: { now?: string; role?: string; queuedExp
       return S.ListQueueResponse.parse(withState(filters.merchantId, (state, ctx) => pageQueue(state.records, name, filters, ctx.now)));
     }],
     ["GET", /^\/v1\/workspace$/, () => S.GetWorkspaceResponse.parse({
-      name: "Valo Pay", environment: "sandbox", actor: `Sandbox ${api.role}`, role: api.role, authenticated: false,
+      name: "Valo Pay", environment: "sandbox", actor: context().actor, role: api.role, authenticated: false,
       merchants: api.merchantIds.map((id) => states.get(id)!.merchant), roles: [...roles], productionEnabled: false,
     })],
     ['GET', /^\/v1\/connected$/, (_p,query)=>withState(merchantOf(query),(state,ctx)=>contract(connectedViewSchema, connectedView(state,ctx)))],

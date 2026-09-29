@@ -23,7 +23,7 @@ function nextAction(role: string, overview?: Overview): NextAction {
   if (role === 'Admin') return waiting('review')
     ? { title: 'A payment match needs review', description: 'Check the underlying records or ask Finance to review them. Starting a task does not bypass its required approval.', label: 'Review proposed payment matches', href: '/reconciliation?view=review' }
     : { title: 'Bring the lender’s sample records together', description: 'Start with customers, then their instalments and payment evidence. Preview each import and correct its errors before committing it.', label: 'Open import batches', href: '/imports' };
-  return { title: 'Check what your workspace allows', description: 'Your role could not be recognised here. Read the access guide before asking an administrator to confirm your membership.', label: 'Read the access guide', href: helpHref('start', '/overview') };
+  return { title: 'Check what your workspace allows', description: 'Your role could not be recognised here. Read the access guide before asking an administrator to confirm your membership.', label: 'Read the access guide', href: helpHref('access', '/overview') };
 }
 
 const stateLabels = { not_started: 'Not started', in_progress: 'In progress', awaiting_review: 'Awaiting review', completed: 'Recorded', blocked: 'Needs attention' };
@@ -58,7 +58,7 @@ function Checklist({ role }: { role: string }) {
       })}
     </ol>}
     <div className="mt-4 flex items-start gap-2 rounded-lg bg-secondary/40 p-3 text-xs leading-relaxed text-muted-foreground"><Info aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" /><p><strong className="font-medium text-foreground">Separate administrator and external setup.</strong> Staff invitations, provider connections and acceptance for real data are separate checks. {role === 'Admin' ? 'Review the Pilot journey and Team & access with the responsible owners.' : 'Ask your administrator to arrange them; you do not need bank credentials to review these sample records.'} Sample progress does not establish live readiness.</p></div>
-    <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm"><Link href="/pilot" className="inline-flex min-h-10 items-center text-primary underline">View the full pilot journey</Link><Link href={helpHref('start', '/overview')} className="inline-flex min-h-10 items-center text-primary underline">Understand your access</Link></div>
+    <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm"><Link href="/pilot" className="inline-flex min-h-10 items-center text-primary underline">View the full pilot journey</Link><Link href={helpHref('access', '/overview')} className="inline-flex min-h-10 items-center text-primary underline">Understand your access</Link></div>
   </div>;
 }
 

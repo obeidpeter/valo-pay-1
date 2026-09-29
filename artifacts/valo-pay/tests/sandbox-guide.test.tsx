@@ -56,4 +56,20 @@ describe('guided sandbox exploration', () => {
     expect(screen.getByRole('link', { name: 'Read the evidence guide' }).getAttribute('href')).toBe('/help?topic=exports&returnTo=%2Foverview');
     expect(api.calls.filter(call => call.method === 'POST')).toEqual([]);
   });
+
+  // The service lets a Compliance reviewer claim a case and record its next action (coordinateCase), not resolve it.
+  it.each([
+    ['Compliance reviewer', /Claim an unassigned issue, then record a next step or handover when appropriate\. Admin, Operations or Finance must record its resolution\./],
+    ['Read-only', /Ask the assigned operator to record the next action; your role cannot resolve the issue\./],
+  ])('tells %s what it may do with an issue', async (role, advice) => {
+    api.role = role;
+    const user = userEvent.setup();
+    renderApp('/overview');
+    await user.click(await screen.findByRole('button', { name: /Sandbox guide/ }));
+    for (let i = 0; i < 2; i++) await user.click(screen.getByRole('button', { name: 'Next tip' }));
+    const guide = screen.getByRole('region', { name: 'Sandbox guide' });
+    expect(within(guide).getByRole('heading', { name: 'Follow an issue to its next step' })).toBeTruthy();
+    expect(within(guide).getByText(advice)).toBeTruthy();
+    expect(api.calls.filter(call => call.method === 'POST')).toEqual([]);
+  });
 });

@@ -12,7 +12,7 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-/** How many connections one API process may hold (VALOPAY_DATABASE_POOL_SIZE, 2 to 100, default 10). One tenant may use at most a third of them for its lenders (the connection gate in the API's valopay-store.ts). */
+/** How many connections one API process may hold (VALOPAY_DATABASE_POOL_SIZE, 2 to 100, default 10). One tenant may use at most a third of them for its lenders (the connection gate in the API's lib/repository/core.ts). */
 export const poolSize = (() => {
   const configured = process.env.VALOPAY_DATABASE_POOL_SIZE;
   if (configured === undefined || configured === "") return 10;

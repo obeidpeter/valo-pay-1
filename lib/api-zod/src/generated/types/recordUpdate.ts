@@ -21,7 +21,7 @@ export interface RecordUpdate {
   amountKobo?: number;
   /** @maxLength 100 */
   customerId?: string;
-  /** Per-kind update fields, merged with the stored record after the expectedUpdatedAt check. Commercial date edits are reviewed by the authorised writer and restamp discountReview on the service. A client cannot supply different review attribution. Issued invoice records are immutable. */
+  /** Per-kind update fields, merged with the stored record after the expectedUpdatedAt check. A commercial edit that changes signed, signedFullPriceTerms, designPartner, the dates or the reference proposes them afresh (discountReview, recorded by the service) and drops any confirmation; any other edit keeps the proposal and its confirmation. A client cannot supply or change discountReview (400). Issued invoice records are immutable. */
   data?: RecordData;
   /**
      * Required: the updatedAt of the record as the edit read it. A request without it is refused (400, naming it); a record changed since is 409. Compared as an instant.

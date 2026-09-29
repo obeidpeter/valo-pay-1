@@ -19,7 +19,7 @@ const { makeRecord } = await import("../src/domain/records.js");
 const { saveImportBatch, commitImportBatch } = await import("../src/domain/pilot-workflow.js");
 const { saveSourceManifest, sourceCompleteness } = await import("../src/domain/source-completeness.js");
 const { bindCloseReviewBasis, closeReviewBasis, closeReviewIssues, prepareCloseReview, reviewIsCurrent } = await import("../src/domain/close-review.js");
-const { previewImportCorrection, proposeImportCorrection } = await import("../src/domain/import-corrections.js");
+const { importCorrectionComparison, previewImportCorrection, proposeImportCorrection } = await import("../src/domain/import-corrections.js");
 const { personalWorkItems } = await import("../src/domain/personal-work.js");
 const { lifecyclePolicy, lifecycleHolds, lifecycleCandidates, lifecyclePreview, saveLifecyclePolicy, setLifecycleHold } = await import("../src/domain/lifecycle.js");
 const { decisionFingerprint } = await import("../src/domain/policy-engine.js");
@@ -79,14 +79,20 @@ const correction = { batchId: batch.id, targetId: target.id, expectedUpdatedAt: 
 const preview = previewImportCorrection(state, ops, correction);
 proposeImportCorrection(state, ops, { ...correction, previewDigest: preview.previewDigest, reviewer: finance.actor, reason: "Correct the misspelled source name", evidence: "SOURCE-CORRECTION-GOLDEN" }, [{ actor: finance.actor, role: "Finance" }]);
 const proposal = state.records.find((record) => record.kind === "import-corrections")!;
-// A proposal records its proposer's role since the 23 September audit (item 20), and its digest covers it: checked
-// here against the same rules. The golden values are pinned on the proposal as earlier builds stored it, without the
-// role, so they still prove the digest rules unchanged.
-const { proposalDigest: storedDigest, proposedRole, ...earlierProposal } = proposal.data;
+// A proposal records its proposer's role since the 23 September audit (item 20), and its impact version since the
+// review of PR #71, and its digest covers both: checked here against the same rules. Version 2 covers each close and
+// close review before it as the comparison lists it; its digests are pinned as the build that introduced it stored
+// them. The golden values are pinned on the proposal as earlier builds stored it, without the role or the version:
+// its comparison, made again by the rule such a proposal is still checked with, must give the digests they stored.
+const { proposalDigest: storedDigest, proposedRole, impactVersion, ...earlierProposal } = proposal.data;
 assert.equal(proposedRole, ops.role);
-assert.equal(storedDigest, canonicalDigest({ ...earlierProposal, proposedRole }, "legacy-en-us-replacer"));
-proposal.data = { ...earlierProposal, proposalDigest: canonicalDigest(earlierProposal, "legacy-en-us-replacer") };
-values.correction = { preview: preview.previewDigest, impact: proposal.data.impactDigest, proposal: proposal.data.proposalDigest };
+assert.equal(impactVersion, 2);
+assert.equal(storedDigest, canonicalDigest({ ...earlierProposal, proposedRole, impactVersion }, "legacy-en-us-replacer"));
+values.correctionVersion2 = { preview: preview.previewDigest, impact: proposal.data.impactDigest, proposal: storedDigest };
+const earlier = importCorrectionComparison(state, finance, { ...proposal, data: earlierProposal });
+const earlierData = { ...earlierProposal, impactDigest: earlier.impactDigest, preview: { ...earlierProposal.preview, previewDigest: earlier.preview.previewDigest } };
+proposal.data = { ...earlierData, proposalDigest: canonicalDigest(earlierData, "legacy-en-us-replacer") };
+values.correction = { preview: earlier.preview.previewDigest, impact: earlier.impactDigest, proposal: proposal.data.proposalDigest };
 
 // Retention: policy and hold revisions, candidate digests and a preview.
 saveLifecyclePolicy(state, admin, { policy: { rawCsvDays: 30, journalPayloadDays: null, exportFileDays: null, auditTrail: "retain" }, expectedRevision: lifecyclePolicy(state).revision, reason: "Agreed source retention for the golden rehearsal." });
@@ -154,6 +160,12 @@ const golden = {
     "impact": "e2b5f8fc402d62df88466d8d2c0a95ccb1979aa165d3a5c9b007cb6c92e1cf12",
     "proposal": "71fd6df93bdd1700d69b9e69194fd11eb26e8801f40171773102e32e6afe19c5"
   },
+  // Impact version 2 (review of PR #71), pinned from the build that introduced it.
+  "correctionVersion2": {
+    "preview": "e20cce9477b510f85bbf368406720f472f7607b3cde9396a9e9e91f062d0acb5",
+    "impact": "db3845919d74b361ebd2874da762dae58356ebee0bc1d9a48e4fd3ea476e5a81",
+    "proposal": "538116299f89e962b7769025cb53a74558ee1ba80d0c00a753d4826a1c4b0339"
+  },
   "retentionPolicy": "879774952c43182ccb4e575b110eaf4385c5fd6d2e9ce7f6a736d586ae7b18fc",
   "retentionHolds": [
     "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -194,5 +206,5 @@ if (process.env.VALOPAY_GOLDEN_PRINT === "1") {
   console.log(JSON.stringify(values, null, 2));
 } else {
   assert.deepEqual(values, golden);
-  console.log(`Golden digests passed: ${Object.keys(golden).length} kinds of stored digest match the values the earlier helpers computed.`);
+  console.log(`Golden digests passed: ${Object.keys(golden).length} kinds of stored digest match the values the earlier helpers, or the build that introduced them, computed.`);
 }

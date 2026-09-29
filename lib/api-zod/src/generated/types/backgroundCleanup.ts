@@ -9,7 +9,7 @@ import type { BackgroundCleanupState } from './backgroundCleanupState';
 import type { CleanupPassResult } from './cleanupPassResult';
 
 /**
- * The worker's most recent bounded cleanup pass and aggregate queue read. Empty polls count as success only when no persisted failed tombstones remain. A rejected pass/read, deferred removal or pendingFailures above zero is failed; lastSuccessAt remains the last successful check. Null lastResult means no check or a rejected check. After a restart, pending until this worker checks; older timestamps remain evidence. Stale after three intervals plus 15 seconds without a completed check. This is not proof all queued files were deleted; ordinary leases or delayed work can remain.
+ * The worker's most recent bounded cleanup pass and aggregate queue read. Empty polls count as success only when no persisted failed or parked tombstones remain. A rejected pass/read, deferred removal, or pendingFailures or parked above zero is failed; lastSuccessAt remains the last successful check. Null lastResult means no check or a rejected check. After a restart, pending until this worker checks; older timestamps remain evidence. Stale after three intervals plus 15 seconds without a completed check. This is not proof all queued files were deleted; ordinary leases or delayed work can remain.
  */
 export interface BackgroundCleanup {
   state: BackgroundCleanupState;

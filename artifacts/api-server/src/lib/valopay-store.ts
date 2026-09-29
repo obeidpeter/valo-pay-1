@@ -103,6 +103,9 @@ export {
   removeSweptExportFiles,
   runExportCleanupPass,
   exportCleanupStatus,
+  parkedExportFiles,
+  requeueParkedExportFile,
+  releaseParkedExportFile,
 } from "./repository/core";
 export {
   integrityGuards,

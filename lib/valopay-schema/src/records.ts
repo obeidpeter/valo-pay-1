@@ -52,6 +52,17 @@ export const recordTextLimits = { status: 100, reference: 200, customerId: 100, 
 export const isoDateOrTimestamp = z.string().regex(/^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z)?$/, "Use YYYY-MM-DD or a UTC timestamp such as 2026-09-18T07:00:00Z.").refine(isRealDate, "Enter a valid date.");
 /** A day as YYYY-MM-DD, naming a real date. */
 export const isoDay = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD, for example 2026-09-18.").refine(isRealDate, "Enter a valid date.");
+/**
+ * A design partner's discount dates as the service recorded them (BIL-02). Saving signed terms with the dates records a
+ * proposal bound to them: who proposed them (reviewedBy, the demo role or staff account, and proposedPrincipal, the person
+ * behind it) and when (reviewedAt). A different Admin or Finance user confirms it with confirm_discount_terms
+ * (confirmedBy, confirmedPrincipal, confirmedAt). A proposal an earlier build recorded names no principal and awaits
+ * confirmation. No client supplies or edits it.
+ */
+export const discountReviewSchema = z.object({
+  reviewedBy: z.string(), reviewedAt: isoDateOrTimestamp, discountStartDate: isoDay, fullPriceStartDate: isoDay, termsReference: z.string(),
+  proposedPrincipal: z.string().optional(), confirmedBy: z.string().optional(), confirmedPrincipal: z.string().optional(), confirmedAt: isoDateOrTimestamp.optional(),
+});
 /** An amount in kobo: a non-negative safe integer. */
 export const kobo = z.number({ invalid_type_error: 'Enter an amount as a number.' }).int('Enter a whole number in kobo (100 kobo = ₦1).').min(0, 'The amount cannot be negative.').max(Number.MAX_SAFE_INTEGER, 'The amount is too large.');
 const versionNumber = z.coerce.number().int().min(1);
@@ -511,8 +522,8 @@ export const recordDataSchemas = {
     discountStartDate: isoDay.optional(),
     fullPriceStartDate: isoDay.optional(),
     discountTermsReference: z.string().max(500).optional(),
-    /** Assigned by the service when signed dates are saved by Finance or Admin. */
-    discountReview: z.object({ reviewedBy: z.string(), reviewedAt: isoDateOrTimestamp, discountStartDate: isoDay, fullPriceStartDate: isoDay, termsReference: z.string() }).optional(),
+    /** Recorded by the service alone: the proposal when Finance or Admin saves signed dates, and a different person's confirmation. */
+    discountReview: discountReviewSchema.optional(),
   }).passthrough(),
   reviews: z.object({
     ...common,
@@ -622,7 +633,7 @@ export const recordDataSchemas = {
     issuedAt: isoDateOrTimestamp,
     issuedBy: z.string().min(1),
     sequence: z.number().int().min(1).optional(),
-    terms: z.object({ commercialId: z.string(), prospect: z.string(), contractedLicenceKobo: z.number().int(), designPartner: z.boolean(), effectiveDate: z.string().nullable(), discountReview: z.object({ reviewedBy: z.string(), reviewedAt: isoDateOrTimestamp, discountStartDate: isoDay, fullPriceStartDate: isoDay, termsReference: z.string() }).optional() }).nullable().optional(),
+    terms: z.object({ commercialId: z.string(), prospect: z.string(), contractedLicenceKobo: z.number().int(), designPartner: z.boolean(), effectiveDate: z.string().nullable(), discountReview: discountReviewSchema.optional() }).nullable().optional(),
     issueReason: z.string().optional(),
     collectionsCounted: z.number().int().min(0).optional(),
     licence: z.object({ kobo: z.number().int(), volumeTier: z.string().optional(), volumeTierLicenceKobo: z.number().int().optional(), tierMismatch: z.boolean().optional(), note: z.string().optional() }).optional(),
@@ -674,11 +685,13 @@ export const recordDataSchemas = {
     ...common, batchId: z.string(), revision: z.number().int().min(1), actor: z.string(), mapping: z.record(z.string()), amountUnit: z.enum(["naira", "kobo"]),
     valid: z.number().int(), invalid: z.number().int(), skipped: z.number().int(),
   }).partial().passthrough(),
-  /** A proposed correction to one imported record (immutable): the records before and after, the comparison and the digests its approval checks again. */
+  /** A proposed correction to one imported record (immutable): the records before and after, the comparison and the digests its approval checks again,
+   * the role it was proposed with (its checks use that authority) and the rule of its impact digest (2 covers each earlier close and close review as the
+   * comparison lists it; a proposal saved before either was kept has neither). */
   "import-corrections": z.object({
     ...common, batchId: z.string(), targetId: z.string(), input: z.record(z.any()), before: recordCopy, after: recordCopy,
-    impactDigest: z.string(), preview: importCorrectionPreviewSchema.partial().passthrough(), proposedBy: z.string(), proposedPrincipal: z.string(),
-    reviewer: z.string(), reason: z.string(), evidence: z.string(), proposalDigest: z.string(),
+    impactDigest: z.string(), impactVersion: z.number().int(), preview: importCorrectionPreviewSchema.partial().passthrough(), proposedBy: z.string(), proposedPrincipal: z.string(),
+    proposedRole: z.string(), reviewer: z.string(), reason: z.string(), evidence: z.string(), proposalDigest: z.string(),
   }).partial().passthrough(),
   /** A decision or administrator reassignment on a proposed import correction (immutable). */
   "import-correction-events": z.object({

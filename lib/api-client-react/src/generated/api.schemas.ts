@@ -116,7 +116,7 @@ export const BackgroundCleanupState = {
 } as const;
 
 /**
- * Attempted, removed and deferred counts from one bounded pass, plus pendingFailures: the count of all durable cleanup tombstones with last_failure set, including leased or delayed retries. A quiet poll or another file's success cannot clear a pending failure. No storage paths or tenant identities. Use the operator cleanup status command for full backlog depth and age.
+ * Attempted, removed and deferred counts from one bounded pass, plus two counts of durable cleanup tombstones: pendingFailures, those whose last attempt failed and that wait for a retry, including leased or delayed retries; and parked, those whose stored file's ownership, generation or checksum metadata did not match, parked for an operator's review with no further automatic attempt. A quiet poll or another file's success clears neither. parked is absent from builds before files were parked, which count such files among pendingFailures. No storage paths or tenant identities. Use the operator cleanup status command for full backlog depth and age, and to release or re-queue a parked file.
  */
 export interface CleanupPassResult {
   /** @minimum 0 */
@@ -127,10 +127,12 @@ export interface CleanupPassResult {
   deferred: number;
   /** @minimum 0 */
   pendingFailures: number;
+  /** @minimum 0 */
+  parked?: number;
 }
 
 /**
- * The worker's most recent bounded cleanup pass and aggregate queue read. Empty polls count as success only when no persisted failed tombstones remain. A rejected pass/read, deferred removal or pendingFailures above zero is failed; lastSuccessAt remains the last successful check. Null lastResult means no check or a rejected check. After a restart, pending until this worker checks; older timestamps remain evidence. Stale after three intervals plus 15 seconds without a completed check. This is not proof all queued files were deleted; ordinary leases or delayed work can remain.
+ * The worker's most recent bounded cleanup pass and aggregate queue read. Empty polls count as success only when no persisted failed or parked tombstones remain. A rejected pass/read, deferred removal, or pendingFailures or parked above zero is failed; lastSuccessAt remains the last successful check. Null lastResult means no check or a rejected check. After a restart, pending until this worker checks; older timestamps remain evidence. Stale after three intervals plus 15 seconds without a completed check. This is not proof all queued files were deleted; ordinary leases or delayed work can remain.
  */
 export interface BackgroundCleanup {
   state: BackgroundCleanupState;
@@ -277,7 +279,7 @@ export interface RecordInput {
   amountKobo?: number;
   /** @maxLength 100 */
   customerId?: string;
-  /** Per-kind fields validated by the shared record schema. Commercial design-partner terms may supply discountStartDate and fullPriceStartDate as first-of-month dates, discountTermsReference and signedFullPriceTerms. The service alone records discountReview attribution when signed dates are saved. Legacy records without reviewed dates remain readable but cannot issue a new design-partner invoice. */
+  /** Per-kind fields validated by the shared record schema. Commercial design-partner terms may supply discountStartDate and fullPriceStartDate as first-of-month dates, discountTermsReference and signedFullPriceTerms. Saving signed design-partner terms with the full-price terms signed and all three proposes the dates: the service alone records discountReview (who proposed them, which person and when); a different Admin or Finance user must then confirm them with confirm_discount_terms before they price an invoice. A discountReview in the request is refused (400). Legacy records without dates remain readable but cannot issue a new design-partner invoice. */
   data?: RecordData;
 }
 
@@ -295,7 +297,7 @@ export interface RecordUpdate {
   amountKobo?: number;
   /** @maxLength 100 */
   customerId?: string;
-  /** Per-kind update fields, merged with the stored record after the expectedUpdatedAt check. Commercial date edits are reviewed by the authorised writer and restamp discountReview on the service. A client cannot supply different review attribution. Issued invoice records are immutable. */
+  /** Per-kind update fields, merged with the stored record after the expectedUpdatedAt check. A commercial edit that changes signed, signedFullPriceTerms, designPartner, the dates or the reference proposes them afresh (discountReview, recorded by the service) and drops any confirmation; any other edit keeps the proposal and its confirmation. A client cannot supply or change discountReview (400). Issued invoice records are immutable. */
   data?: RecordData;
   /**
      * Required: the updatedAt of the record as the edit read it. A request without it is refused (400, naming it); a record changed since is 409. Compared as an instant.
@@ -458,7 +460,7 @@ export interface RecordList {
 }
 
 /**
- * An action to run: its name, the record it applies to, the reason for it and any data it needs. For confirm_allocation and reject_allocation, data is an AllocationDecisionData: both of its fields are required.
+ * An action to run: its name, the record it applies to, the reason for it and any data it needs. For confirm_allocation and reject_allocation, data is an AllocationDecisionData, and for confirm_discount_terms a DiscountConfirmationData: all of their fields are required.
  */
 export interface ActionInput {
   action: string;
@@ -542,7 +544,7 @@ export interface ImportResult {
  */
 export interface Report {
   metrics: Metric[];
-  /** Billing statement and invoice history. Additive pricingReady/pricingExplanation and nextInvoicePricingReady/nextInvoicePricingExplanation distinguish a statement or next invoice held for review. When signed design-partner discount dates are unreviewed, totalKobo and revenue-derived unitEconomics values are null, not zero; existing issued invoices are unchanged. New invoice issuance returns 409 until Finance or Admin records the reviewed monthly contract dates and signed agreement reference. Older responses may omit this metadata. */
+  /** Billing statement and invoice history. Additive pricingReady/pricingExplanation and nextInvoicePricingReady/nextInvoicePricingExplanation distinguish a statement or next invoice held until signed design-partner terms can price it; the explanation names the actual cause (the full-price terms not recorded as signed, dates or reference missing or invalid, dates changed since they were proposed or confirmed, a proposal awaiting a second person's confirmation, or unreadable stored evidence) in the words the 409 of issue_invoice uses. While held, totalKobo and revenue-derived unitEconomics values are null, not zero, and unitEconomics.note names the cause too; existing issued invoices are unchanged. Additive rateDiscrepancies lists each issued invoice charged at another rate than the terms billing reads for its month now give (the lender's signed terms in effect by the month's end, whichever terms billed it; ordinary terms give the full public price, and design-partner terms count once their discount dates are confirmed, so while those in effect are not, the month's invoices are not compared): invoiceId, invoiceReference, period, commercialId (the terms compared with), chargedRate, agreedRate and an explanation naming those terms, when they took effect and the whole-month rule. rateDiscrepancyGuidance says what to do, since an issued invoice is never changed and has no correction path, including the adjustment lines later invoices carry for its collections at the same rate. Older responses may omit this metadata. */
   billing: RecordData;
   experiment: RecordData;
   operational: RecordData;
@@ -786,6 +788,28 @@ export interface AllocationDecisionData {
   proposalId: string;
   /** The proposed allocation's updatedAt as it was read: an RFC 3339 date and time with Z or an offset. It is compared as an instant, so the same instant written another way names the same version. */
   proposalUpdatedAt: string;
+}
+
+/**
+ * The data confirm_discount_terms requires (POST /v1/actions, recordId the commercial terms, with an Idempotency-Key): the proposed discount dates and signed agreement reference the confirmer checked against the signed agreement. All three are required: a request without one is refused (400, naming it) and saves nothing. The confirmer must be an Admin or Finance user other than the person who proposed the dates, whatever demo role they switch to (403). Terms whose dates await no confirmation, or whose proposal differs from these values, are 409 with the reason. Other fields are ignored.
+ */
+export interface DiscountConfirmationData {
+  /**
+     * The proposed discount start date, as it was read.
+     * @pattern ^\d{4}-\d{2}-\d{2}$
+     */
+  discountStartDate: string;
+  /**
+     * The proposed full-price start date, as it was read.
+     * @pattern ^\d{4}-\d{2}-\d{2}$
+     */
+  fullPriceStartDate: string;
+  /**
+     * The proposed signed agreement reference, as it was read.
+     * @minLength 1
+     * @maxLength 500
+     */
+  discountTermsReference: string;
 }
 
 /**

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import ts from 'typescript';
 
 const directory = dirname(fileURLToPath(import.meta.url));
 const root = resolve(directory, '../..');
@@ -36,11 +37,44 @@ assert.equal(evidence.size, matrix.execution_evidence.length);
 assert.equal(conflicts.size, matrix.source_conflict_records.length);
 assert.equal(changes.size, matrix.change_packages.length);
 for (const source of matrix.sources) assert.match(source.sha256, digest);
+// A file's top-level declarations, parsed rather than matched by line or excerpt, so moved or reformatted
+// code still counts. An import, a re-export, a call or a comment declares nothing; nor does an ambient `declare`,
+// which describes code kept elsewhere, nor a binding whose value is a require() or import() call, directly or
+// through await, parentheses, type assertions (as, satisfies, <T>, !) and property or element reads. Syntax alone
+// cannot tell the code a pointer names from a constant aliasing an imported binding, a type of the same name, or an
+// import reached another way: through ?? or a conditional, .then(), a renamed createRequire, (0, require)(...) or a
+// let assigned later. Those still count; review has to catch them.
+const declared = new Map();
+const loaded = expression => {
+  while (ts.isAwaitExpression(expression) || ts.isParenthesizedExpression(expression) || ts.isAsExpression(expression) || ts.isSatisfiesExpression(expression)
+    || ts.isTypeAssertionExpression(expression) || ts.isNonNullExpression(expression) || ts.isPropertyAccessExpression(expression) || ts.isElementAccessExpression(expression)) expression = expression.expression;
+  return ts.isCallExpression(expression) && (expression.expression.kind === ts.SyntaxKind.ImportKeyword || ts.isIdentifier(expression.expression) && expression.expression.text === 'require');
+};
+function declares(path, symbol) {
+  if (!declared.has(path)) {
+    const names = new Set();
+    const bind = name => { if (ts.isIdentifier(name)) names.add(name.text); else for (const element of name.elements) if (ts.isBindingElement(element)) bind(element.name); };
+    for (const statement of ts.createSourceFile(path, readFileSync(resolve(root, path), 'utf8'), ts.ScriptTarget.Latest).statements) {
+      if (statement.modifiers?.some(modifier => modifier.kind === ts.SyntaxKind.DeclareKeyword)) continue;
+      if (ts.isVariableStatement(statement)) {
+        for (const declaration of statement.declarationList.declarations) if (!declaration.initializer || !loaded(declaration.initializer)) bind(declaration.name);
+      } else if ((ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement) || ts.isInterfaceDeclaration(statement) || ts.isTypeAliasDeclaration(statement)
+        || ts.isEnumDeclaration(statement) || ts.isModuleDeclaration(statement)) && statement.name && ts.isIdentifier(statement.name)) names.add(statement.name.text);
+    }
+    declared.set(path, names);
+  }
+  return declared.get(path).has(symbol);
+}
+let symbols = 0;
 for (const component of Object.values(matrix.components)) {
   for (const pointer of [...component.implementation, ...component.contracts, ...component.test_sources]) {
     assert(existsSync(resolve(root, pointer.path)), `Missing repository pointer ${pointer.path}`);
     assert.match(pointer.sha256, digest);
     assert.equal(pointer.source_revision, matrix.baseline_revision);
+    if (pointer.symbol === undefined) continue;
+    assert(/\.[cm]?[jt]sx?$/.test(pointer.path), `Only a TypeScript or JavaScript file declares a symbol: ${pointer.path} names ${pointer.symbol}`);
+    assert(declares(pointer.path, pointer.symbol), `${pointer.path} no longer declares ${pointer.symbol}; point it at the current declaration`);
+    symbols += 1;
   }
 }
 for (const row of matrix.requirements) {
@@ -80,4 +114,4 @@ for (const item of [...conflicts.values(), ...changes.values()]) {
   for (const id of item.feature_ids ?? []) assert(matrix.features.some(feature => feature.id === id), `Unknown linked feature ${id}`);
 }
 assert(!/[A-Z]:[\\/]Users[\\/]/.test(text), 'Do not commit personal absolute source paths');
-console.log('Traceability valid: 251 requirements (171 legacy + 80 Connected), 18 features, 14 unchanged gates, separated evidence and no reproduced source catalogue.');
+console.log(`Traceability valid: 251 requirements (171 legacy + 80 Connected), 18 features, 14 unchanged gates, ${symbols} code pointers whose symbols their files still declare, separated evidence and no reproduced source catalogue.`);

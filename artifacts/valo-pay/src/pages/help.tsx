@@ -73,7 +73,9 @@ export default function HelpPage() {
     if (returnTo) next.set("returnTo", returnTo);
     for (const [key, value] of Object.entries(values))
       value ? next.set(key, value) : next.delete(key);
-    return `/help${next.size ? `?${next}` : ""}`;
+    // Not URLSearchParams.size: Safari 16, Chrome before 113 and Firefox before 112 lack it.
+    const encoded = next.toString();
+    return encoded ? `/help?${encoded}` : "/help";
   };
   const search = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

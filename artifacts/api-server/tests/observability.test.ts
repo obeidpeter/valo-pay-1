@@ -21,6 +21,7 @@ const { markRolledBack } = await import("../src/lib/transaction-outcome.js");
 const { applySchedulerEvent, schedulerStatus, markSchedulerOff } = await import("../src/lib/close-scheduler.js");
 const { BUILD } = await import("../src/lib/build-info.js");
 const { readinessAnswer, readinessWarning } = await import("../src/routes/health.js");
+const { backgroundHealth } = await import("../src/lib/background-health.js");
 
 let checks = 0;
 const lines = (): Array<Record<string, any>> => readFileSync(logFile, "utf8").split("\n").filter(Boolean).map((line) => JSON.parse(line));
@@ -117,6 +118,13 @@ try {
   assert.equal(healthBody.scheduler.state, "not_started", "nothing started the scheduler in this process");
   assert.equal(healthBody.scheduler.backlog, null, "what is still owed is unknown until a pass reads it");
   assert.deepEqual([healthBody.background.state, healthBody.background.crashCount, healthBody.background.restartCount, healthBody.background.cleanup.state], ["not_started", 0, 0, "disabled"], "the public contract carries worker observations without starting a worker or querying its queue");
+  // A cleanup check that found a file parked for an operator's review reaches the answer as its own count, apart from failures awaiting retry.
+  backgroundHealth.configure({ closes: false, backlog: false, exports: true, cleanup: true });
+  backgroundHealth.starting();
+  backgroundHealth.observe({ type: "heartbeat" });
+  backgroundHealth.observe({ type: "cleanup", result: { attempted: 1, removed: 0, deferred: 1, pendingFailures: 0, parked: 1 } });
+  const reviewed = ((await (await fetch(`${base}/api/healthz`)).json()) as { background: { cleanup: { state: string; lastResult: unknown } } }).background.cleanup;
+  assert.deepEqual([reviewed.state, reviewed.lastResult], ["failed", { attempted: 1, removed: 0, deferred: 1, pendingFailures: 0, parked: 1 }], "the health answer counts parked files apart");
   assert.equal(health.headers.get("cache-control"), "no-store");
   assert.match(health.headers.get("x-request-id") ?? "", /^[0-9a-f]{16}$/, "every answer names its request");
   markSchedulerOff();
@@ -133,7 +141,7 @@ try {
   applySchedulerEvent({ type: "backlog", backlog: read });
   const external = ((await (await fetch(`${base}/api/healthz`)).json()) as { scheduler: Record<string, unknown> }).scheduler;
   assert.deepEqual([external["state"], external["intervalMs"], external["backlog"], external["lastSuccessAt"], external["ticks"]], ["external", 60_000, read, owed.checkedAt, 0], "an external host's health answer carries its own read of the backlog");
-  checks += 13;
+  checks += 14;
 
   const started = Date.now();
   const ready = await fetch(`${base}/api/readyz`);

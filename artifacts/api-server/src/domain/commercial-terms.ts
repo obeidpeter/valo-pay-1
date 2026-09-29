@@ -1,40 +1,49 @@
-import { DESIGN_PARTNER_DISCOUNT, isRealDate } from '@workspace/valopay-schema';
+import { DESIGN_PARTNER_DISCOUNT, discountDateProblem, discountProposedBy, discountTermsStatus, type DiscountConfirmationData } from '@workspace/valopay-schema';
+import { touch } from './records';
 import type { Context, TypedRecord } from './types';
 
+/** BIL-02: explicit contract dates, never a funding month or a hard-coded year (the shared rule the console reads too). */
+export { discountDateProblem };
 type Terms = TypedRecord<'commercial'>['data'];
 export type DiscountDecision = { ready: boolean; rate: number | null; explanation: string };
-const fields = ['discountStartDate', 'fullPriceStartDate', 'discountTermsReference'] as const;
 
-/** BIL-02: explicit contract dates, never a funding month or a hard-coded year. */
-export function discountDateProblem(data: Terms): string | undefined {
-  if (!fields.some(key => data[key] !== undefined && data[key] !== '')) return undefined;
-  if (!fields.every(key => typeof data[key] === 'string' && data[key]!.trim())) return 'Enter both discount dates and the signed agreement reference.';
-  for (const key of ['discountStartDate', 'fullPriceStartDate'] as const) {
-    const date = data[key]!;
-    if (!isRealDate(date) || !/^\d{4}-\d{2}-01$/.test(date)) return 'Discount dates must be the first day of a real billing month. Monthly invoices do not prorate a mid-month price change.';
-  }
-  if (data.fullPriceStartDate! <= data.discountStartDate!) return 'Full-price billing must start after the discount starts.';
-  return undefined;
-}
+function refuse(message: string, status: number): never { throw Object.assign(new Error(message), { status }); }
+/** The person behind an actor, as close reviews and import corrections take it: switching demo roles is not a second person. */
+const principal = (ctx: Context) => ctx.principalId || (ctx.actor.startsWith('Sandbox ') ? 'unidentified-demo-person' : ctx.actor);
 
-/** Called only by the role-checked record write; the client cannot supply a review identity. */
+/** Called only by the role-checked record write: a proposal of the saved dates and reference, while the flags allow one. The client cannot supply one. */
 export function reviewedDiscount(data: Terms, ctx: Context): Terms['discountReview'] {
   if (data.signed !== true || data.signedFullPriceTerms !== true || data.designPartner !== true || discountDateProblem(data) || !data.discountStartDate || !data.fullPriceStartDate || !data.discountTermsReference?.trim()) return undefined;
-  return { reviewedBy: ctx.actor, reviewedAt: ctx.now, discountStartDate: data.discountStartDate, fullPriceStartDate: data.fullPriceStartDate, termsReference: data.discountTermsReference.trim() };
+  return { reviewedBy: ctx.actor, reviewedAt: ctx.now, proposedPrincipal: principal(ctx), discountStartDate: data.discountStartDate, fullPriceStartDate: data.fullPriceStartDate, termsReference: data.discountTermsReference.trim() };
 }
 
-/** A saved review is bound to its dates/reference. Missing or stale reviews block new pricing. */
+/** A different person's confirmation of the current dates prices new invoices; anything else blocks them, naming the actual cause. */
 export function designPartnerDiscount(data: Terms | undefined, period: string): DiscountDecision {
-  if (!data || data.designPartner !== true) return { ready: true, rate: 0, explanation: 'Full public price.' };
-  const review = data.discountReview;
-  if (data.signed !== true || data.signedFullPriceTerms !== true || discountDateProblem(data) || !review || typeof review !== 'object' || Array.isArray(review)
-    || typeof review.reviewedBy !== 'string' || !review.reviewedBy.trim() || typeof review.reviewedAt !== 'string' || !isRealDate(review.reviewedAt)
-    || !data.discountStartDate || !data.fullPriceStartDate || !data.discountTermsReference?.trim()
-    || review.discountStartDate !== data.discountStartDate || review.fullPriceStartDate !== data.fullPriceStartDate
-    || review.termsReference !== data.discountTermsReference.trim()) {
-    return { ready: false, rate: null, explanation: 'Review the discount dates against the signed agreement in Go-live evidence before issuing a new invoice. Older agreements are not assigned dates automatically.' };
-  }
-  const discounted = period >= data.discountStartDate.slice(0, 7) && period < data.fullPriceStartDate.slice(0, 7);
+  const status = discountTermsStatus(data);
+  if (status.state === 'full_price') return { ready: true, rate: 0, explanation: status.explanation };
+  if (!status.ready) return { ready: false, rate: null, explanation: status.explanation };
+  const discounted = period >= data!.discountStartDate!.slice(0, 7) && period < data!.fullPriceStartDate!.slice(0, 7);
   return { ready: true, rate: discounted ? 1 - DESIGN_PARTNER_DISCOUNT : 0,
-    explanation: `${discounted ? '50% design-partner discount' : 'Full public price'} for this billing month. Reviewed agreement: discount from ${data.discountStartDate}; full price from ${data.fullPriceStartDate}.` };
+    explanation: `${discounted ? '50% design-partner discount' : 'Full public price'} for this billing month. ${status.explanation}` };
+}
+
+/**
+ * BIL-02: a different Admin or Finance user confirms the proposed dates, naming the dates and reference they checked
+ * against the signed agreement; the caller checks the role. The confirmer's principal must differ from the proposer's.
+ */
+export function confirmDiscountTerms(terms: TypedRecord<'commercial'>, ctx: Context, input: DiscountConfirmationData): NonNullable<Terms['discountReview']> {
+  const status = discountTermsStatus(terms.data);
+  if (status.state === 'full_price') refuse('These terms are not a design partner\'s: they are billed at the full public price, so there are no discount dates to confirm.', 409);
+  if (status.state === 'confirmed') refuse(`These discount dates are already confirmed by ${status.confirmation!.by}. New invoices are priced from them.`, 409);
+  if (status.state !== 'awaiting_confirmation') refuse(status.explanation, 409);
+  const proposal = terms.data.discountReview!;
+  if (input.discountStartDate !== proposal.discountStartDate || input.fullPriceStartDate !== proposal.fullPriceStartDate || input.discountTermsReference !== proposal.termsReference) {
+    refuse('The proposed discount dates or agreement reference changed since you read them. Refresh, and check the current proposal against the signed agreement.', 409);
+  }
+  if (discountProposedBy(proposal, { actor: ctx.actor, principal: principal(ctx) })) {
+    refuse('A different person must confirm these discount dates: the person who proposed them cannot confirm them, and switching demo roles does not provide independent confirmation.', 403);
+  }
+  terms.data.discountReview = { ...proposal, confirmedBy: ctx.actor, confirmedPrincipal: principal(ctx), confirmedAt: ctx.now };
+  touch(terms, ctx.now);
+  return terms.data.discountReview;
 }
