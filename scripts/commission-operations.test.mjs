@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, stat, symlink, unlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { commissioningReport, writeCommissioningReport } from './commission-operations.mjs';
+import { probeService } from './monitor-valopay.mjs';
 
 const probe = {
   service: 'https://example.test', observedAt: '2026-09-26T10:00:00.000Z', codes: [], warnings: [],
@@ -32,6 +33,12 @@ for (const warning of ['background_starting', 'background_cleanup_pending']) {
   assert.ok(commissioningReport({ ...probe, warnings: [warning] }, configured).blockers.includes(warning), 'first heartbeat/cleanup evidence must finish before commissioning');
 }
 assert.ok(commissioningReport({ ...probe, codes: ['background_cleanup_failed'] }, configured).blockers.includes('background_cleanup_failed'));
+// A file parked for an operator's review blocks commissioning under its own code, as the monitor reads the health answer.
+const at = probe.observedAt, readiness = { status: 'ok', build: 'synthetic', checks: { database: { status: 'ok', latencyMs: 1 }, schema: { status: 'ok' } } };
+const reviewWorker = { state: 'running', jobs: { closes: false, backlog: false, exports: true, cleanup: true }, heartbeatIntervalMs: 10_000, staleAfterMs: 45_000, startedAt: at, lastHeartbeatAt: at, crashCount: 0, restartCount: 0, lastCrashAt: null,
+  cleanup: { state: 'failed', intervalMs: 60_000, staleAfterMs: 195_000, lastCheckedAt: at, lastSuccessAt: null, lastErrorAt: at, lastResult: { attempted: 0, removed: 0, deferred: 0, pendingFailures: 0, parked: 1 } } };
+const reviewProbe = await probeService({ origin: 'https://example.test', now: Date.parse(at), fetchImpl: async url => new Response(JSON.stringify(url.endsWith('readyz') ? readiness : { status: 'ok', scheduler: { state: 'off' }, background: reviewWorker })) });
+assert.deepEqual(commissioningReport(reviewProbe, configured).blockers, ['background_cleanup_needs_review'], 'a parked file is a review, not a failed cleanup check');
 
 // A lender still owed a close blocks commissioning until it closes; a build that cannot say so blocks it too.
 report = commissioningReport({ ...probe, codes: ['scheduler_close_failed', 'scheduler_closes_overdue'], observations: { ...probe.observations, schedulerEvidence: 'failed', closeBacklog: { overdue: 2, failing: 1 } } }, configured);
@@ -95,10 +102,18 @@ try {
   result = run(['--'], { VALOPAY_MONITOR_ORIGIN: 'https://127.0.0.1:1', ...configured });
   assert.equal(result.status, 2);
   assert.ok(!result.stdout.includes('synthetic-token'));
+  // Started through a symlinked path the check still runs and reports: Node gives the module its real path, whatever path started it.
+  const linked = join(directory, 'linked-scripts');
+  await symlink(import.meta.dirname, linked, 'junction');
+  try {
+    result = spawnSync(process.execPath, [join(linked, 'commission-operations.mjs')], { encoding: 'utf8', env: { ...clean, VALOPAY_MONITOR_ORIGIN: 'https://127.0.0.1:1' }, timeout: 15_000 });
+    assert.match(result.stdout, /"kind":"operational_commissioning"/, 'started through a symlinked path, the check probes and reports rather than exiting silently');
+    assert.deepEqual([result.status, JSON.parse(result.stdout).blockers.includes('service_unavailable')], [2, true]);
+  } finally { await unlink(linked); }
 } finally {
   // Only the unique temporary directory this test created is removed.
   assert.equal(dirname(resolve(directory)), resolve(tmpdir()));
   assert.ok(directory.includes('valopay-commission-test-'));
   await rm(directory, { recursive: true, force: true });
 }
-console.log('Operational commissioning passed: scoped/redacted read-only evidence, configured versus observed versus accepted states, failing and overdue closes as counts, public sandboxes\' as warnings rather than blockers, a process too young to have read as a blocker, a build without them, Autoscale scheduling mismatch, external mode\'s backlog and a build without it, unresolved external heartbeat, alert/recovery acceptance, private report replacement and actual CLI failure status.');
+console.log('Operational commissioning passed: scoped/redacted read-only evidence, configured versus observed versus accepted states, failing and overdue closes as counts, public sandboxes\' as warnings rather than blockers, a process too young to have read as a blocker, a file parked for review under its own code, a build without them, Autoscale scheduling mismatch, external mode\'s backlog and a build without it, unresolved external heartbeat, alert/recovery acceptance, private report replacement, actual CLI failure status, and the CLI started through a symlinked path.');

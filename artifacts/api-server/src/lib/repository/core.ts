@@ -2300,6 +2300,9 @@ export const {
   removeSweptExportFiles,
   runExportCleanupPass,
   exportCleanupStatus,
+  parkedExportFiles,
+  requeueParkedExportFile,
+  releaseParkedExportFile,
 } = createExportCleanupRepository({
   ANONYMOUS_WORKSPACE_DAYS,
   SYSTEM_ACTOR_PREFIX,

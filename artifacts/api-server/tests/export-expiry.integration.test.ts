@@ -2,8 +2,10 @@
 // Saved exports whose file an approved retention run removed are listed as expired, never as completed or needing a retry;
 // and an idle anonymous sandbox the sweep deletes loses its export files too, once the deletion has committed.
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { randomBytes, randomUUID } from "node:crypto";
 import type { Server } from "node:http";
+import path from "node:path";
 import type { ValopayRecord } from "../src/domain/types.js";
 
 if (process.env.VALOPAY_RUN_INTEGRATION !== "1") {
@@ -11,7 +13,8 @@ if (process.env.VALOPAY_RUN_INTEGRATION !== "1") {
   process.exit(0);
 }
 const { pool } = await import("@workspace/db");
-const { inWorkspace, listMerchants, listRecords, closeDatabase, overrideSweptExportRemoval, runExportCleanupPass, exportCleanupStatus } = await import("../src/lib/valopay-store.js");
+const { inWorkspace, listMerchants, listRecords, closeDatabase, overrideSweptExportRemoval, runExportCleanupPass, exportCleanupStatus, parkedExportFiles, requeueParkedExportFile, releaseParkedExportFile } = await import("../src/lib/valopay-store.js");
+const { deleteRetainedExport } = await import("../src/lib/export-download.js");
 const { pageRecords } = await import("../src/lib/valopay-list.js");
 const { startExportCleanupWorker } = await import("../src/lib/export-cleanup-worker.js");
 const { createBackgroundHealth } = await import("../src/lib/background-health.js");
@@ -155,8 +158,8 @@ try {
     ].sort((a, b) => a.exportId.localeCompare(b.exportId)), "each of its lenders' stored files is removed once, after the deletion committed; a file retention already removed, or never stored, is not");
     const left = warnings.filter((fields) => fields.event === "workspace.sweep_file_left");
     assert.equal(left.length, 1, JSON.stringify(warnings));
-    assert.deepEqual(left[0], { event: 'workspace.sweep_file_left', reason: 'failed', merchantId: first!, exportId: stale.failed!, retrySeconds: 30 },
-      'a bounded retry notice identifies the queued job without private storage paths or raw errors');
+    assert.deepEqual(left[0], { event: 'workspace.sweep_file_left', reason: 'storage_or_queue_unavailable', merchantId: first!, exportId: stale.failed!, retrySeconds: 30 },
+      'a bounded retry notice identifies the queued job and the failure it recorded, without private storage paths or raw errors');
     assert.deepEqual(warnings.filter((fields) => fields.event === "workspace.sweep_failed"), [], "and the sweep itself stands");
     const queued = (await pool.query('SELECT * FROM valopay_export_cleanup WHERE id=$1', [stale.failed!])).rows[0];
     assert.equal(queued.attempts, 1); assert.equal(queued.object_name, objectName(first!, stale.failed!));
@@ -165,7 +168,7 @@ try {
     assert.equal(await exists('valopay_export_cleanup', stale.ready!), false, 'successful deletion removes its queue entry');
     assert.equal((await runExportCleanupPass({ ids: [stale.failed!] })).attempted, 0, 'retry respects its due time');
     assert.ok((await exportCleanupStatus()).pending >= 1, 'operator status shows the durable backlog');
-    const failuresBeforeRecovery = (await exportCleanupStatus()).failed;
+    const { failed: failuresBeforeRecovery, parked: parkedBeforeRecovery } = await exportCleanupStatus();
     assert.ok(failuresBeforeRecovery >= 1, 'aggregate status includes persisted failures even before their next due time');
     const cleanupHealth = createBackgroundHealth();
     cleanupHealth.configure({ closes: false, backlog: false, exports: true, cleanup: true }); cleanupHealth.starting();
@@ -177,7 +180,7 @@ try {
     };
     const duringBackoff = await observeCleanup();
     assert.equal(duringBackoff.state, 'failed', 'a restarted observer still sees the persisted failure during backoff');
-    assert.deepEqual(duringBackoff.lastResult, { attempted: 0, removed: 0, deferred: 0, pendingFailures: failuresBeforeRecovery });
+    assert.deepEqual(duringBackoff.lastResult, { attempted: 0, removed: 0, deferred: 0, pendingFailures: failuresBeforeRecovery, parked: parkedBeforeRecovery });
     assert.equal(duringBackoff.lastSuccessAt, null, 'an empty due poll cannot invent a recovery timestamp');
 
     // Process restart is represented by a separate pass with no original sweep state. The queue alone identifies the file.
@@ -214,16 +217,110 @@ try {
       assert.equal(await exists('valopay_export_cleanup', abandoned), false, 'an absent file is safely acknowledged');
     } finally { release(); restoreBlocking(); }
 
-    // Safety failures are retained, not bypassed or mistaken for successful cleanup.
-    const mismatch = randomUUID();
-    await pool.query('INSERT INTO valopay_export_cleanup(id,merchant_id,bucket,object_name,checksum) VALUES($1,$2,$3,$4,$5)', [mismatch, first, bucket, objectName(first!, mismatch), 'e'.repeat(64)]);
-    const restoreMismatch = overrideSweptExportRemoval(async () => { throw new Error('Ownership or checksum mismatch'); });
+    // ---- A file whose identity does not match is parked for an operator's review; storage failures and the delete's generation race are retried ----
+    // The real guarded deletion (deleteRetainedExport) against a fake private storage: no credentials or network.
+    type Stored = { exportId: string; merchantId: string; checksum: string; generation?: string; artifact?: string; status?: number; deleteStatus?: number };
+    const objects = new Map<string, Stored>(), deleted: string[] = [], realFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+      const url = new URL(String(input));
+      if (url.host !== 'storage.example.test') return realFetch(input, init);
+      const name = decodeURIComponent(url.pathname.split('/o/')[1] ?? ''), object = objects.get(name);
+      if (init?.method === 'DELETE') {
+        if (object?.deleteStatus) return new Response(null, { status: object.deleteStatus });
+        deleted.push(name); objects.delete(name); return new Response(null, { status: 204 });
+      }
+      if (!object) return new Response(null, { status: 404 });
+      if (object.status) return new Response(null, { status: object.status });
+      return new Response(JSON.stringify({ generation: object.generation ?? '7', metadata: { valopayExportId: object.exportId, valopayMerchantId: object.merchantId, valopayArtifact: object.artifact ?? JSON.stringify({ checksum: object.checksum }) } }));
+    }) as typeof fetch;
+    const storageFile = (swept: SweptExportFile) => ({ bucket: { name: swept.bucket }, name: swept.objectName, storage: { apiEndpoint: 'https://storage.example.test', authClient: { getRequestHeaders: async () => new Headers() } } }) as any;
+    const restoreStorage = overrideSweptExportRemoval((swept) => deleteRetainedExport(storageFile(swept), { id: swept.exportId, merchantId: swept.merchantId, ...(swept.checksum ? { checksum: swept.checksum } : {}) }));
+    const reviewIds: string[] = [];
+    /** Queues one file's tombstone as a sweep would, with the object private storage holds at its name. */
+    const tombstone = async (object: Partial<Stored>) => {
+      const id = randomUUID(), name = objectName(first!, id), checksum = 'f'.repeat(64);
+      await pool.query('INSERT INTO valopay_export_cleanup(id,merchant_id,bucket,object_name,checksum) VALUES($1,$2,$3,$4,$5)', [id, first, bucket, name, checksum]);
+      objects.set(name, { exportId: id, merchantId: first!, checksum, ...object }); reviewIds.push(id);
+      return { id, name };
+    };
+    const row = async (id: string) => (await pool.query(`SELECT last_failure, next_attempt_at='infinity' AS parked, next_attempt_at>now() AS later, lease_token, attempts FROM valopay_export_cleanup WHERE id=$1`, [id])).rows[0];
     try {
-      assert.deepEqual(await runExportCleanupPass({ ids: [mismatch] }), { attempted: 1, removed: 0, deferred: 1 });
-      assert.equal(await exists('valopay_export_cleanup', mismatch), true);
-    } finally { restoreMismatch(); await pool.query('DELETE FROM valopay_export_cleanup WHERE id=$1', [mismatch]); }
+      const files = {
+        owner: await tombstone({ exportId: 'synthetic-other-export' }), generation: await tombstone({ generation: 'synthetic' }),
+        artifact: await tombstone({ artifact: '{synthetic' }), checksum: await tombstone({ checksum: 'a'.repeat(64) }),
+        down: await tombstone({ status: 503 }), race: await tombstone({ deleteStatus: 412 }), matching: await tombstone({}),
+      };
+      const parkedAs = { owner: 'ownership_mismatch', generation: 'generation_invalid', artifact: 'artifact_metadata_invalid', checksum: 'checksum_mismatch' } as const;
+      const before = await exportCleanupStatus(), notices: Array<Record<string, any>> = [];
+      assert.deepEqual(await runExportCleanupPass({ ids: Object.values(files).map((file) => file.id), limit: 20, log: { warn: (fields) => notices.push(fields as Record<string, any>) } }), { attempted: 7, removed: 1, deferred: 6 });
+      for (const [label, reason] of Object.entries(parkedAs)) {
+        assert.deepEqual(await row(files[label as keyof typeof parkedAs].id), { last_failure: reason, parked: true, later: true, lease_token: null, attempts: 1 }, `${label}: parked with its reason, for no further automatic attempt`);
+      }
+      for (const label of ['down', 'race'] as const) {
+        assert.deepEqual(await row(files[label].id), { last_failure: 'storage_or_queue_unavailable', parked: false, later: true, lease_token: null, attempts: 1 }, `${label}: retried with backoff`);
+      }
+      assert.deepEqual([await exists('valopay_export_cleanup', files.matching.id), deleted], [false, [files.matching.name]], 'only the matching file was deleted; the delete that lost its generation race removed nothing');
+      assert.deepEqual(notices.map((fields) => fields.exportId === files.down.id || fields.exportId === files.race.id ? fields : { ...fields, exportId: Object.entries(files).find(([, file]) => file.id === fields.exportId)?.[0] }).sort((a, b) => String(a.exportId).localeCompare(String(b.exportId))), [
+        { event: 'workspace.sweep_file_left', exportId: 'artifact', merchantId: first!, reason: 'artifact_metadata_invalid', parked: true },
+        { event: 'workspace.sweep_file_left', exportId: 'checksum', merchantId: first!, reason: 'checksum_mismatch', parked: true },
+        { event: 'workspace.sweep_file_left', exportId: 'generation', merchantId: first!, reason: 'generation_invalid', parked: true },
+        { event: 'workspace.sweep_file_left', exportId: 'owner', merchantId: first!, reason: 'ownership_mismatch', parked: true },
+        ...[files.down.id, files.race.id].sort().map((exportId) => ({ event: 'workspace.sweep_file_left', exportId, merchantId: first!, reason: 'storage_or_queue_unavailable', retrySeconds: 30 })),
+      ].sort((a, b) => a.exportId.localeCompare(b.exportId)), 'each notice names the recorded failure, and a parked file has no retry time');
+      assert.ok(!JSON.stringify(notices).includes(bucket), 'no notice names a private storage location');
+      const parkedStatus = await exportCleanupStatus();
+      assert.deepEqual([parkedStatus.parked - before.parked, parkedStatus.failed - before.failed], [4, 2], 'parked files are counted apart from failures awaiting retry');
+      const listed = await parkedExportFiles();
+      assert.deepEqual(listed.files.filter((file) => reviewIds.includes(file.exportId)).map((file) => [file.exportId, file.merchantId, file.failure, file.attempts, typeof file.since]).sort(), Object.entries(parkedAs).map(([label, reason]) => [files[label as keyof typeof parkedAs].id, first!, reason, 1, 'string']).sort(), 'the operator lists the parked files, with why');
+      assert.ok(!JSON.stringify(listed).includes(bucket), 'without their storage location');
+      const firstTwo = await parkedExportFiles(2);
+      assert.deepEqual([listed.total, firstTwo.files.length, firstTwo.total], [parkedStatus.parked, 2, parkedStatus.parked], 'a list cut short still says how many files are parked');
+      // The operator's command, run as the runbook runs it, lists 20 and says so when more are parked.
+      const moreParked = Array.from({ length: 21 }, () => randomUUID());
+      reviewIds.push(...moreParked);
+      await pool.query(`INSERT INTO valopay_export_cleanup(id,merchant_id,bucket,object_name,attempts,last_failure,next_attempt_at)
+        SELECT id,$2,$3,name,1,'ownership_mismatch','infinity' FROM unnest($1::text[],$4::text[]) AS parked(id,name)`, [moreParked, first, bucket, moreParked.map((id) => objectName(first!, id))]);
+      const root = path.resolve(import.meta.dirname, "..", "..", "..");
+      const command = spawnSync(process.execPath, [path.join(root, "scripts", "node_modules", "tsx", "dist", "cli.mjs"), "scripts/src/export-cleanup.ts"], { cwd: root, encoding: "utf8", timeout: 60_000 });
+      const report = JSON.parse(command.stdout || "{}");
+      assert.deepEqual([command.status, report.parkedFiles?.total, report.parkedFiles?.files.length, report.parkedFiles?.cutShort], [2, report.status?.parked, 20, true], `the command says a list of more than 20 parked files stops short: ${command.stderr}`);
+      assert.ok(report.status.parked >= 25 && !command.stdout.includes(bucket), 'counting them all, without their storage location');
+      await pool.query('DELETE FROM valopay_export_cleanup WHERE id=ANY($1::text[])', [moreParked]);
+      // A due pass retries the storage failures only: a parked file is never attempted again automatically.
+      await pool.query('UPDATE valopay_export_cleanup SET next_attempt_at=now() WHERE id=ANY($1::text[])', [[files.down.id, files.race.id]]);
+      assert.deepEqual(await runExportCleanupPass({ ids: reviewIds, limit: 20 }), { attempted: 2, removed: 0, deferred: 2 });
+      // The worker's check reports them apart: a parked file keeps cleanup failed, with its own count.
+      const reviewHealth = createBackgroundHealth();
+      reviewHealth.configure({ closes: false, backlog: false, exports: true, cleanup: true }); reviewHealth.starting();
+      const reviewWorker = startExportCleanupWorker({ observed: (result) => reviewHealth.observe({ type: 'cleanup', result }) }, (options) => runExportCleanupPass({ ...options, ids: [] }));
+      await reviewWorker.settle(); reviewWorker.stop();
+      const counted = await exportCleanupStatus();
+      assert.deepEqual([reviewHealth.status().cleanup.state, reviewHealth.status().cleanup.lastResult], ['failed', { attempted: 0, removed: 0, deferred: 0, pendingFailures: counted.failed, parked: counted.parked }], 'the health observation counts parked files apart');
+      // Re-queued after review: a file whose metadata now matches is removed; one that still does not is parked again, never deleted.
+      await assert.rejects(requeueParkedExportFile(files.down.id), (error: any) => error.status === 404, 'only a parked file is re-queued');
+      await assert.rejects(requeueParkedExportFile(randomUUID()), (error: any) => error.status === 404);
+      objects.get(files.generation.name)!.generation = '8';
+      assert.deepEqual(await requeueParkedExportFile(files.generation.id), { exportId: files.generation.id, merchantId: first!, failure: 'generation_invalid' });
+      assert.deepEqual(await row(files.generation.id), { last_failure: null, parked: false, later: false, lease_token: null, attempts: 1 }, 'a re-queued file is due, with no failure recorded');
+      assert.equal((await exportCleanupStatus()).failed, counted.failed, 'and is not counted as a failure while it waits');
+      await requeueParkedExportFile(files.owner.id);
+      assert.deepEqual(await runExportCleanupPass({ ids: [files.generation.id, files.owner.id], limit: 2 }), { attempted: 2, removed: 1, deferred: 1 });
+      assert.deepEqual([await exists('valopay_export_cleanup', files.generation.id), (await row(files.owner.id)).last_failure, (await row(files.owner.id)).parked], [false, 'ownership_mismatch', true], 'the corrected file is removed; the other is parked again');
+      assert.deepEqual(deleted, [files.matching.name, files.generation.name], 'an object whose identity does not match is never deleted');
+      // Released after review: the tombstone leaves the queue with a logged reason, and the object is left in storage.
+      const released: Array<Record<string, any>> = [], log = { warn: (fields: object) => released.push(fields as Record<string, any>) };
+      for (const reason of ['', '   ', 'x'.repeat(201), 'Synthetic\nsecond line']) await assert.rejects(releaseParkedExportFile(files.checksum.id, reason, log), (error: any) => error.status === 400, 'a release needs a reason on one line');
+      await assert.rejects(releaseParkedExportFile(files.race.id, 'Synthetic review note.', log), (error: any) => error.status === 404, 'only a parked file is released');
+      assert.deepEqual(await releaseParkedExportFile(files.checksum.id, '  Synthetic review: the object is not this export\'s.  ', log), { exportId: files.checksum.id, merchantId: first!, failure: 'checksum_mismatch', reason: 'Synthetic review: the object is not this export\'s.' }, 'the release answers with the reason it recorded');
+      assert.deepEqual([await exists('valopay_export_cleanup', files.checksum.id), objects.has(files.checksum.name), deleted.includes(files.checksum.name)], [false, true, false], 'the released file leaves the queue, and its object stays in storage');
+      assert.deepEqual(released, [{ event: 'workspace.sweep_file_released', exportId: files.checksum.id, merchantId: first!, failure: 'checksum_mismatch', reason: 'Synthetic review: the object is not this export\'s.' }], 'the release is logged with its reason');
+      assert.equal((await exportCleanupStatus()).parked, counted.parked - 2, 'and is no longer counted, nor is the removed file');
+    } finally {
+      restoreStorage(); globalThis.fetch = realFetch;
+      await pool.query('DELETE FROM valopay_export_cleanup WHERE id=ANY($1::text[])', [reviewIds]);
+    }
   } finally { restore(); }
-  console.log('Export expiry integration checks passed: expiry filtering, running-upload sweep exclusion, interrupted-upload grace period, transactional tombstones, outage retry, crash recovery, concurrent claims, absent files and retained identity failures.');
+  console.log('Export expiry integration checks passed: expiry filtering, running-upload sweep exclusion, interrupted-upload grace period, transactional tombstones, outage retry, crash recovery, concurrent claims, absent files, identity mismatches parked for review apart from storage failures and the generation race, which are retried, the operator command\'s list of parked files cut short and saying so, and parked files re-queued or released after review, never deleted by force.');
 } finally {
   delete process.env.VALOPAY_EXPIRED_WORKSPACE_CLEANUP;
   if (server) await new Promise<void>((resolve, reject) => server!.close((error) => error ? reject(error) : resolve()));

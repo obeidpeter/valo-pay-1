@@ -2,26 +2,27 @@
 // entry point, its options after the `--` that `pnpm run x -- --flag` passes
 // on, a mistyped option, and the refusals that come before any provider,
 // database or host is reached. Nothing here leaves this machine: the monitor
-// probes a closed loopback port, and the other checks stop before they would
-// connect.
+// probes a closed loopback port, a cleanup retry asks the storage sidecar's
+// loopback address for credentials, and the other checks stop before they
+// would connect.
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { createServer } from "node:net";
+import { connect, createServer } from "node:net";
 import path from "node:path";
 
 const root = path.resolve(import.meta.dirname, "..");
 const tsx = path.join(root, "scripts", "node_modules", "tsx", "dist", "cli.mjs");
 // Nothing the operator's shell holds reaches the scripts: each case sets what it needs.
-const clean = Object.fromEntries(Object.entries(process.env).filter(([name]) => !/^(?:VALOPAY_|PAYSTACK_|DATABASE_URL$|REPLIT_DEV_DOMAIN$)/.test(name)));
+const clean = Object.fromEntries(Object.entries(process.env).filter(([name]) => !/^(?:VALOPAY_|PAYSTACK_|DATABASE_URL$|REPLIT_DEV_DOMAIN$|PRIVATE_OBJECT_DIR$|LOG_LEVEL$)/.test(name)));
 const unusableDatabase = "postgres://unused:unused@127.0.0.1:1/unused";
 
-function run(script, args, env = {}) {
+function run(script, args, env = {}, limitMs = 60_000) {
   const child = spawn(process.execPath, script.endsWith(".ts") ? [tsx, script, ...args] : [script, ...args], { cwd: root, env: { ...clean, ...env } });
   let stdout = "", stderr = "";
   child.stdout.on("data", (chunk) => { stdout += chunk; });
   child.stderr.on("data", (chunk) => { stderr += chunk; });
-  const timer = setTimeout(() => child.kill(), 60_000);
+  const timer = setTimeout(() => child.kill(), limitMs);
   return new Promise((resolve) => child.on("close", (status) => { clearTimeout(timer); resolve({ status, stdout, stderr, output: stdout + stderr }); }));
 }
 
@@ -33,6 +34,66 @@ assert.equal(badCleanup.status, 1); assert.ok(!badCleanup.output.includes('synth
 assert.match(badCleanup.stderr, /Use: pnpm run check:export-cleanup/);
 const noCleanupDatabase = await run(cleanup, ['--']);
 assert.equal(noCleanupDatabase.status, 1); assert.match(noCleanupDatabase.stderr, /DATABASE_URL is required/);
+// A retry reaches private storage: without the service's storage setting it is refused before the store loads, so no
+// due file is claimed and pushed into backoff by a storage failure of the operator's shell.
+const noCleanupStorage = await run(cleanup, ['--', '--retry'], { DATABASE_URL: unusableDatabase });
+assert.equal(noCleanupStorage.status, 1);
+assert.match(noCleanupStorage.stderr, /^Private storage is not configured here \(PRIVATE_OBJECT_DIR\), so --retry was refused and no file was claimed/);
+assert.doesNotMatch(noCleanupStorage.output, /ECONNREFUSED|could not be checked/);
+// With the setting, a retry still needs storage credentials, obtained as every storage request obtains them from the
+// local storage sidecar, before it claims a file. Where nothing listens at that address, which then refuses at once,
+// the retry is refused before the database; nothing leaves this machine.
+const sidecarListening = await new Promise((resolve) => { const socket = connect(1106, "127.0.0.1"); socket.once("connect", () => { socket.destroy(); resolve(true); }); socket.once("error", () => resolve(false)); });
+if (!sidecarListening) {
+  const noCredentials = await run(cleanup, ['--', '--retry'], { DATABASE_URL: unusableDatabase, PRIVATE_OBJECT_DIR: '/synthetic-private-bucket/private' });
+  assert.equal(noCredentials.status, 1, noCredentials.output);
+  assert.match(noCredentials.stderr, /Private storage credentials could not be obtained here within 5 seconds, so --retry was refused and no file was claimed/);
+  assert.doesNotMatch(noCredentials.output, /could not be checked|synthetic-private-bucket/);
+  // A sidecar that accepts the connection and never answers leaves a credentials request open that cannot be cancelled:
+  // the refusal still ends the command, so a scheduled retry cannot hang. The silent server takes the sidecar's own
+  // address, which the code fixes, only while nothing else holds it; no proxy stands in between.
+  const silentSockets = new Set();
+  const silent = createServer((socket) => { silentSockets.add(socket); socket.on("error", () => {}); });
+  if (await new Promise((resolve) => { silent.once("error", () => resolve(false)); silent.listen(1106, "127.0.0.1", () => resolve(true)); })) {
+    const unanswered = await run(cleanup, ['--', '--retry'], { DATABASE_URL: unusableDatabase, PRIVATE_OBJECT_DIR: '/synthetic-private-bucket/private', HTTPS_PROXY: '', https_proxy: '', HTTP_PROXY: '', http_proxy: '' }, 20_000);
+    for (const socket of silentSockets) socket.destroy();
+    silent.close();
+    assert.ok(silentSockets.size > 0, "the credentials request reached the silent server");
+    assert.equal(unanswered.status, 1, `a refused retry ends by itself within 20 seconds: ${unanswered.output}`);
+    assert.match(unanswered.stderr, /Private storage credentials could not be obtained here within 5 seconds, so --retry was refused and no file was claimed/);
+  }
+}
+// A release is recorded by its warning line in this command's log output, or the file LOG_FILE names: where LOG_LEVEL
+// would filter warnings out, or names no level, it is refused before the database.
+for (const level of ['error', 'silent', 'synthetic-level']) {
+  const unlogged = await run(cleanup, ['--release', 'synthetic-export', '--reason', 'Synthetic review note'], { DATABASE_URL: unusableDatabase, LOG_LEVEL: level });
+  assert.equal(unlogged.status, 1, level);
+  assert.match(unlogged.stderr, /The release was refused: its record, a warning line in this command's log output, or the file LOG_FILE names, would not be written with LOG_LEVEL as set/, level);
+  assert.doesNotMatch(unlogged.output, /could not be checked|synthetic-level|Synthetic review note/, level);
+}
+// Releasing a parked file needs its export ID and a reason, and one action at a time; a refusal repeats no value.
+for (const args of [['--release'], ['--release', 'synthetic-export'], ['--release', 'synthetic-export', '--reason'], ['--reason', 'Synthetic review note'], ['--requeue'], ['--requeue', 'synthetic-export', '--retry'],
+  ['--', '--release', 'synthetic-export', '--requeue', 'synthetic-export', '--reason', 'Synthetic review note'], ['--release=synthetic-export', '--reason', 'Synthetic review note'], ['--requeue', 'synthetic-export', '--requeue', 'synthetic-export']]) {
+  const refused = await run(cleanup, args, { DATABASE_URL: unusableDatabase });
+  assert.equal(refused.status, 1, args.join(' '));
+  assert.match(refused.stderr, /^Use: pnpm run check:export-cleanup \[-- --retry \| --requeue EXPORT_ID \| --release EXPORT_ID --reason "why"\]/, args.join(' '));
+  assert.ok(!refused.output.includes('synthetic-export') && !refused.output.includes('Synthetic review note'), args.join(' '));
+}
+const reasonRefusal = /^Give the release a reason of 1 to 200 characters on one line: it is written to this command's log output, or the file LOG_FILE names\./;
+for (const [args, refusal] of [[['--requeue', 'synthetic/export'], /^The export ID must be the queued export's ID/], [['--requeue', ''], /^The export ID must be the queued export's ID/],
+  [['--release', '', '--reason', 'Synthetic review note'], /^The export ID must be the queued export's ID/], [['--release', 'synthetic-export', '--reason', '--Synthetic reason'], /^The reason after --reason begins with --/],
+  [['--release', 'synthetic-export', '--reason', ' '], reasonRefusal],
+  [['--release', 'synthetic-export', '--reason', 'x'.repeat(201)], reasonRefusal], [['--release', 'synthetic-export', '--reason', 'Synthetic\nsecond line'], reasonRefusal]]) {
+  const refused = await run(cleanup, args, { DATABASE_URL: unusableDatabase });
+  assert.equal(refused.status, 1, args.join(' '));
+  assert.match(refused.stderr, refusal, args.join(' '));
+  assert.ok(!refused.output.includes('synthetic/export') && !refused.output.includes('Synthetic'), args.join(' '));
+}
+// Re-queueing and releasing need only the database: with none they stop there.
+for (const args of [['--requeue', 'synthetic-export'], ['--release', 'synthetic-export', '--reason', 'Synthetic review note']]) {
+  const noDatabase = await run(cleanup, args);
+  assert.equal(noDatabase.status, 1, args.join(' ')); assert.match(noDatabase.stderr, /DATABASE_URL is required/, args.join(' '));
+}
 
 const monitor = "scripts/monitor-valopay.mjs";
 let result = await run(monitor, ["--"], { VALOPAY_MONITOR_ORIGIN: "https://127.0.0.1:1" });
@@ -160,4 +221,4 @@ try {
   assert.equal(connections, 0, "nothing was sent to a host that is not a Replit development domain");
 } finally { listener.close(); }
 
-console.log("Operator commands passed offline: options after pnpm's --, a named mistyped option, uncopied values, the monitor's dry run, its missing origin named and its careful failure, the Paystack check's refusals before any request, provision-pilot's three modes with their usage, staff-access check and store refusal before any connection, rewrap-payloads' usage, key settings and runtime schema refusal before any connection, and the smoke and security scripts' refusal of any host but a Replit development domain.");
+console.log("Operator commands passed offline: the cleanup command's refusals, a retry without private storage or its credentials, ended even while the storage sidecar never answers, and a release whose record LOG_LEVEL would drop among them, before it reaches the database, options after pnpm's --, a named mistyped option, uncopied values, the monitor's dry run, its missing origin named and its careful failure, the Paystack check's refusals before any request, provision-pilot's three modes with their usage, staff-access check and store refusal before any connection, rewrap-payloads' usage, key settings and runtime schema refusal before any connection, and the smoke and security scripts' refusal of any host but a Replit development domain.");

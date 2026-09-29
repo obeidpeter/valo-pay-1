@@ -75,10 +75,22 @@ try {
   const snapshot = health.status();
   snapshot.jobs.exports = false; snapshot.cleanup.lastResult!.removed = 999;
   assert.deepEqual([health.status().jobs.exports, health.status().cleanup.lastResult!.removed], [true, 1], "readers cannot mutate the observations");
+  // A file parked for an operator's review (its identity did not match, which no retry changes) is counted apart and
+  // keeps cleanup failed, so a monitor that does not read the count still raises background_cleanup_failed.
+  const beforeParked = health.status().cleanup.lastSuccessAt;
+  time += 1;
+  health.observe({ type: "cleanup", result: { attempted: 1, removed: 0, deferred: 1, pendingFailures: 0, parked: 1 } });
+  time += 1;
+  health.observe({ type: "cleanup", result: { attempted: 0, removed: 0, deferred: 0, pendingFailures: 0, parked: 1 } });
+  assert.deepEqual([health.status().cleanup.state, health.status().cleanup.lastResult, health.status().cleanup.lastSuccessAt], ["failed", { attempted: 0, removed: 0, deferred: 0, pendingFailures: 0, parked: 1 }, beforeParked], "a parked file keeps cleanup failed, counted apart");
+  assert.equal(HealthCheckResponse.parse({ status: "ok", build: "fixture", startedAt: new Date(time).toISOString(), uptimeSeconds: 1, scheduler: schedulerStatus(), background: health.status() }).background?.cleanup.lastResult?.parked, 1, "the public contract keeps the parked count");
+  time += 1;
+  health.observe({ type: "cleanup", result: { attempted: 0, removed: 0, deferred: 0, pendingFailures: 0, parked: 0 } });
+  assert.deepEqual([health.status().cleanup.state, health.status().cleanup.lastSuccessAt], ["ok", new Date(time).toISOString()], "once no file is parked, a clean check is a success again");
   assert.ok(HealthCheckResponse.safeParse({ status: "ok", build: "fixture", startedAt: new Date(time).toISOString(), uptimeSeconds: 1, scheduler: schedulerStatus(), background: health.status() }).success, "the public contract preserves worker evidence");
   health.stopping(); health.observe({ type: "heartbeat" }); health.stopped();
   assert.equal(health.status().state, "stopped", "late heartbeat messages cannot undo shutdown");
-  checks += 14;
+  checks += 17;
 
   // Exercise the cleanup loop's observation boundary, including a quiet poll and storage retry, without private storage.
   const cleanupResults: Array<{ attempted: number; removed: number; deferred: number; pendingFailures: number } | null> = [];
@@ -96,12 +108,16 @@ try {
   const unavailableEvidence = startExportCleanupWorker({ observed: result => failedQueueRead.push(result) }, async () => ({ attempted: 0, removed: 0, deferred: 0 }), async () => { throw new Error("Synthetic status unavailable"); });
   await unavailableEvidence.settle(); unavailableEvidence.stop();
   assert.deepEqual(failedQueueRead, [null], "a completed pass without durable queue evidence never reports success");
+  const parkedRead: unknown[] = [];
+  const countingParked = startExportCleanupWorker({ observed: result => parkedRead.push(result) }, async () => ({ attempted: 1, removed: 0, deferred: 1 }), async () => ({ failed: 0, parked: 1 }));
+  await countingParked.settle(); countingParked.stop();
+  assert.deepEqual(parkedRead, [{ attempted: 1, removed: 0, deferred: 1, pendingFailures: 0, parked: 1 }], "the check reports parked files apart from failures awaiting retry");
   let observerCalls = 0;
   const noisyObserver = startExportCleanupWorker({ intervalMs: 5, observed: () => { observerCalls++; throw new Error("Synthetic observer failure"); } }, async () => ({ attempted: 0, removed: 0, deferred: 0 }), async () => ({ failed: 0 }));
   await waitFor(() => observerCalls >= 2, "cleanup retry after an observation failed");
   noisyObserver.stop(); await noisyObserver.settle();
   assert.ok(observerCalls >= 2, "observability failure cannot stop cleanup");
-  checks += 2;
+  checks += 3;
   // ---- The waits: a second doubling to a minute; the pool: a close and two export slots ----
   assert.deepEqual([1, 2, 3, 4, 6, 7, 8, 40].map((crashes) => backgroundRestartDelay(crashes)), [1_000, 2_000, 4_000, 8_000, 32_000, 60_000, 60_000, 60_000]);
   assert.equal(BACKGROUND_POOL_SIZE, 3);
