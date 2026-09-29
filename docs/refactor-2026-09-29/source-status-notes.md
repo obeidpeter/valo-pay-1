@@ -1,6 +1,6 @@
 # Source interpretation and traceability
 
-The [machine-readable matrix](traceability.json) preserves all **251 requirement identifiers: 171 legacy and 80 Connected Banking requirements**, together with **F01–F18**. Its technical baseline is commit `cd9d81c665ca08c29429e26bb3ed0d78863b5966` in `obeidpeter/valo-pay`. It records source identity, short engineering summaries, related code, contracts, test sources, dependencies and remaining acceptance. Source presence, test execution, deployment and independent acceptance are separate fields.
+The [machine-readable matrix](traceability.json) preserves all **251 requirement identifiers: 171 legacy and 80 Connected Banking requirements**, together with **F01–F18**. The programme started from commit `cd9d81c665ca08c29429e26bb3ed0d78863b5966` (PR #77's merge) in `obeidpeter/valo-pay`; its code pointers now refer to `c2ade2639876edd7036f3ce885ab4f5db5ec53fc` (PR #79's merge), the matrix's `baseline_revision`, to which they were brought forward on 29 September 2026 after PR #78 moved code they named. It records source identity, short engineering summaries, related code, contracts, test sources, dependencies and remaining acceptance. Source presence, test execution, deployment and independent acceptance are separate fields.
 
 The five supplied Word documents were extracted read-only, including body paragraphs and tables. The Technical Requirements v2.1 catalogue was compared with the retained v2.0 architecture-review extraction: all 251 identifiers, normative bodies and acceptance criteria agree. The newer implementation-status statements remain dated evidence. The original Word files, financial workbook, complete extracted passages and historical architecture pack remain outside this public repository. No original document was overwritten or financial plan recalculated.
 
@@ -12,7 +12,7 @@ The `components` inventory identifies related baseline files and test sources. I
 
 The Technical Requirements feature selectors control technical expansion. Cross-document discrepancies are preserved below. Features not assigning a particular shared requirement do not exempt that requirement: tenancy, security, API, observability and operational obligations also apply across feature boundaries. Every operating gate remains unchanged by this matrix. Named accountable owners and formal acceptance are not invented.
 
-Run `node docs/refactor-2026-09-29/validate-traceability.mjs` after editing the matrix. This validates identifier preservation, references, evidence classification and public-source boundaries. It cannot validate business approval, legal applicability, provider access or operational acceptance.
+Run `node docs/refactor-2026-09-29/validate-traceability.mjs` after editing the matrix. This validates identifier preservation, references, evidence classification, public-source boundaries and that every code pointer's symbol is still declared in its current file. It cannot validate business approval, legal applicability, provider access or operational acceptance.
 
 ## Source conflicts and dated status
 

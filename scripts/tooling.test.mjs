@@ -3,13 +3,14 @@
 // ones that failed; the migration rehearsals skip, saying why, where they
 // cannot build a throwaway database, and fail instead under CI; and the
 // recovery rehearsal fails under CI when its opt-ins are missing rather than
-// passing with no evidence. Nothing here reaches a database: the suites stop
-// at their checks before they connect.
+// passing with no evidence; and the traceability validator refuses a code
+// pointer whose symbol its file no longer declares. Nothing here reaches a
+// database: the suites stop at their checks before they connect.
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { buildStamp } from "../artifacts/api-server/build-stamp.mjs";
 import { runSuites, suites } from "./run-integration-tests.mjs";
@@ -82,4 +83,57 @@ result = suite("recovery-rehearsal.integration.test.ts", {});
 assert.equal(result.status, 0, "outside CI it is opt-in, as before");
 checks += 3;
 
-console.log(`Tooling checks passed (${checks}): the build stamp marks uncommitted tracked changes, the integration runner runs every suite and names the failures, the migration rehearsals skip with their reason (and fail under CI) where they cannot build a throwaway database, and the recovery rehearsal never passes in CI without its opt-ins.`);
+// ---- The traceability validator: a code pointer's symbol must still be declared in its file ----
+// A scratch copy of the validator, its matrix and every file a pointer names, edited case by case.
+const matrixFile = "docs/refactor-2026-09-29/traceability.json", validator = "docs/refactor-2026-09-29/validate-traceability.mjs";
+const matrix = JSON.parse(readFileSync(join(root, matrixFile), "utf8"));
+const pointers = Object.values(matrix.components).flatMap((component) => [...component.implementation, ...component.contracts, ...component.test_sources]);
+const scratch = mkdtempSync(join(tmpdir(), "valopay-traceability-")), parser = join(scratch, "node_modules");
+let linked = false;
+try {
+  for (const path of new Set([validator, ...pointers.map((pointer) => pointer.path)])) {
+    mkdirSync(dirname(join(scratch, path)), { recursive: true });
+    copyFileSync(join(root, path), join(scratch, path));
+  }
+  symlinkSync(join(root, "node_modules"), parser, "junction"); // the validator's TypeScript parser
+  linked = true;
+  const validate = (edit = () => {}) => {
+    const copy = structuredClone(matrix);
+    edit(copy);
+    writeFileSync(join(scratch, matrixFile), `${JSON.stringify(copy, null, 2)}\n`);
+    return spawnSync(process.execPath, [join(scratch, validator)], { encoding: "utf8", timeout: 60_000 });
+  };
+  const repoint = (component, symbol, change) => (copy) => Object.assign(copy.components[component].implementation.find((pointer) => pointer.symbol === symbol), change);
+  const refused = (edit, pattern, reason) => {
+    const run = validate(edit);
+    assert.equal(run.status, 1, reason);
+    assert.match(run.stderr, pattern);
+  };
+  let run = validate();
+  assert.equal(run.status, 0, run.stderr);
+  // After PR #78 removed discountRateFor from billing.ts, the matrix still pointed at it and the validator passed.
+  refused(repoint("BIL", "designPartnerDiscount", { path: "artifacts/api-server/src/domain/billing.ts", symbol: "discountRateFor" }),
+    /artifacts\/api-server\/src\/domain\/billing\.ts no longer declares discountRateFor/, "a pointer to a symbol its file no longer declares fails the validator");
+  // billing.ts imports and calls designPartnerDiscount and names a field after it; commercial-terms.ts declares it.
+  refused(repoint("BIL", "designPartnerDiscount", { path: "artifacts/api-server/src/domain/billing.ts" }),
+    /billing\.ts no longer declares designPartnerDiscount/, "an import, a call or a field name is not a declaration");
+  // connected.ts only re-exports consentActive from connected-consents.ts.
+  refused(repoint("OB-CNS", "consentActive", { path: "artifacts/api-server/src/domain/connected.ts" }),
+    /connected\.ts no longer declares consentActive/, "a re-export is not a declaration");
+  refused((copy) => Object.assign(Object.values(copy.components).flatMap((component) => component.contracts).find((pointer) => pointer.path.endsWith(".md")), { symbol: "deployment" }),
+    /Only a TypeScript or JavaScript file declares a symbol/, "a document cannot declare a symbol");
+  // Lines moving and a declaration reformatted, or rewritten as a constant, leave the pointer valid.
+  const terms = join(scratch, "artifacts/api-server/src/domain/commercial-terms.ts"), original = readFileSync(terms, "utf8");
+  writeFileSync(terms, `// Moved down.\n\n${original.replace("export function designPartnerDiscount(", "export function\n  designPartnerDiscount (")}`);
+  run = validate();
+  assert.equal(run.status, 0, run.stderr);
+  writeFileSync(terms, original.replace("export function designPartnerDiscount(data: Terms | undefined, period: string): DiscountDecision {", "export const designPartnerDiscount = (data: Terms | undefined, period: string): DiscountDecision => {"));
+  run = validate();
+  assert.equal(run.status, 0, run.stderr);
+  checks += 7;
+} finally {
+  if (linked) unlinkSync(parser); // the link alone, never the dependencies it names
+  rmSync(scratch, { recursive: true, force: true });
+}
+
+console.log(`Tooling checks passed (${checks}): the build stamp marks uncommitted tracked changes, the integration runner runs every suite and names the failures, the migration rehearsals skip with their reason (and fail under CI) where they cannot build a throwaway database, the recovery rehearsal never passes in CI without its opt-ins, and the traceability validator refuses a code pointer whose symbol its file no longer declares, however the declaration is formatted.`);

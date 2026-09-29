@@ -3,7 +3,7 @@
   "title": "Valo Pay source and engineering traceability",
   "maintained_date": "2026-09-29",
   "repository": "obeidpeter/valo-pay",
-  "baseline_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+  "baseline_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
   "programme_branch": "codex/comprehensive-refactor-2026-09-29",
   "counts": {
     "requirements": 251,
@@ -13,7 +13,7 @@
   },
   "interpretation": {
     "source": "All 251 source requirements were reconciled with the supplied Technical Requirements v2.1. Exact bodies and acceptance criteria match the retained v2.0 catalogue extraction. This public matrix keeps original concise engineering summaries, source hashes and locators; complete source passages stay outside the repository. Dated implementation claims do not establish acceptance.",
-    "implementation": "Component pointers are scoped source inventory, not certification of every requirement mapped to that family. Exact line/hash pointers refer to baseline_revision.",
+    "implementation": "Component pointers are scoped source inventory, not certification of every requirement mapped to that family. Exact line/hash pointers refer to baseline_revision, the merge of PR #79. On 29 September 2026 they were brought forward to it from the programme baseline, the merge of PR #77 (cd9d81c665ca08c29429e26bb3ed0d78863b5966), after PR #78 moved the design-partner pricing rule into commercial-terms.ts and checkout and consent code out of connected.ts. The validator fails when a pointer names a symbol its current file no longer declares; the line and excerpt locate that declaration at baseline_revision. Execution evidence keeps the revision it ran on.",
     "testing": "A test file is evidence of a test source, not that it ran or proves the entire normative row. Fresh execution evidence is attached only by explicit requirement and result scope.",
     "deployment": "Source, passing CI and a previous task response do not by themselves verify publication. Deployment belongs in a dated exact-revision release record.",
     "acceptance": "No requirement or feature is marked operationally accepted by this matrix. Named owners, external access and independent reviews remain separate.",
@@ -142,12 +142,12 @@
       "implementation": [
         {
           "path": "artifacts/api-server/src/lib/pilot-access.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "f0ff66b9b959d8a191fa407d5f9f3fcd5659664d971aa8afcf5183082e66e40c"
         },
         {
           "path": "artifacts/api-server/src/lib/runtime-isolation-policy.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "cab59a84d6dcdb20d0721adb00807ae7435cfb51767c1719c279d8bb1506b502",
           "symbol": "reviewedRuntimePolicies",
           "line": 22,
@@ -155,51 +155,51 @@
         },
         {
           "path": "artifacts/api-server/src/lib/staff-access.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "cc6a28ad4a55fdfaca85043845a6110e47b4bc9ccc40eeb08e5d1ef61d06c659"
         },
         {
           "path": "artifacts/api-server/src/lib/staff-lender-access.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "a2c0719b343864146c25576b294b871375b77b11b75ec52bd6b6787ec299fb63"
         }
       ],
       "contracts": [
         {
           "path": "lib/valopay-schema/src/team.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "312cbea083d3ff0d2f87bb3d67929a2f7295fea8c8a239ddc052e6d6ffb3789c"
         },
         {
           "path": "lib/valopay-schema/src/staff-lender-access.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "05460256f06b4b7b6a266a0a74c7741ff0392327c35645e1f028405fd075a649"
         },
         {
           "path": "lib/db/migrations/005_runtime_isolation.sql",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "73134db44166917563db2fbc724b9ade055f69a73aa1f14ac3e8f619cd9ec3b0"
         },
         {
           "path": "lib/db/migrations/006_runtime_isolation_scope.sql",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "0d4502447dda3845aaf6a1d40bd01bb97db3253b2ea4e15aaafe403febcc6ebd"
         }
       ],
       "test_sources": [
         {
           "path": "artifacts/api-server/tests/pilot-security.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "210eef5b6a02869e287541505ebbbc2c7d03c556d15fcb190cc4f7b9df8ecaa7"
         },
         {
           "path": "artifacts/api-server/tests/runtime-isolation.integration.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "4169edd0809e7703f2729c46dcf1f95d0e5e39cdf49e23e5e1ff343d661476a1"
         },
         {
           "path": "artifacts/api-server/tests/staff-governance.integration.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "9618cd88a65b19d188ba5eaff2adb44ac49b21f67cf7634e5cc471d742c587a0"
         }
       ],
@@ -211,41 +211,41 @@
       "implementation": [
         {
           "path": "artifacts/api-server/src/providers/paystack.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "f283357515fb0dd48846ac28df50d6587326f52a0ceaa9a04fe03c596f79ad3f"
         },
         {
           "path": "artifacts/api-server/src/lib/paystack-connection.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "21953792aa032d79c360d4cc94235fbaaa2fbbb0dbcd9398a64537a2e5e739c3"
         },
         {
           "path": "artifacts/api-server/src/lib/paystack-verification.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "8c85a4dd06993a57451d3b7d0cea5f13e8c56ab73772578f297eb9e30d9c5bfe"
         }
       ],
       "contracts": [
         {
           "path": "lib/valopay-schema/src/provider-identity.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "6f3f0137549712dcb067ecf3d561dba49e585661dcd839973b725912cd339e01"
         }
       ],
       "test_sources": [
         {
           "path": "artifacts/api-server/tests/paystack.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "9bd9dcf4a88aec3ebf5e40ada28bc4c4414147bd01280a80dd2b51266101a64b"
         },
         {
           "path": "artifacts/api-server/tests/paystack-verification.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
-          "sha256": "e8c9a6e103c0fd47fd15ed01e5af7a9631642a8af79aef667d86e0fa3fcd7fc7"
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
+          "sha256": "d963546ceb68e2702e02eaeb8b56513c40b6be3d490bf8ab1d2f3bae1b5cda65"
         },
         {
           "path": "artifacts/api-server/tests/paystack-verification.integration.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "a07de174f6e5701609a2da23877fc5e436cf57ada59c63eb3cf67da3e3afcf22"
         }
       ],
@@ -257,46 +257,46 @@
       "implementation": [
         {
           "path": "artifacts/api-server/src/domain/policy-engine.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "dad7a9b61655b29aaf9e4aba5e1b1671e639f2ffa844419ae3049b9d8203320a"
         },
         {
           "path": "artifacts/api-server/src/domain/actions.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
-          "sha256": "d0a107d3bdc7931d1742221f3c775b46e65b8b7be9e3d99db050a36938cd63e3"
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
+          "sha256": "86172a2ba0ea1041f2cccfe91bcf4bf86dc2561d7f9a9fa08b2e512c112a298e"
         },
         {
           "path": "artifacts/api-server/src/domain/validation.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
-          "sha256": "f57da587bbcbc2da264e5316ecb80268999920f1644328d98f2d3af8b6483476"
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
+          "sha256": "dc9c763f1df9fcff291582abe161c7d5ac1273728c4997e5807460d476b71a76"
         }
       ],
       "contracts": [
         {
           "path": "lib/valopay-schema/src/records.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
-          "sha256": "2bb27693a1a530a10c7edb6c3392dc230ed0a920f6e1b94d8767065b4a57eddd"
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
+          "sha256": "8884f2cf4d3b1355b0d25429d5c4edc9f6b7ec70c6195be8da831409acc9529f"
         },
         {
           "path": "lib/valopay-schema/src/policy.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "52acb25a6f10a4deee92b545adfb8981b150e51c8d6a467d3e90918596e15ff0"
         }
       ],
       "test_sources": [
         {
           "path": "artifacts/api-server/tests/retry-engine-golden.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "cc9ee35b2b0f49c5b899736fb7ce8fc0a74be80f86dc66ec101659f423d52355"
         },
         {
           "path": "artifacts/api-server/tests/validation-golden.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "dccdb2f7fb521df88ee51c93e4f70a8cd5614c2dc5572abaf210ad6c149044ab"
         },
         {
           "path": "artifacts/api-server/tests/payment-lifecycle-golden.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "2bd6d75e6023237876d28f405593c195dff55d149a20c37bb326b9bb83b08bd2"
         }
       ],
@@ -308,46 +308,46 @@
       "implementation": [
         {
           "path": "artifacts/api-server/src/domain/calendar.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "65159466ed10429a6571be75712ef72c632fd302a7da41d27ecf50788c7f3c01"
         },
         {
           "path": "artifacts/api-server/src/domain/policy-engine.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "dad7a9b61655b29aaf9e4aba5e1b1671e639f2ffa844419ae3049b9d8203320a"
         },
         {
           "path": "artifacts/api-server/src/domain/actions.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
-          "sha256": "d0a107d3bdc7931d1742221f3c775b46e65b8b7be9e3d99db050a36938cd63e3"
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
+          "sha256": "86172a2ba0ea1041f2cccfe91bcf4bf86dc2561d7f9a9fa08b2e512c112a298e"
         }
       ],
       "contracts": [
         {
           "path": "lib/valopay-schema/src/records.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
-          "sha256": "2bb27693a1a530a10c7edb6c3392dc230ed0a920f6e1b94d8767065b4a57eddd"
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
+          "sha256": "8884f2cf4d3b1355b0d25429d5c4edc9f6b7ec70c6195be8da831409acc9529f"
         },
         {
           "path": "lib/valopay-schema/src/policy.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "52acb25a6f10a4deee92b545adfb8981b150e51c8d6a467d3e90918596e15ff0"
         }
       ],
       "test_sources": [
         {
           "path": "artifacts/api-server/tests/retry-engine-golden.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "cc9ee35b2b0f49c5b899736fb7ce8fc0a74be80f86dc66ec101659f423d52355"
         },
         {
           "path": "artifacts/api-server/tests/close-schedule-golden.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "93cfee3f073c9ecd4bc73b5a7d5ee26183ad85cb1e5c59a02c2a99cbf410d88f"
         },
         {
           "path": "artifacts/api-server/tests/input-semantics.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "25978b0d43b37517bff13964ff5bdc63cd9f2128584ff90912afdeeacbe66894"
         }
       ],
@@ -359,54 +359,54 @@
       "implementation": [
         {
           "path": "artifacts/api-server/src/domain/policy-engine.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "dad7a9b61655b29aaf9e4aba5e1b1671e639f2ffa844419ae3049b9d8203320a"
         },
         {
-          "path": "artifacts/api-server/src/domain/connected.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
-          "sha256": "1dda7cd40cb0f384e0e774de5442b78ff4c57547999d623659df53196816f1f0",
+          "path": "artifacts/api-server/src/domain/connected-checkout.ts",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
+          "sha256": "75098e4a7f20c1425b86c1ffd76da35af79be6b2f717bd581dc32e7a88610f94",
           "symbol": "resolveUnknownCheckout",
-          "line": 332,
+          "line": 125,
           "excerpt": "export function resolveUnknownCheckout("
         },
         {
           "path": "artifacts/api-server/src/domain/actions.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
-          "sha256": "d0a107d3bdc7931d1742221f3c775b46e65b8b7be9e3d99db050a36938cd63e3"
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
+          "sha256": "86172a2ba0ea1041f2cccfe91bcf4bf86dc2561d7f9a9fa08b2e512c112a298e"
         }
       ],
       "contracts": [
         {
           "path": "lib/valopay-schema/src/records.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
-          "sha256": "2bb27693a1a530a10c7edb6c3392dc230ed0a920f6e1b94d8767065b4a57eddd"
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
+          "sha256": "8884f2cf4d3b1355b0d25429d5c4edc9f6b7ec70c6195be8da831409acc9529f"
         },
         {
           "path": "lib/db/src/schema/valopay.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "a07436e95128e45a77719b5c62567a93535ab7a262ffa31b4aacbd1de6bd19a0"
         }
       ],
       "test_sources": [
         {
           "path": "artifacts/api-server/tests/connected-workflows.integration.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "87206ff6765b645e99aacc624e1792b79dd2bf6d17b35d0dee83466bbddee573"
         },
         {
           "path": "artifacts/api-server/tests/financial-concurrency.integration.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "aa3f70137bc89bafbe1d535368de044445117b68ceff3e055c35026fe9d617f5"
         },
         {
           "path": "artifacts/api-server/tests/instruction-recovery.integration.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "7f28d0d69b80757ba342f0a98a4ef06dd15d483be1fd02455ece92831bf3b077"
         },
         {
           "path": "artifacts/api-server/tests/retry-engine-golden.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "cc9ee35b2b0f49c5b899736fb7ce8fc0a74be80f86dc66ec101659f423d52355"
         }
       ],
@@ -418,46 +418,46 @@
       "implementation": [
         {
           "path": "artifacts/api-server/src/domain/policy-engine.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "dad7a9b61655b29aaf9e4aba5e1b1671e639f2ffa844419ae3049b9d8203320a"
         },
         {
           "path": "artifacts/api-server/src/domain/reconciliation-retry-decisions.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "c9d7c681b61f6d5a1e6ed0ca40656125a6666716b13dff62d15de8cc09a154be"
         },
         {
           "path": "artifacts/api-server/src/domain/reports.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
-          "sha256": "1b0c0522e19ee893c393c4d884ac5835560d86200325d3292d57e312eb5fbb54"
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
+          "sha256": "905fefef0d7514c4febbc14e88a155ed3f6e521ae9487fdf995022afef811e4b"
         }
       ],
       "contracts": [
         {
           "path": "lib/valopay-schema/src/policy.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "52acb25a6f10a4deee92b545adfb8981b150e51c8d6a467d3e90918596e15ff0"
         },
         {
           "path": "lib/valopay-schema/src/templates.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "80aee513bf6952d37e4cd452469dd7adbf70f942c118434a188d26635189041b"
         }
       ],
       "test_sources": [
         {
           "path": "artifacts/api-server/tests/retry-engine-golden.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "cc9ee35b2b0f49c5b899736fb7ce8fc0a74be80f86dc66ec101659f423d52355"
         },
         {
           "path": "artifacts/api-server/tests/measurement-golden.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "90b014c59f52bae7f8fe28976118eead83d4a3052235beaa5f4d79d92dcfd610"
         },
         {
           "path": "artifacts/api-server/tests/ret07-alerts-golden.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "42a728066d70d680257d415609ae9344d635a0afedc4f4d3bbce82aa38e9828b"
         }
       ],
@@ -469,12 +469,12 @@
       "implementation": [
         {
           "path": "artifacts/api-server/src/domain/pilot-workflow.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "3d64db6c3d5a106c56908a2f31217acbef754e1233872c57fbc1b0cf4e8c69d9"
         },
         {
           "path": "artifacts/api-server/src/domain/source-quality.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "18eaf5dd36c7c11fd696c32ab4cc9090aed947093859f19fb45cb95134bbed18",
           "symbol": "assertSourceBatchReady",
           "line": 98,
@@ -482,51 +482,51 @@
         },
         {
           "path": "artifacts/api-server/src/domain/reconciliation-payments.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "c5cd6d7a76ec961f111a529fd9b611863b3f46dc2734db7424fcb1a6fc45b39a"
         },
         {
           "path": "artifacts/api-server/src/domain/reconciliation-settlement-identity.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "ae9510afa609054767b5ee8ac6f3cc33c87b782604dc7735698dbeeeaf561879"
         }
       ],
       "contracts": [
         {
           "path": "lib/valopay-schema/src/import-mapping.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "fc5f78798473945f4efc04f2361362f3adb27d45f16ece7c28ff6aadf05c6a91"
         },
         {
           "path": "lib/valopay-schema/src/source-quality.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "d71f2e41e82a06326106d6118555d68ba2bc920d462b45a5db24aa90345c2f16"
         },
         {
           "path": "lib/valopay-schema/src/receipts.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "3da8212bf6791730967b7d6d36776cc305d2a2a6aafbeece8b265154d72ebddd"
         }
       ],
       "test_sources": [
         {
           "path": "artifacts/api-server/tests/pilot-workflow.integration.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "9061aad07b45910e0f2c8ee51c0dc1364723de70d26dd7ea346525ede5d72e46"
         },
         {
           "path": "artifacts/api-server/tests/payment-evidence-golden.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "d0a366d029753302ab1c763522b9290ab5e2ddad560017ce0c513d6f285b5ffe"
         },
         {
           "path": "artifacts/api-server/tests/financial-concurrency.integration.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "aa3f70137bc89bafbe1d535368de044445117b68ceff3e055c35026fe9d617f5"
         },
         {
           "path": "artifacts/api-server/tests/source-ingress.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "3c6e840dff7750e0ac91c8796f6290e5f6d8435c1e9ca1747a4c6a9d99e8e54c"
         }
       ],
@@ -538,7 +538,7 @@
       "implementation": [
         {
           "path": "artifacts/api-server/src/domain/reconciliation.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "886ff7e1f84a2a8e4f59e2ea24013e13890e183773587cd1cbe4fe0c8628190e",
           "symbol": "reconcile",
           "line": 38,
@@ -546,17 +546,17 @@
         },
         {
           "path": "artifacts/api-server/src/domain/reconciliation-matching.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "c26dccca216a96864cada7aa4ea5cc9f7fe2eda0f766b5acd25d3b77dd1b2ae9"
         },
         {
           "path": "artifacts/api-server/src/domain/reconciliation-values.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "f0e741a73e649791a797306bc13d2108d5f966594641ee035f264820852adb72"
         },
         {
           "path": "artifacts/api-server/src/domain/close.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "127efa9ec51b6889fc9e980875d5333ed2ac15c3019ae09f5c12a10461522ddf",
           "symbol": "buildCloseReport",
           "line": 273,
@@ -566,34 +566,34 @@
       "contracts": [
         {
           "path": "lib/valopay-schema/src/receipts.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "3da8212bf6791730967b7d6d36776cc305d2a2a6aafbeece8b265154d72ebddd"
         },
         {
           "path": "lib/valopay-schema/src/close-review.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "d9800cfd64ba0a1f3ffebca52fdadb5343f625154227268c54b115fcb3f9e98f"
         }
       ],
       "test_sources": [
         {
           "path": "artifacts/api-server/tests/reconciliation-golden.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "6150d2b4f430ba4a78d55f8e8adadc8da32711df0c4f3d57b15a5d32f5251234"
         },
         {
           "path": "artifacts/api-server/tests/allocation-decisions.integration.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "a767523a217b3e030b5c0a03d168aa3f64d1bfb4ad2c26d047005253c865e899"
         },
         {
           "path": "artifacts/api-server/tests/payment-lifecycle-golden.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "2bd6d75e6023237876d28f405593c195dff55d149a20c37bb326b9bb83b08bd2"
         },
         {
           "path": "artifacts/api-server/tests/source-close-controls.integration.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "68dd0117245becebecd505c57a353f65db703c009341980adaac7ea517bbfe56"
         }
       ],
@@ -605,7 +605,7 @@
       "implementation": [
         {
           "path": "artifacts/api-server/src/domain/exception-integrity.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "0fe98249ba46fcf610e6debc1e65745bf38ebc4c3432385387e6afed4c0eb416",
           "symbol": "exceptionReviewSubjectChanged",
           "line": 11,
@@ -613,41 +613,41 @@
         },
         {
           "path": "artifacts/api-server/src/domain/pilot-workflow.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "3d64db6c3d5a106c56908a2f31217acbef754e1233872c57fbc1b0cf4e8c69d9"
         },
         {
           "path": "artifacts/api-server/src/domain/actions.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
-          "sha256": "d0a107d3bdc7931d1742221f3c775b46e65b8b7be9e3d99db050a36938cd63e3"
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
+          "sha256": "86172a2ba0ea1041f2cccfe91bcf4bf86dc2561d7f9a9fa08b2e512c112a298e"
         }
       ],
       "contracts": [
         {
           "path": "lib/valopay-schema/src/exceptions.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "84f7e305e1a052f34841ac4f874bfe9f3131f78f880d77d324b78b16d0dc13c1"
         },
         {
           "path": "lib/valopay-schema/src/pilot.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "42146063ea269f78d400a3f309f10f9da4946dae2edf6b90772ed4b8d8fe3bba"
         }
       ],
       "test_sources": [
         {
           "path": "artifacts/api-server/tests/pilot-workflow.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "98bf95d83fd212fbf278011db4277da9b48cc80c86b21b00badcec03be76064d"
         },
         {
           "path": "artifacts/api-server/tests/operations-controls.integration.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "7522d543693afd4aa41d252a2daef2dce4f56d3eede64a99d90774b635d77633"
         },
         {
           "path": "artifacts/api-server/tests/integrity-guards.integration.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "0b1573743de572e8a45a66ff167e4e4cdf8eb0cf3312b5c023bd690d4bd20c0a"
         }
       ],
@@ -659,56 +659,56 @@
       "implementation": [
         {
           "path": "artifacts/api-server/src/lib/digests.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "06738a982fbaf8ce16c567e7d43507582d1b7a2cdffb5f00f828c004cff8ef6e"
         },
         {
           "path": "artifacts/api-server/src/lib/valopay-packs.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "596a9d6bc399d9a2b9ca714eee8b9cba5a9a8addc24a87fec7555ed63384bd4e"
         },
         {
           "path": "artifacts/api-server/src/lib/export-jobs.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "ccd31fe8130f2c83c1c149f4e91796bae40d0023263714b4d8355b0b5dd8b891"
         },
         {
           "path": "artifacts/api-server/src/lib/repository/retention.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "7f9b2f515af92b5e69b582423a2acdd8167fb0b02c653469c7965a8d216bb8d8"
         }
       ],
       "contracts": [
         {
           "path": "lib/valopay-schema/src/lifecycle.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "7756ccedca5711dfafe80bd5b3271cd43985cf4d1a3b57d770bb88ca70052b97"
         },
         {
           "path": "lib/db/migrations/013_export_cleanup.sql",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "ea31b980b4776ab03263776f01c93de4f4bc33574c11881a4b0832212de91344"
         }
       ],
       "test_sources": [
         {
           "path": "artifacts/api-server/tests/audit-daily-check.integration.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "fe7f87faf72f4c0190490bac8ba064fa468b293b6c225757739cc55988c6761a"
         },
         {
           "path": "artifacts/api-server/tests/dispute-pack.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "436b49064f568ada03bca529ba75635393fecc6ae750a28a370c3e34990c5737"
         },
         {
           "path": "artifacts/api-server/tests/export-jobs.integration.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "5f2cbb7218048b0c252808a78b604f177d450239df91b16b59163474de438496"
         },
         {
           "path": "artifacts/api-server/tests/export-expiry.integration.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "3affded24fef39d5917c5873f31a7365b57c917b919dfab3e8a003169d6fdf77"
         }
       ],
@@ -720,41 +720,41 @@
       "implementation": [
         {
           "path": "artifacts/api-server/src/domain/policy-engine.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "dad7a9b61655b29aaf9e4aba5e1b1671e639f2ffa844419ae3049b9d8203320a"
         },
         {
           "path": "artifacts/api-server/src/domain/validation.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
-          "sha256": "f57da587bbcbc2da264e5316ecb80268999920f1644328d98f2d3af8b6483476"
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
+          "sha256": "dc9c763f1df9fcff291582abe161c7d5ac1273728c4997e5807460d476b71a76"
         }
       ],
       "contracts": [
         {
           "path": "lib/valopay-schema/src/templates.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "80aee513bf6952d37e4cd452469dd7adbf70f942c118434a188d26635189041b"
         },
         {
           "path": "lib/valopay-schema/src/policy.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "52acb25a6f10a4deee92b545adfb8981b150e51c8d6a467d3e90918596e15ff0"
         }
       ],
       "test_sources": [
         {
           "path": "artifacts/api-server/tests/retry-engine-golden.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "cc9ee35b2b0f49c5b899736fb7ce8fc0a74be80f86dc66ec101659f423d52355"
         },
         {
           "path": "artifacts/api-server/tests/validation-golden.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "dccdb2f7fb521df88ee51c93e4f70a8cd5614c2dc5572abaf210ad6c149044ab"
         },
         {
           "path": "artifacts/api-server/tests/ret07-alerts-golden.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "42a728066d70d680257d415609ae9344d635a0afedc4f4d3bbce82aa38e9828b"
         }
       ],
@@ -766,41 +766,41 @@
       "implementation": [
         {
           "path": "artifacts/valo-pay/src/lib/submission-outcomes.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "c21c9393f72d8a4485ea28def164cdbaeec2341f540bb17543918e18c6fa76da"
         },
         {
           "path": "artifacts/valo-pay/src/lib/unsaved-changes.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "f2eae9a422c49c9f58893ebc7a9df296b251236e2869b517bdebc223ee494361"
         },
         {
           "path": "artifacts/valo-pay/src/lib/workspace-context.tsx",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "8f177078316b3844004657b9a1d3f8168f99270822df01b243bf4aab250af6eb"
         }
       ],
       "contracts": [
         {
           "path": "lib/valopay-schema/src/api.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "d364764a3bd711b5ef98796e995c74bf5a38e397e0d11f208679c94ebd750277"
         },
         {
           "path": "docs/frontend-contract.md",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
-          "sha256": "87b24cdced5f7f285119f63667140a0bb137d2c9d536f54e26cfe7e140cc8afc"
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
+          "sha256": "885d16a04eeb6b1fe539930e85df392b9368c57147e8c1fb354bce5f6828f939"
         }
       ],
       "test_sources": [
         {
           "path": "artifacts/api-server/tests/api-shell-golden.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "a870b965c066d162d8e96a40a8b6c3afed6da82b67781acd2f131c4d6b459509"
         },
         {
           "path": "artifacts/api-server/tests/submission-recovery.integration.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "48e18c508e6172b1d055ee236ad01c317adb61487a8eee4d35408446d5954c19"
         }
       ],
@@ -812,7 +812,7 @@
       "implementation": [
         {
           "path": "artifacts/api-server/src/lib/operation-recovery.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "cb561ccebe37281bf30ac2a87f3063b37483b7a1127ef2f79f3146b997b962d3",
           "symbol": "recoveryMiddleware",
           "line": 49,
@@ -820,46 +820,46 @@
         },
         {
           "path": "artifacts/api-server/src/lib/repository/journal.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "dc235267aaa9b2dc38950049af28a0300c8e8c7db41b149c42e1cfdad3a1e993"
         },
         {
           "path": "artifacts/api-server/src/lib/contract.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "77ed220099f45807c4d16d2956b42c12ac4e3dff82cd5238eb5c193e47673387"
         }
       ],
       "contracts": [
         {
           "path": "lib/valopay-schema/src/api.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "d364764a3bd711b5ef98796e995c74bf5a38e397e0d11f208679c94ebd750277"
         },
         {
           "path": "lib/api-spec/openapi.json",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
-          "sha256": "3a55eb7862a005b2c4068398df4560ad3e9d5c0b8a7eb6441af52402aaaee4b5"
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
+          "sha256": "ccb389cb111a6974f2e1f99eaf2a41cc00272c8b0ea8859ed1a1d252145c738c"
         }
       ],
       "test_sources": [
         {
           "path": "artifacts/api-server/tests/api-contract.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "f12448930d339ef3562f4feac31aeac42f73fd718803026abd7ef5d572eb1468"
         },
         {
           "path": "artifacts/api-server/tests/api-contract.integration.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
-          "sha256": "5c40df84d03bf2112cfea5e1e9d26200ff993837c4eb48f22e996c6eb95bd2ea"
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
+          "sha256": "b9e2bcff859429cfd8a3b97ddea6f18e9f8e7f3b3b9d8827f25a3718923bfaf3"
         },
         {
           "path": "artifacts/api-server/tests/submission-recovery.integration.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "48e18c508e6172b1d055ee236ad01c317adb61487a8eee4d35408446d5954c19"
         },
         {
           "path": "artifacts/api-server/tests/journal-outcomes.integration.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "34e1b48da425179bcc4fa12f705170834f58ea7097a276cdcc192b60b0804cca"
         }
       ],
@@ -871,37 +871,37 @@
       "implementation": [
         {
           "path": "artifacts/api-server/src/domain/reports.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
-          "sha256": "1b0c0522e19ee893c393c4d884ac5835560d86200325d3292d57e312eb5fbb54"
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
+          "sha256": "905fefef0d7514c4febbc14e88a155ed3f6e521ae9487fdf995022afef811e4b"
         },
         {
           "path": "artifacts/api-server/src/domain/stats.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "c584e09aed2b09071c7be5a2bb28fd3bb3dcfc8d1d87857c8b50fd93c3b20c3d"
         },
         {
           "path": "artifacts/api-server/src/domain/evidence-agreement.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "3d92e2092e8ac1ec4fad93148d39cb273434e45ff9440efabe671dc94c4dc35e"
         }
       ],
       "contracts": [
         {
           "path": "lib/valopay-schema/src/records.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
-          "sha256": "2bb27693a1a530a10c7edb6c3392dc230ed0a920f6e1b94d8767065b4a57eddd"
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
+          "sha256": "8884f2cf4d3b1355b0d25429d5c4edc9f6b7ec70c6195be8da831409acc9529f"
         }
       ],
       "test_sources": [
         {
           "path": "artifacts/api-server/tests/measurement-golden.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "90b014c59f52bae7f8fe28976118eead83d4a3052235beaa5f4d79d92dcfd610"
         },
         {
           "path": "artifacts/api-server/tests/test5-golden.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
-          "sha256": "b702f09415658938dd67eccb9ddfeb5fd12deecc543a80ea2491b35f8e3d1690"
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
+          "sha256": "15748536fdfbaf97d68e0654becbf010380c86dd6e8e195bc51a6f9b810311a5"
         }
       ],
       "relationship": "Related component and test-source inventory, not proof that every mapped requirement or its full acceptance test is implemented or covered. Per-ID obligations remain below.",
@@ -912,51 +912,51 @@
       "implementation": [
         {
           "path": "artifacts/api-server/src/domain/billing.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
-          "sha256": "f94e6bb8aef0b20645e4be4b4165138485397d338982a89579aebaac81c657d0",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
+          "sha256": "68a16b455667aefc14a4e97ebae7feccc497e4810fe854cc3be6b531630ab29f",
           "symbol": "billableCollection",
-          "line": 73,
+          "line": 74,
           "excerpt": "export function billableCollection(state: DomainState, payment: TypedRecord<\"payments\">, now: string, checkWindow = true): boolean {"
         },
         {
           "path": "artifacts/api-server/src/domain/billing.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
-          "sha256": "f94e6bb8aef0b20645e4be4b4165138485397d338982a89579aebaac81c657d0",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
+          "sha256": "68a16b455667aefc14a4e97ebae7feccc497e4810fe854cc3be6b531630ab29f",
           "symbol": "billedLedger",
-          "line": 125,
+          "line": 126,
           "excerpt": "export function billedLedger(state: DomainState): Map<string, LedgerEntry> {"
         },
         {
-          "path": "artifacts/api-server/src/domain/billing.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
-          "sha256": "f94e6bb8aef0b20645e4be4b4165138485397d338982a89579aebaac81c657d0",
-          "symbol": "discountRateFor",
-          "line": 284,
-          "excerpt": "const discountRateFor = (terms: TypedRecord<\"commercial\"> | undefined, period: string): number => terms?.data.designPartner === true && period.startsWith(DESIGN_PARTNER_DISCOUNT_YEAR) ? 1 - DESIGN_PARTNER_DISCOUNT : 0;"
+          "path": "artifacts/api-server/src/domain/commercial-terms.ts",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
+          "sha256": "a577058832404dbbd86f3bdc742105ad70ed479a1cb119fa5c73e8de68ff1bdf",
+          "symbol": "designPartnerDiscount",
+          "line": 27,
+          "excerpt": "export function designPartnerDiscount(data: Terms | undefined, period: string): DiscountDecision {"
         }
       ],
       "contracts": [
         {
           "path": "lib/valopay-schema/src/money.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
-          "sha256": "b0c4df8ccabfafc90e4e6ffdb230f9a84cb7ef91e528abefd22207f7c7d00ea1"
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
+          "sha256": "50c5371920eca3cad9de6d0b84042885e38dd29900af7c7582734feb5e097c35"
         },
         {
           "path": "lib/valopay-schema/src/records.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
-          "sha256": "2bb27693a1a530a10c7edb6c3392dc230ed0a920f6e1b94d8767065b4a57eddd"
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
+          "sha256": "8884f2cf4d3b1355b0d25429d5c4edc9f6b7ec70c6195be8da831409acc9529f"
         }
       ],
       "test_sources": [
         {
           "path": "artifacts/api-server/tests/billing-golden.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
-          "sha256": "6867bd3ccdacb310f3e1ef2ce781bee64720a9922a0af0845475e9cca91a9e84"
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
+          "sha256": "4771c89c8fce321ea2c75d81b28ad9de72384a6adb115359fb52f83c207f309d"
         },
         {
           "path": "artifacts/api-server/tests/exact-money.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
-          "sha256": "f6fe468b02d340e643aa35ea20b681484b37bbb396d41a61c7acc31f4682f380"
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
+          "sha256": "742b9954bcaee91a2fc78c2fbd408ea136bc15f29f769127f5ee4a6042342498"
         }
       ],
       "relationship": "Related component and test-source inventory, not proof that every mapped requirement or its full acceptance test is implemented or covered. Per-ID obligations remain below.",
@@ -967,41 +967,41 @@
       "implementation": [
         {
           "path": "artifacts/api-server/src/lib/background-worker.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "3adf1ff67a336c4d257c9297251d57b83d1adb30350ebc57585b9fc49b2be040"
         },
         {
           "path": "artifacts/api-server/src/lib/database-limits.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "f12793bc14ca60f5f4ea9c1f969a2fd425346326705419c680b01101bc05c22a"
         },
         {
           "path": "artifacts/api-server/src/lib/repository/read-models.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "e531c6a3ac44c9f440f15e26c5c4aefe16b33f711ddf14e617e485a44b39db77"
         }
       ],
       "contracts": [
         {
           "path": "docs/operational-rehearsals.md",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "94cc8823a117ebdaf9b87a41eaa34e506c193338784b4757289cdcdfc9e7dd01"
         }
       ],
       "test_sources": [
         {
           "path": "artifacts/api-server/tests/workflow-performance.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "386617cabd8a193da77d656d75aede24afd23eba8e96a1f4065526893c947485"
         },
         {
           "path": "artifacts/api-server/tests/workflow-performance.integration.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "5ef774411a4f1fb58ae75d1d23035efaada913815625b87e3ca11fd30c66c619"
         },
         {
           "path": "artifacts/api-server/tests/background-worker.integration.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "e8019051f92047b251fc578fe8f9536bfcb8bf9d511fd8f6c57a094156d2e947"
         }
       ],
@@ -1013,46 +1013,46 @@
       "implementation": [
         {
           "path": "artifacts/api-server/src/lib/background-health.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "00101fab68d2da453e7975ba13043b6dff4d5c1eef05da48f697724cfefe168a"
         },
         {
           "path": "artifacts/api-server/src/lib/recovery-manifest.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "d7369a5adc3c4f4b8fbb640af1e7b139a3f2420e6f7a58b24b13195590a811fe"
         },
         {
           "path": "artifacts/api-server/src/lib/close-scheduler.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "75536d522dcd7c46ed3b0a41de9fb24a2ac4290f187bf8869e92d1e67ad85435"
         }
       ],
       "contracts": [
         {
           "path": "docs/deployment.md",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
-          "sha256": "5d63865f86f095199b00d1659aa42509bb749f2a0fc490c66dbe7f7ebea9e642"
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
+          "sha256": "2cccfc777be3c48d56ef588a43273234d0f93aec980973477369022658b4280d"
         },
         {
           "path": "docs/synthetic-instruction-recovery.md",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "9a984189115ff9cdb84c99cd5605b661486ce76848f45eb76bb7e2b82b324e05"
         }
       ],
       "test_sources": [
         {
           "path": "artifacts/api-server/tests/recovery-rehearsal.integration.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "f7290cd9b94642493eeee9f65edf7ced5194c4f74c99fa6dd06b408e84215e94"
         },
         {
           "path": "artifacts/api-server/tests/instruction-recovery.integration.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "7f28d0d69b80757ba342f0a98a4ef06dd15d483be1fd02455ece92831bf3b077"
         },
         {
           "path": "artifacts/api-server/tests/background-worker.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "85247046c8969679851c35afd6434440c613af28b4d9b4ec44d9f1cf4150fde0"
         }
       ],
@@ -1064,56 +1064,56 @@
       "implementation": [
         {
           "path": "artifacts/api-server/src/lib/field-encryption.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "dbf5984f8e0216d3fed8cf0ed2ff8d737c2bde24b0900a3ac29a3be8d77c3d59"
         },
         {
           "path": "artifacts/api-server/src/lib/protected-payloads.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "df2cb74c9b9e8b0d0dd696fdbc8dfa76ab7e41626cae371b7f13ba08b19d94d7"
         },
         {
           "path": "artifacts/api-server/src/lib/request-limits.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "dc30e3eb6143ab45f550347955ffa2f0420b06659111fa41260632de2b155236"
         },
         {
           "path": "artifacts/api-server/src/lib/logger.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "976ba4b6617558db3193068f0872d689b5d47389a7e98fdbf790fc8032a3d0d3"
         }
       ],
       "contracts": [
         {
           "path": "docs/security-review.md",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "b16bfda858be041bb8df5c3987d0b282a17866cc4d5a51bcb1c63d0239c9e99b"
         },
         {
           "path": "docs/DATABASE_SECURITY.md",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "5208bec2a96ce6a1275608f06b376b9903719a7f137ac67a35f8c07b181b2156"
         }
       ],
       "test_sources": [
         {
           "path": "artifacts/api-server/tests/edge-security.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "459e8f5d3dc6be665fef1ef29527a023b698fc3a52f4c3e04a4effc2b1dccb35"
         },
         {
           "path": "artifacts/api-server/tests/api-security.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "24f69336a51a73e1c0894da3e2eb7828316d5b78915dbc8ba2bfd36c7a6d1587"
         },
         {
           "path": "artifacts/api-server/tests/protected-payloads.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "82aa4e8764418a8c14def8a0e3207e1d0b8a1ce230cc7148cf55bb8f73ae44a8"
         },
         {
           "path": "artifacts/api-server/tests/pilot-security.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "210eef5b6a02869e287541505ebbbc2c7d03c556d15fcb190cc4f7b9df8ecaa7"
         }
       ],
@@ -1125,46 +1125,46 @@
       "implementation": [
         {
           "path": "artifacts/api-server/src/domain/lifecycle.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "6b94f142a59922643797f599e271687c4b9a4b8b61dcd2cad8ca6be0bb5d2797"
         },
         {
           "path": "artifacts/api-server/src/lib/protected-payloads.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "df2cb74c9b9e8b0d0dd696fdbc8dfa76ab7e41626cae371b7f13ba08b19d94d7"
         },
         {
           "path": "artifacts/api-server/src/lib/repository/retention.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "7f9b2f515af92b5e69b582423a2acdd8167fb0b02c653469c7965a8d216bb8d8"
         }
       ],
       "contracts": [
         {
           "path": "lib/valopay-schema/src/lifecycle.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "7756ccedca5711dfafe80bd5b3271cd43985cf4d1a3b57d770bb88ca70052b97"
         },
         {
           "path": "docs/pilot-security.md",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "893dd1cbe055a90eec4d18286f441162645b72a3422aa4f30e7bb19f44884755"
         }
       ],
       "test_sources": [
         {
           "path": "artifacts/api-server/tests/retention-storage.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "c5d1f3875dcf0eb0d78a1a655720e371e9d4576a9d41e08b2440c438b579dd45"
         },
         {
           "path": "artifacts/api-server/tests/recovery-rehearsal.integration.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "f7290cd9b94642493eeee9f65edf7ced5194c4f74c99fa6dd06b408e84215e94"
         },
         {
           "path": "artifacts/api-server/tests/payload-rewrap.integration.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "213acf6fe75f04e6512f702272416639e70498c7dcd9061dd481c95aad9f55fa"
         }
       ],
@@ -1176,36 +1176,36 @@
       "implementation": [
         {
           "path": "artifacts/api-server/src/lib/background-health.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "00101fab68d2da453e7975ba13043b6dff4d5c1eef05da48f697724cfefe168a"
         },
         {
           "path": "artifacts/api-server/src/lib/logger.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "976ba4b6617558db3193068f0872d689b5d47389a7e98fdbf790fc8032a3d0d3"
         },
         {
           "path": "scripts/monitor-valopay.mjs",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "1e9eb16e8854007c550901f62ef1cdce23f9e3fb968d07bae471e462bec674bd"
         }
       ],
       "contracts": [
         {
           "path": "docs/observability.md",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "62d7f4171a3d2c29473a63b248554a33b9013b9a6b60306ba99fb5598db91441"
         }
       ],
       "test_sources": [
         {
           "path": "artifacts/api-server/tests/observability.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "33ebae914e7f3536d790f80bcc06e6e22f76b4e17f155f7f7074539358f9bf01"
         },
         {
           "path": "artifacts/api-server/tests/background-worker.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "85247046c8969679851c35afd6434440c613af28b4d9b4ec44d9f1cf4150fde0"
         }
       ],
@@ -1217,13 +1217,13 @@
       "implementation": [
         {
           "path": "artifacts/api-server/src/lib/startup-config.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "fab425161b01e184353c97be5f58cd74f648e81daa9b8ff0f8656d42536101ce"
         },
         {
           "path": "scripts/check-effect-boundaries.mjs",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
-          "sha256": "0d2d0dcf6ee53ff6ea0501ad2bbc39926543dd3a7aeaa8ff81972fae2f4debd4",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
+          "sha256": "c47b410642166b7844181585815b6307add294b9646044e77c41297a9c36f126",
           "symbol": "inspectEffectBoundaries",
           "line": 24,
           "excerpt": "export function inspectEffectBoundaries(root = defaultRoot) {"
@@ -1232,29 +1232,29 @@
       "contracts": [
         {
           "path": "docs/deployment.md",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
-          "sha256": "5d63865f86f095199b00d1659aa42509bb749f2a0fc490c66dbe7f7ebea9e642"
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
+          "sha256": "2cccfc777be3c48d56ef588a43273234d0f93aec980973477369022658b4280d"
         },
         {
           "path": "docs/database-migrations.md",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
-          "sha256": "781a299719c8ec550525962e1a2a8517d9ad457653fe54fc5642ad911c656452"
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
+          "sha256": "6eb1636616b7c1e1f9f9e5504d5e3ed362f2888ce076958fa962a3fa56500ae7"
         },
         {
           "path": ".github/workflows/ci.yml",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "690870d01072181243d71b31dbda563554ea99b9c7e05e172e7e3a069f890a2f"
         }
       ],
       "test_sources": [
         {
           "path": "artifacts/api-server/tests/startup-config.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "43bdb8893cd822f10f803328a2ece89d5224e1d5743ae460b1a579cf99e643aa"
         },
         {
           "path": "artifacts/api-server/tests/schema-push.integration.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "943ae453a4ceb0ce9c83de5165b9b745f5e397cb81fb450bb42a2f7aab2affb2"
         }
       ],
@@ -1266,50 +1266,50 @@
       "implementation": [
         {
           "path": "artifacts/api-server/src/domain/connected.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
-          "sha256": "1dda7cd40cb0f384e0e774de5442b78ff4c57547999d623659df53196816f1f0",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
+          "sha256": "2cf64dc66df43b16ed63d4b72fa82776265ac743ebb0949fb85b186f2eb8ef33",
           "symbol": "connectedView",
-          "line": 689,
+          "line": 136,
           "excerpt": "export function connectedView(state: DomainState, ctx: Context) {"
         },
         {
           "path": "artifacts/api-server/src/lib/paystack-verification.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "8c85a4dd06993a57451d3b7d0cea5f13e8c56ab73772578f297eb9e30d9c5bfe"
         },
         {
           "path": "artifacts/api-server/src/domain/source-quality.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "18eaf5dd36c7c11fd696c32ab4cc9090aed947093859f19fb45cb95134bbed18"
         }
       ],
       "contracts": [
         {
           "path": "lib/valopay-schema/src/connected.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "3f132b6c736153679d3b12fb52cfd057fed564dd42217015a422a8c82ca99ecc"
         },
         {
           "path": "lib/valopay-schema/src/source-quality.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "d71f2e41e82a06326106d6118555d68ba2bc920d462b45a5db24aa90345c2f16"
         }
       ],
       "test_sources": [
         {
           "path": "artifacts/api-server/tests/source-quality.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "5adaffe60525ceb5d21639dc2d5d5312a30795e5222a0cf1a2dbf446021e2baa"
         },
         {
           "path": "artifacts/api-server/tests/connected-authority.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "3dad74fdfda1117ef43d9e71b93f1e668f9cb8e278c67e58365b4f3e577881ea"
         },
         {
           "path": "artifacts/api-server/tests/paystack-verification.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
-          "sha256": "e8c9a6e103c0fd47fd15ed01e5af7a9631642a8af79aef667d86e0fa3fcd7fc7"
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
+          "sha256": "d963546ceb68e2702e02eaeb8b56513c40b6be3d490bf8ab1d2f3bae1b5cda65"
         }
       ],
       "relationship": "Related component and test-source inventory, not proof that every mapped requirement or its full acceptance test is implemented or covered. Per-ID obligations remain below.",
@@ -1319,16 +1319,16 @@
       "purpose": "Separate purpose grants, current checks and retained disclosures",
       "implementation": [
         {
-          "path": "artifacts/api-server/src/domain/connected.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
-          "sha256": "1dda7cd40cb0f384e0e774de5442b78ff4c57547999d623659df53196816f1f0",
+          "path": "artifacts/api-server/src/domain/connected-consents.ts",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
+          "sha256": "f73162c0d4ebe97c187347ccc8aac3fea519252a5b35d92ca0f8033be0315a27",
           "symbol": "consentActive",
-          "line": 159,
+          "line": 17,
           "excerpt": "export function consentActive(r: ValopayRecord, now: string) {"
         },
         {
           "path": "artifacts/api-server/src/domain/connected-replay.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "78fd0ca1c9a32e8e5d951493d3c001f95a1e2543e92d2f96282a522511f394df",
           "symbol": "assertConnectedReplayAllowed",
           "line": 27,
@@ -1336,36 +1336,36 @@
         },
         {
           "path": "artifacts/api-server/src/domain/connected-credit-service.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
-          "sha256": "8546b9a1292da2adae81ecce6cc46ced470ae5064034f682d0254d8d01df0bd8"
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
+          "sha256": "cdd1c01c2101df73f008c2399c4ac5343309d3d09d067c0cca3e4d6998c4d16f"
         },
         {
           "path": "artifacts/api-server/src/domain/connected-cash-service.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
-          "sha256": "71c11c7bf0374b75f1d971b4d0aee4a285d8f26835e480621321e21be7f6aede"
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
+          "sha256": "45276a2fb98a9b6bffeb98af863236b3945c5993a9e7d55e5121e0df65a4d31a"
         }
       ],
       "contracts": [
         {
           "path": "lib/valopay-schema/src/connected.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "3f132b6c736153679d3b12fb52cfd057fed564dd42217015a422a8c82ca99ecc"
         }
       ],
       "test_sources": [
         {
           "path": "artifacts/api-server/tests/connected-authority.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "3dad74fdfda1117ef43d9e71b93f1e668f9cb8e278c67e58365b4f3e577881ea"
         },
         {
           "path": "artifacts/api-server/tests/connected-replay.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
-          "sha256": "74c19953c6749ae6ed6c8b9e22a427361fa6e0184c3d3433988f534e393f9e6f"
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
+          "sha256": "2dc97ad44657c19577eb4171f0e188047ded8f77dc595bf246bf383a71536165"
         },
         {
           "path": "artifacts/api-server/tests/connected-replay.integration.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "f832c698a80fbf5749cf57baf746b0cf109c7f243054feec0749f4f1d2d92b0e"
         }
       ],
@@ -1377,7 +1377,7 @@
       "implementation": [
         {
           "path": "artifacts/api-server/src/domain/connected-credit.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "fb8085c9947fa79da828cb521a87860edcc0bbcb26549d35f70afdb0ec2fe68a",
           "symbol": "assessCredit",
           "line": 482,
@@ -1385,7 +1385,7 @@
         },
         {
           "path": "artifacts/api-server/src/domain/connected-cash.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "5b3eb3fe3bd74586144d5caedc0f41dc836aba2fc47ca881a6d9ec98d0cd7e78",
           "symbol": "consolidateCashPositions",
           "line": 122,
@@ -1393,7 +1393,7 @@
         },
         {
           "path": "artifacts/api-server/src/domain/source-quality.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "18eaf5dd36c7c11fd696c32ab4cc9090aed947093859f19fb45cb95134bbed18",
           "symbol": "sourceQuality",
           "line": 119,
@@ -1403,29 +1403,29 @@
       "contracts": [
         {
           "path": "lib/valopay-schema/src/connected.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "3f132b6c736153679d3b12fb52cfd057fed564dd42217015a422a8c82ca99ecc"
         },
         {
           "path": "lib/valopay-schema/src/source-quality.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "d71f2e41e82a06326106d6118555d68ba2bc920d462b45a5db24aa90345c2f16"
         }
       ],
       "test_sources": [
         {
           "path": "artifacts/api-server/tests/source-quality.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "5adaffe60525ceb5d21639dc2d5d5312a30795e5222a0cf1a2dbf446021e2baa"
         },
         {
           "path": "artifacts/api-server/tests/connected-credit.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
-          "sha256": "bfd3e448608d31658cdbbf9d4f01b9aad47df381f8cfd8750ff14b37be5a3128"
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
+          "sha256": "e875ced035a65a15b12276333b6a32aad9372eab87a70263ce85891a26fe8324"
         },
         {
           "path": "artifacts/api-server/tests/connected-cash.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "8aea4732016b8b0ca73e1777a0cd835d2115d52d0e3276403f72b3e9cc3e9142"
         }
       ],
@@ -1436,48 +1436,48 @@
       "purpose": "Synthetic bound checkout, server receipt and obligation race controls",
       "implementation": [
         {
-          "path": "artifacts/api-server/src/domain/connected.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
-          "sha256": "1dda7cd40cb0f384e0e774de5442b78ff4c57547999d623659df53196816f1f0",
+          "path": "artifacts/api-server/src/domain/connected-checkout.ts",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
+          "sha256": "75098e4a7f20c1425b86c1ffd76da35af79be6b2f717bd581dc32e7a88610f94",
           "symbol": "resolveUnknownCheckout",
-          "line": 332,
+          "line": 125,
           "excerpt": "export function resolveUnknownCheckout("
         },
         {
           "path": "artifacts/api-server/src/domain/connected.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
-          "sha256": "1dda7cd40cb0f384e0e774de5442b78ff4c57547999d623659df53196816f1f0",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
+          "sha256": "2cf64dc66df43b16ed63d4b72fa82776265ac743ebb0949fb85b186f2eb8ef33",
           "symbol": "runConnectedAction",
-          "line": 610,
+          "line": 68,
           "excerpt": "export function runConnectedAction("
         },
         {
           "path": "artifacts/api-server/src/domain/final-state-integrity.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "34f4383db7dfa12e4494004c2f7b417868bda2c34dd3f12e243768ecc19a26fa"
         }
       ],
       "contracts": [
         {
           "path": "lib/valopay-schema/src/connected.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "3f132b6c736153679d3b12fb52cfd057fed564dd42217015a422a8c82ca99ecc"
         }
       ],
       "test_sources": [
         {
           "path": "artifacts/api-server/tests/connected-workflows.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "be5a9f9f365fd1a4e4ab9e683ab91ad1ddeabe931ac80913db6b56825f884d66"
         },
         {
           "path": "artifacts/api-server/tests/connected-workflows.integration.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "87206ff6765b645e99aacc624e1792b79dd2bf6d17b35d0dee83466bbddee573"
         },
         {
           "path": "artifacts/api-server/tests/financial-concurrency.integration.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "aa3f70137bc89bafbe1d535368de044445117b68ceff3e055c35026fe9d617f5"
         }
       ],
@@ -1489,7 +1489,7 @@
       "implementation": [
         {
           "path": "artifacts/api-server/src/domain/connected-credit.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "fb8085c9947fa79da828cb521a87860edcc0bbcb26549d35f70afdb0ec2fe68a",
           "symbol": "assessCredit",
           "line": 482,
@@ -1497,7 +1497,7 @@
         },
         {
           "path": "artifacts/api-server/src/domain/connected-credit.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "fb8085c9947fa79da828cb521a87860edcc0bbcb26549d35f70afdb0ec2fe68a",
           "symbol": "reviewCreditAssessment",
           "line": 1289,
@@ -1505,31 +1505,31 @@
         },
         {
           "path": "artifacts/api-server/src/domain/connected-credit-service.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
-          "sha256": "8546b9a1292da2adae81ecce6cc46ced470ae5064034f682d0254d8d01df0bd8"
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
+          "sha256": "cdd1c01c2101df73f008c2399c4ac5343309d3d09d067c0cca3e4d6998c4d16f"
         }
       ],
       "contracts": [
         {
           "path": "lib/valopay-schema/src/connected.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "3f132b6c736153679d3b12fb52cfd057fed564dd42217015a422a8c82ca99ecc"
         }
       ],
       "test_sources": [
         {
           "path": "artifacts/api-server/tests/connected-credit.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
-          "sha256": "bfd3e448608d31658cdbbf9d4f01b9aad47df381f8cfd8750ff14b37be5a3128"
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
+          "sha256": "e875ced035a65a15b12276333b6a32aad9372eab87a70263ce85891a26fe8324"
         },
         {
           "path": "artifacts/api-server/tests/connected-authority.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "3dad74fdfda1117ef43d9e71b93f1e668f9cb8e278c67e58365b4f3e577881ea"
         },
         {
           "path": "artifacts/api-server/tests/connected-replay.integration.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "f832c698a80fbf5749cf57baf746b0cf109c7f243054feec0749f4f1d2d92b0e"
         }
       ],
@@ -1541,7 +1541,7 @@
       "implementation": [
         {
           "path": "artifacts/api-server/src/domain/connected-credit.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "fb8085c9947fa79da828cb521a87860edcc0bbcb26549d35f70afdb0ec2fe68a",
           "symbol": "DEFAULT_SYNTHETIC_CREDIT_POLICY",
           "line": 271,
@@ -1549,7 +1549,7 @@
         },
         {
           "path": "artifacts/api-server/src/domain/connected-credit.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "fb8085c9947fa79da828cb521a87860edcc0bbcb26549d35f70afdb0ec2fe68a",
           "symbol": "reviewCreditAssessment",
           "line": 1289,
@@ -1559,15 +1559,15 @@
       "contracts": [
         {
           "path": "lib/valopay-schema/src/connected.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "3f132b6c736153679d3b12fb52cfd057fed564dd42217015a422a8c82ca99ecc"
         }
       ],
       "test_sources": [
         {
           "path": "artifacts/api-server/tests/connected-credit.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
-          "sha256": "bfd3e448608d31658cdbbf9d4f01b9aad47df381f8cfd8750ff14b37be5a3128"
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
+          "sha256": "e875ced035a65a15b12276333b6a32aad9372eab87a70263ce85891a26fe8324"
         }
       ],
       "relationship": "Related component and test-source inventory, not proof that every mapped requirement or its full acceptance test is implemented or covered. Per-ID obligations remain below.",
@@ -1578,7 +1578,7 @@
       "implementation": [
         {
           "path": "artifacts/api-server/src/domain/connected-cash.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "5b3eb3fe3bd74586144d5caedc0f41dc836aba2fc47ca881a6d9ec98d0cd7e78",
           "symbol": "consolidateCashPositions",
           "line": 122,
@@ -1586,7 +1586,7 @@
         },
         {
           "path": "artifacts/api-server/src/domain/connected-cash.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "5b3eb3fe3bd74586144d5caedc0f41dc836aba2fc47ca881a6d9ec98d0cd7e78",
           "symbol": "forecastCash",
           "line": 321,
@@ -1594,31 +1594,31 @@
         },
         {
           "path": "artifacts/api-server/src/domain/connected-cash-service.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
-          "sha256": "71c11c7bf0374b75f1d971b4d0aee4a285d8f26835e480621321e21be7f6aede"
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
+          "sha256": "45276a2fb98a9b6bffeb98af863236b3945c5993a9e7d55e5121e0df65a4d31a"
         }
       ],
       "contracts": [
         {
           "path": "lib/valopay-schema/src/connected.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "3f132b6c736153679d3b12fb52cfd057fed564dd42217015a422a8c82ca99ecc"
         }
       ],
       "test_sources": [
         {
           "path": "artifacts/api-server/tests/connected-cash.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "8aea4732016b8b0ca73e1777a0cd835d2115d52d0e3276403f72b3e9cc3e9142"
         },
         {
           "path": "artifacts/api-server/tests/connected-cash-service.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "148e2843a7940141672920bec51541488a4a1b583b1c9909f2166b102867fe6d"
         },
         {
           "path": "artifacts/api-server/tests/connected-replay.integration.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "f832c698a80fbf5749cf57baf746b0cf109c7f243054feec0749f4f1d2d92b0e"
         }
       ],
@@ -1630,7 +1630,7 @@
       "implementation": [
         {
           "path": "artifacts/api-server/src/domain/connected-cash.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "5b3eb3fe3bd74586144d5caedc0f41dc836aba2fc47ca881a6d9ec98d0cd7e78",
           "symbol": "buildErpDraft",
           "line": 521,
@@ -1638,7 +1638,7 @@
         },
         {
           "path": "artifacts/api-server/src/domain/connected-cash.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "5b3eb3fe3bd74586144d5caedc0f41dc836aba2fc47ca881a6d9ec98d0cd7e78",
           "symbol": "guardErpDispatch",
           "line": 686,
@@ -1646,26 +1646,26 @@
         },
         {
           "path": "artifacts/api-server/src/domain/connected-cash-service.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
-          "sha256": "71c11c7bf0374b75f1d971b4d0aee4a285d8f26835e480621321e21be7f6aede"
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
+          "sha256": "45276a2fb98a9b6bffeb98af863236b3945c5993a9e7d55e5121e0df65a4d31a"
         }
       ],
       "contracts": [
         {
           "path": "lib/valopay-schema/src/connected.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "3f132b6c736153679d3b12fb52cfd057fed564dd42217015a422a8c82ca99ecc"
         }
       ],
       "test_sources": [
         {
           "path": "artifacts/api-server/tests/connected-cash.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "8aea4732016b8b0ca73e1777a0cd835d2115d52d0e3276403f72b3e9cc3e9142"
         },
         {
           "path": "artifacts/api-server/tests/connected-cash-service.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "148e2843a7940141672920bec51541488a4a1b583b1c9909f2166b102867fe6d"
         }
       ],
@@ -1677,7 +1677,7 @@
       "implementation": [
         {
           "path": "artifacts/api-server/src/domain/connected-cash.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "5b3eb3fe3bd74586144d5caedc0f41dc836aba2fc47ca881a6d9ec98d0cd7e78",
           "symbol": "reconcileVatEvidence",
           "line": 802,
@@ -1685,26 +1685,26 @@
         },
         {
           "path": "artifacts/api-server/src/domain/connected-cash-service.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
-          "sha256": "71c11c7bf0374b75f1d971b4d0aee4a285d8f26835e480621321e21be7f6aede"
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
+          "sha256": "45276a2fb98a9b6bffeb98af863236b3945c5993a9e7d55e5121e0df65a4d31a"
         }
       ],
       "contracts": [
         {
           "path": "lib/valopay-schema/src/connected.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "3f132b6c736153679d3b12fb52cfd057fed564dd42217015a422a8c82ca99ecc"
         }
       ],
       "test_sources": [
         {
           "path": "artifacts/api-server/tests/connected-cash.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "8aea4732016b8b0ca73e1777a0cd835d2115d52d0e3276403f72b3e9cc3e9142"
         },
         {
           "path": "artifacts/api-server/tests/connected-cash-service.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "148e2843a7940141672920bec51541488a4a1b583b1c9909f2166b102867fe6d"
         }
       ],
@@ -1716,7 +1716,7 @@
       "implementation": [
         {
           "path": "artifacts/api-server/src/domain/connected-cash.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "5b3eb3fe3bd74586144d5caedc0f41dc836aba2fc47ca881a6d9ec98d0cd7e78",
           "symbol": "preparePayrollFundingPlan",
           "line": 1082,
@@ -1724,7 +1724,7 @@
         },
         {
           "path": "artifacts/api-server/src/domain/connected-cash.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "5b3eb3fe3bd74586144d5caedc0f41dc836aba2fc47ca881a6d9ec98d0cd7e78",
           "symbol": "approvePayrollPlan",
           "line": 1196,
@@ -1732,7 +1732,7 @@
         },
         {
           "path": "artifacts/api-server/src/domain/connected-cash.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "5b3eb3fe3bd74586144d5caedc0f41dc836aba2fc47ca881a6d9ec98d0cd7e78",
           "symbol": "transitionPayrollItem",
           "line": 1300,
@@ -1740,7 +1740,7 @@
         },
         {
           "path": "artifacts/api-server/src/domain/connected-cash.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "5b3eb3fe3bd74586144d5caedc0f41dc836aba2fc47ca881a6d9ec98d0cd7e78",
           "symbol": "exportPayrollManifest",
           "line": 1416,
@@ -1750,24 +1750,24 @@
       "contracts": [
         {
           "path": "lib/valopay-schema/src/connected.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "3f132b6c736153679d3b12fb52cfd057fed564dd42217015a422a8c82ca99ecc"
         }
       ],
       "test_sources": [
         {
           "path": "artifacts/api-server/tests/connected-cash.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "8aea4732016b8b0ca73e1777a0cd835d2115d52d0e3276403f72b3e9cc3e9142"
         },
         {
           "path": "artifacts/api-server/tests/connected-cash-service.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "148e2843a7940141672920bec51541488a4a1b583b1c9909f2166b102867fe6d"
         },
         {
           "path": "artifacts/api-server/tests/connected-workflows.integration.test.ts",
-          "source_revision": "cd9d81c665ca08c29429e26bb3ed0d78863b5966",
+          "source_revision": "c2ade2639876edd7036f3ce885ab4f5db5ec53fc",
           "sha256": "87206ff6765b645e99aacc624e1792b79dd2bf6d17b35d0dee83466bbddee573"
         }
       ],
