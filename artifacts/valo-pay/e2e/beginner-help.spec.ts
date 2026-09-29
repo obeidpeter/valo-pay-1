@@ -54,15 +54,16 @@ test('overview metrics fit their cards beside the sidebar, and a wider amount sc
   for (const width of [768, 800, 820, 1024, 1280, 1536]) {
     await page.setViewportSize({ width, height: 1000 });
     await expect(page.getByRole('complementary', { name: 'Console sidebar' })).toBeVisible();
+    // Each value's frame is its parent, which scrolls when the value is wider than the card.
     const values = await metrics.locator('.tabular-nums').evaluateAll(nodes => nodes.map(node => {
-      const range = document.createRange();
+      const frame = node.parentElement!, range = document.createRange();
       range.selectNodeContents(node.firstChild!);
       return {
         value: node.firstChild!.textContent,
-        overflows: node.scrollWidth > node.clientWidth + 1,
+        overflows: frame.scrollWidth > frame.clientWidth + 1,
         lines: new Set([...range.getClientRects()].map(rect => Math.round(rect.top))).size,
         width: Math.round(range.getBoundingClientRect().width),
-        room: node.clientWidth,
+        room: frame.clientWidth,
       };
     }));
     expect(values.length).toBe(4);
@@ -79,4 +80,26 @@ test('overview metrics fit their cards beside the sidebar, and a wider amount sc
   await expect(frame).toHaveAttribute('tabindex', '0');
   expect(await frame.evaluate(node => node.scrollWidth > node.clientWidth && node.textContent)).toBe('₦1,151,000.00');
   expect(await unreachable()).toBe(0);
+});
+
+test('a metric frame follows its amount when the typeface arrives, without waiting for the page to render again', async ({ page, request }) => {
+  await request.post('/__test/reset');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  // The typeface is held back, so the amounts are laid out first in a fallback face.
+  let release = () => {};
+  const held = new Promise<void>(resolve => { release = () => resolve(); });
+  await page.route('**/*.woff2', async route => { await held; await route.continue(); });
+  await page.setViewportSize({ width: 320, height: 800 });
+  await page.goto('/overview');
+  const metrics = page.getByRole('region', { name: 'Key metrics' });
+  await expect(metrics.getByText('Outstanding amount', { exact: true })).toBeVisible();
+  await page.evaluate(() => { document.documentElement.style.fontSize = '125%'; });
+  release();
+  await page.evaluate(() => document.fonts.ready);
+  // In Plus Jakarta Sans at this size ₦1,151,000.00 is wider than its frame, which the frame must say at once. Here the
+  // fallback face fitted it, so only the amount's width changed: no render, and no resize of the frame.
+  await expect(metrics.getByRole('region', { name: 'Outstanding amount' })).toHaveAttribute('tabindex', '0');
+  // A width change that no fallback face decides, as on a machine whose fallback is wider: letters spaced out.
+  await page.addStyleTag({ content: '[aria-labelledby="overview-metrics-title"] .tabular-nums { letter-spacing: .25em }' });
+  await expect(metrics.getByRole('region', { name: 'Reconciled collections' })).toHaveAttribute('tabindex', '0');
 });

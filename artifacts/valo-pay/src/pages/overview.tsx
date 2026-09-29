@@ -91,9 +91,10 @@ export default function OverviewPage() {
                   <p className="text-xs font-medium text-muted-foreground">{metric.label}</p>
                   <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${metric.key === 'settled' ? 'bg-success/10 text-success' : metric.key === 'exceptions' ? 'bg-warning text-warning-foreground' : 'bg-secondary/60 text-muted-foreground'}`}><Icon aria-hidden="true" className="h-4 w-4" /></span>
                 </div>
-                {/* An amount stays on one line; one wider than its card still scrolls in a frame a keyboard can reach. */}
+                {/* An amount stays on one line; one wider than its card still scrolls in a frame a keyboard can reach. The
+                    value is only as wide as its text, so the frame sees its width change, as when a late typeface widens it. */}
                 <ScrollFrame label={metric.label} className="mt-4 overflow-x-auto">
-                  <p className="whitespace-nowrap text-[1.75rem] font-semibold leading-tight tracking-tight tabular-nums">
+                  <p className="w-max whitespace-nowrap text-[1.75rem] font-semibold leading-tight tracking-tight tabular-nums">
                     {metric.unit === 'kobo' ? formatKobo(metric.value) : metric.unit === 'percent' ? formatPercent(metric.value / 100) : formatNumber(metric.value)}
                     {metric.unit !== 'kobo' && metric.unit !== 'percent' && metric.unit !== 'count' && <span className="ml-1 text-sm font-normal text-muted-foreground">{metric.unit}</span>}
                   </p>
