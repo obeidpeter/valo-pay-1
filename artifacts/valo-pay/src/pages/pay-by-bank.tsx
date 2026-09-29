@@ -7,6 +7,7 @@ import {
   ConnectedStatus,
   ConnectedRecovery,
   ConnectedState,
+  connectedStatusLabel,
 } from "@/components/connected-frame";
 import { Button } from "@/components/ui/button";
 import {
@@ -337,7 +338,7 @@ function PaymentContent({ api }: { api: ReturnType<typeof useConnected> }) {
                       <span className="text-sm font-semibold">
                         {formatKobo(i.amountKobo)}
                       </span>
-                      <ConnectedStatus status={i.status} />
+                      <ConnectedStatus record="checkout" status={i.status} />
                     </div>
                     <p className="mt-2">
                       {
@@ -372,7 +373,7 @@ function PaymentContent({ api }: { api: ReturnType<typeof useConnected> }) {
                     <h3 className="font-semibold">{intent.data.beneficiary}</h3>
                   </div>
                   <div className="ml-auto">
-                    <ConnectedStatus status={intent.status} />
+                    <ConnectedStatus record="checkout" status={intent.status} />
                   </div>
                 </div>
                 <p className="text-4xl font-semibold tracking-tight">
@@ -600,8 +601,8 @@ function PaymentContent({ api }: { api: ReturnType<typeof useConnected> }) {
                     i: number,
                   ) => (
                     <li key={i}>
-                      <span className="font-medium capitalize">
-                        {e.status.replaceAll("_", " ")}
+                      <span className="font-medium">
+                        {connectedStatusLabel("checkout", e.status)}
                       </span>
                       <p className="text-muted-foreground mt-1">{e.detail}</p>
                       <time>{formatDate(e.at)}</time>

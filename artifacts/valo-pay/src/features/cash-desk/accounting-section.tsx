@@ -1,6 +1,7 @@
+import { ConnectedStatus } from "@/components/connected-frame";
 import { Button } from "@/components/ui/button";
 import { Check, Download, FileCheck2, RefreshCw } from "lucide-react";
-import { amount, Gate, label, Metric, saveJson, Section } from "./shared";
+import { amount, Gate, Metric, saveJson, Section } from "./shared";
 import type { CashView, ReviewAction } from "./types";
 
 type Props = {
@@ -75,9 +76,10 @@ export function CashAccountingSection({
             <div key={r.id} className="space-y-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h3 className="font-semibold">{r.name}</h3>
-                <span className="rounded-full bg-secondary px-3 py-1 text-xs font-medium">
-                  {label(r.status)} · not posted
-                </span>
+                <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <ConnectedStatus record="accounting-draft" status={r.status} />
+                  Not posted to accounting software
+                </p>
               </div>
               <div className="grid gap-3 sm:grid-cols-3">
                 <Metric

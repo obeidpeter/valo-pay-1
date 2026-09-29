@@ -1,8 +1,10 @@
+import { connectedStatusLabel } from "@/components/connected-frame";
 import { Button } from "@/components/ui/button";
 import { ScrollFrame } from "@/components/scroll-frame";
 import { formatDate } from "@/lib/formatters";
+import { valueLabel } from "@workspace/valopay-schema";
 import { Download, FileCheck2 } from "lucide-react";
-import { amount, label, Metric, saveJson, Section } from "./shared";
+import { amount, Metric, saveJson, Section } from "./shared";
 import type { CashView, ReviewAction } from "./types";
 
 type Props = {
@@ -95,7 +97,7 @@ export function CashVatSection({
                       <td className="py-4">
                         <span className="font-medium">{line.invoiceId}</span>
                         <span className="block text-xs text-muted-foreground">
-                          {label(line.kind)}
+                          {valueLabel(line.kind)}
                         </span>
                       </td>
                       <td className="py-4 text-right tabular-nums">
@@ -132,7 +134,7 @@ export function CashVatSection({
             ))}
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="text-sm text-muted-foreground">
-                Period {cash.vat.period} · {label(cash.vat.status)} · not filed
+                Period {cash.vat.period} · {connectedStatusLabel("vat-schedule", cash.vat.status)} · not filed
               </p>
               <Button
                 variant="outline"

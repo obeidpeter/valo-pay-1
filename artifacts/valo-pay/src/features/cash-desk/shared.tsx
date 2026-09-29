@@ -3,8 +3,6 @@ import { LockKeyhole } from "lucide-react";
 import type { ReactNode } from "react";
 import { Link } from "wouter";
 
-export const label = (text: string) =>
-  text.replaceAll("_", " ").replace(/^./, (c) => c.toUpperCase());
 export const amount = (value: number | null | undefined) =>
   value == null ? "Needs review" : formatKobo(value);
 export const saveJson = (name: string, value: unknown) => {

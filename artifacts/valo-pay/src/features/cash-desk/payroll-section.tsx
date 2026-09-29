@@ -1,7 +1,8 @@
+import { ConnectedStatus, connectedStatusLabel } from "@/components/connected-frame";
 import { Button } from "@/components/ui/button";
 import { formatCompactDate, formatCount, formatDate } from "@/lib/formatters";
 import { Check, Download, RefreshCw, Users } from "lucide-react";
-import { amount, Gate, label, Metric, saveJson, Section } from "./shared";
+import { amount, Gate, Metric, saveJson, Section } from "./shared";
 import type { CashView, ReviewAction } from "./types";
 
 type Props = {
@@ -89,9 +90,7 @@ export function CashPayrollSection({
                       {formatDate(r.plan.asOf)}
                     </p>
                   </div>
-                  <span className="rounded-full bg-secondary px-3 py-1 text-xs font-medium">
-                    {label(r.summary.status)}
-                  </span>
+                  <ConnectedStatus record="payroll-run" status={r.summary.status} />
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                   <Metric
@@ -112,7 +111,7 @@ export function CashPayrollSection({
                   <Metric
                     title="Funding gap"
                     value={amount(r.plan.shortfallMinor)}
-                    detail={label(r.plan.fundingStatus)}
+                    detail={connectedStatusLabel("payroll-funding", r.plan.fundingStatus)}
                   />
                 </div>
                 <p className="text-sm text-muted-foreground">
@@ -228,11 +227,7 @@ export function CashPayrollSection({
                       <span className="text-sm font-medium tabular-nums">
                         {amount(item.netMinor)}
                       </span>
-                      <span
-                        className={`rounded-full px-3 py-1 text-xs ${item.status === "unknown" ? "bg-amber-500/10 text-amber-700 dark:text-amber-400" : "bg-secondary"}`}
-                      >
-                        {label(item.status)}
-                      </span>
+                      <ConnectedStatus record="payroll-item" status={item.status} />
                       {["exported", "unknown"].includes(item.status) && (
                         <div className="flex gap-2">
                           <Button
@@ -315,7 +310,7 @@ export function CashPayrollSection({
                       {item.employeeReference}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      Retained sample item · {label(item.status)}
+                      Retained sample item · {connectedStatusLabel("payroll-item", item.status)}
                     </p>
                   </div>
                   <span className="text-sm font-medium tabular-nums">

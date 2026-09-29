@@ -9,8 +9,9 @@ import {
   Landmark,
   RefreshCw,
 } from "lucide-react";
+import { valueLabel } from "@workspace/valopay-schema";
 import { ForecastChart } from "./forecast-chart";
-import { amount, label, Metric, Section } from "./shared";
+import { amount, Metric, Section } from "./shared";
 import type { CashView, ForecastAssumptions, ReviewAction } from "./types";
 import { Link } from "wouter";
 
@@ -423,7 +424,7 @@ export function CashForecastSection({
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium">{c.label}</p>
                 <p className="text-xs text-muted-foreground">
-                  {label(c.source)} · {formatCompactDate(c.dueAt)}
+                  {valueLabel(c.source)} · {formatCompactDate(c.dueAt)}
                 </p>
               </div>
               <span className="text-sm font-medium tabular-nums">

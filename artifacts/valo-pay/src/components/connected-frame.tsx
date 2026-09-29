@@ -10,8 +10,10 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { DiscardOriginalRequest } from "@/components/discard-original-request";
 import { RefreshProblem, type RefreshableQuery } from "@/components/load-problem";
+import { StatusBadge } from "@/components/record-label";
 import { requestClosed, savedAnswerWithheld } from "@/lib/safe-mutations";
 import { errorWords } from "@/lib/notify";
+import { valueLabel, valueLabels } from "@workspace/valopay-schema";
 import "@/connected.css";
 /** The connected workspace's held request and, for a failed refresh, its query. */
 type Recovery = {
@@ -231,12 +233,30 @@ export function ConnectedPanel({
     </section>
   );
 }
-export function ConnectedStatus({ status }: { status: string }) {
-  return (
-    <span
-      className={`connected-status ${["confirmed", "active", "approved", "complete"].includes(status) ? "good" : ["unknown", "expired", "revoked", "failed", "blocked", "refused"].includes(status) ? "attention" : ""}`}
-    >
-      {status.replaceAll("_", " ")}
-    </span>
-  );
+/** The records whose statuses these pages show. */
+export type ConnectedStatusRecord =
+  | "checkout"
+  | "permission"
+  | "assessment"
+  | "accounting-draft"
+  | "vat-schedule"
+  | "payroll-run"
+  | "payroll-item"
+  | "payroll-funding";
+/**
+ * A connected status's key in the shared labels: its record's own entry
+ * ("checkout.created"), for a code other pages show in other words, else the
+ * code itself. The stored code never changes.
+ */
+export function connectedStatusKey(record: ConnectedStatusRecord, status: string): string {
+  const key = `${record}.${status}`;
+  return Object.hasOwn(valueLabels, key) ? key : status;
+}
+/** A connected status in the shared words, where it is read as text rather than as a badge. */
+export function connectedStatusLabel(record: ConnectedStatusRecord, status: string): string {
+  return valueLabel(connectedStatusKey(record, status));
+}
+/** A connected status as the shared badge shows every status. */
+export function ConnectedStatus({ record, status }: { record: ConnectedStatusRecord; status: string }) {
+  return <StatusBadge status={connectedStatusKey(record, status)} />;
 }

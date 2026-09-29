@@ -361,7 +361,8 @@ describe("Cash Desk", () => {
     expect(
       await screen.findByRole("button", { name: "Download review file" }),
     ).toBeTruthy();
-    expect(screen.getByText("Exported · not posted")).toBeTruthy();
+    const posted = screen.getByText("Not posted to accounting software");
+    expect(within(posted).getByText("Exported")).toBeTruthy();
     expect(
       api.state().records.find((r) => r.kind === "connected-cash-erp")?.data
         .manifest.status,
@@ -385,7 +386,7 @@ describe("Cash Desk", () => {
       screen.getAllByRole("button", { name: "Sample unknown" })[1]!,
     );
     await confirm(user);
-    expect(await screen.findByText("Unknown")).toBeTruthy();
+    expect(await screen.findByText("Outcome unknown")).toBeTruthy();
     expect(
       screen.getAllByRole("button", { name: "Sample unknown" }),
     ).toHaveLength(2);

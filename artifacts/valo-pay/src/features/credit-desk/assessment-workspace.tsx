@@ -72,7 +72,7 @@ export function AssessmentWorkspace({
                 Version {result!.version} · {formatDate(selected.createdAt)}
               </p>
             </div>
-            <ConnectedStatus status={result!.state} />
+            <ConnectedStatus record="assessment" status={result!.state} />
           </div>
           <Tabs
             value={tab}

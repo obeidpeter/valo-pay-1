@@ -299,7 +299,7 @@ function ConnectionsContent({ api }: { api: ReturnType<typeof useConnected> }) {
                 <article className="connected-record" key={c.id}>
                   <div className="flex justify-between gap-3">
                     <h3>{c.name}</h3>
-                    <ConnectedStatus status={c.effectiveStatus || c.status} />
+                    <ConnectedStatus record="permission" status={c.effectiveStatus || c.status} />
                   </div>
                   <p className="mt-2">
                     {c.data.subjectId === "sme"
