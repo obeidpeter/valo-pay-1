@@ -124,13 +124,27 @@ try {
     /connected\.ts no longer declares consentActive/, "a re-export is not a declaration");
   refused(probing(`// designPartnerDiscount prices the month.\nimport { designPartnerDiscount } from "./commercial-terms";\nexport { designPartnerDiscount as pricing };\nexport const label = "designPartnerDiscount", fields = { designPartnerDiscount: true };\nexport const decision = designPartnerDiscount(undefined, "2027-01");\n`),
     /pricing-probe\.ts no longer declares designPartnerDiscount/, "a comment, an import, an export alias, a string, a field name or a call is not a declaration");
+  // A binding taken from require() or import(), however the value is unwrapped, is an import; `declare` describes code elsewhere.
+  for (const [source, reason] of [
+    ['export const { designPartnerDiscount } = await import("./billing");\n', "a binding destructured from a dynamic import is not a declaration"],
+    ['const { designPartnerDiscount } = require("./billing");\n', "a binding destructured from require() is not a declaration"],
+    ['export const designPartnerDiscount = (require("./billing") as { designPartnerDiscount: unknown }).designPartnerDiscount!;\n', "a property of require() read through parentheses, as and a non-null assertion is not a declaration"],
+    ['export const designPartnerDiscount = (await import("./billing"))["designPartnerDiscount"] satisfies unknown;\n', "an element of an awaited import read through satisfies is not a declaration"],
+    ['export declare function designPartnerDiscount(data: unknown, period: string): unknown;\ndeclare const designPartnerDiscount: unknown;\n', "an ambient declare is not a declaration"],
+  ]) refused(probing(source), /pricing-probe\.ts no longer declares designPartnerDiscount/, reason);
+  // Only the top level counts: a nested function or variable, or a class method, of the same name does not.
+  for (const [source, reason] of [
+    ["export function outer() { function designPartnerDiscount() {} return designPartnerDiscount; }\n", "a nested function is not a top-level declaration"],
+    ["export function outer() { const designPartnerDiscount = 1; return designPartnerDiscount; }\n", "a nested variable is not a top-level declaration"],
+    ["export class Terms { designPartnerDiscount() {} }\n", "a class method is not a top-level declaration"],
+  ]) refused(probing(source), /pricing-probe\.ts no longer declares designPartnerDiscount/, reason);
   refused((copy) => Object.assign(Object.values(copy.components).flatMap((component) => component.contracts).find((pointer) => pointer.path.endsWith(".md")), { symbol: "deployment" }),
     /Only a TypeScript or JavaScript file declares a symbol/, "a document cannot declare a symbol");
   // Lines moving and a declaration reformatted, or rewritten as a constant, leave the pointer valid.
   accepted(probing(`export const before = 1;\n\n\n/** Moved down and wrapped. */\nexport function\n  designPartnerDiscount (\n    data: unknown,\n  ) {\n  return data;\n}\n`));
   accepted(probing("export const designPartnerDiscount = (data: unknown) => data;\n"));
   accepted(probing("const rules = { designPartnerDiscount: (data: unknown) => data };\nexport const { designPartnerDiscount } = rules;\n"));
-  checks += 8;
+  checks += 16;
 } finally {
   if (linked) unlinkSync(parser); // the link alone, never the dependencies it names
   rmSync(scratch, { recursive: true, force: true });

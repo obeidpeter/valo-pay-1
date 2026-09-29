@@ -38,15 +38,25 @@ assert.equal(conflicts.size, matrix.source_conflict_records.length);
 assert.equal(changes.size, matrix.change_packages.length);
 for (const source of matrix.sources) assert.match(source.sha256, digest);
 // A file's top-level declarations, parsed rather than matched by line or excerpt, so moved or reformatted
-// code still counts; an import, a re-export, a call or a comment declares nothing.
+// code still counts. An import, a re-export, a call or a comment declares nothing; nor does a binding taken
+// from require() or import(), however the value is unwrapped, nor an ambient `declare`, which describes code
+// kept elsewhere. Syntax alone cannot tell a constant that aliases an imported binding, or a type of the same
+// name, from the code a pointer names, so those still count.
 const declared = new Map();
+const loaded = expression => {
+  while (ts.isAwaitExpression(expression) || ts.isParenthesizedExpression(expression) || ts.isAsExpression(expression) || ts.isSatisfiesExpression(expression)
+    || ts.isTypeAssertionExpression(expression) || ts.isNonNullExpression(expression) || ts.isPropertyAccessExpression(expression) || ts.isElementAccessExpression(expression)) expression = expression.expression;
+  return ts.isCallExpression(expression) && (expression.expression.kind === ts.SyntaxKind.ImportKeyword || ts.isIdentifier(expression.expression) && expression.expression.text === 'require');
+};
 function declares(path, symbol) {
   if (!declared.has(path)) {
     const names = new Set();
     const bind = name => { if (ts.isIdentifier(name)) names.add(name.text); else for (const element of name.elements) if (ts.isBindingElement(element)) bind(element.name); };
     for (const statement of ts.createSourceFile(path, readFileSync(resolve(root, path), 'utf8'), ts.ScriptTarget.Latest).statements) {
-      if (ts.isVariableStatement(statement)) for (const declaration of statement.declarationList.declarations) bind(declaration.name);
-      else if ((ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement) || ts.isInterfaceDeclaration(statement) || ts.isTypeAliasDeclaration(statement)
+      if (statement.modifiers?.some(modifier => modifier.kind === ts.SyntaxKind.DeclareKeyword)) continue;
+      if (ts.isVariableStatement(statement)) {
+        for (const declaration of statement.declarationList.declarations) if (!declaration.initializer || !loaded(declaration.initializer)) bind(declaration.name);
+      } else if ((ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement) || ts.isInterfaceDeclaration(statement) || ts.isTypeAliasDeclaration(statement)
         || ts.isEnumDeclaration(statement) || ts.isModuleDeclaration(statement)) && statement.name && ts.isIdentifier(statement.name)) names.add(statement.name.text);
     }
     declared.set(path, names);
