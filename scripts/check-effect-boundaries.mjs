@@ -108,7 +108,10 @@ export function inspectEffectBoundaries(root = defaultRoot) {
     visit(ast);
     active.delete(file);
   }
-  for (const file of files.filter(file => file.startsWith(domain))) inspect(file, [file]);
+  const roots = files.filter(file => file.startsWith(domain));
+  // A check that inspected nothing proves nothing: a missing or misplaced tree fails rather than passing across none.
+  if (!roots.length) issues.push(`No domain module found under ${domain} in ${root}; nothing was checked.`);
+  for (const file of roots) inspect(file, [file]);
   return { checked: checkedFiles.size, issues: [...new Set(issues)] };
 }
 
