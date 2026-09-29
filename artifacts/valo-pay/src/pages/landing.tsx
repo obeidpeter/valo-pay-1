@@ -39,6 +39,8 @@ export default function LandingPage() {
   useEffect(() => {
     document.title = "Valo Pay · Collections, credit and cash operations";
   }, []);
+  // Known from the session already reported, with no request of its own: a signed-in visitor's way in opens
+  // the workspace linked to their account, so every "Open the sandbox" says so.
   const signedIn = authEnabled && Boolean(userId);
   return (
     <div className="public-site landing-site min-h-screen">
@@ -68,14 +70,6 @@ export default function LandingPage() {
             <Link href="/help?topic=start">Help</Link>
           </nav>
           <div className="lp-header-actions">
-            <Button
-              asChild
-              variant="outline"
-              size="sm"
-              className="lp-header-sandbox"
-            >
-              <Link href="/overview">Open the sandbox</Link>
-            </Button>
             {signedIn ? (
               <Button asChild size="sm">
                 <Link href="/overview">
@@ -88,9 +82,19 @@ export default function LandingPage() {
                 </Link>
               </Button>
             ) : (
-              <Button asChild size="sm">
-                <Link href="/sign-in">Sign in</Link>
-              </Button>
+              <>
+                <Button
+                  asChild
+                  variant="outline"
+                  size="sm"
+                  className="lp-header-sandbox"
+                >
+                  <Link href="/overview">Open the sandbox</Link>
+                </Button>
+                <Button asChild size="sm">
+                  <Link href="/sign-in">Sign in</Link>
+                </Button>
+              </>
             )}
             <Button
               ref={menuButton}
@@ -155,7 +159,7 @@ export default function LandingPage() {
               <div className="lp-hero-actions">
                 <Button asChild size="lg" className="lp-primary">
                   <Link href="/overview">
-                    Open the sandbox
+                    {signedIn ? "Open your workspace" : "Open the sandbox"}
                     <ArrowRight aria-hidden="true" />
                   </Link>
                 </Button>
@@ -210,7 +214,7 @@ export default function LandingPage() {
         <LandingWorkspaces />
         <LandingSections signedIn={signedIn} />
       </main>
-      <LandingFooter />
+      <LandingFooter signedIn={signedIn} />
     </div>
   );
 }

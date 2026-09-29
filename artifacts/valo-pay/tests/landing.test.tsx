@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, render } from "@testing-library/react";
 import { installFakeApi, type FakeApi } from "./fake-api";
 import { renderApp, screen, userEvent, waitFor, within } from "./harness";
 
@@ -186,5 +187,53 @@ describe("landing page", () => {
     ).toBeTruthy();
     expect(api.calls.some((call) => call.path === "/v1/workspace")).toBe(true);
     await waitFor(() => expect(document.title).toBe("Overview · Valo Pay"));
+  });
+});
+
+describe("landing page for a signed-in visitor", () => {
+  it("offers their workspace wherever a signed-out visitor is offered the sandbox", async () => {
+    renderApp("/");
+    // The header, the hero and the closing call to action.
+    expect(
+      screen.getAllByRole("link", { name: "Open the sandbox" }),
+    ).toHaveLength(3);
+    expect(
+      screen.getByRole("navigation", { name: "Explore the sandbox" }),
+    ).toBeTruthy();
+    expect(
+      within(screen.getByRole("banner")).getByRole("link", { name: "Sign in" }),
+    ).toBeTruthy();
+    cleanup();
+
+    // The landing page ships with the shell, loaded before a test's own mock, so a fresh copy of it is given
+    // the session Clerk has already reported: knowing who is signed in asks nothing of the network.
+    vi.resetModules();
+    vi.doMock("@/lib/auth", () => ({
+      authEnabled: true,
+      useSessionUser: () => ({ userId: "user_returning", isLoaded: true }),
+      useSignOut: () => () => {},
+      AuthShow: () => null,
+      AuthProvider: ({ children }: { children: unknown }) => children,
+      ClerkSlot: () => null,
+      ClerkSignIn: () => null,
+      ClerkSignUp: () => null,
+      VerifiedSession: () => null,
+    }));
+    const { default: SignedInLanding } = await import("@/pages/landing");
+    const view = render(<SignedInLanding />);
+    const workspace = view.getAllByRole("link", { name: "Open your workspace" });
+    expect(workspace).toHaveLength(3);
+    expect(
+      workspace.every((link) => link.getAttribute("href") === "/overview"),
+    ).toBe(true);
+    expect(view.queryByRole("link", { name: /Open the sandbox/ })).toBeNull();
+    expect(
+      view.getByRole("navigation", { name: "Explore your workspace" }),
+    ).toBeTruthy();
+    expect(
+      within(view.getByRole("banner")).queryByRole("link", { name: "Sign in" }),
+    ).toBeNull();
+    expect(api.calls).toEqual([]);
+    vi.doUnmock("@/lib/auth");
   });
 });

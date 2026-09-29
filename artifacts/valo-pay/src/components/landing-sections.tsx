@@ -400,7 +400,7 @@ export function LandingSections({ signedIn }: { signedIn: boolean }) {
               <div className="lp-cta-actions">
                 <Button asChild size="lg" className="lp-cta-button">
                   <Link href="/overview">
-                    Open the sandbox
+                    {signedIn ? "Open your workspace" : "Open the sandbox"}
                     <ArrowUpRight aria-hidden="true" />
                   </Link>
                 </Button>
@@ -430,7 +430,8 @@ export function LandingSections({ signedIn }: { signedIn: boolean }) {
   );
 }
 
-export function LandingFooter() {
+export function LandingFooter({ signedIn }: { signedIn: boolean }) {
+  const explore = signedIn ? "Explore your workspace" : "Explore the sandbox";
   return (
     <footer className="lp-footer">
       <div className="public-container">
@@ -443,8 +444,8 @@ export function LandingFooter() {
               off.
             </span>
           </div>
-          <nav aria-label="Explore the sandbox" className="lp-footer-links">
-            <h2>Explore the sandbox</h2>
+          <nav aria-label={explore} className="lp-footer-links">
+            <h2>{explore}</h2>
             <Link href="/overview">Collections</Link>
             <Link href="/pay-by-bank">Pay by Bank</Link>
             <Link href="/credit-desk">Credit Desk</Link>
