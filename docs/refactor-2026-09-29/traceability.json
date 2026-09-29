@@ -3039,8 +3039,10 @@
       },
       "testing": {
         "component_ref": "TEN",
-        "execution_status": "no_per_requirement_acceptance_run_attached",
-        "fresh_evidence_ids": []
+        "execution_status": "scoped_fresh_evidence_attached; full_source_acceptance_not_established",
+        "fresh_evidence_ids": [
+          "CI-DATABASE-BROWSER-20260929"
+        ]
       },
       "deployment": {
         "status": "not_inferred",
@@ -3594,7 +3596,8 @@
         "component_ref": "CON",
         "execution_status": "scoped_fresh_evidence_attached; full_source_acceptance_not_established",
         "fresh_evidence_ids": [
-          "BE-BOUNDARY-20260929"
+          "BE-BOUNDARY-20260929",
+          "FINAL-OFFLINE-20260929"
         ]
       },
       "deployment": {
@@ -5667,7 +5670,8 @@
         "component_ref": "DEB",
         "execution_status": "scoped_fresh_evidence_attached; full_source_acceptance_not_established",
         "fresh_evidence_ids": [
-          "BE-WORKFLOWS-20260929"
+          "BE-WORKFLOWS-20260929",
+          "FINAL-OFFLINE-20260929"
         ]
       },
       "deployment": {
@@ -5729,7 +5733,8 @@
         "component_ref": "DEB",
         "execution_status": "scoped_fresh_evidence_attached; full_source_acceptance_not_established",
         "fresh_evidence_ids": [
-          "BE-WORKFLOWS-20260929"
+          "BE-WORKFLOWS-20260929",
+          "FINAL-OFFLINE-20260929"
         ]
       },
       "deployment": {
@@ -6076,7 +6081,8 @@
         "component_ref": "DEB",
         "execution_status": "scoped_fresh_evidence_attached; full_source_acceptance_not_established",
         "fresh_evidence_ids": [
-          "BE-WORKFLOWS-20260929"
+          "BE-WORKFLOWS-20260929",
+          "FINAL-OFFLINE-20260929"
         ]
       },
       "deployment": {
@@ -9323,7 +9329,9 @@
         "execution_status": "scoped_fresh_evidence_attached; full_source_acceptance_not_established",
         "fresh_evidence_ids": [
           "UX-FOCUSED-20260929",
-          "FINAL-BROWSER-SCOPED-20260929"
+          "FINAL-BROWSER-SCOPED-20260929",
+          "FINAL-OFFLINE-20260929",
+          "CI-DATABASE-BROWSER-20260929"
         ]
       },
       "deployment": {
@@ -9548,7 +9556,8 @@
         "execution_status": "scoped_fresh_evidence_attached; full_source_acceptance_not_established",
         "fresh_evidence_ids": [
           "BE-CREDIT-20260929",
-          "BE-REPLAY-20260929"
+          "BE-REPLAY-20260929",
+          "FINAL-OFFLINE-20260929"
         ]
       },
       "deployment": {
@@ -9608,7 +9617,8 @@
         "execution_status": "scoped_fresh_evidence_attached; full_source_acceptance_not_established",
         "fresh_evidence_ids": [
           "UX-FOCUSED-20260929",
-          "FINAL-BROWSER-SCOPED-20260929"
+          "FINAL-BROWSER-SCOPED-20260929",
+          "FINAL-OFFLINE-20260929"
         ]
       },
       "deployment": {
@@ -9718,8 +9728,10 @@
       },
       "testing": {
         "component_ref": "API",
-        "execution_status": "no_per_requirement_acceptance_run_attached",
-        "fresh_evidence_ids": []
+        "execution_status": "scoped_fresh_evidence_attached; full_source_acceptance_not_established",
+        "fresh_evidence_ids": [
+          "FINAL-CONTRACT-20260929"
+        ]
       },
       "deployment": {
         "status": "not_inferred",
@@ -9827,7 +9839,10 @@
         "execution_status": "scoped_fresh_evidence_attached; full_source_acceptance_not_established",
         "fresh_evidence_ids": [
           "BE-REPLAY-20260929",
-          "FINAL-PG-20260929"
+          "FINAL-PG-20260929",
+          "FINAL-OFFLINE-20260929",
+          "CI-PG-20260929",
+          "CI-DATABASE-BROWSER-20260929"
         ]
       },
       "deployment": {
@@ -9993,7 +10008,8 @@
         "component_ref": "API",
         "execution_status": "scoped_fresh_evidence_attached; full_source_acceptance_not_established",
         "fresh_evidence_ids": [
-          "BE-BOUNDARY-20260929"
+          "BE-BOUNDARY-20260929",
+          "FINAL-OFFLINE-20260929"
         ]
       },
       "deployment": {
@@ -10505,11 +10521,13 @@
         "component_ref": "BIL",
         "execution_status": "scoped_fresh_evidence_attached; full_source_acceptance_not_established",
         "fresh_evidence_ids": [
-          "BE-BILLING-MALFORMED-20260929",
           "BE-BILLING-PG-20260929",
+          "UX-FOCUSED-20260929",
+          "BE-BILLING-MALFORMED-20260929",
           "FINAL-PG-20260929",
           "UX-COMMERCIAL-20260929",
-          "UX-FOCUSED-20260929"
+          "FINAL-OFFLINE-20260929",
+          "CI-PG-20260929"
         ]
       },
       "deployment": {
@@ -10632,7 +10650,9 @@
         "fresh_evidence_ids": [
           "BE-BILLING-PG-20260929",
           "UX-FOCUSED-20260929",
-          "FINAL-PG-20260929"
+          "FINAL-PG-20260929",
+          "FINAL-OFFLINE-20260929",
+          "CI-PG-20260929"
         ]
       },
       "deployment": {
@@ -10809,7 +10829,8 @@
         "execution_status": "scoped_fresh_evidence_attached; full_source_acceptance_not_established",
         "fresh_evidence_ids": [
           "BE-BILLING-PG-20260929",
-          "FINAL-PG-20260929"
+          "FINAL-PG-20260929",
+          "CI-PG-20260929"
         ]
       },
       "deployment": {
@@ -11186,8 +11207,10 @@
       },
       "testing": {
         "component_ref": "NFR-AVA",
-        "execution_status": "no_per_requirement_acceptance_run_attached",
-        "fresh_evidence_ids": []
+        "execution_status": "scoped_fresh_evidence_attached; full_source_acceptance_not_established",
+        "fresh_evidence_ids": [
+          "CI-RECOVERY-20260929"
+        ]
       },
       "deployment": {
         "status": "not_inferred",
@@ -11241,8 +11264,10 @@
       },
       "testing": {
         "component_ref": "NFR-AVA",
-        "execution_status": "no_per_requirement_acceptance_run_attached",
-        "fresh_evidence_ids": []
+        "execution_status": "scoped_fresh_evidence_attached; full_source_acceptance_not_established",
+        "fresh_evidence_ids": [
+          "CI-RECOVERY-20260929"
+        ]
       },
       "deployment": {
         "status": "not_inferred",
@@ -13289,7 +13314,8 @@
         "fresh_evidence_ids": [
           "BE-CREDIT-20260929",
           "BE-REPLAY-20260929",
-          "BE-CASH-20260929"
+          "BE-CASH-20260929",
+          "FINAL-OFFLINE-20260929"
         ]
       },
       "deployment": {
@@ -13965,7 +13991,8 @@
         "execution_status": "scoped_fresh_evidence_attached; full_source_acceptance_not_established",
         "fresh_evidence_ids": [
           "BE-WORKFLOWS-20260929",
-          "UX-FOCUSED-20260929"
+          "UX-FOCUSED-20260929",
+          "FINAL-OFFLINE-20260929"
         ]
       },
       "deployment": {
@@ -14027,7 +14054,8 @@
         "execution_status": "scoped_fresh_evidence_attached; full_source_acceptance_not_established",
         "fresh_evidence_ids": [
           "BE-WORKFLOWS-20260929",
-          "UX-FOCUSED-20260929"
+          "UX-FOCUSED-20260929",
+          "FINAL-OFFLINE-20260929"
         ]
       },
       "deployment": {
@@ -14312,7 +14340,8 @@
         "component_ref": "A2A",
         "execution_status": "scoped_fresh_evidence_attached; full_source_acceptance_not_established",
         "fresh_evidence_ids": [
-          "BE-WORKFLOWS-20260929"
+          "BE-WORKFLOWS-20260929",
+          "FINAL-OFFLINE-20260929"
         ]
       },
       "deployment": {
@@ -14430,7 +14459,8 @@
         "execution_status": "scoped_fresh_evidence_attached; full_source_acceptance_not_established",
         "fresh_evidence_ids": [
           "BE-CREDIT-20260929",
-          "BE-REPLAY-20260929"
+          "BE-REPLAY-20260929",
+          "FINAL-OFFLINE-20260929"
         ]
       },
       "deployment": {
@@ -14546,7 +14576,8 @@
         "component_ref": "CRD",
         "execution_status": "scoped_fresh_evidence_attached; full_source_acceptance_not_established",
         "fresh_evidence_ids": [
-          "UX-FOCUSED-20260929"
+          "UX-FOCUSED-20260929",
+          "FINAL-OFFLINE-20260929"
         ]
       },
       "deployment": {
@@ -14943,7 +14974,8 @@
         "component_ref": "CRD",
         "execution_status": "scoped_fresh_evidence_attached; full_source_acceptance_not_established",
         "fresh_evidence_ids": [
-          "BE-BOUNDARY-20260929"
+          "BE-BOUNDARY-20260929",
+          "FINAL-OFFLINE-20260929"
         ]
       },
       "deployment": {
@@ -15004,7 +15036,8 @@
         "execution_status": "scoped_fresh_evidence_attached; full_source_acceptance_not_established",
         "fresh_evidence_ids": [
           "BE-CREDIT-20260929",
-          "UX-FOCUSED-20260929"
+          "UX-FOCUSED-20260929",
+          "FINAL-OFFLINE-20260929"
         ]
       },
       "deployment": {
@@ -16023,7 +16056,8 @@
         "component_ref": "CASH",
         "execution_status": "scoped_fresh_evidence_attached; full_source_acceptance_not_established",
         "fresh_evidence_ids": [
-          "UX-FOCUSED-20260929"
+          "UX-FOCUSED-20260929",
+          "FINAL-OFFLINE-20260929"
         ]
       },
       "deployment": {
@@ -16141,7 +16175,8 @@
         "component_ref": "CASH",
         "execution_status": "scoped_fresh_evidence_attached; full_source_acceptance_not_established",
         "fresh_evidence_ids": [
-          "BE-CASH-20260929"
+          "BE-CASH-20260929",
+          "FINAL-OFFLINE-20260929"
         ]
       },
       "deployment": {
@@ -17604,6 +17639,160 @@
       "scope_limit": "Scoped synthetic UI validation/display/attribution evidence only; not independent contract approval, identity-provider verification or hosted accessibility acceptance.",
       "requirement_ids": [
         "BIL-02"
+      ]
+    },
+    {
+      "id": "FINAL-OFFLINE-20260929",
+      "command": "node scripts/run-tests.mjs",
+      "source_revision": "c02147b3c8904d3175e55156ee7457f8ea3e1e63",
+      "source_state": "Committed application source; only programme README evidence text differed during verification",
+      "environment": "Windows; Node 24.19.0; installed locked repository dependencies; synthetic data only",
+      "dataset": "Complete offline runner, including the scoped domain, architecture, billing, recovery, tooling and React/jsdom fixtures",
+      "expected": "All selected offline checks complete without test deletion, skipped failure concealment or weakened assertions",
+      "actual": "Exit 0; all offline checks passed. Frontend: 793 tests passed across 100 files in 202.03s.",
+      "evidence_location": [
+        "docs/refactor-2026-09-29/README.md",
+        "private programme evidence: final-offline.log"
+      ],
+      "evidence_sha256": "a8a5e01e69b15ad4ebd4f5e017c4a5af752e37d1bdcb6a6518472b62861077f8",
+      "scope_limit": "Exact committed application-source offline regression. Requirement links refer only to the narrower changed-package slices already described in BE-/UX- evidence, not full normative acceptance. jsdom emitted known navigation/canvas limitations; this is not physical-device, external-app, provider, hosted or independent acceptance.",
+      "requirement_ids": [
+        "A2A-06",
+        "A2A-07",
+        "A2A-12",
+        "API-03",
+        "API-06",
+        "BIL-02",
+        "BIL-04",
+        "CASH-06",
+        "CASH-08",
+        "CON-01",
+        "CRD-02",
+        "CRD-04",
+        "CRD-11",
+        "CRD-12",
+        "DEB-03",
+        "DEB-04",
+        "DEB-10",
+        "OB-CNS-04",
+        "UI-01",
+        "UI-05",
+        "UI-06"
+      ]
+    },
+    {
+      "id": "FINAL-BUILD-20260929",
+      "command": "pnpm run build",
+      "source_revision": "c02147b3c8904d3175e55156ee7457f8ea3e1e63",
+      "source_state": "Committed application source; only programme README evidence text differed during verification",
+      "environment": "Windows; Node 24.19.0; installed locked repository dependencies; synthetic data only",
+      "dataset": "Workspace libraries, API and console source/test typechecks, scripts and configured builds",
+      "expected": "All supported typechecks and builds complete",
+      "actual": "Exit 0; complete workspace typecheck/build passed; console built in 5.24s.",
+      "evidence_location": [
+        "docs/refactor-2026-09-29/README.md",
+        "private programme evidence: final-build.log"
+      ],
+      "evidence_sha256": "6932aecfc55d05447dd0e72d32ad7140a6e27acc7c98e087d3cea44b2c8ec944",
+      "scope_limit": "Build and type compatibility only; does not establish endpoint behaviour, deployment, operating authority, performance service levels or independent acceptance.",
+      "requirement_ids": []
+    },
+    {
+      "id": "FINAL-CONTRACT-20260929",
+      "command": "pnpm run check:contract",
+      "source_revision": "c02147b3c8904d3175e55156ee7457f8ea3e1e63",
+      "source_state": "Committed application source; only programme README evidence text differed during verification",
+      "environment": "Windows; Node 24.19.0; installed locked repository dependencies; synthetic data only",
+      "dataset": "Maintained OpenAPI source, committed spec and generated React client/Zod packages",
+      "expected": "Exact regeneration agrees with the committed contract and generated packages",
+      "actual": "Exit 0; scripts/create-valopay-spec.cjs and codegen output match the committed OpenAPI and generated packages.",
+      "evidence_location": [
+        "docs/refactor-2026-09-29/README.md",
+        "private programme evidence: final-contract.log"
+      ],
+      "evidence_sha256": "71b12bca0277e05a99361aecc2e80e2a726609743dcd9cb6f1d48fcfb5dc0baf",
+      "scope_limit": "Generation consistency and deployed-v1 source compatibility slice of API-01 only. Does not establish complete caller migration, external provider acceptance, live-v2 operation or independent approval.",
+      "requirement_ids": [
+        "API-01"
+      ]
+    },
+    {
+      "id": "CI-PG-20260929",
+      "command": "pnpm run test:integration",
+      "source_revision": "c02147b3c8904d3175e55156ee7457f8ea3e1e63",
+      "environment": "GitHub Actions initial source-revision run; disposable PostgreSQL service and synthetic fixtures",
+      "dataset": "All 37 selected actual-PostgreSQL integration suites",
+      "expected": "Selected database suites pass under CI",
+      "actual": "Job completed successfully; all 37 database-backed suites passed",
+      "evidence_location": "https://github.com/obeidpeter/valo-pay/actions/runs/36551327908/job/109349941505",
+      "scope_limit": "Initial application-source CI evidence only; other jobs were still pending when recorded and a later evidence-only commit triggers a new run. Scoped billing/keyed operation coverage, not full normative or hosted acceptance.",
+      "requirement_ids": [
+        "BIL-02",
+        "BIL-04",
+        "BIL-07",
+        "API-03"
+      ]
+    },
+    {
+      "id": "CI-PILOT-20260929",
+      "command": "pnpm run check:pilot-rehearsal",
+      "source_revision": "c02147b3c8904d3175e55156ee7457f8ea3e1e63",
+      "environment": "GitHub Actions initial source-revision run; disposable PostgreSQL service and synthetic fixtures",
+      "dataset": "Four synthetic pilot-rehearsal checks using disposable CI resources",
+      "expected": "All selected pilot-rehearsal checks pass",
+      "actual": "4 of 4 checks passed; job completed successfully",
+      "evidence_location": [
+        "https://github.com/obeidpeter/valo-pay/actions/runs/36551327908/job/109349941505",
+        "CI artifact: synthetic-pilot-rehearsal-evidence"
+      ],
+      "scope_limit": "Synthetic rehearsal only; no genuine commercial onboarding, provider credentials, independent operator approval or hosted commissioning.",
+      "requirement_ids": []
+    },
+    {
+      "id": "CI-RECOVERY-20260929",
+      "command": "scripts/node_modules/.bin/tsx artifacts/api-server/tests/recovery-rehearsal.integration.test.ts with VALOPAY_RUN_RECOVERY=1",
+      "source_revision": "c02147b3c8904d3175e55156ee7457f8ea3e1e63",
+      "environment": "GitHub Actions initial source-revision run; disposable PostgreSQL service and synthetic fixtures",
+      "dataset": "Version 2 synthetic backup/restore report; database and two private fixture objects; one simulated post-snapshot write",
+      "expected": "Complete the scoped backup/restore rehearsal and account explicitly for post-snapshot write loss",
+      "actual": {
+        "status": "passed",
+        "report_version": 2,
+        "complete_backup_ms": 83,
+        "complete_restore_ms": 124,
+        "total_ms": 659,
+        "snapshot_age_ms": 342,
+        "simulated_post_snapshot_writes": 1,
+        "observed_post_snapshot_loss": 1,
+        "private_objects": 2,
+        "external_storage_acceptance": false,
+        "independent_key_custody_acceptance": false,
+        "production_restore_acceptance": false
+      },
+      "evidence_location": [
+        "https://github.com/obeidpeter/valo-pay/actions/runs/36551327908/job/109349941505",
+        "CI artifact: synthetic-recovery-evidence"
+      ],
+      "scope_limit": "Disposable CI recovery timings and accounted synthetic loss. Not hosted RPO/RTO, real external storage, independent key custody, production restore or lawful erased-access acceptance.",
+      "requirement_ids": [
+        "NFR-AVA-03",
+        "NFR-AVA-04"
+      ]
+    },
+    {
+      "id": "CI-DATABASE-BROWSER-20260929",
+      "command": "pnpm --filter @workspace/valopay run test:browser:database",
+      "source_revision": "c02147b3c8904d3175e55156ee7457f8ea3e1e63",
+      "environment": "GitHub Actions initial source-revision run; disposable PostgreSQL service and synthetic fixtures",
+      "dataset": "Chromium with actual API/PostgreSQL: lost-response customer recovery, paged history/balances/lender isolation, reconciliation rejection persistence/audit, and pilot import acknowledgement recovery",
+      "expected": "All four browser/database workflows preserve durable outcomes and lender scope",
+      "actual": "Job completed successfully; 4 tests passed in 10.4s",
+      "evidence_location": "https://github.com/obeidpeter/valo-pay/actions/runs/36551327908/job/109349941636",
+      "scope_limit": "Real local API/database under automated Chromium in CI; synthetic identities and data. Not physical-device, screen-reader, provider-app-return, genuine user research or independent accessibility certification.",
+      "requirement_ids": [
+        "UI-01",
+        "API-03",
+        "TEN-01"
       ]
     }
   ],

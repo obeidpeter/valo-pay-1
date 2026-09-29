@@ -10,7 +10,7 @@ The scheduler remains **off**, financial staging disabled and existing live gate
 
 ## Refactoring candidate · not deployed
 
-The [programme release record](refactor-2026-09-29/README.md) describes the subsequent capability-boundary, current-permission, reviewed-contract-date and experience improvements. It separately records baseline, candidate verification and external acceptance. This candidate adds no database migration, dependency or shared-host setting. Reviewed contract dates govern future design-partner pricing only after a service-attributed review; issued invoices remain immutable. Publication and activation are separate decisions.
+The [programme release record](refactor-2026-09-29/README.md) describes the subsequent capability-boundary, current-permission, reviewed-contract-date and experience improvements in [draft PR #78](https://github.com/obeidpeter/valo-pay/pull/78). Implemented commit `c02147b3c8904d3175e55156ee7457f8ea3e1e63` passed all eight CI jobs, 793 local UI tests across 100 files, all offline checks and 37 PostgreSQL suites; CI also passed pilot, real API/browser and synthetic backup/restore rehearsals. The release record separately records baseline, candidate verification and external acceptance. This candidate adds no database migration, dependency or shared-host setting. Reviewed contract dates govern future design-partner pricing only after a service-attributed review; issued invoices remain immutable. Publication and activation are separate decisions.
 
 ## Earlier deployed release · PR #76 · 29 September 2026
 
