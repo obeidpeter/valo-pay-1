@@ -48,18 +48,18 @@ test("focus follows Edit, Cancel and Save on Settings instead of falling to the 
   await expect.poll(() => focused(page)).toMatchObject({ tag: "button", text: "Edit" });
 });
 
-test("a pay-by-bank step that removes its button moves focus to what it did", async ({ page }) => {
+test("a Pay by Bank step that removes its button moves focus to what it did", async ({ page }) => {
   await page.goto("/pay-by-bank");
-  await page.getByRole("button", { name: /Create sample checkout/ }).click();
-  await page.getByRole("button", { name: "Review & authorise" }).click();
+  await page.getByRole("button", { name: /Create checkout/ }).click();
+  await page.getByRole("button", { name: "Simulate authorisation" }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel("Reason").fill("Review sample payment details");
-  await dialog.getByRole("button", { name: "Confirm sample action" }).click();
-  const browserReturn = page.getByRole("button", { name: "Simulate browser return" });
+  await dialog.getByRole("button", { name: "Simulate authorisation" }).click();
+  const browserReturn = page.getByRole("button", { name: "Simulate return from bank" });
   await browserReturn.focus();
   await page.keyboard.press("Enter");
   await expect(browserReturn).toHaveCount(0);
-  await expect.poll(() => focused(page)).toMatchObject({ tag: "p", text: expect.stringMatching(/^Browser return recorded\./) });
+  await expect.poll(() => focused(page)).toMatchObject({ tag: "p", text: expect.stringMatching(/^Return from the bank recorded\./) });
 });
 
 test("a decision on Team & access moves focus to what it did, and a staff administrator is still warned", async ({ page }) => {

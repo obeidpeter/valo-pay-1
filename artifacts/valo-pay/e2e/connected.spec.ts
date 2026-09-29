@@ -66,24 +66,29 @@ test("a bank return stays pending until the sample provider confirms payment", a
   await page.getByLabel("Customer and instalment").selectOption({
     label: options.find((s) => s.includes("DEMO-LOAN-1005"))!,
   });
-  await page.getByRole("button", { name: /Create sample checkout/ }).click();
-  await page.getByRole("button", { name: "Review & authorise" }).click();
+  await page.getByRole("button", { name: /Create checkout/ }).click();
+  await page.getByRole("button", { name: "Simulate authorisation" }).click();
   await page
     .getByRole("dialog")
     .getByLabel("Reason")
     .fill("Review the amount and sample beneficiary");
-  await page.getByRole("button", { name: "Confirm sample action" }).click();
-  await page.getByRole("button", { name: "Simulate browser return" }).click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Simulate authorisation" })
+    .click();
+  await page.getByRole("button", { name: "Simulate return from bank" }).click();
   await expect(
     page.getByText(
       "Browser returned. Payment is not confirmed; awaiting provider evidence.",
     ),
   ).toBeVisible();
   await page.getByRole("button", { name: "Simulate unknown outcome" }).click();
-  await expect(page.getByText(/A new collection is blocked/)).toBeVisible();
-  await page.getByRole("button", { name: "Query again: confirmed" }).click();
   await expect(
-    page.getByRole("link", { name: "View reconciliation", exact: true }),
+    page.getByText(/You cannot collect this instalment again until the outcome is known/),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Check again: confirmed" }).click();
+  await expect(
+    page.getByRole("link", { name: "Open Reconciliation", exact: true }),
   ).toBeVisible();
 });
 test("permissions can be granted and revoked with an explicit explanation", async ({

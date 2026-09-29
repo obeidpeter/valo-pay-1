@@ -86,26 +86,26 @@ describe('dialog opener restoration across browser click behavior', () => {
 });
 
 describe('connected review dialogs hand focus back after confirming', () => {
-  it('returns Pay-by-bank focus to the opener after Go back, and to the result when confirming removed the opener', async () => {
+  it('returns Pay by Bank focus to the opener after Keep checkout, and to the result when confirming removed the opener', async () => {
     const user = userEvent.setup();
     renderApp('/pay-by-bank');
     await screen.findByRole('heading', { name: 'Pay by Bank', level: 1 });
     const due = api.state().records.find((r) => r.reference === 'DEMO-LOAN-1005')!;
     await user.selectOptions(screen.getByLabelText('Customer and instalment'), due.id);
-    await user.click(screen.getByRole('button', { name: /Create sample checkout/ }));
+    await user.click(screen.getByRole('button', { name: /Create checkout/ }));
     const cancel = await screen.findByRole('button', { name: 'Cancel checkout' });
     await user.click(cancel);
-    await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Go back' }));
+    await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Keep checkout' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     await waitFor(() => expect(document.activeElement).toBe(cancel));
 
     // Authorising removes the button that opened the review: focus goes to the result, not the page body.
-    await user.click(screen.getByRole('button', { name: 'Review & authorise' }));
+    await user.click(screen.getByRole('button', { name: 'Simulate authorisation' }));
     const dialog = await screen.findByRole('dialog');
     await user.type(within(dialog).getByLabelText('Reason'), 'Review sample payment details');
-    await user.click(within(dialog).getByRole('button', { name: 'Confirm sample action' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Simulate authorisation' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-    expect(screen.queryByRole('button', { name: 'Review & authorise' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Simulate authorisation' })).toBeNull();
     await waitFor(() => expect(document.activeElement?.textContent).toMatch(/^Sample bank authorisation recorded\./));
     expect(document.activeElement?.getAttribute('role')).toBe('status');
   });

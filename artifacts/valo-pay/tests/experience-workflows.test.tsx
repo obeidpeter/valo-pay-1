@@ -70,31 +70,31 @@ describe("evidence disclosure", () => {
 });
 
 describe("payment evidence progress", () => {
-  it.each(["authorised", "pending", "unknown"])("never presents %s as a verified receipt", status => {
+  it.each(["authorised", "pending", "unknown"])("never presents %s as a confirmed payment", status => {
     render(<PaymentProgress status={status} expired={false} held={false} refundRequested={false} />);
-    const progress = screen.getByRole("list", { name: "Payment steps" });
-    const receipt = within(progress).getByText("3. Verified receipt").closest("li")!;
+    const progress = screen.getByRole("list", { name: "Checkout steps" });
+    const receipt = within(progress).getByText("3. Payment confirmed").closest("li")!;
     expect(receipt.textContent).not.toContain("Recorded");
     expect(receipt.getAttribute("aria-current")).toBe("step");
-    if (status === "unknown") expect(screen.getByText(/Do not create or retry a competing payment/)).toBeTruthy();
-    else expect(screen.getByText(/browser return are not proof of payment/)).toBeTruthy();
+    if (status === "unknown") expect(screen.getByText(/Do not start another payment for this instalment while the outcome is unknown/)).toBeTruthy();
+    else expect(screen.getByText(/a return from the bank do not prove payment/)).toBeTruthy();
   });
 
   it.each([
-    ["created", "Review before authorising"], ["cancelled", "Checkout cancelled before authorisation"],
-    ["failed", "Provider failure recorded"], ["confirmed", "Receipt recorded for reconciliation"],
-    ["refunded", "Refund evidence recorded"], ["reversed", "Reversal evidence recorded"],
+    ["created", "Check the details before authorisation"], ["cancelled", "Checkout cancelled before authorisation"],
+    ["failed", "Payment failed"], ["confirmed", "Payment confirmed"],
+    ["refunded", "Refund recorded"], ["reversed", "Reversal recorded"],
   ])("gives a safe next step for %s with no actionable controls", (status, title) => {
     render(<PaymentProgress status={status} expired={false} held={false} refundRequested={false} />);
     expect(screen.getByRole("heading", { name: title })).toBeTruthy();
     expect(screen.queryByRole("button")).toBeNull();
-    if (["refunded", "reversed"].includes(status)) expect(screen.getByText(/original receipt remains in history/)).toBeTruthy();
+    if (["refunded", "reversed"].includes(status)) expect(screen.getByText(/original payment stays in the timeline/)).toBeTruthy();
   });
 
   it("keeps expiry, reversal review and refund approval distinct", () => {
-    expect(paymentProgress("created", { expired: true }).title).toBe("Authorisation window ended");
-    expect(paymentProgress("created", { held: true }).title).toBe("Resolve the review hold");
-    expect(paymentProgress("confirmed", { refundRequested: true }).title).toBe("Independent refund review needed");
-    expect(paymentProgress("unknown", { expired: true }).title).toBe("Resolve the existing payment");
+    expect(paymentProgress("created", { expired: true }).title).toBe("Checkout expired");
+    expect(paymentProgress("created", { held: true }).title).toBe("Finish the reversal review first");
+    expect(paymentProgress("confirmed", { refundRequested: true }).title).toBe("Refund waiting for a Finance reviewer");
+    expect(paymentProgress("unknown", { expired: true }).title).toBe("Resolve the unknown outcome");
   });
 });

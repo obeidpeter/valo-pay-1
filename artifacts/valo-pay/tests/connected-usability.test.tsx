@@ -101,12 +101,12 @@ it("does not offer a Compliance viewer payment actions rejected by the server", 
   expect(
     (
       (await screen.findByRole("button", {
-        name: /Create sample checkout/,
+        name: /Create checkout/,
       })) as HTMLButtonElement
     ).disabled,
   ).toBe(true);
   expect(
-    screen.getByText(/Your role, Compliance reviewer, can view this journey/),
+    screen.getByText(/^Only Admin, Operations or Finance can create or change a checkout\. Your role is Compliance reviewer\./),
   ).toBeTruthy();
 });
 
@@ -126,7 +126,7 @@ it("lets an operator clear and correct a checkout amount without restoring the f
   expect((amount as HTMLInputElement).value).toBe("");
   await user.type(amount, "125.005");
   await user.click(
-    screen.getByRole("button", { name: /Create sample checkout/ }),
+    screen.getByRole("button", { name: /Create checkout/ }),
   );
   expect(amount.getAttribute("aria-invalid")).toBe("true");
   expect(document.activeElement).toBe(amount);
@@ -136,7 +136,7 @@ it("lets an operator clear and correct a checkout amount without restoring the f
   await user.clear(amount);
   await user.type(amount, "125.29");
   await user.click(
-    screen.getByRole("button", { name: /Create sample checkout/ }),
+    screen.getByRole("button", { name: /Create checkout/ }),
   );
   await waitFor(() =>
     expect(

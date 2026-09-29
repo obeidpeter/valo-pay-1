@@ -6,7 +6,7 @@ beforeEach(() => {
   api = installFakeApi({ now: "2026-09-21T10:00:00.000Z" });
 });
 afterEach(() => api.uninstall());
-it("walks through authorisation, unconfirmed browser return and a canonical receipt", async () => {
+it("walks through authorisation, an unconfirmed return from the bank and a confirmed payment", async () => {
   const user = userEvent.setup();
   renderApp("/pay-by-bank");
   await screen.findByRole("heading", { name: "Pay by Bank", level: 1 });
@@ -18,30 +18,32 @@ it("walks through authorisation, unconfirmed browser return and a canonical rece
     due.id,
   );
   await user.click(
-    screen.getByRole("button", { name: /Create sample checkout/ }),
+    screen.getByRole("button", { name: /Create checkout/ }),
   );
-  await user.click(
-    await screen.findByRole("button", { name: "Review & authorise" }),
-  );
-  const dialog = screen.getByRole("dialog");
+  const authorise = await screen.findByRole("button", { name: "Simulate authorisation" });
+  // The new checkout's status reads in the shared words, in the list, on the checkout and in its timeline.
+  expect(screen.getAllByText("Awaiting authorisation")).toHaveLength(3);
+  await user.click(authorise);
+  const dialog = screen.getByRole("dialog", { name: "Simulate the customer’s authorisation?" });
   expect(within(dialog).getByText(/does not calculate or charge payment fees/)).toBeTruthy();
+  expect(within(dialog).getByText(/Sample data only\. No money will move\./)).toBeTruthy();
   await user.type(
     within(dialog).getByLabelText("Reason"),
     "Review sample payment details",
   );
   await user.click(
-    within(dialog).getByRole("button", { name: "Confirm sample action" }),
+    within(dialog).getByRole("button", { name: "Simulate authorisation" }),
   );
   await user.click(
-    await screen.findByRole("button", { name: "Simulate browser return" }),
+    await screen.findByRole("button", { name: "Simulate return from bank" }),
   );
   await waitFor(() =>
     expect(
       api.state().records.find((r) => r.kind === "connected-intents")?.status,
     ).toBe("pending"),
   );
-  expect(screen.getByRole("heading", { name: "Await a verified receipt" })).toBeTruthy();
-  expect(within(screen.getByRole("list", { name: "Payment steps" })).getByText("3. Verified receipt").closest("li")!.textContent).not.toContain("Recorded");
+  expect(screen.getByRole("heading", { name: "Wait for the payment to be confirmed" })).toBeTruthy();
+  expect(within(screen.getByRole("list", { name: "Checkout steps" })).getByText("3. Payment confirmed").closest("li")!.textContent).not.toContain("Recorded");
   expect(
     api
       .state()
@@ -50,11 +52,11 @@ it("walks through authorisation, unconfirmed browser return and a canonical rece
       ),
   ).toHaveLength(0);
   await user.click(
-    screen.getByRole("button", { name: "Simulate confirmed receipt" }),
+    screen.getByRole("button", { name: "Simulate confirmed payment" }),
   );
-  await screen.findByRole("link", { name: "View reconciliation" });
-  expect(screen.getByRole("heading", { name: "Receipt recorded for reconciliation" })).toBeTruthy();
-  expect(within(screen.getByRole("list", { name: "Payment steps" })).getByText("3. Verified receipt").closest("li")!.textContent).toContain("Recorded");
+  await screen.findByRole("link", { name: "Open Reconciliation" });
+  expect(screen.getByRole("heading", { name: "Payment confirmed" })).toBeTruthy();
+  expect(within(screen.getByRole("list", { name: "Checkout steps" })).getByText("3. Payment confirmed").closest("li")!.textContent).toContain("Recorded");
   expect(
     api
       .state()
@@ -117,4 +119,28 @@ it("shows request failures and keeps read-only actions disabled", async () => {
   expect(
     await screen.findByRole("heading", { name: "Pay by Bank", level: 1 }),
   ).toBeTruthy();
+});
+it("shows a reason's minimum under the field and refuses a short one in the page's own words", async () => {
+  const user = userEvent.setup();
+  renderApp("/pay-by-bank");
+  await screen.findByRole("heading", { name: "Pay by Bank", level: 1 });
+  await user.click(screen.getByRole("button", { name: /Create checkout/ }));
+  await user.click(await screen.findByRole("button", { name: "Cancel checkout" }));
+  const dialog = screen.getByRole("dialog", { name: "Cancel this checkout?" });
+  const reason = within(dialog).getByLabelText("Reason");
+  expect(within(dialog).getByText("At least 8 characters. Saved in the audit log.")).toBeTruthy();
+  const sent = () => api.calls.filter((c) => c.method === "POST" && c.path.includes("/connected/actions")).length;
+  const before = sent();
+  await user.type(reason, "Too sho");
+  await user.click(within(dialog).getByRole("button", { name: "Cancel checkout" }));
+  expect(within(dialog).getByText("Enter a reason (at least 8 characters).")).toBeTruthy();
+  expect(reason.getAttribute("aria-invalid")).toBe("true");
+  expect(document.activeElement).toBe(reason);
+  expect(sent()).toBe(before);
+  await user.type(reason, "rt of time for this sample");
+  await user.click(within(dialog).getByRole("button", { name: "Cancel checkout" }));
+  await waitFor(() =>
+    expect(api.state().records.find((r) => r.kind === "connected-intents")?.status).toBe("cancelled"),
+  );
+  expect(screen.getByRole("status").textContent).toContain("No money moved.");
 });

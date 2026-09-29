@@ -110,12 +110,12 @@ it("has Finance record a pay-by-bank outcome that stayed unknown, with its evide
   expect([instalment().status, instalment().data.outstandingKobo]).toEqual(["paid", 0]);
 });
 
-it("points from Pay-by-bank and the overview to an outcome that stayed unknown", async () => {
+it("points from Pay by Bank and the overview to an outcome that stayed unknown", async () => {
   const { exceptionId } = unknownCheckout();
   renderApp("/pay-by-bank");
-  const link = await screen.findByRole("link", { name: "Open the unknown-outcome exception" });
+  const link = await screen.findByRole("link", { name: "Open the exception for this checkout" });
   expect(new URLSearchParams(link.getAttribute("href")!.split("?")[1]).get("record")).toBe(exceptionId);
-  expect(link.closest("p")!.textContent).toContain("the daily close raises an unknown-outcome exception for Finance");
+  expect(link.closest("p")!.textContent).toContain("the daily close creates an exception for Finance");
   switchTo("Admin", "/overview");
   const alert = (await screen.findByRole("heading", { name: "Pay-by-bank outcomes unknown for over 24 hours" })).closest("li")!;
   expect(within(alert).getByRole("link", { name: /Review pay-by-bank checkouts/ }).getAttribute("href")).toBe("/pay-by-bank");
