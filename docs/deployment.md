@@ -88,6 +88,16 @@ The deployment sets `VALOPAY_EXPIRED_WORKSPACE_CLEANUP=on`. An anonymous sandbox
 
 With development-instance keys (`pk_test_`, `sk_test_`), the Clerk SDK collects telemetry and prints a three-line plain-text notice on stdout once per process, among the JSON log lines. Set `CLERK_TELEMETRY_DISABLED=1` on every pilot host: the deployment sets it, and a separately configured host must set it too. With it the SDK sends nothing and prints no notice.
 
+## Before the next design-partner invoice
+
+The review fixes of PRs #71 to #79 make a design partner's discount dates price an invoice only once two people have checked them against the signed agreement (BIL-02). They need no migration and change no stored record, but after deploying them every design-partner agreement waits for a second person before its next invoice. Before issuing it, Finance:
+
+1. Opens Go-live evidence and reads the note under each signed design-partner agreement's status. Dates one person saved with an earlier build are shown as proposed by that person, awaiting confirmation; any other note names what stops the terms pricing an invoice, such as “Full-price terms are signed” not ticked or a date missing.
+2. Asks a different Admin or Finance user from the one who proposed the dates to check them against the signed agreement and choose Confirm discount dates. Correcting the terms first proposes them afresh, and the confirmation then covers the corrected dates. In a sandbox every demo role is one visitor, so only a staff pilot can confirm.
+3. Opens Reports > Billing. Once the next invoice can be priced, Issue invoice is available again. If issued invoices are listed as differing from the confirmed agreement (for example months invoiced under the earlier calendar-2027 rule), agrees each difference with the lender outside Valo Pay: an issued invoice is never changed, and the platform has no correction for its discount.
+
+Rolling back to a build from before these fixes prices one person's saved dates again, and refuses (400) any edit to commercial terms whose dates were proposed or confirmed after them: that build drops the fields it does not know, then finds the stored proposal changed. Prefer a forward fix.
+
 ## What the owner does by hand
 
 - Choose the deployment type (Autoscale or Reserved VM) and, for Autoscale, create the Scheduled Deployment above and set `VALOPAY_CLOSE_SCHEDULER=external` on the Autoscale deployment.
