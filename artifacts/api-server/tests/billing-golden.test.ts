@@ -11,6 +11,7 @@ import { makeRecord, recordsOf } from "../src/domain/records.js";
 import { seedMerchant } from "../src/lib/valopay-seed.js";
 import type { Context, DomainState, TypedRecord, ValopayRecord } from "../src/domain/types.js";
 import { validateRecord } from '../src/domain/validation.js';
+import { termsReplaced } from "@workspace/valopay-schema";
 
 const { assertFinalState } = await import("../src/lib/valopay-store.js");
 let checks = 0;
@@ -243,8 +244,9 @@ checks += 5;
   const statement = () => buildReports(state, wat('2027-05-02T09:00:00')).billing;
   const listed = () => (statement().rateDiscrepancies as Array<Record<string, any>> | undefined)?.map((line) => [line.invoiceId, line.invoiceReference, line.period, line.chargedRate, line.agreedRate]);
   assert.deepEqual(listed(), [[issued[0]!.id, 'INV-2027-01-001', '2027-01', 0.5, 0], [issued[1]!.id, 'INV-2027-02-002', '2027-02', 0.5, 0]], 'each month charged at another rate than the confirmed agreement gives is listed; March agrees');
-  assert.equal(statement().rateDiscrepancies[0].explanation, 'INV-2027-01-001 for 2027-01 charged the 50% design-partner discount; the confirmed agreement gives the full public price for that month.');
+  assert.equal(statement().rateDiscrepancies[0].explanation, 'INV-2027-01-001 for 2027-01 charged the 50% design-partner discount; the terms that billed it have the confirmed agreement synthetic-agreement, which gives the full public price for that month.');
   assert.match(statement().rateDiscrepancyGuidance, /An issued invoice is never changed, and Valo Pay has no way to correct an issued invoice's discount/);
+  assert.match(statement().rateDiscrepancyGuidance, /Adjustment lines on later invoices for a listed invoice's collections, such as a re-allocation debit or a reversal credit, carry that invoice's rate too, so include them in what you agree\./);
   assert.match(statement().rateDiscrepancyGuidance, /Agree any difference with the lender outside Valo Pay/);
   assert.deepEqual(state.records, before, 'reporting a difference changes no invoice and creates no money');
   assert.equal(statement().pendingAdjustmentsKobo, 0, 'nothing is added to the next invoice automatically');
@@ -252,7 +254,68 @@ checks += 5;
   const april = invoiceFor(state, '2027-04', wat('2027-05-02T09:00:00'));
   assert.deepEqual([april.reference, april.data.designPartnerDiscount.rate], ['INV-2027-04-004', 0.5]);
   assert.equal(listed()!.length, 2, 'the new invoice agrees with the agreement');
-  checks += 9;
+  // While changed dates await a second person nothing is compared: a proposal is not an agreement, and it gives no rate.
+  const edit = structuredClone(terms);
+  edit.data.fullPriceStartDate = '2028-04-01';
+  validateRecord(state, staffAt('fixture_finance', 'Finance', wat('2027-05-03T09:00:00')), 'commercial', edit, true);
+  Object.assign(terms.data, edit.data);
+  assert.equal(statement().nextInvoicePricingReady, false, 'the changed dates await confirmation');
+  assert.deepEqual(statement().rateDiscrepancies, [], 'no month is compared with dates that await confirmation');
+  confirmTerms(state, wat('2027-05-04T09:00:00'));
+  assert.equal(listed()!.length, 2, 'once confirmed, the same months differ again');
+  checks += 13;
+}
+
+// ---------- Review follow-up: months billed by terms that replacement terms now govern are compared with the replacement's confirmed agreement ----------
+{
+  const state = seedMerchant('replacement-terms');
+  for (const payment of recordsOf(state, 'payments')) payment.data.channel = 'transfer';
+  // Terms signed before contract dates existed, with none: January to March 2027 were invoiced under the calendar-2027 rule, at half price.
+  const old = recordsOf(state, 'commercial')[0]!;
+  Object.assign(old.data, { signed: true, effectiveDate: '2027-01-01', signedFullPriceTerms: true });
+  const calendarRule = (period: string, sequence: number) => makeRecord(state, 'invoices', { name: `Invoice ${period}`, status: 'issued', reference: `INV-${period}-00${sequence}`, createdAt: wat(`${period}-28T09:00:00`),
+    data: { period, issuedAt: wat(`${period}-28T09:00:00`), issuedBy: 'Sandbox Finance', sequence, usageLines: [], adjustments: [], terms: { commercialId: old.id, prospect: old.name, contractedLicenceKobo: LICENCE, designPartner: true, effectiveDate: '2027-01-01' },
+      designPartnerDiscount: { rate: 0.5, kobo: -LICENCE / 2 }, totals: { netKobo: LICENCE / 2, vatBps: 750, vatKobo: 0, totalKobo: LICENCE / 2, creditNote: false } } });
+  const issued = ['2027-01', '2027-02', '2027-03'].map((period, index) => calendarRule(period, index + 1));
+  state.settings.billingPeriod = '2027-04';
+  const statement = () => buildReports(state, wat('2027-05-02T09:00:00')).billing;
+  const listed = () => (statement().rateDiscrepancies as Array<Record<string, any>>).map((line) => [line.invoiceId, line.period, line.chargedRate, line.agreedRate, line.commercialId]);
+  assert.deepEqual(listed(), [], 'terms with no dates give no agreement to compare with');
+  // The old terms may not even be saveable. Finance records the signed agreement as replacement terms (Add terms) from the same date, and a second person confirms them.
+  const input: any = { name: 'Replacement terms', status: 'signed', reference: 'SYN-REPLACEMENT-TERMS', amountKobo: 0, customerId: '', createdAt: wat('2027-04-20T09:00:00'), updatedAt: wat('2027-04-20T09:00:00'),
+    data: { signed: true, designPartner: true, signedFullPriceTerms: true, licenceKobo: LICENCE, effectiveDate: '2027-01-01', discountStartDate: '2027-03-01', fullPriceStartDate: '2028-03-01', discountTermsReference: 'SYN-REPLACEMENT', synthetic: true } };
+  validateRecord(state, staffAt('fixture_finance', 'Finance', wat('2027-04-20T09:00:00')), 'commercial', input);
+  const replacement = makeRecord(state, 'commercial', input);
+  assert.deepEqual(listed(), [], 'replacement terms whose dates await a second person give no agreement to compare with');
+  executeAction(state, staffAt('fixture_admin', 'Admin', wat('2027-04-21T09:00:00')), { action: 'confirm_discount_terms', recordId: replacement.id, reason: 'Checked against the signed agreement', data: { discountStartDate: '2027-03-01', fullPriceStartDate: '2028-03-01', discountTermsReference: 'SYN-REPLACEMENT' } });
+  // January and February were billed by the old terms, which are not confirmed: the confirmed replacement, now in effect for those months, gives the full price. March agrees.
+  assert.deepEqual(listed(), [[issued[0]!.id, '2027-01', 0.5, 0, replacement.id], [issued[1]!.id, '2027-02', 0.5, 0, replacement.id]], 'the months the replaced terms billed are compared with the confirmed terms now in effect');
+  assert.equal(statement().rateDiscrepancies[0].explanation, 'INV-2027-01-001 for 2027-01 charged the 50% design-partner discount; the terms that billed it have no confirmed agreement, and the terms “Replacement terms”, now in effect for that month, have the confirmed agreement SYN-REPLACEMENT, which gives the full public price.');
+  assert.match(statement().rateDiscrepancyGuidance, /An invoice is not compared while neither the terms that billed it nor the terms now in effect for its month have a confirmed agreement: confirm the discount dates of one of them to compare it\./);
+  // Replacement terms that take effect later govern only their own months: January stays with the old terms, uncompared.
+  replacement.data.effectiveDate = '2027-02-01';
+  assert.deepEqual(listed(), [[issued[1]!.id, '2027-02', 0.5, 0, replacement.id]], 'a month the replacement does not govern is not compared');
+  checks += 6;
+}
+
+// ---------- Review follow-up: the terms Go-live evidence treats as replaced (no note, no confirmation) are exactly the signed terms billing never reads ----------
+{
+  const state = seedMerchant('replaced-terms');
+  const first = recordsOf(state, 'commercial')[0]!;
+  Object.assign(first.data, { signed: true, designPartner: false, effectiveDate: '2027-01-01' });
+  const add = (name: string, createdAt: string, data: Record<string, unknown>) => makeRecord(state, 'commercial', { name, status: 'signed', createdAt: wat(createdAt), data: { licenceKobo: LICENCE, ...data } });
+  const laterThatMonth = add('Later the same month', '2027-01-02T09:00:00', { signed: true, effectiveDate: '2027-01-15' });
+  add('Recorded first', '2027-02-01T09:00:00', { signed: true, effectiveDate: '2027-03-01' });
+  const recordedLater = add('Recorded later', '2027-02-02T09:00:00', { signed: true, effectiveDate: '2027-03-01' });
+  add('Unsigned, recorded last', '2027-02-03T09:00:00', { signed: false, effectiveDate: '2027-03-01' });
+  const billedBy = ['2026-12', '2027-01', '2027-02', '2027-03', '2027-04'].map((period) => {
+    state.settings.billingPeriod = period;
+    return buildReports(state, wat('2027-05-02T09:00:00')).billing.lines[0]?.commercialId;
+  });
+  assert.deepEqual(billedBy, [undefined, laterThatMonth.id, laterThatMonth.id, recordedLater.id, recordedLater.id], 'each month is billed by the latest signed terms in effect by its end, the later recorded on the same date');
+  const all = recordsOf(state, 'commercial');
+  assert.deepEqual(all.filter((terms) => termsReplaced(terms, all)).map((terms) => terms.name), [first.name, 'Recorded first'], 'terms another signed record overtakes from their first month are replaced; unsigned terms replace nothing');
+  checks += 2;
 }
 
 // BIL-02: a calendar year is not signed authority to end the pilot/bridge discount.
@@ -671,4 +734,4 @@ checks += 5;
   checks += 2;
 }
 
-console.log(`Billing golden tests passed (${checks} checks): invoice lines, VAT, WAT months and period rules, every month invoiced in order with a zero invoice for a quiet one, the latest signed terms in effect found by the lender's id, withheld collections and the reversal window from settlement, adjustment credits and debits with references at the rate first billed, refunds of unapplied money, debits settled without a webhook, credit note, recovery fee gate and window, receipts by channel in naira with other currencies beside them, a design-partner price that is not ready naming its cause in the same words everywhere, discount dates proposed by one person and confirmed by another, and issued invoices whose rate differs from the confirmed agreement reported, never rewritten.`);
+console.log(`Billing golden tests passed (${checks} checks): invoice lines, VAT, WAT months and period rules, every month invoiced in order with a zero invoice for a quiet one, the latest signed terms in effect found by the lender's id, withheld collections and the reversal window from settlement, adjustment credits and debits with references at the rate first billed, refunds of unapplied money, debits settled without a webhook, credit note, recovery fee gate and window, receipts by channel in naira with other currencies beside them, a design-partner price that is not ready naming its cause in the same words everywhere, discount dates proposed by one person and confirmed by another, issued invoices whose rate differs from the confirmed agreement reported, never rewritten, including months billed by terms that replacement terms now govern, and the terms Go-live evidence treats as replaced being those billing never reads.`);

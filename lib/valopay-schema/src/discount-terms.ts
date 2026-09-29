@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { WAT_OFFSET_MS } from "./policy";
 import { isRealDate, isoDay } from "./records";
 
 /**
@@ -40,6 +41,33 @@ export function discountProposedBy(proposal: { reviewedBy: string; proposedPrinc
   if (confirmer.actor === proposal.reviewedBy) return true;
   if (proposal.proposedPrincipal !== undefined) return confirmer.principal === proposal.proposedPrincipal;
   return proposal.reviewedBy.startsWith("Sandbox ") && confirmer.actor.startsWith("Sandbox ");
+}
+
+/** A commercial record as billing orders a lender's terms: its id, when it was recorded and its data. */
+export interface TermsRecord { id: string; createdAt: string; data?: Record<string, unknown> | null }
+/** When terms take effect (BIL-02), as billing reads effectiveDate: terms that name no date have applied from the start. */
+export function termsEffectiveAt(data: unknown): number {
+  const at = Date.parse(String(objectOf(data)?.effectiveDate ?? ""));
+  return Number.isFinite(at) ? at : Number.NEGATIVE_INFINITY;
+}
+/** The order billing reads a lender's signed terms in: the latest to take effect first, and on the same date the later recorded first. */
+export function latestTermsFirst(a: TermsRecord, b: TermsRecord): number {
+  return termsEffectiveAt(b.data) - termsEffectiveAt(a.data) || b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id);
+}
+/** The first month terms bill: the WAT month they take effect in; terms that apply from the start (or name no real month) keep their instant. */
+const firstBilledMonth = (data: unknown): string => {
+  const at = termsEffectiveAt(data), wat = new Date(at + WAT_OFFSET_MS);
+  return Number.isFinite(wat.getTime()) ? wat.toISOString().slice(0, 7) : String(at);
+};
+/**
+ * Whether signed terms bill no month at all: other signed terms of the lender start billing in the same month and
+ * come first in billing's order (they take effect later that month, or on the same date and were recorded later),
+ * so every month bills them instead. Such terms, typically replaced through Add terms, can neither price nor block an
+ * invoice. `lenderTerms` is every commercial record of the same lender.
+ */
+export function termsReplaced(terms: TermsRecord, lenderTerms: TermsRecord[]): boolean {
+  return terms.data?.signed === true && lenderTerms.some((other) => other.id !== terms.id && other.data?.signed === true
+    && firstBilledMonth(other.data) === firstBilledMonth(terms.data) && latestTermsFirst(other, terms) < 0);
 }
 
 /** Why design-partner terms cannot price a new invoice, or that they can: full_price for terms that are not a design partner's, confirmed when a second person confirmed the current dates. */
