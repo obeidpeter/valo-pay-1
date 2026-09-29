@@ -21,25 +21,37 @@ function takesInput(element: Element | null): boolean {
  * CSS hides document overflow, but focus and browser restoration can still move
  * it, even after mount. Keep that outer offset at zero while the console exists,
  * except while the reader has pinch-zoomed, as iOS Safari moves it when they pan,
- * or a field has focus, as a phone moves it to show the field above the keyboard:
- * the next scroll with neither resets it.
+ * or a field has focus, as a phone moves it to show the field above the keyboard.
+ * Once neither holds the offset goes: at the zoom's end, once focus has left the
+ * fields, or at the next scroll. Neither of the first two scrolls the window, and
+ * a hidden overflow cannot be dragged back, so each is watched for itself.
  * Route/filter changes within the mounted console keep useQueuePosition's
  * independent saved offsets; neither focus nor main-region scroll is changed.
  */
 export function useConsoleViewportReset(): void {
   useLayoutEffect(() => {
+    const viewport = window.visualViewport;
     const resetDocument = () => {
       if (window.scrollX === 0 && window.scrollY === 0) return;
-      if ((window.visualViewport?.scale ?? 1) > 1 || takesInput(document.activeElement)) return;
+      if ((viewport?.scale ?? 1) > 1 || takesInput(document.activeElement)) return;
       window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     };
+    // A frame after focus leaves an element, it has arrived where it was going, so moving on to another field keeps the shift.
+    let frame = 0;
+    const afterFocusLeaves = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(resetDocument); };
     // Non-capturing: internal queue scroll events must remain independent.
     window.addEventListener('scroll', resetDocument, { passive: true });
     window.addEventListener('pageshow', resetDocument);
+    window.addEventListener('focusout', afterFocusLeaves);
+    // The visual viewport resizes as the zoom changes, and as a phone's keyboard opens and closes.
+    viewport?.addEventListener('resize', resetDocument);
     resetDocument();
     return () => {
       window.removeEventListener('scroll', resetDocument);
       window.removeEventListener('pageshow', resetDocument);
+      window.removeEventListener('focusout', afterFocusLeaves);
+      viewport?.removeEventListener('resize', resetDocument);
+      cancelAnimationFrame(frame);
     };
   }, []);
 }
