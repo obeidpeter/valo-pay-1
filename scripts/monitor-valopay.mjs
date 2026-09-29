@@ -1,6 +1,7 @@
+import { realpathSync } from 'node:fs';
 import { readFile, writeFile, rename, mkdir } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 
 const MAX_BYTES = 256 * 1024;
 export function checkedOrigin(value, allowLocal = false) {
@@ -396,5 +397,8 @@ async function main() {
   await rename(temporary, target);
   console.log(JSON.stringify({ ...result.probe, delivered: result.delivered }));
 }
+// Real paths: started through a symlinked path, argv names the link while this module's URL names the file, and the
+// monitor would exit without probing, so a scheduled monitor started that way would never alert.
+const startedDirectly = () => { try { return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)); } catch { return false; } };
 // Only a usage mistake or a missing origin is described: any other failure could carry a receiver address, a key or a response body.
-if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) main().catch(error => { console.error(error instanceof UsageError ? `${error.message} ${USAGE}` : error instanceof MissingSetting ? error.message : 'Operational monitoring failed. Check configuration, probe connectivity and the alert receiver. Credentials and response bodies are not logged.'); process.exitCode = 1; });
+if (startedDirectly()) main().catch(error => { console.error(error instanceof UsageError ? `${error.message} ${USAGE}` : error instanceof MissingSetting ? error.message : 'Operational monitoring failed. Check configuration, probe connectivity and the alert receiver. Credentials and response bodies are not logged.'); process.exitCode = 1; });

@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
+import { spawnSync } from 'node:child_process';
+import { mkdtemp, rm, symlink, unlink } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { checkedOrigin, probeService, deliverTransition, deliverTest, deliveryConfiguration, monitorArguments, sendWebhook, sendEmail, schedulerExpectation, MissingSetting } from './monitor-valopay.mjs';
 
 const received = [];
@@ -352,5 +356,16 @@ try {
   assert.equal(deliveryConfiguration({ VALOPAY_MONITOR_OWNER: 'Operator', VALOPAY_MONITOR_ALERT_URL: 'http://alerts.example/receiver' }).status, 'incomplete');
   assert.equal(deliveryConfiguration({ VALOPAY_MONITOR_OWNER: 'Operator', VALOPAY_ALERT_RESEND_KEY: 'synthetic-secret', VALOPAY_ALERT_FROM: 'alerts@example.com', VALOPAY_ALERT_TO: 'operations@example.test' }).status, 'configured');
   await assert.rejects(() => sendEmail(received[0], { apiKey: 'synthetic-secret', from: 'alerts@example.com', to: 'operations@example.test', fetchImpl: async () => { throw new Error('provider secret'); } }), error => !error.message.includes('provider secret'));
-  console.log('Operational monitor passed: real local HTTP probe/delivery, incident threshold, no repeat, recovery, failed-delivery retry, close failures that stay raised until the failing lender closes (across other lenders\' passes and a restart), overdue closes, public sandboxes\' counted apart as warnings, a process too young to have read giving a warning that neither ends nor repeats an incident, until such warnings have lasted longer than one process can be young (a crash loop, or an instance each probe starts), when they count as stale, each startup warning at its own window and kept for the whole run, so alternating and random subsets open one incident whose codes only grow, a rollback that ends the run, a worker clock ahead by up to a heartbeat and the probe\'s time limit, times copied in ISO form, a file parked for review as its own incident beside failures awaiting a retry, schema readiness, scheduler mode versus execution evidence, the backlog an external host\'s web instances read, explicit labelled delivery tests without incident-state changes, redacted failures.');
+  // Started through a symlinked path the monitor still runs: Node gives the module its real path, whatever path started
+  // it, and a scheduled monitor that exited silently would never alert.
+  const linkDirectory = await mkdtemp(join(tmpdir(), 'valopay-monitor-link-')), linked = join(linkDirectory, 'scripts');
+  await symlink(import.meta.dirname, linked, 'junction');
+  try {
+    const clean = Object.fromEntries(Object.entries(process.env).filter(([name]) => !/^(?:VALOPAY_|PAYSTACK_|DATABASE_URL$)/.test(name)));
+    const run = spawnSync(process.execPath, [join(linked, 'monitor-valopay.mjs')], { encoding: 'utf8', env: { ...clean, VALOPAY_MONITOR_ORIGIN: 'https://127.0.0.1:1' }, timeout: 30_000 });
+    assert.equal(run.status, 0, run.stderr);
+    assert.match(run.stdout, /^\{"service":"https:\/\/127\.0\.0\.1:1"/, 'started through a symlinked path, the monitor probes rather than exiting silently');
+    assert.deepEqual([JSON.parse(run.stdout).mode, JSON.parse(run.stdout).codes], ['dry-run', ['database_unready', 'service_unavailable']]);
+  } finally { await unlink(linked); await rm(linkDirectory, { recursive: true, force: true }); }
+  console.log('Operational monitor passed: real local HTTP probe/delivery, incident threshold, no repeat, recovery, failed-delivery retry, close failures that stay raised until the failing lender closes (across other lenders\' passes and a restart), overdue closes, public sandboxes\' counted apart as warnings, a process too young to have read giving a warning that neither ends nor repeats an incident, until such warnings have lasted longer than one process can be young (a crash loop, or an instance each probe starts), when they count as stale, each startup warning at its own window and kept for the whole run, so alternating and random subsets open one incident whose codes only grow, a rollback that ends the run, a worker clock ahead by up to a heartbeat and the probe\'s time limit, times copied in ISO form, a file parked for review as its own incident beside failures awaiting a retry, schema readiness, scheduler mode versus execution evidence, the backlog an external host\'s web instances read, explicit labelled delivery tests without incident-state changes, redacted failures, and a run started through a symlinked path.');
 } finally { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); }

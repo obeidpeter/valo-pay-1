@@ -1,6 +1,7 @@
+import { realpathSync } from 'node:fs';
 import { mkdir, rename, unlink, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { deliveryConfiguration, MissingSetting, probeService, schedulerExpectation } from './monitor-valopay.mjs';
 
@@ -76,7 +77,10 @@ async function main() {
   process.exitCode = report.blockers.length ? 2 : 0;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) main().catch(error => {
+// Real paths: started through a symlinked path, argv names the link while this module's URL names the file, and the
+// check would exit without a report.
+const startedDirectly = () => { try { return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)); } catch { return false; } };
+if (startedDirectly()) main().catch(error => {
   console.error(error instanceof MissingSetting ? error.message : 'Operational commissioning check failed. Check settings, connectivity and the private report path. Values and response bodies are not logged.');
   process.exitCode = 1;
 });
