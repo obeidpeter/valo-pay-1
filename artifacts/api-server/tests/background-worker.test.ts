@@ -23,6 +23,9 @@ process.env["DATABASE_URL"] ??= "postgres://unused:unused@127.0.0.1:1/unused";
 const { BACKGROUND_POOL_SIZE, backgroundRestartDelay, startBackgroundWorker } = await import("../src/lib/background-worker");
 const { schedulerStatus } = await import("../src/lib/close-scheduler");
 const { logger } = await import("../src/lib/logger");
+const { backgroundHealth, createBackgroundHealth, BACKGROUND_STALE_MS } = await import("../src/lib/background-health");
+const { startExportCleanupWorker } = await import("../src/lib/export-cleanup-worker");
+const { HealthCheckResponse } = await import("@workspace/api-zod");
 
 let checks = 0, since = 0;
 /** The log's lines since the last mark(): the logger keeps the file open, so it is read on from a mark, never removed midway. */
@@ -37,6 +40,68 @@ async function waitFor(condition: () => boolean, what: string, ms = 10_000) {
 }
 
 try {
+  // ---- Public observations use the receiving clock, survive worker retries, and never invent cleanup success ----
+  let time = Date.parse("2026-09-29T10:00:00.000Z");
+  const health = createBackgroundHealth(() => time);
+  assert.equal(health.status().state, "not_started");
+  health.configure({ closes: false, backlog: false, exports: true, cleanup: true });
+  health.starting();
+  assert.deepEqual([health.status().state, health.status().cleanup.state], ["starting", "pending"]);
+  time += BACKGROUND_STALE_MS + 1;
+  assert.equal(health.status().state, "stale", "a thread that never finishes loading is stale too");
+  health.observe({ type: "heartbeat" });
+  health.observe({ type: "cleanup", result: { attempted: 0, removed: 0, deferred: 0, pendingFailures: 0 } });
+  const emptySuccess = health.status().cleanup.lastSuccessAt;
+  assert.deepEqual([health.status().state, health.status().cleanup.state, emptySuccess], ["running", "ok", new Date(time).toISOString()], "an empty completed poll proves the worker checked the queue");
+  time += 1;
+  health.observe({ type: "cleanup", result: { attempted: 2, removed: 1, deferred: 1, pendingFailures: 1 } });
+  assert.deepEqual([health.status().cleanup.state, health.status().cleanup.lastSuccessAt, health.status().cleanup.lastErrorAt], ["failed", emptySuccess, new Date(time).toISOString()], "a deferred removal never advances last success");
+  health.observe({ type: "cleanup", result: { attempted: 0, removed: 0, deferred: 0, pendingFailures: 1 } });
+  assert.deepEqual([health.status().cleanup.state, health.status().cleanup.lastSuccessAt], ["failed", emptySuccess], "an empty poll while a failed file backs off is not recovery");
+  health.observe({ type: "cleanup", result: { attempted: 1, removed: 1, deferred: 0, pendingFailures: 1 } });
+  assert.equal(health.status().cleanup.state, "failed", "another file's successful deletion cannot clear the remaining failure");
+  time += 1;
+  health.observe({ type: "cleanup", result: null });
+  assert.deepEqual([health.status().cleanup.state, health.status().cleanup.lastResult, health.status().cleanup.lastSuccessAt], ["failed", null, emptySuccess], "a rejected check has no invented result");
+  health.crashed();
+  assert.deepEqual([health.status().state, health.status().crashCount], ["restarting", 1], "scheduler off does not hide a worker crash");
+  health.starting();
+  assert.deepEqual([health.status().restartCount, health.status().crashCount, health.status().lastHeartbeatAt, health.status().cleanup.state, health.status().cleanup.lastSuccessAt], [1, 1, null, "pending", emptySuccess], "a retry needs its own heartbeat and check, but retains historical evidence");
+  time += 195_001;
+  health.observe({ type: "heartbeat" });
+  assert.deepEqual([health.status().state, health.status().cleanup.state], ["running", "stale"], "a working event loop cannot hide stalled cleanup");
+  health.observe({ type: "cleanup", result: { attempted: 1, removed: 1, deferred: 0, pendingFailures: 0 } });
+  assert.equal(health.status().cleanup.state, "ok");
+  const snapshot = health.status();
+  snapshot.jobs.exports = false; snapshot.cleanup.lastResult!.removed = 999;
+  assert.deepEqual([health.status().jobs.exports, health.status().cleanup.lastResult!.removed], [true, 1], "readers cannot mutate the observations");
+  assert.ok(HealthCheckResponse.safeParse({ status: "ok", build: "fixture", startedAt: new Date(time).toISOString(), uptimeSeconds: 1, scheduler: schedulerStatus(), background: health.status() }).success, "the public contract preserves worker evidence");
+  health.stopping(); health.observe({ type: "heartbeat" }); health.stopped();
+  assert.equal(health.status().state, "stopped", "late heartbeat messages cannot undo shutdown");
+  checks += 14;
+
+  // Exercise the cleanup loop's observation boundary, including a quiet poll and storage retry, without private storage.
+  const cleanupResults: Array<{ attempted: number; removed: number; deferred: number; pendingFailures: number } | null> = [];
+  let calls = 0;
+  const cleanup = startExportCleanupWorker({ intervalMs: 5, observed: result => cleanupResults.push(result) }, async () => {
+    calls += 1;
+    if (calls === 1) return { attempted: 0, removed: 0, deferred: 0 };
+    if (calls === 2) return { attempted: 2, removed: 1, deferred: 1 };
+    throw new Error("Synthetic unavailable queue");
+  }, async () => ({ failed: calls === 1 ? 0 : 1 }));
+  await waitFor(() => cleanupResults.length >= 3, "successful, deferred and rejected cleanup checks");
+  cleanup.stop(); await cleanup.settle();
+  assert.deepEqual(cleanupResults.slice(0, 3), [{ attempted: 0, removed: 0, deferred: 0, pendingFailures: 0 }, { attempted: 2, removed: 1, deferred: 1, pendingFailures: 1 }, null]);
+  const failedQueueRead: unknown[] = [];
+  const unavailableEvidence = startExportCleanupWorker({ observed: result => failedQueueRead.push(result) }, async () => ({ attempted: 0, removed: 0, deferred: 0 }), async () => { throw new Error("Synthetic status unavailable"); });
+  await unavailableEvidence.settle(); unavailableEvidence.stop();
+  assert.deepEqual(failedQueueRead, [null], "a completed pass without durable queue evidence never reports success");
+  let observerCalls = 0;
+  const noisyObserver = startExportCleanupWorker({ intervalMs: 5, observed: () => { observerCalls++; throw new Error("Synthetic observer failure"); } }, async () => ({ attempted: 0, removed: 0, deferred: 0 }), async () => ({ failed: 0 }));
+  await waitFor(() => observerCalls >= 2, "cleanup retry after an observation failed");
+  noisyObserver.stop(); await noisyObserver.settle();
+  assert.ok(observerCalls >= 2, "observability failure cannot stop cleanup");
+  checks += 2;
   // ---- The waits: a second doubling to a minute; the pool: a close and two export slots ----
   assert.deepEqual([1, 2, 3, 4, 6, 7, 8, 40].map((crashes) => backgroundRestartDelay(crashes)), [1_000, 2_000, 4_000, 8_000, 32_000, 60_000, 60_000, 60_000]);
   assert.equal(BACKGROUND_POOL_SIZE, 3);
@@ -49,6 +114,7 @@ try {
 
   // ---- Log lines and scheduler changes reach the main thread; a stop ends the thread ----
   const relaying = startBackgroundWorker({ log: logger, closes: {}, exports: null, entry: fixture(`
+    parentPort.postMessage({ type: "heartbeat" });
     parentPort.postMessage({ type: "log", line: JSON.stringify({ level: 30, thread: "background", event: "fixture.line", msg: "from the thread" }) + "\\n" });
     parentPort.postMessage({ type: "scheduler", event: { type: "started", intervalMs: 60000 } });
     parentPort.postMessage({ type: "scheduler", event: { type: "ticked", at: "2026-09-23T06:00:00.000Z" } });
@@ -56,6 +122,7 @@ try {
     ${stoppable}`) });
   await waitFor(() => schedulerStatus().lastSuccessAt === "2026-09-23T06:00:01.000Z", "the relayed pass");
   assert.equal(schedulerStatus().state, "running");
+  assert.equal(backgroundHealth.status().state, "running", "the real message channel forwards a worker heartbeat");
   assert.equal(schedulerStatus().lastTickAt, "2026-09-23T06:00:00.000Z");
   assert.deepEqual(schedulerStatus().backlog, { checkedAt: "2026-09-23T06:00:01.000Z", overdue: 1, failing: 2, lateAfterMinutes: 30 }, "what the thread's pass read as still owed reaches the health answer");
   assert.deepEqual(events("fixture.line").map((line) => [line.thread, line.msg]), [["background", "from the thread"]], "the thread's line is written as it formatted it");
@@ -85,6 +152,7 @@ try {
   mark();
   const ending = startBackgroundWorker({ log: logger, closes: null, exports: {}, restartMs: 20, maxRestartMs: 80, steadyMs: 100, entry: fixture(`setTimeout(() => parentPort.close(), 150);`) });
   await waitFor(() => events("background.crashed").length >= 3, "three unasked ends");
+  assert.ok(backgroundHealth.status().crashCount >= 3, "process-lifetime crash count is not reset by a steady run with closes disabled");
   ending.stop();
   await ending.settle();
   assert.deepEqual(events("background.crashed").slice(0, 3).map((line) => [line.exitCode, line.crashes, line.retryInMs, line.err.message]), Array.from({ length: 3 }, () => [0, 1, 20, "The background worker thread ended without being asked to stop."]));
@@ -109,6 +177,10 @@ try {
     // Two failures prove background.ts started cleanup and received its short test interval. A missing
     // workerData option starts nothing; losing intervalMs leaves the second pass a minute away.
     await waitFor(() => events("workspace.sweep_cleanup_unavailable").length >= 2, "the real cleanup worker's first pass and retry", 10_000);
+    await waitFor(() => backgroundHealth.status().cleanup.state === "failed", "the real cleanup failure's public observation");
+    assert.equal(backgroundHealth.status().state, "running", "worker liveness and cleanup failure are independent");
+    assert.ok(backgroundHealth.status().lastHeartbeatAt);
+    assert.equal(backgroundHealth.status().cleanup.lastSuccessAt, null, "unavailable database checks have no successful cleanup timestamp");
     await waitFor(() => schedulerStatus().ticks > before.ticks && schedulerStatus().lastErrorAt !== before.lastErrorAt, "the relayed failed pass");
     assert.equal(schedulerStatus().state, "running");
   } finally {

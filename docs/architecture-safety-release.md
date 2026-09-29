@@ -53,7 +53,7 @@ SQL statements, transaction boundaries, lock order, journal cancellation fences 
 
 ### Reconciliation decomposition · 29 September 2026
 
-`reconciliation.ts` now coordinates the same synchronous indexed pass in 148 lines, with all 49 original public exports preserved. Focused `reconciliation-*` modules own evidence ingestion, matching, settlement identity and totals, payment/allocation state, instalment repair, reversal holds and retry decisions. Their dependency graph is acyclic, record indexes remain local to the same pass, and none receives database or provider access.
+`reconciliation.ts` now coordinates the same synchronous indexed pass in 148 lines, with all 49 original public exports preserved. Focused `reconciliation-*` modules own evidence ingestion, matching, settlement identity and totals, payment/allocation state, instalment repair, reversal holds and retry decisions. Their dependency graph is acyclic, record indexes remain local to the same pass, and none receives database or provider access. The effect-boundary CI guard rejects circular runtime imports and re-exports throughout the domain graph, including reconciliation. Shared acyclic helpers and erased type-only dependencies remain permitted; fixtures cover those distinctions.
 
 The runtime coordinator and financial function bodies are unchanged; its result now has an inferred field shape rather than `Record<string, any>`. Existing golden tests cover 2,905 financial checks, and the 4,796-record scale fixture retains its original index-visit counts. No monetary rule, processing order, stored record, API contract or permission changes.
 

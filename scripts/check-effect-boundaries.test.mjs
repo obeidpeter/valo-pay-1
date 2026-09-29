@@ -45,5 +45,32 @@ try {
   assert.deepEqual(inspectEffectBoundaries(fixture).issues, []);
   write('domain/connected-credit.ts', 'import type { Payroll } from "./types";');
   assert.deepEqual(inspectEffectBoundaries(fixture).issues, []);
-  console.log('Effect-boundary mutation fixtures passed: direct/transitive imports, re-exports, ambient keys, dynamic code, network aliases and credit isolation.');
+  // Reconciliation's two branches may depend on the same plain records module.
+  // This diamond must not be mistaken for a cycle by the visited-file cache.
+  write('domain/reconciliation.ts', 'import "./reconciliation-matching"; import "./reconciliation-payments"; export type Result = number; export const reconcile = () => 1;');
+  write('domain/reconciliation-matching.ts', 'import "./reconciliation-records";');
+  write('domain/reconciliation-payments.ts', 'export { record } from "./reconciliation-records";');
+  write('domain/reconciliation-records.ts', 'export const record = 1;');
+  assert.deepEqual(inspectEffectBoundaries(fixture).issues, []);
+  // A helper re-exporting its coordinator closes a real runtime cycle. The
+  // diagnostic identifies the closing edge and full cycle for CI readers;
+  // which edge closes first depends on filesystem traversal order.
+  write('domain/reconciliation-records.ts', 'export const record = 1;\nexport * from "./reconciliation";');
+  const circular = inspectEffectBoundaries(fixture).issues.join('\n');
+  assert.match(circular, /(?:reconciliation(?:-(?:matching|payments))?\.ts:1|reconciliation-records\.ts:2): Circular runtime dependency:/);
+  assert.match(circular, /reconciliation-matching\.ts -> .*reconciliation-records\.ts -> .*reconciliation\.ts -> .*reconciliation-matching\.ts|reconciliation\.ts -> .*reconciliation-matching\.ts -> .*reconciliation-records\.ts -> .*reconciliation\.ts|reconciliation-records\.ts -> .*reconciliation\.ts -> .*reconciliation-matching\.ts -> .*reconciliation-records\.ts/);
+  write('domain/reconciliation-records.ts', 'export const record = 1; import type { Result } from "./reconciliation";');
+  assert.deepEqual(inspectEffectBoundaries(fixture).issues, []);
+  write('domain/reconciliation-records.ts', 'export const record = 1; export { type Result } from "./reconciliation";');
+  assert.deepEqual(inspectEffectBoundaries(fixture).issues, []);
+  write('domain/reconciliation-records.ts', 'export const record = 1; export type { Result } from "./reconciliation";');
+  assert.deepEqual(inspectEffectBoundaries(fixture).issues, []);
+  // A mixed re-export retains its value dependency even when it includes types.
+  write('domain/reconciliation-records.ts', 'export const record = 1; export { type Result, reconcile } from "./reconciliation";');
+  assert.match(inspectEffectBoundaries(fixture).issues.join('\n'), /Circular runtime dependency:/);
+  write('domain/reconciliation-records.ts', 'export const record = 1; export {} from "./reconciliation";');
+  assert.match(inspectEffectBoundaries(fixture).issues.join('\n'), /Circular runtime dependency:/);
+  write('domain/reconciliation-records.ts', 'import "./reconciliation-records";');
+  assert.match(inspectEffectBoundaries(fixture).issues.join('\n'), /reconciliation-records\.ts:1: Circular runtime dependency: .*reconciliation-records\.ts -> .*reconciliation-records\.ts/);
+  console.log('Effect-boundary mutation fixtures passed: direct/transitive imports, re-exports, ambient keys, dynamic code, network aliases, credit isolation and cycle detection with shared acyclic dependencies.');
 } finally { rmSync(fixture, { recursive: true, force: true }); }

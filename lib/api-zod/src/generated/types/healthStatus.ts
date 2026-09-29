@@ -5,10 +5,11 @@
  * Valo Pay collections and connected banking sandbox API. All monetary fields are integer minor units (NGN kobo). Real data and all outbound provider instructions are disabled in connected modules.
  * OpenAPI spec version: 1.1.0
  */
+import type { BackgroundStatus } from './backgroundStatus';
 import type { SchedulerStatus } from './schedulerStatus';
 
 /**
- * The liveness answer: the build, when the process started, its uptime and what the close scheduler is doing.
+ * The liveness answer: the build, when the process started, its uptime, close scheduler and background worker observations. Background status is optional for older builds. Liveness stays ok while a worker fails; the monitor separately raises worker incidents.
  */
 export interface HealthStatus {
   status: string;
@@ -16,4 +17,5 @@ export interface HealthStatus {
   startedAt: string;
   uptimeSeconds: number;
   scheduler: SchedulerStatus;
+  background?: BackgroundStatus;
 }

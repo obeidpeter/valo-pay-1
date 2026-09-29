@@ -2,6 +2,7 @@ import { Router, type IRouter, type RequestHandler } from "express";
 import { HealthCheckResponse, ReadinessCheckResponse } from "@workspace/api-zod";
 import { BUILD, STARTED_AT } from "../lib/build-info";
 import { schedulerStatus } from "../lib/close-scheduler";
+import { backgroundHealth } from "../lib/background-health";
 import { pingDatabase, type DatabaseReadiness } from "../lib/valopay-store";
 import { contractAnswer } from "../lib/contract";
 import { clientNetwork, createWindowCounter, refuseRequest } from "../lib/request-limits";
@@ -96,7 +97,7 @@ const limited: RequestHandler = (req, res, next) => {
  * needs Clerk: app.ts mounts them before sign-in.
  */
 router.get("/healthz", limited, (_req, res) => {
-  res.json(contractAnswer(HealthCheckResponse, { status: "ok", build: BUILD, startedAt: STARTED_AT, uptimeSeconds: Math.round(process.uptime()), scheduler: schedulerStatus() }));
+  res.json(contractAnswer(HealthCheckResponse, { status: "ok", build: BUILD, startedAt: STARTED_AT, uptimeSeconds: Math.round(process.uptime()), scheduler: schedulerStatus(), background: backgroundHealth.status() }));
 });
 
 router.get("/readyz", limited, async (req, res) => {

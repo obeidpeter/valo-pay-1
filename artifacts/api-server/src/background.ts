@@ -24,6 +24,7 @@ import { startExportWorker } from "./lib/export-worker";
 import { startExportCleanupWorker } from "./lib/export-cleanup-worker";
 import { closeDatabase, watchDatabase } from "./lib/valopay-store";
 import type { BackgroundMessage, BackgroundOptions, BackgroundRequest } from "./lib/background-worker";
+import { BACKGROUND_HEARTBEAT_MS } from "./lib/background-health";
 
 if (!parentPort) throw new Error("background.ts runs as the API's worker thread (lib/background-worker.ts), not on its own.");
 const port = parentPort, options = workerData as BackgroundOptions;
@@ -56,9 +57,15 @@ if (options.closes || options.backlog) observeScheduler((event) => post({ type: 
 const scheduler = options.closes ? startCloseScheduler({ ...options.closes, log: logger }) : undefined;
 const backlogWatch = options.backlog ? startBacklogWatch({ ...options.backlog, log: logger, queue: (read) => inTurn(read, true) }) : undefined;
 const exportWorker = options.exports ? startExportWorker({ ...options.exports, log: logger }) : undefined;
-const cleanupWorker = options.cleanup ? startExportCleanupWorker({ ...options.cleanup, log: logger }) : undefined;
+const cleanupWorker = options.cleanup ? startExportCleanupWorker({ ...options.cleanup, log: logger, observed: (result) => post({ type: "cleanup", result }) }) : undefined;
+// Sent only after this thread has loaded and started its configured workers. It says the event loop answers,
+// independently of whether closes are scheduled; cleanup's own messages say whether its checks finish.
+post({ type: "heartbeat" });
+const heartbeat = setInterval(() => post({ type: "heartbeat" }), BACKGROUND_HEARTBEAT_MS);
+heartbeat.unref();
 
 async function stop(): Promise<void> {
+  clearInterval(heartbeat);
   try {
     scheduler?.stop();
     backlogWatch?.stop();

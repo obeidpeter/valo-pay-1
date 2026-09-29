@@ -325,12 +325,13 @@ export function createExportCleanupRepository(dependencies: Dependencies) {
     const row = await runtimeServiceRead(
       async (client) =>
         (
-          await client.query(`SELECT count(*)::int AS pending,
+          await client.query<{ pending: number; leased: number; ready: number; retried: number; failed: number; oldest: Date | null }>(`SELECT count(*)::int AS pending,
     count(*) FILTER (WHERE lease_until>now())::int AS leased,
     count(*) FILTER (WHERE next_attempt_at<=now() AND (lease_until IS NULL OR lease_until<=now()))::int AS ready,
     count(*) FILTER (WHERE attempts>0)::int AS retried,
+    count(*) FILTER (WHERE last_failure IS NOT NULL)::int AS failed,
     min(created_at) AS oldest FROM valopay_export_cleanup`)
-        ).rows[0],
+        ).rows[0]!,
     );
     return { ...row, oldest: row.oldest?.toISOString() ?? null };
   }

@@ -15664,6 +15664,9 @@
           },
           "scheduler": {
             "$ref": "#/components/schemas/SchedulerStatus"
+          },
+          "background": {
+            "$ref": "#/components/schemas/BackgroundStatus"
           }
         },
         "required": [
@@ -15673,7 +15676,194 @@
           "uptimeSeconds",
           "scheduler"
         ],
-        "description": "The liveness answer: the build, when the process started, its uptime and what the close scheduler is doing."
+        "description": "The liveness answer: the build, when the process started, its uptime, close scheduler and background worker observations. Background status is optional for older builds. Liveness stays ok while a worker fails; the monitor separately raises worker incidents."
+      },
+      "BackgroundJobs": {
+        "type": "object",
+        "properties": {
+          "closes": {
+            "type": "boolean"
+          },
+          "backlog": {
+            "type": "boolean"
+          },
+          "exports": {
+            "type": "boolean"
+          },
+          "cleanup": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "closes",
+          "backlog",
+          "exports",
+          "cleanup"
+        ],
+        "description": "Which jobs this instance configured in its worker. Enabled describes configuration, not evidence of a successful job. Restricted tenant runtimes leave service cleanup disabled."
+      },
+      "CleanupPassResult": {
+        "type": "object",
+        "properties": {
+          "attempted": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "removed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "deferred": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "pendingFailures": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "attempted",
+          "removed",
+          "deferred",
+          "pendingFailures"
+        ],
+        "description": "Attempted, removed and deferred counts from one bounded pass, plus pendingFailures: the count of all durable cleanup tombstones with last_failure set, including leased or delayed retries. A quiet poll or another file's success cannot clear a pending failure. No storage paths or tenant identities. Use the operator cleanup status command for full backlog depth and age."
+      },
+      "BackgroundCleanup": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "disabled",
+              "pending",
+              "ok",
+              "failed",
+              "stale"
+            ]
+          },
+          "intervalMs": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "staleAfterMs": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "lastCheckedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lastSuccessAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lastErrorAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lastResult": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CleanupPassResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "state",
+          "intervalMs",
+          "staleAfterMs",
+          "lastCheckedAt",
+          "lastSuccessAt",
+          "lastErrorAt",
+          "lastResult"
+        ],
+        "description": "The worker's most recent bounded cleanup pass and aggregate queue read. Empty polls count as success only when no persisted failed tombstones remain. A rejected pass/read, deferred removal or pendingFailures above zero is failed; lastSuccessAt remains the last successful check. Null lastResult means no check or a rejected check. After a restart, pending until this worker checks; older timestamps remain evidence. Stale after three intervals plus 15 seconds without a completed check. This is not proof all queued files were deleted; ordinary leases or delayed work can remain."
+      },
+      "BackgroundStatus": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "not_started",
+              "starting",
+              "running",
+              "restarting",
+              "stale",
+              "stopping",
+              "stopped"
+            ]
+          },
+          "jobs": {
+            "$ref": "#/components/schemas/BackgroundJobs"
+          },
+          "heartbeatIntervalMs": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "staleAfterMs": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "startedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lastHeartbeatAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "crashCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "restartCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "lastCrashAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cleanup": {
+            "$ref": "#/components/schemas/BackgroundCleanup"
+          }
+        },
+        "required": [
+          "state",
+          "jobs",
+          "heartbeatIntervalMs",
+          "staleAfterMs",
+          "startedAt",
+          "lastHeartbeatAt",
+          "crashCount",
+          "restartCount",
+          "lastCrashAt",
+          "cleanup"
+        ],
+        "description": "This instance's worker, independently of scheduler mode. The main thread timestamps heartbeats received every 10 seconds; starting or running becomes stale after 45 seconds without one. restartCount counts new start attempts after the first; crashCount includes failed starts and unexpected exits. Both reset with the API process, not after a steady worker run. No tenant identities or error bodies are exposed."
       },
       "SchedulerRun": {
         "type": "object",

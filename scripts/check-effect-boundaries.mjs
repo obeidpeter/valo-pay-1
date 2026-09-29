@@ -24,7 +24,7 @@ function sourceFiles(root, directory) {
 export function inspectEffectBoundaries(root = defaultRoot) {
   const files = [...sourceFiles(root, api.slice(0, -1)), ...sourceFiles(root, 'lib/valopay-schema/src')];
   const contents = new Map(files.map(file => [file, readFileSync(resolve(root, file), 'utf8')]));
-  const issues = [], visited = new Set(), checkedFiles = new Set();
+  const issues = [], visited = new Set(), active = new Set(), checkedFiles = new Set();
   function resolveImport(from, specifier) {
     const base = resolve(root, dirname(from), specifier);
     const withoutJs = base.replace(/\.[cm]?js$/, '');
@@ -40,9 +40,20 @@ export function inspectEffectBoundaries(root = defaultRoot) {
     const visitKey = `${creditRoot ? 'credit' : 'domain'}:${file}`;
     if (visited.has(visitKey)) return;
     visited.add(visitKey);
+    active.add(file);
     checkedFiles.add(file);
     const ast = ts.createSourceFile(file, contents.get(file), ts.ScriptTarget.Latest, true);
     const report = (node, message) => issues.push(`${file}:${ast.getLineAndCharacterOfPosition(node.getStart(ast)).line + 1}: ${message} (via ${chain.join(' -> ')})`);
+    function inspectDependency(node, target) {
+      // A shared dependency can be visited by several branches of an acyclic
+      // graph. Only an edge back into the current traversal is a cycle.
+      if (active.has(target)) {
+        const cycle = [...chain.slice(chain.indexOf(target)), target];
+        report(node, `Circular runtime dependency: ${cycle.join(' -> ')}`);
+        return;
+      }
+      inspect(target, [...chain, target], creditRoot);
+    }
     function dependency(node, specifier) {
       if (specifier.startsWith('.')) {
         const target = resolveImport(file, specifier);
@@ -54,9 +65,9 @@ export function inspectEffectBoundaries(root = defaultRoot) {
           && !/\/(?:connected-credit(?:-service)?|records|record-index|types)\.ts$/.test(target)) {
           report(node, 'Credit computation cannot import collection, cash, payroll or payment workflows.');
         }
-        inspect(target, [...chain, target], creditRoot);
+        inspectDependency(node, target);
       } else if (specifier === '@workspace/valopay-schema' && contents.has('lib/valopay-schema/src/index.ts')) {
-        inspect('lib/valopay-schema/src/index.ts', [...chain, 'lib/valopay-schema/src/index.ts'], creditRoot);
+        inspectDependency(node, 'lib/valopay-schema/src/index.ts');
       } else if (dangerousModule.test(specifier) || !permittedExternal.has(specifier)) {
         report(node, `Effect-capable or unreviewed external dependency ${specifier}`);
       }
@@ -65,7 +76,9 @@ export function inspectEffectBoundaries(root = defaultRoot) {
       if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier && ts.isStringLiteralLike(node.moduleSpecifier)) {
         const typeOnly = node.isTypeOnly || (ts.isImportDeclaration(node) && (node.importClause?.isTypeOnly ||
           (!node.importClause?.name && node.importClause?.namedBindings && ts.isNamedImports(node.importClause.namedBindings) &&
-           node.importClause.namedBindings.elements.length > 0 && node.importClause.namedBindings.elements.every(item => item.isTypeOnly))));
+           node.importClause.namedBindings.elements.length > 0 && node.importClause.namedBindings.elements.every(item => item.isTypeOnly)))) ||
+          (ts.isExportDeclaration(node) && node.exportClause && ts.isNamedExports(node.exportClause) &&
+           node.exportClause.elements.length > 0 && node.exportClause.elements.every(item => item.isTypeOnly));
         if (!typeOnly) dependency(node, node.moduleSpecifier.text);
       }
       if (ts.isImportEqualsDeclaration(node) && !node.isTypeOnly && ts.isExternalModuleReference(node.moduleReference)) {
@@ -85,6 +98,7 @@ export function inspectEffectBoundaries(root = defaultRoot) {
       ts.forEachChild(node, visit);
     }
     visit(ast);
+    active.delete(file);
   }
   for (const file of files.filter(file => file.startsWith(domain))) inspect(file, [file]);
   return { checked: checkedFiles.size, issues: [...new Set(issues)] };
@@ -93,5 +107,5 @@ export function inspectEffectBoundaries(root = defaultRoot) {
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   const result = inspectEffectBoundaries();
   if (result.issues.length) { console.error(result.issues.join('\n')); process.exitCode = 1; }
-  else console.log(`Effect boundaries passed across ${result.checked} domain and helper modules; no network, credentials, database or provider imports.`);
+  else console.log(`Effect boundaries passed across ${result.checked} domain and helper modules; no circular runtime dependencies, network, credentials, database or provider imports.`);
 }

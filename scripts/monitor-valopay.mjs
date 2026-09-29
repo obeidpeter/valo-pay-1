@@ -91,6 +91,46 @@ function raiseBacklog(backlog, codes, warnings) {
   if (backlog?.publicSandboxes?.overdue > 0) warnings.push('scheduler_public_sandbox_closes_overdue');
 }
 
+/** Additive worker evidence: old builds are explicitly not reported; malformed new answers are never healthy. */
+function backgroundObservation(health, now, codes, warnings) {
+  const worker = health?.background;
+  if (worker === undefined) return { background: 'not_reported' };
+  const count = value => Number.isSafeInteger(value) && value >= 0;
+  const positive = value => Number.isSafeInteger(value) && value > 0;
+  const instant = value => typeof value === 'string' && Number.isFinite(Date.parse(value));
+  const nullableInstant = value => value === null || instant(value);
+  const states = ['not_started', 'starting', 'running', 'restarting', 'stale', 'stopping', 'stopped'];
+  const cleanup = worker?.cleanup, result = cleanup?.lastResult;
+  if (!states.includes(worker?.state) || !['closes', 'backlog', 'exports', 'cleanup'].every(key => typeof worker?.jobs?.[key] === 'boolean')
+      || !positive(worker.heartbeatIntervalMs) || !positive(worker.staleAfterMs) || worker.staleAfterMs < worker.heartbeatIntervalMs
+      || !count(worker.crashCount) || !count(worker.restartCount) || ![worker.startedAt, worker.lastHeartbeatAt, worker.lastCrashAt].every(nullableInstant)
+      || !['disabled', 'pending', 'ok', 'failed', 'stale'].includes(cleanup?.state)
+      || ![cleanup.lastCheckedAt, cleanup.lastSuccessAt, cleanup.lastErrorAt].every(nullableInstant)
+      || !(result === null || count(result?.attempted) && count(result?.removed) && count(result?.deferred) && count(result?.pendingFailures) && result.removed + result.deferred === result.attempted)
+      || (worker.jobs.cleanup ? !positive(cleanup.intervalMs) || !positive(cleanup.staleAfterMs) || cleanup.state === 'disabled' : cleanup.state !== 'disabled' || cleanup.intervalMs !== null || cleanup.staleAfterMs !== null)) {
+    codes.push('background_unverified'); return { background: 'unverified' };
+  }
+  const fresh = (at, within) => instant(at) && now - Date.parse(at) <= within && Date.parse(at) <= now + worker.heartbeatIntervalMs;
+  const pending = [];
+  if (worker.state === 'starting' && fresh(worker.startedAt, worker.staleAfterMs)) { warnings.push('background_starting'); pending.push(worker.staleAfterMs); }
+  else if (worker.state === 'stale' || worker.state === 'running' && !fresh(worker.lastHeartbeatAt, worker.staleAfterMs)) codes.push('background_stale');
+  else if (worker.state !== 'running') codes.push('background_not_running');
+  if (worker.jobs.cleanup) {
+    if (cleanup.state === 'pending' && fresh(worker.startedAt, cleanup.staleAfterMs)) { warnings.push('background_cleanup_pending'); pending.push(cleanup.staleAfterMs); }
+    else if (cleanup.state === 'stale' || !fresh(cleanup.lastCheckedAt, cleanup.staleAfterMs)) codes.push('background_cleanup_stale');
+    else if (cleanup.state === 'failed') codes.push('background_cleanup_failed');
+    else if (cleanup.state !== 'ok' || !result || result.deferred > 0 || result.pendingFailures > 0 || cleanup.lastSuccessAt !== cleanup.lastCheckedAt) codes.push('background_unverified');
+  }
+  return {
+    // Rebuild the allowlisted observation instead of reflecting a health body into alert delivery.
+    background: { state: worker.state, jobs: Object.fromEntries(['closes', 'backlog', 'exports', 'cleanup'].map(key => [key, worker.jobs[key]])),
+      lastHeartbeatAt: worker.lastHeartbeatAt, crashCount: worker.crashCount, restartCount: worker.restartCount, lastCrashAt: worker.lastCrashAt,
+      cleanup: { state: cleanup.state, lastCheckedAt: cleanup.lastCheckedAt, lastSuccessAt: cleanup.lastSuccessAt, lastErrorAt: cleanup.lastErrorAt,
+        lastResult: result && { attempted: result.attempted, removed: result.removed, deferred: result.deferred, pendingFailures: result.pendingFailures } } },
+    ...(pending.length ? { backgroundReadWithinMs: Math.max(...pending) } : {}),
+  };
+}
+
 /**
  * One probe, no customer records, no log bodies, no provider requests. `expectScheduler`: true or 'on' expects the
  * API process to run the scheduled closes with a fresh successful check; 'external' expects it to leave them to a
@@ -114,6 +154,7 @@ export async function probeService({ origin, expectScheduler = false, fetchImpl 
     if (ready.value?.checks?.schema?.status === 'indexes_missing') warnings.push('schema_indexes_missing');
     else if (ready.value?.checks?.schema?.status !== 'ok') codes.push('schema_unready');
   }
+  const background = health.status === 'fulfilled' ? backgroundObservation(health.value, now, codes, warnings) : { background: 'unverified' };
   if (expectScheduler === 'external' && health.status === 'fulfilled') {
     // The job's own runs are not visible here: they show in its run history and its close.one_shot lines. Each web
     // instance reads what is still owed at the scheduler's interval instead, so a job that has stopped running shows
@@ -162,10 +203,12 @@ export async function probeService({ origin, expectScheduler = false, fetchImpl 
   return { service: base, observedAt: new Date(now).toISOString(), codes: [...new Set(codes)].sort(), warnings: [...new Set(warnings)],
     // With that warning, how long a process can be young at the interval it reads at, which the incident rule needs.
     ...(pending ? { firstReadWithinMs: firstReadWithin(Number(health.value.scheduler.intervalMs)) } : {}),
+    ...(background.backgroundReadWithinMs ? { backgroundReadWithinMs: background.backgroundReadWithinMs } : {}),
     observations: {
       liveness: health.status === 'fulfilled' && health.value?.status === 'ok' ? 'ok' : 'unavailable',
       database: ready.status === 'fulfilled' && ready.value?.checks?.database?.status === 'ok' ? 'ok' : 'unavailable',
       schema: ready.status === 'fulfilled' && ['ok', 'indexes_missing', 'incomplete'].includes(ready.value?.checks?.schema?.status) ? ready.value.checks.schema.status : 'unverified',
+      background: background.background,
       scheduler: schedulerStates.includes(health.value?.scheduler?.state) ? health.value.scheduler.state : 'unverified',
       schedulerEvidence: !expectScheduler ? 'not_requested' : expectScheduler === 'external' && !sawBacklog ? 'mode_only'
         : codes.some(code => code.startsWith('scheduler_')) || health.status !== 'fulfilled' ? 'failed' : pending ? 'first_read_pending'
@@ -190,14 +233,21 @@ export async function deliverTransition(probe, previous, deliver, { owner, failu
   if (!owner?.trim() || !Number.isInteger(failureThreshold) || failureThreshold < 1) throw new Error('An alert owner and positive failure threshold are required.');
   const previousForService = previous?.service === probe.service ? previous : {};
   let judged = probe, pendingSince;
-  if (!probe.codes.length && probe.warnings?.includes('scheduler_backlog_pending')) {
+  const waiting = ['scheduler_backlog_pending', 'background_starting', 'background_cleanup_pending'].filter(warning => probe.warnings?.includes(warning));
+  // A rollback to an older build cannot prove a worker incident has recovered.
+  if (!probe.codes.length && probe.observations?.background === 'not_reported' && previousForService.delivered?.split('|').some(code => code.startsWith('background_'))) {
+    return { state: { ...previousForService, observedAt: probe.observedAt }, delivered: false, probe };
+  }
+  if (!probe.codes.length && waiting.length) {
     const at = Date.parse(probe.observedAt), since = Date.parse(previousForService.pendingSince ?? '');
     pendingSince = Number.isFinite(since) && since <= at ? previousForService.pendingSince : probe.observedAt;
-    const youngAtMost = Number.isSafeInteger(probe.firstReadWithinMs) && probe.firstReadWithinMs > 0 ? probe.firstReadWithinMs : YOUNG_AT_MOST_MS;
+    const limits = [probe.firstReadWithinMs, probe.backgroundReadWithinMs].filter(value => Number.isSafeInteger(value) && value > 0);
+    const youngAtMost = limits.length ? Math.max(...limits) : YOUNG_AT_MOST_MS;
     if (!(at - Date.parse(pendingSince) > youngAtMost)) {
       return { state: { service: probe.service, pending: previousForService.pending ?? '', streak: Number(previousForService.streak || 0), delivered: previousForService.delivered || '', observedAt: probe.observedAt, pendingSince }, delivered: false, probe };
     }
-    judged = { ...probe, codes: ['scheduler_stale'], observations: { ...probe.observations, schedulerEvidence: 'failed' } };
+    const stale = waiting.map(warning => ({ scheduler_backlog_pending: 'scheduler_stale', background_starting: 'background_stale', background_cleanup_pending: 'background_cleanup_stale' })[warning]);
+    judged = { ...probe, codes: stale.sort(), observations: { ...probe.observations, ...(waiting.includes('scheduler_backlog_pending') ? { schedulerEvidence: 'failed' } : {}) } };
   }
   const signature = judged.codes.join('|');
   const streak = previousForService.pending === signature ? Number(previousForService.streak || 0) + 1 : 1;

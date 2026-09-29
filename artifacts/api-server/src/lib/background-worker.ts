@@ -5,6 +5,7 @@ import { closeRules } from "@workspace/valopay-schema";
 import { applySchedulerEvent, type SchedulerEvent } from "./close-scheduler";
 import { EXPORT_CONCURRENCY } from "./export-jobs";
 import { writeLogLine, type LogLineMessage } from "./logger";
+import { backgroundHealth, type BackgroundObservation } from "./background-health";
 
 declare const __VALOPAY_BACKGROUND_ENTRY__: string | undefined;
 
@@ -35,7 +36,7 @@ export interface BackgroundOptions {
   cleanup?: { intervalMs?: number } | null;
 }
 /** What the thread posts to the main thread: a log line to write, or a change of the scheduler's state. */
-export type BackgroundMessage = LogLineMessage | { type: "scheduler"; event: SchedulerEvent };
+export type BackgroundMessage = LogLineMessage | { type: "scheduler"; event: SchedulerEvent } | BackgroundObservation;
 /** What the main thread posts to the thread: stop, or run a lender's daily audit check after a person's close. */
 export type BackgroundRequest = { type: "stop" } | { type: "audit_check"; merchantId: string };
 
@@ -101,6 +102,7 @@ function sourceWorker(entry: URL, options: WorkerOptions): Worker | undefined {
  */
 export function startBackgroundWorker(options: BackgroundOptions & { log: Logger; entry?: URL; restartMs?: number; maxRestartMs?: number; steadyMs?: number }): BackgroundWorker {
   const { log } = options, entry = options.entry ?? backgroundEntry();
+  backgroundHealth.configure({ closes: Boolean(options.closes), backlog: Boolean(options.backlog), exports: Boolean(options.exports), cleanup: Boolean(options.cleanup) }, options.cleanup?.intervalMs);
   const workerData: BackgroundOptions & { thread: "background" } = { thread: "background", closes: options.closes, backlog: options.backlog ?? null, exports: options.exports, cleanup: options.cleanup ?? null };
   // The database module sizes its pool from this setting when the thread loads it: the thread's pool, not the requests'.
   const settings: WorkerOptions = { workerData, env: { ...process.env, VALOPAY_DATABASE_POOL_SIZE: String(BACKGROUND_POOL_SIZE) } };
@@ -111,6 +113,7 @@ export function startBackgroundWorker(options: BackgroundOptions & { log: Logger
 
   /** Logs a thread that ended unasked, or could not start, and starts another after the wait. */
   const crashed = (err: unknown, exitCode: number | undefined, startedAt: number) => {
+    backgroundHealth.crashed();
     if (Date.now() - startedAt >= (options.steadyMs ?? BACKGROUND_STEADY_MS)) crashes = 0;
     crashes += 1;
     const retryInMs = backgroundRestartDelay(crashes, options.restartMs, options.maxRestartMs);
@@ -126,6 +129,7 @@ export function startBackgroundWorker(options: BackgroundOptions & { log: Logger
   if (options.backlog) applySchedulerEvent({ type: "external", intervalMs: options.backlog.intervalMs ?? closeRules.tickSeconds * 1000 });
   function spawn(): void {
     restart = undefined;
+    backgroundHealth.starting();
     const startedAt = Date.now();
     let worker: Worker, failure: unknown;
     // A thread Node refuses to start (an execArgv flag threads do not take, say) is a crash like any other.
@@ -135,6 +139,7 @@ export function startBackgroundWorker(options: BackgroundOptions & { log: Logger
     worker.on("message", (message: BackgroundMessage) => {
       if (message?.type === "log") writeLogLine(message.line);
       else if (message?.type === "scheduler") applySchedulerEvent(message.event);
+      else if (message?.type === "heartbeat" || message?.type === "cleanup") backgroundHealth.observe(message);
     });
     // An exception nothing in the thread caught ends the thread, never the process: it is heard here, then 'exit' follows.
     worker.on("error", (error) => { failure = error; });
@@ -145,6 +150,7 @@ export function startBackgroundWorker(options: BackgroundOptions & { log: Logger
       if (!stopping) return crashed(err, exitCode, startedAt);
       if (failure || exitCode) log.error({ event: "background.crashed", err, exitCode, durationMs: Date.now() - startedAt }, "The background worker thread failed while it stopped");
       else log.info({ event: "background.stopped", durationMs: Date.now() - startedAt }, "Background worker thread stopped");
+      backgroundHealth.stopped();
       ended();
     });
     log.info({ event: "background.started", threadId: worker.threadId, closes: options.closes !== null, backlog: Boolean(options.backlog), exports: options.exports !== null, cleanup: Boolean(options.cleanup), poolSize: BACKGROUND_POOL_SIZE, crashes }, "Background worker thread started");
@@ -155,11 +161,13 @@ export function startBackgroundWorker(options: BackgroundOptions & { log: Logger
     stop() {
       if (stopping) return;
       stopping = true;
+      backgroundHealth.stopping();
       if (running === current) running = undefined;
       if (current) { current.postMessage({ type: "stop" } satisfies BackgroundRequest); return; }
       // Waiting to start again after a crash: nothing runs, so nothing is left to stop.
       clearTimeout(restart);
       if (options.closes) applySchedulerEvent({ type: "stopped" });
+      backgroundHealth.stopped();
       ended();
     },
     settle: () => settled,
