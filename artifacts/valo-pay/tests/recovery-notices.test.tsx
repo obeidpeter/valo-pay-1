@@ -48,15 +48,15 @@ describe("unconfirmed changes the journal records point to Operations", () => {
     const user = userEvent.setup();
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
     renderApp("/evidence");
-    await user.click(await screen.findByRole("button", { name: "Log review" }));
+    await user.click(await screen.findByRole("button", { name: "Record review" }));
     const dialog = screen.getByRole("dialog");
     await user.type(within(dialog).getByRole("textbox", { name: "Review notes" }), "Checked the sample mandates this fortnight.");
     api.failNext(/^\/v1\/records\/reviews$/, "offline", "POST");
-    await user.click(within(dialog).getByRole("button", { name: "Save review" }));
-    await within(dialog).findByText("Review outcome not confirmed");
-    pointsToOperations("Review outcome not confirmed");
+    await user.click(within(dialog).getByRole("button", { name: "Record review" }));
+    await within(dialog).findByText("Request not confirmed");
+    pointsToOperations("Request not confirmed");
     await user.click(within(dialog).getAllByRole("button", { name: "Close" }).find((button) => button.textContent === "Close")!);
-    expect(confirm).toHaveBeenCalledWith(expect.stringContaining("If the service received the review, it stays in Operations, where you can check it before starting again."));
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining("If it arrived, it is listed in Request history."));
   });
 
   it("in the mandate dialog", async () => {

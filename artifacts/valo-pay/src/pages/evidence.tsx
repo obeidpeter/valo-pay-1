@@ -7,7 +7,7 @@ import { useWorkspace } from '@/lib/workspace-context';
 import { useGetGates, useListRecords, getGetGatesQueryKey, getListRecordsQueryKey } from '@workspace/api-client-react';
 import { ShieldCheck, AlertTriangle, FileCheck, CheckCircle, Search } from 'lucide-react';
 import { PermissionButton as Button } from '@/components/permission-button';
-import { formatKobo, formatDate, formatNumber, formatPercent } from '@/lib/formatters';
+import { formatCount, formatKobo, formatDate, formatNumber, formatPercent } from '@/lib/formatters';
 import { RecordDialog } from '@/components/record-dialog';
 import { readableLabel } from '@/components/record-label';
 import { LoadProblem } from '@/components/load-problem';
@@ -41,19 +41,22 @@ function ConfirmDiscountContext({ data }: { data: Record<string, unknown> }) {
   </div>;
 }
 
-/** The prerequisite and decision ids the gate register matches evidence on (data.gateId). */
+/**
+ * The requirement and decision ids the evidence register matches evidence on (data.gateId), named as the go-live
+ * requirements name them. Only P1 to P5 keep their code, as a tag beside the name; the other codes stay in the data.
+ */
 const gateOptions = [
   { value: 'P1', label: 'P1 · Legal opinion' },
   { value: 'P2', label: 'P2 · Aggregator partner access' },
-  { value: 'P3', label: 'P3 · Data protection registration and data-processing agreement' },
+  { value: 'P3', label: 'P3 · Permission to process data' },
   { value: 'P4', label: 'P4 · Security and operational readiness' },
   { value: 'P5', label: 'P5 · Two design-partner lenders' },
-  { value: 'F1', label: 'F1 · Test 5 operational value' },
-  { value: 'F2', label: 'F2 · Test 3 commercial evidence' },
-  { value: 'F3', label: 'F3 · Variable cost per collection' },
-  { value: 'F4', label: 'F4 · Bridge cash in hand' },
-  { value: 'T1b', label: 'T1b · Portability decision' },
-  { value: 'T2', label: 'T2 · Recovery-fee decision' },
+  { value: 'F1', label: 'Stage 2 funding: both lenders pass the operational test' },
+  { value: 'F2', label: 'Stage 2 funding: signed prices meet the list-price test' },
+  { value: 'F3', label: 'Stage 2 funding: cost of ₦15 or less per collection' },
+  { value: 'F4', label: 'Stage 2 funding: at least three months of running costs' },
+  { value: 'T1b', label: 'Provider choice at setup' },
+  { value: 'T2', label: 'Recovery fee' },
 ];
 
 export default function EvidencePage() {
@@ -118,7 +121,7 @@ export default function EvidencePage() {
       <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Go-live evidence</h1>
-          <p className="text-muted-foreground mt-1">Track requirements, commercial terms and evidence for readiness decisions. Sample data cannot establish live readiness.</p>
+          <p className="text-muted-foreground mt-1">Track the go-live requirements, the commercial terms and the evidence for each decision. Sample data cannot show that you are ready to go live.</p>
         </div>
         <ExportJobControl kind="gate-pack" formats={['pdf']} label="Export evidence pack" />
       </header>
@@ -128,7 +131,7 @@ export default function EvidencePage() {
         <div className="p-4 border-b bg-secondary/20 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <ShieldCheck className="h-5 w-5 text-primary" />
-            <h2 className="font-semibold text-lg">Live readiness checks</h2>
+            <h2 className="font-semibold text-lg">Go-live requirements</h2>
           </div>
           {gates?.limitations.length ? (
             <span className="text-xs font-medium bg-destructive/10 text-destructive px-2 py-1 rounded border border-destructive/20 flex items-center gap-1">
@@ -142,15 +145,15 @@ export default function EvidencePage() {
         </div>
         
         {isLoadingGates ? (
-          <Loading what="readiness checks" />
+          <Loading what="go-live requirements" />
         ) : gatesError || !gates ? (
-          <LoadProblem what="readiness checks" error={gatesError} retry={() => { void retryGates(); }} busy={fetchingGates} />
+          <LoadProblem what="go-live requirements" error={gatesError} retry={() => { void retryGates(); }} busy={fetchingGates} />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-0 divide-y md:divide-y-0 md:divide-x">
             <div className="p-6">
-              <h3 className="font-medium text-muted-foreground uppercase text-xs tracking-wider mb-4 flex justify-between">
-                Prerequisites
-                <a href="#evidence-register" className="normal-case text-primary underline">View evidence register</a>
+              <h3 className="font-medium text-muted-foreground text-xs mb-4 flex justify-between">
+                Requirements
+                <a href="#evidence-register" className="text-primary underline">Go to the evidence register</a>
               </h3>
               <div className="space-y-4">
                 {gates.prerequisites.map(gate => (
@@ -170,7 +173,7 @@ export default function EvidencePage() {
             </div>
             
             <div className="p-6">
-              <h3 className="font-medium text-muted-foreground uppercase text-xs tracking-wider mb-4">Decisions</h3>
+              <h3 className="font-medium text-muted-foreground text-xs mb-4">Decisions</h3>
               <div className="space-y-4">
                 {gates.decisions.map(gate => (
                   <div key={gate.id} className="flex gap-3">
@@ -189,7 +192,7 @@ export default function EvidencePage() {
               {gates.limitations.length > 0 && (
                 <div className="mt-8 bg-destructive/5 border border-destructive/20 rounded-lg p-4">
                   <h4 className="text-sm font-bold text-destructive flex items-center gap-2 mb-2">
-                    <AlertTriangle className="h-4 w-4" /> Missing requirements
+                    <AlertTriangle className="h-4 w-4" /> What this sandbox cannot show
                   </h4>
                   <ul className="list-disc list-inside text-xs text-destructive ml-4 space-y-1">
                     {gates.limitations.map((lim, i) => <li key={i}>{lim}</li>)}
@@ -203,7 +206,7 @@ export default function EvidencePage() {
 
       <section id="evidence-register" aria-labelledby="evidence-register-title" className="scroll-mt-6 rounded-xl border bg-card shadow-sm overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b p-5">
-          <div><h2 id="evidence-register-title" className="text-lg font-semibold">Evidence register</h2><p className="mt-1 text-sm text-muted-foreground">Every prerequisite and decision, including funding, recovery and provider choice. Recording evidence does not verify a live requirement.</p></div>
+          <div><h2 id="evidence-register-title" className="text-lg font-semibold">Evidence register</h2><p className="mt-1 text-sm text-muted-foreground">Evidence for each requirement and decision, including funding, recovery and provider choice. Adding evidence here does not mean a live requirement is met.</p></div>
           <Button size="sm" kind="evidence" onClick={() => handleCreate('evidence')}>Add evidence</Button>
         </div>
         <div className="flex flex-col gap-3 border-b p-5 sm:flex-row print:hidden">
@@ -217,7 +220,7 @@ export default function EvidencePage() {
           <table className="w-full text-left text-sm">
             <thead className="border-b bg-secondary/30 text-muted-foreground"><tr>{['Evidence', 'Requirement or decision', 'Owner', 'Date', 'Status', 'Action'].map(label => <th key={label} scope="col" className="px-5 py-3 font-medium">{label}</th>)}</tr></thead>
             <tbody className="divide-y">
-              {isLoadingEvidence ? <LoadingRow colSpan={6} what="evidence" /> : evidenceRows.length === 0 ? <EmptyRow colSpan={6} title={search || gateFilter !== 'all' ? 'No evidence matches these filters' : 'No evidence recorded'}>{search || gateFilter !== 'all' ? <Button variant="link" onClick={() => { setSearch(''); setGateFilter('all'); }}>Clear filters</Button> : 'Add an evidence reference, an owner and the date it was recorded.'}</EmptyRow> : evidenceRows.map(item => {
+              {isLoadingEvidence ? <LoadingRow colSpan={6} what="evidence" /> : evidenceRows.length === 0 ? <EmptyRow colSpan={6} title={search || gateFilter !== 'all' ? 'No evidence matches these filters' : 'No evidence yet'}>{search || gateFilter !== 'all' ? <Button variant="link" onClick={() => { setSearch(''); setGateFilter('all'); }}>Clear filters</Button> : 'Select Add evidence to record the first one.'}</EmptyRow> : evidenceRows.map(item => {
                 const gate = String(item.data?.gateId || item.reference);
                 return <tr key={item.id} className="hover:bg-secondary/10">
                   <td className="max-w-sm px-5 py-4"><p className="font-medium">{item.name}</p><p className="mt-1 break-all text-xs text-muted-foreground">{String(item.data?.reference || item.reference || 'No reference')}</p></td>
@@ -233,17 +236,17 @@ export default function EvidencePage() {
         </ScrollFrame>}
       </section>
 
-      {/* Commercial commitments */}
+      {/* Commercial terms */}
       <section className="bg-card border rounded-xl shadow-sm overflow-hidden">
         <div className="p-4 border-b bg-secondary/20 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <FileCheck className="h-5 w-5 text-primary" />
-            <h2 className="font-semibold text-lg">Commercial commitments</h2>
+            <h2 className="font-semibold text-lg">Commercial terms</h2>
           </div>
           <Button size="sm" kind="commercial" onClick={() => handleCreate('commercial')}>Add terms</Button>
         </div>
         <div role="status">{termsNotice && <p ref={termsAnswer} tabIndex={-1} className="border-b bg-secondary/20 px-4 py-3 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">{termsNotice}</p>}</div>
-        <ScrollFrame label="Commercial commitments" className="overflow-x-auto">
+        <ScrollFrame label="Commercial terms" className="overflow-x-auto">
           <table className="w-full text-sm text-left">
             <thead className="bg-secondary/30 border-b text-muted-foreground">
               <tr>
@@ -258,11 +261,11 @@ export default function EvidencePage() {
             </thead>
             <tbody className="divide-y">
               {isLoadingComm ? (
-                <LoadingRow colSpan={7} what="commercial commitments" />
+                <LoadingRow colSpan={7} what="commercial terms" />
               ) : commercialError ? (
-                <tr><td colSpan={7}><LoadProblem what="commercial commitments" error={commercialError} retry={() => { void retryCommercial(); }} busy={fetchingCommercial} /></td></tr>
+                <tr><td colSpan={7}><LoadProblem what="commercial terms" error={commercialError} retry={() => { void retryCommercial(); }} busy={fetchingCommercial} /></td></tr>
               ) : !commercial || commercial.items.length === 0 ? (
-                <EmptyRow colSpan={7} title="No commercial commitments">Record signed terms, licence plans and pricing commitments here. They support commercial readiness checks.</EmptyRow>
+                <EmptyRow colSpan={7} title="No commercial terms yet">Select Add terms to record signed terms, licence plans and prices. They count towards the go-live requirements.</EmptyRow>
               ) : (
                 commercial.items.map(comm => (
                   <tr key={comm.id} className="hover:bg-secondary/10">
@@ -296,16 +299,16 @@ export default function EvidencePage() {
         </ScrollFrame>
       </section>
 
-      {/* Fortnightly reviews */}
+      {/* Reviews every two weeks */}
       <section className="bg-card border rounded-xl shadow-sm overflow-hidden">
         <div className="p-4 border-b bg-secondary/20 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <FileCheck className="h-5 w-5 text-primary" />
-            <h2 className="font-semibold text-lg">Fortnightly reviews</h2>
+            <h2 className="font-semibold text-lg">Reviews every two weeks</h2>
           </div>
-          <Button size="sm" kind="reviews" onClick={() => setReviewOpen(true)}>Log review</Button>
+          <Button size="sm" kind="reviews" onClick={() => setReviewOpen(true)}>Record review</Button>
         </div>
-        <ScrollFrame label="Fortnightly reviews" className="overflow-x-auto">
+        <ScrollFrame label="Reviews every two weeks" className="overflow-x-auto">
           <table className="w-full text-sm text-left">
             <thead className="bg-secondary/30 border-b text-muted-foreground">
               <tr>
@@ -321,14 +324,14 @@ export default function EvidencePage() {
               ) : reviewsError ? (
                 <tr><td colSpan={4}><LoadProblem what="reviews" error={reviewsError} retry={() => { void retryReviews(); }} busy={fetchingReviews} /></td></tr>
               ) : !reviews || reviews.items.length === 0 ? (
-                <EmptyRow colSpan={4} title="No reviews logged">Every two weeks, log a review and record which tasks you confirmed: mandate operations, retries, payment matching, and audit and dispute records. The review is recorded in your name, with the time the service saves it.</EmptyRow>
+                <EmptyRow colSpan={4} title="No reviews yet">Every two weeks, select Record review and tick the tasks you checked: mandate operations, retries, payment matching, and audit and dispute records. Valo Pay records the review in your name, with the time it is saved.</EmptyRow>
               ) : (
                 reviews.items.map(rev => (
                   <tr key={rev.id} className="hover:bg-secondary/10">
                     <td className="px-6 py-4 font-mono text-xs">{formatDate(String(rev.data?.reviewedAt || rev.createdAt))}</td>
-                    <td className="px-6 py-4 font-medium">{String(rev.data?.reviewer || 'Unknown')}</td>
-                    <td className="px-6 py-4 text-xs">{Array.isArray(rev.data?.confirmedJobs) ? reviewJobs.filter(job => (rev.data!.confirmedJobs as string[]).includes(job.value)).map(job => job.label).join(', ') || 'No tasks confirmed' : `${String(rev.data?.confirmedJobs || 0)} tasks · legacy count`}</td>
-                    <td className="px-6 py-4 text-xs text-muted-foreground">{String(rev.data?.note || '-')}</td>
+                    <td className="px-6 py-4 font-medium">{String(rev.data?.reviewer || 'Not recorded')}</td>
+                    <td className="px-6 py-4 text-xs">{Array.isArray(rev.data?.confirmedJobs) ? reviewJobs.filter(job => (rev.data!.confirmedJobs as string[]).includes(job.value)).map(job => job.label).join(', ') || 'No tasks confirmed' : `${formatCount(Number(rev.data?.confirmedJobs || 0), 'task')} (an older review that did not save task names)`}</td>
+                    <td className="px-6 py-4 text-xs text-muted-foreground">{String(rev.data?.note || 'No notes')}</td>
                   </tr>
                 ))
               )}
@@ -369,7 +372,7 @@ export default function EvidencePage() {
         fields={
           actionKind === 'evidence' ? [
             { name: 'name', label: 'Evidence title', type: 'text', required: true },
-            { name: 'gateId', label: 'Requirement or decision supported', type: 'select', isData: true, required: true, options: gateOptions },
+            { name: 'gateId', label: 'Requirement or decision', type: 'select', isData: true, required: true, options: gateOptions },
             { name: 'status', label: 'Status', type: 'select', options: [{label: 'Pending', value: 'pending'}, {label: 'Recorded', value: 'recorded'}], required: true },
             { name: 'reference', label: 'Evidence link or reference', type: 'text', isData: true, required: true },
             { name: 'owner', label: 'Evidence owner', type: 'text', isData: true, required: true },
@@ -378,17 +381,17 @@ export default function EvidencePage() {
           ] : actionKind === 'commercial' ? [
             { name: 'name', label: 'Lender name', type: 'text', required: true },
             { name: 'monthlyVolume', label: 'Monthly collection count', type: 'number', isData: true, required: true },
-            { name: 'averageTicketKobo', label: 'Average collection amount (kobo; 100 kobo = ₦1)', type: 'number', isData: true, required: true },
-            { name: 'licenceKobo', label: 'Monthly licence fee (kobo)', type: 'number', isData: true, required: true },
-            { name: 'usageBps', label: 'Usage rate (basis points; 100 = 1%)', type: 'number', isData: true, required: true },
-            { name: 'usageCapKobo', label: 'Usage fee cap per collection (kobo)', type: 'number', isData: true, required: true },
+            { name: 'averageTicketKobo', label: 'Average collection amount (₦)', type: 'number', isData: true, required: true, help: 'In naira, for example 25,000.00.' },
+            { name: 'licenceKobo', label: 'Monthly licence fee (₦)', type: 'number', isData: true, required: true },
+            { name: 'usageBps', label: 'Usage fee rate (%)', type: 'number', percent: 'basisPoints', isData: true, required: true, help: 'A percentage with up to 2 decimal places, for example 0.3.' },
+            { name: 'usageCapKobo', label: 'Maximum usage fee per collection (₦)', type: 'number', isData: true, required: true },
             { name: 'signed', label: 'Signed', type: 'checkbox', isData: true },
-            { name: 'effectiveDate', label: 'Takes effect on', type: 'date', isData: true, help: 'Each invoice month is billed from the latest signed terms in effect by its end, for the whole month. Leave blank for terms that apply from the start.' },
+            { name: 'effectiveDate', label: 'Takes effect on', type: 'date', isData: true, help: 'Each billing month is billed on the signed terms in effect on its last day, for the whole month. Leave blank if these terms apply from the start.' },
             { name: 'designPartner', label: 'Design-partner agreement', type: 'checkbox', isData: true },
-            { name: 'signedFullPriceTerms', label: 'Full-price terms are signed', type: 'checkbox', isData: true, help: 'Tick once the full-price terms are signed. Until then the discount dates are not proposed and cannot price an invoice.' },
-            { name: 'discountStartDate', label: '50% discount starts on', type: 'date', isData: true, help: 'Use the first day of the billing month agreed in the signed contract. There is no automatic 2027 discount.' },
-            { name: 'fullPriceStartDate', label: 'Full-price billing starts on', type: 'date', isData: true, help: 'Use the first day of the agreed billing month after the pilot and bridge. No mid-month proration is calculated.' },
-            { name: 'discountTermsReference', label: 'Signed agreement reference for these dates', type: 'text', isData: true, help: 'Saving signed design-partner terms with these dates proposes them: the service records your demo role or staff account and the time. A different Admin or Finance user must then confirm them before a new invoice is priced. Existing invoices stay unchanged. Leave dates blank until the agreement has been reviewed; new invoices will wait.' }
+            { name: 'signedFullPriceTerms', label: 'Full-price terms are signed', type: 'checkbox', isData: true, help: 'Tick this once the full-price terms are signed. Until then, the discount dates are not proposed and cannot be used on an invoice.' },
+            { name: 'discountStartDate', label: '50% discount starts on', type: 'date', isData: true, help: 'Use the first day of the billing month agreed in the signed contract. No discount starts automatically.' },
+            { name: 'fullPriceStartDate', label: 'Full-price billing starts on', type: 'date', isData: true, help: 'Use the first day of the first full-price billing month in the signed contract. Prices never change part-way through a month.' },
+            { name: 'discountTermsReference', label: 'Signed agreement reference for these dates', type: 'text', isData: true, help: 'Saving signed design-partner terms with these dates proposes them. Valo Pay records your demo role or staff account, and the time. A different Admin or Finance team member must then confirm them before new invoices use them. Issued invoices stay unchanged. Leave the dates blank until the agreement has been reviewed; new invoices will wait.' }
           ] : []
         }
       />

@@ -30,7 +30,7 @@ function FocusHarness({ open, removeOpener = false }: { open: boolean; removeOpe
 describe('dialog opener restoration across browser click behavior', () => {
   it.each([
     { path: '/customers', button: 'Add customer', title: 'Add customer' },
-    { path: '/evidence', button: 'Log review', title: 'Log fortnightly review' },
+    { path: '/evidence', button: 'Record review', title: 'Record review' },
   ])('returns $title to an opener that the browser did not focus on click', async ({ path, button, title }) => {
     const user = userEvent.setup();
     renderApp(path);

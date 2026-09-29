@@ -37,7 +37,7 @@ export function ReviewDialog({ onClose }: { onClose: () => void }) {
   const close = () => {
     if (create.isPending) return;
     if (create.hasUnconfirmedOutcome) {
-      if (window.confirm('The review outcome is not confirmed. Closing does not cancel the request and discards this draft and its retry information. If the service received the review, it stays in Operations, where you can check it before starting again. Close anyway?')) onClose();
+      if (window.confirm('Valo Pay has not confirmed your review. If you close now, you lose this draft and cannot check it from here, but the request is not cancelled. If it arrived, it is listed in Request history. Close anyway?')) onClose();
       return;
     }
     if (confirmDiscard()) onClose();
@@ -47,7 +47,7 @@ export function ReviewDialog({ onClose }: { onClose: () => void }) {
     onSuccess: (_data, _variables, submitted) => {
       void queryClient.invalidateQueries();
       if (submitted !== visit.current) return;
-      notifyDone('Review recorded', `${confirmedJobs.length} of 4 tasks confirmed. Sample reviews do not establish live readiness.`);
+      notifyDone('Review recorded', `${confirmedJobs.length} of 4 tasks confirmed. A review of sample data does not show that you are ready to go live.`);
       onClose();
     },
     onError: (error: unknown, _variables, submitted) => { if (submitted === visit.current) setFailure(saidBy(error, 'The review was not saved. Try again.')); },
@@ -71,22 +71,22 @@ export function ReviewDialog({ onClose }: { onClose: () => void }) {
     <Dialog open onOpenChange={open => { if (!open && !create.isPending) close(); }}>
       <DialogContent onCloseAutoFocus={restoreOpenerFocus}>
         <DialogHeader>
-          <DialogTitle>Log fortnightly review</DialogTitle>
-          <DialogDescription>Record what was checked with sample data. Only a review confirming all four tasks counts towards the review schedule. Review notes are required.</DialogDescription>
+          <DialogTitle>Record review</DialogTitle>
+          <DialogDescription>Record what you checked with sample data. A review counts towards the schedule only when it confirms all four tasks. Review notes are required.</DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} noValidate className="space-y-5">
           {create.hasUnconfirmedOutcome && <div role="alert" className="space-y-2 rounded-lg border border-warning-border bg-warning/20 p-3 text-sm">
-            <p className="font-semibold">Review outcome not confirmed</p>
-            <p>The review may have been recorded. Retry the same review to recover its result without adding another. Keep this dialog open to retry it here. {KEPT_IN_OPERATIONS}</p>
+            <p className="font-semibold">Request not confirmed</p>
+            <p>We do not know yet whether Valo Pay saved this review. Select Check original request to find out without adding a second review. Keep this window open to check it here. {KEPT_IN_OPERATIONS}</p>
             {failure && <div><p className="font-medium">Latest response</p><p>{failure}</p></div>}
             {referenceOf(create.error) && <p>Support reference: {referenceOf(create.error)}</p>}
-            <div className="flex flex-wrap items-center gap-3"><Button type="button" variant="outline" busy={create.isPending} busyLabel="Recovering review…" onClick={() => { void create.retryUnconfirmed().catch(() => {}); }}>Retry same review</Button><OpenOperations /></div>
+            <div className="flex flex-wrap items-center gap-3"><Button type="button" variant="outline" busy={create.isPending} busyLabel="Checking original request…" onClick={() => { void create.retryUnconfirmed().catch(() => {}); }}>Check original request</Button><OpenOperations /></div>
           </div>}
           <fieldset disabled={create.isPending || create.hasUnconfirmedOutcome} className="contents">
           {!create.hasUnconfirmedOutcome && (failure || Object.keys(errors).length > 0) && <FormAlert title="Review not saved">{failure || 'Check the highlighted fields.'}<FormErrorLinks errors={errors} fields={reviewFields} prefix="review" /></FormAlert>}
           <div className="space-y-1 rounded-md border bg-secondary/20 px-3 py-2 text-sm">
             <p><span className="font-medium">Reviewer:</span> {workspace?.actor || 'you'} (you)</p>
-            <p className="text-xs text-muted-foreground">The review is recorded in your name, with the time the service saves it. To record another person’s review, they sign in and log it themselves.</p>
+            <p className="text-xs text-muted-foreground">Valo Pay records the review in your name, with the time it is saved. Another person records their own review after they sign in.</p>
           </div>
           <fieldset className="space-y-2">
             <legend className="mb-2 text-sm font-medium">Tasks confirmed</legend>
@@ -104,7 +104,7 @@ export function ReviewDialog({ onClose }: { onClose: () => void }) {
           </fieldset>
           <DialogFooter>
             <Button type="button" variant="outline" disabled={create.isPending} onClick={close}>{create.hasUnconfirmedOutcome ? 'Close' : 'Cancel'}</Button>
-            <Button kind="reviews" type="submit" disabled={create.hasUnconfirmedOutcome} busy={create.isPending} busyLabel="Saving review…">Save review</Button>
+            <Button kind="reviews" type="submit" disabled={create.hasUnconfirmedOutcome} busy={create.isPending} busyLabel="Recording review…">Record review</Button>
           </DialogFooter>
         </form>
       </DialogContent>
