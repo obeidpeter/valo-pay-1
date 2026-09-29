@@ -16,6 +16,7 @@ import {
   importCorrectionComparison,
 } from "../src/domain/import-corrections";
 import { derivePersonalWork, recordWorkReceipt } from "../src/domain/personal-work";
+import { bindCloseReviewBasis, closeReviewIssues, decideCloseReview, prepareCloseReview, reassignCloseReview } from "../src/domain/close-review";
 import type { DomainState } from "../src/domain/types";
 import { ResponseContractError } from "../src/lib/contract";
 import { canonicalDigest } from "../src/lib/digests";
@@ -636,6 +637,31 @@ assert.equal(
   const before = structuredClone(loaded);
   assert.equal(decideImportCorrection(loaded, reviewer, proposal.id, { proposalDigest: proposal.proposalDigest, action: "approve", reason: "Independently compared the source" }, reviewers).status, "approved");
   assert.doesNotThrow(() => assertImportedCorrectionChange(before.records.find((r) => r.id === target!.id)!, loaded.records.find((r) => r.id === target!.id)!, before, loaded), "the save's check uses the same rule");
+}
+{
+  // Review of PR #71, follow-up: impact version 2 still covers a decision or reassignment of a close review recorded
+  // before a proposal. Returning a review moves its status and version, reassigning it only its version (and reviewer):
+  // either way the proposal reads as changed and its approval is refused, as before version 2.
+  const state = fresh(), { batch, target } = imported(state, "customers", "source_row_id,name,reference,consentProvenance\nc-1,Synthetic customer,STALE-C-1,Synthetic consent");
+  const admin = { actor: "Clerk:admin", principalId: "person-admin", role: "Admin", now: "2026-09-22T11:00:00.000Z" };
+  const other = { actor: "Clerk:other-finance", role: "Finance" }, people = [...reviewers, other];
+  const earlierClose = bindCloseReviewBasis(state, makeRecord(state, "closes" as string, { status: "completed", createdAt: "2026-09-21T18:00:00.000Z", name: "Synthetic close 21 September", data: { closedAt: "2026-09-21T18:00:00.000Z", report: { unallocated: { count: 0 }, proposed: { count: 0 }, possibleDuplicates: { count: 0 } } } }));
+  const review = prepareCloseReview(state, { ...admin, now: "2026-09-21T19:00:00.000Z" }, { closeId: earlierClose.id, expectedUpdatedAt: earlierClose.updatedAt, reviewer: finance.actor, preparationNote: "Checked the synthetic close inputs.", unresolvedAcceptance: "Synthetic owners follow up the open items.", discrepancyResponses: closeReviewIssues(earlierClose).map((issue) => ({ issueId: issue.id, explanation: "Synthetic explanation for this check." })) }, people);
+  const input = { batchId: batch.id, targetId: target.id, expectedUpdatedAt: target.updatedAt, changes: { name: "Corrected synthetic customer" }, syntheticOnly: true as const };
+  const proposal = proposeImportCorrection(state, ctx, { ...input, previewDigest: previewImportCorrection(state, ctx, input).previewDigest, reviewer: finance.actor, reason: "Correct the misspelled source name", evidence: "SYNTHETIC-STALE-EVIDENCE" }, reviewers);
+  assert.equal(state.records.find((r) => r.id === proposal.id)!.data.impactVersion, 2);
+  assert.equal(listImportCorrections(state, finance, batch.id).proposals[0]?.current, true, "current while the earlier review is unchanged");
+  const approve = { proposalDigest: proposal.proposalDigest, action: "approve" as const, reason: "Independently compared the source" };
+  const changes: Array<[string, (lender: DomainState) => void]> = [
+    ["returned", (lender) => { const saved = lender.records.find((r) => r.id === review.id)!; decideCloseReview(lender, { ...finance, now: "2026-09-22T10:30:00.000Z" }, saved.id, { action: "return", expectedUpdatedAt: saved.updatedAt, note: "Return the synthetic close for changes." }); }],
+    ["reassigned", (lender) => { const saved = lender.records.find((r) => r.id === review.id)!; reassignCloseReview(lender, admin, saved.id, { expectedUpdatedAt: saved.updatedAt, reviewer: other.actor, reason: "The named reviewer is away this week." }, people); }],
+  ];
+  for (const [label, change] of changes) {
+    const lender = structuredClone(state);
+    change(lender);
+    assert.equal(listImportCorrections(lender, finance, batch.id).proposals[0]?.current, false, `an earlier close review ${label} after the proposal makes it stale`);
+    assert.throws(() => decideImportCorrection(lender, finance, proposal.id, approve, reviewers), (error: any) => error.status === 409 && /evidence changed/.test(error.message), `and its approval is refused once that review is ${label}`);
+  }
 }
 {
   // Review of PR #71: a forked reviewer assignment (two reassignments from the same version, which only bad data
