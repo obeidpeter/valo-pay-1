@@ -107,7 +107,7 @@ it('clears the public offset and late document restoration without resetting con
 
   // Leaving the console removes the guard: the long public page can scroll, and neither a viewport resize nor focus
   // leaving a link puts it back to the top, then or a frame later.
-  await user.click(screen.getAllByRole('link', { name: 'Valo Pay, payments, credit and cash operations. Go to home page' })[0]!);
+  await user.click(screen.getAllByRole('link', { name: 'Valo Pay, collections, credit and cash operations. Back to home' })[0]!);
   expect(document.querySelector('.console-shell')).toBeNull();
   const beforePublicScroll = scroll.mock.calls.length;
   Object.defineProperty(window, 'scrollY', { configurable: true, writable: true, value: 441 });
@@ -130,7 +130,7 @@ it('drops the check it was waiting to make when the console is left within the s
   const field = screen.getByRole('searchbox', { name: 'Find a page' });
   await user.click(field);
   await nextFrame();
-  const home = screen.getAllByRole('link', { name: 'Valo Pay, payments, credit and cash operations. Go to home page' })[0]!;
+  const home = screen.getAllByRole('link', { name: 'Valo Pay, collections, credit and cash operations. Back to home' })[0]!;
   // Focus leaving the field asks for a check a frame later; by then the console has gone and the public page scrolls.
   act(() => { field.blur(); home.click(); });
   expect(document.querySelector('.console-shell')).toBeNull();

@@ -34,7 +34,7 @@ Returning users can sign in from the header. Reviewers and potential partners ca
 
 ## The conceptual model on the page
 
-The brand descriptor is "Payments, credit & cash operations". Collections remains the operational foundation; Pay-by-bank, Credit Desk and Cash Desk have their own tasks, permissions and review steps. The hero says "Collections, credit and cash. One clear workspace." and immediately states that Valo Pay never holds money. The product category is broader than collections, while the offered experience remains a synthetic sandbox.
+The brand descriptor is "Collections, credit and cash operations", in the same words in the page title, the lockup, its link label and the footer. Collections remains the operational foundation; Pay-by-bank, Credit Desk and Cash Desk have their own tasks, permissions and review steps. The hero says "Collections, credit and cash. One clear workspace." and immediately states that Valo Pay never holds money. The product category is broader than collections, while the offered experience remains a synthetic sandbox.
 
 The four sample journeys do not establish live bank connections, payment initiation, validated underwriting, accounting posting, tax filing or payouts. A grant to read accounts is not authority to perform those actions. The boundaries section, module descriptions and FAQ repeat the relevant limits near the choice they qualify; they do not imply that a future provider integration already exists.
 

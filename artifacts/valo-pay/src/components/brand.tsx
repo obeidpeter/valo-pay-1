@@ -30,9 +30,11 @@ export function BrandMark({ className = "h-8 w-8" }: { className?: string }) {
 /**
  * The lockup pairs the name with its descriptor because the name says "Pay"
  * and the product never touches money; the descriptor is part of the brand,
- * not a tagline (marketing strategy, section 3.1). `compact` shows the mark
- * alone below 640 px, where the console's phone bar has no room for the name;
- * the link's label still says what it is.
+ * not a tagline (marketing strategy, section 3.1), and the same words as the
+ * landing page's title. `compact` shows the mark alone below 640 px, where the
+ * console's phone bar has no room for the name; the link's label still says
+ * what it is and where it goes: the landing page's own lockups link to the
+ * top of that page, every other one back home.
  */
 export function BrandLockup({
   href = "/",
@@ -49,7 +51,7 @@ export function BrandLockup({
     <Link
       href={href}
       className={`inline-flex items-center gap-3 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${className}`}
-      aria-label="Valo Pay, payments, credit and cash operations. Go to home page"
+      aria-label={`Valo Pay, collections, credit and cash operations. ${href.startsWith("#") ? "Back to top" : "Back to home"}`}
     >
       <BrandMark />
       <span
@@ -60,7 +62,7 @@ export function BrandLockup({
         </span>
         {descriptor && (
           <span className="block text-xs text-muted-foreground">
-            Payments, credit &amp; cash operations
+            Collections, credit and cash operations
           </span>
         )}
       </span>

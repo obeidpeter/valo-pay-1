@@ -437,10 +437,7 @@ export function LandingFooter() {
         <div className="lp-footer-main">
           <div className="lp-footer-brand">
             <BrandLockup href="#main" />
-            <p>
-              Connected payments, credit assessment and business cash
-              operations.
-            </p>
+            <p>Collections, credit and cash operations.</p>
             <span>Synthetic sandbox · No live financial operations</span>
           </div>
           <nav aria-label="Product workspaces" className="lp-footer-links">
