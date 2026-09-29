@@ -33,6 +33,12 @@ assert.equal(badCleanup.status, 1); assert.ok(!badCleanup.output.includes('synth
 assert.match(badCleanup.stderr, /Use: pnpm run check:export-cleanup/);
 const noCleanupDatabase = await run(cleanup, ['--']);
 assert.equal(noCleanupDatabase.status, 1); assert.match(noCleanupDatabase.stderr, /DATABASE_URL is required/);
+// A retry reaches private storage: without the service's storage setting it is refused before the store loads, so no
+// due file is claimed and pushed into backoff by a storage failure of the operator's shell.
+const noCleanupStorage = await run(cleanup, ['--', '--retry'], { DATABASE_URL: unusableDatabase });
+assert.equal(noCleanupStorage.status, 1);
+assert.match(noCleanupStorage.stderr, /^Private storage is not configured here \(PRIVATE_OBJECT_DIR\), so --retry was refused and no file was claimed/);
+assert.doesNotMatch(noCleanupStorage.output, /ECONNREFUSED|could not be checked/);
 // Releasing a parked file needs its export ID and a reason, and one action at a time; a refusal repeats no value.
 for (const args of [['--release'], ['--release', 'synthetic-export'], ['--release', 'synthetic-export', '--reason'], ['--reason', 'Synthetic review note'], ['--requeue'], ['--requeue', 'synthetic-export', '--retry'],
   ['--', '--release', 'synthetic-export', '--requeue', 'synthetic-export', '--reason', 'Synthetic review note'], ['--release=synthetic-export', '--reason', 'Synthetic review note'], ['--requeue', 'synthetic-export', '--requeue', 'synthetic-export']]) {
@@ -180,4 +186,4 @@ try {
   assert.equal(connections, 0, "nothing was sent to a host that is not a Replit development domain");
 } finally { listener.close(); }
 
-console.log("Operator commands passed offline: the cleanup command's refusals before it reaches the database, options after pnpm's --, a named mistyped option, uncopied values, the monitor's dry run, its missing origin named and its careful failure, the Paystack check's refusals before any request, provision-pilot's three modes with their usage, staff-access check and store refusal before any connection, rewrap-payloads' usage, key settings and runtime schema refusal before any connection, and the smoke and security scripts' refusal of any host but a Replit development domain.");
+console.log("Operator commands passed offline: the cleanup command's refusals, a retry without private storage among them, before it reaches the database, options after pnpm's --, a named mistyped option, uncopied values, the monitor's dry run, its missing origin named and its careful failure, the Paystack check's refusals before any request, provision-pilot's three modes with their usage, staff-access check and store refusal before any connection, rewrap-payloads' usage, key settings and runtime schema refusal before any connection, and the smoke and security scripts' refusal of any host but a Replit development domain.");
