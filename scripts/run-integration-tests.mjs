@@ -8,9 +8,9 @@
 // Storage credentials) and the HTTP suites (Replit development domain and
 // Clerk) stay outside; see the README.
 import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 
 const root = path.resolve(import.meta.dirname, "..");
 const tsx = path.join(root, "scripts", "node_modules", "tsx", "dist", "cli.mjs");
@@ -65,7 +65,10 @@ export function runSuites(list, run, say = console) {
   return failed;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+// Real paths: started through a symlinked path, argv names the link while this module's URL names the file, and the
+// runner would exit 0 without running a suite.
+const startedDirectly = () => { try { return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)); } catch { return false; } };
+if (startedDirectly()) {
   if (!existsSync(tsx)) throw new Error("tsx is missing; run pnpm install first.");
   if (process.env.VALOPAY_RUN_INTEGRATION !== "1") {
     throw new Error("Set VALOPAY_RUN_INTEGRATION=1 to run the database-backed suites; they write synthetic fixtures to DATABASE_URL.");

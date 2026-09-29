@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { copyFileSync, mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync, unlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { inspectEffectBoundaries } from './check-effect-boundaries.mjs';
@@ -9,6 +10,18 @@ const prefix = 'artifacts/api-server/src/';
 const write = (path, text) => { const full = join(fixture, prefix, path); mkdirSync(dirname(full), { recursive: true }); writeFileSync(full, text); };
 const refused = (source, pattern) => { write('domain/example.ts', source); assert.match(inspectEffectBoundaries(fixture).issues.join('\n'), pattern); };
 try {
+  // A tree without domain modules fails rather than passing across none: a check that inspected nothing proves nothing.
+  assert.match(inspectEffectBoundaries(fixture).issues.join('\n'), /No domain module found under artifacts\/api-server\/src\/domain\//);
+  // So does the command started from a copy outside the repository, whose default root has no domain modules.
+  const copy = mkdtempSync(join(tmpdir(), 'valopay-effect-boundary-copy-')), parser = join(copy, 'node_modules');
+  mkdirSync(join(copy, 'scripts'));
+  copyFileSync(join(import.meta.dirname, 'check-effect-boundaries.mjs'), join(copy, 'scripts', 'check-effect-boundaries.mjs'));
+  symlinkSync(join(import.meta.dirname, '..', 'node_modules'), parser, 'junction');
+  try {
+    const run = spawnSync(process.execPath, [join(copy, 'scripts', 'check-effect-boundaries.mjs')], { encoding: 'utf8' });
+    assert.equal(run.status, 1, 'a copy that finds no domain module must fail, not pass across none');
+    assert.match(run.stderr, /No domain module found under artifacts\/api-server\/src\/domain\//);
+  } finally { unlinkSync(parser); rmSync(copy, { recursive: true, force: true }); }
   write('domain/example.ts', 'import { createHash } from "node:crypto"; export const fingerprint = createHash;');
   assert.deepEqual(inspectEffectBoundaries(fixture).issues, []);
   refused('import "node:https";', /Effect-capable/);
@@ -93,5 +106,13 @@ try {
   assert.match(inspectEffectBoundaries(fixture).issues.join('\n'), /Circular runtime dependency:/);
   write('domain/reconciliation-records.ts', 'import "./reconciliation-records";');
   assert.match(inspectEffectBoundaries(fixture).issues.join('\n'), /reconciliation-records\.ts:1: Circular runtime dependency: .*reconciliation-records\.ts -> .*reconciliation-records\.ts/);
-  console.log('Effect-boundary mutation fixtures passed: direct/transitive imports, re-exports, ambient keys, dynamic code, network aliases, Core/credit capability isolation and cycle detection with shared acyclic dependencies.');
+  // Through a symlinked path the check still runs: the module's URL is its real path, whatever path started it.
+  const linked = join(fixture, 'linked-scripts');
+  symlinkSync(import.meta.dirname, linked, 'junction');
+  try {
+    const run = spawnSync(process.execPath, [join(linked, 'check-effect-boundaries.mjs')], { encoding: 'utf8' });
+    assert.equal(run.status, 0, run.stderr);
+    assert.match(run.stdout, /^Effect boundaries passed across \d+ domain and helper modules/m, 'Started through a symlinked path, the check must inspect the domain, not exit silently');
+  } finally { unlinkSync(linked); }
+  console.log('Effect-boundary mutation fixtures passed: direct/transitive imports, re-exports, ambient keys, dynamic code, network aliases, Core/credit capability isolation and cycle detection with shared acyclic dependencies; a tree with no domain module fails, and started through a symlinked path the check still runs.');
 } finally { rmSync(fixture, { recursive: true, force: true }); }

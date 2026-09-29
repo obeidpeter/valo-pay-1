@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, unlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { rehearsalEnvironment, rehearsalSuites, runRehearsal, validateRehearsalEnvironment } from './rehearse-pilot.mjs';
 
@@ -52,4 +54,45 @@ for (const overrides of [{ DATABASE_URL: 'postgres://do-not-print@remote.example
   const child = spawnSync(process.execPath, [path.join(root, 'scripts/rehearse-pilot.mjs')], { env: { ...process.env, ...enabled, ...overrides }, encoding: 'utf8', timeout: 10_000 });
   assert.equal(child.status, 1); assert.doesNotMatch(child.stdout + child.stderr, /do-not-print|private-fixture/); checks += 2;
 }
-console.log(`Pilot rehearsal command checks passed (${checks}): unsafe destinations refused, host credentials excluded, all failures retained, source changes detected, and evidence stays free of child output.`);
+// Started through a symlinked path the command still runs, here to its refusal without the opt-ins: Node gives the
+// module its real path, and a guard comparing that with the path it was started by once exited 0 without a word.
+const links = mkdtempSync(path.join(tmpdir(), 'valopay-linked-rehearsal-')), linked = path.join(links, 'scripts');
+symlinkSync(path.join(root, 'scripts'), linked, 'junction');
+try {
+  const unset = Object.fromEntries(Object.entries(process.env).filter(([name]) => !/^(?:VALOPAY_|DATABASE_URL$)/.test(name)));
+  const child = spawnSync(process.execPath, [path.join(linked, 'rehearse-pilot.mjs')], { env: unset, encoding: 'utf8', timeout: 10_000 });
+  assert.equal(child.status, 1, 'started through a symlinked path, the rehearsal still refuses without its opt-ins');
+  assert.match(child.stderr, /^Set VALOPAY_RUN_INTEGRATION=1 and VALOPAY_RUN_PILOT_REHEARSAL=1/m); checks += 2;
+} finally { unlinkSync(linked); rmSync(links, { recursive: true, force: true }); }
+// A report path that reaches the checkout through a link, in a directory above it or at the path itself, is refused as a
+// path inside it is, and one whose directory or links cannot be resolved is refused before any suite rather than after them.
+// PATH holds no git, so even a build that accepted the path stops at the source fingerprint, before any suite.
+const outside = mkdtempSync(path.join(tmpdir(), 'valopay-rehearsal-report-'));
+const name = `rehearsal-report-${process.pid}.json`, made = [];
+const link = (target, at, type) => { const where = path.join(outside, at); symlinkSync(target, where, type); made.push(where); return where; };
+try {
+  const gitless = { ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^path$/i.test(key))), ...enabled, PATH: outside };
+  const refusedReport = (report, pattern, reason) => {
+    const child = spawnSync(process.execPath, [path.join(root, 'scripts/rehearse-pilot.mjs')], { env: { ...gitless, VALOPAY_PILOT_REHEARSAL_REPORT: report }, encoding: 'utf8', timeout: 10_000 });
+    assert.equal(child.status, 1, reason);
+    assert.match(child.stderr, pattern, `${reason}: ${report}`);
+    assert.equal(existsSync(path.join(root, name)), false); checks += 3;
+  };
+  const intoCheckout = /^Write the evidence report outside this checkout/m;
+  refusedReport(path.join(link(root, 'checkout', 'junction'), name), intoCheckout, 'a linked directory above the report leads into the checkout');
+  refusedReport(link(path.join(root, 'docs'), 'report.json', process.platform === 'win32' ? 'junction' : 'dir'), intoCheckout, 'the report path is itself a link into the checkout');
+  // Skipped on Windows: its junctions store absolute targets, and a relative file link needs a privilege there.
+  if (process.platform !== 'win32') {
+    // A relative link is resolved from its real directory: reached through a directory link, ../../../co leads into the checkout.
+    mkdirSync(path.join(outside, 'w', 'stage', 'a', 'b'), { recursive: true }); mkdirSync(path.join(outside, 'w', 'l1'));
+    link(root, path.join('w', 'co'), 'dir');
+    link(path.join(outside, 'w', 'stage', 'a', 'b'), path.join('w', 'l1', 'lnk'), 'dir');
+    link(path.join('..', '..', '..', 'co', name), path.join('w', 'stage', 'a', 'b', 'r.json'), 'file');
+    refusedReport(path.join(outside, 'w', 'l1', 'lnk', 'r.json'), intoCheckout, 'a relative link reached through a directory link leads into the checkout');
+    link(path.join(outside, 'loop2.json'), 'loop1.json', 'file'); link(path.join(outside, 'loop1.json'), 'loop2.json', 'file');
+    refusedReport(path.join(outside, 'loop1.json'), /^Write the evidence report to a path whose links resolve/m, 'a link loop at the report path is refused before any suite');
+  }
+  refusedReport(path.join(link(path.join(outside, 'missing'), 'dangling', process.platform === 'win32' ? 'junction' : 'dir'), 'sub', 'report.json'),
+    /^Write the evidence report to a directory that exists or can be created/m, 'a dangling directory link above the report is refused before any suite');
+} finally { for (const where of made.reverse()) unlinkSync(where); rmSync(outside, { recursive: true, force: true }); }
+console.log(`Pilot rehearsal command checks passed (${checks}): unsafe destinations refused, a report path leading into the checkout through a link refused, host credentials excluded, all failures retained, source changes detected, evidence stays free of child output, and a run started through a symlinked path still refuses.`);

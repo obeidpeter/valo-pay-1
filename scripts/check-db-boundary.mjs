@@ -1,9 +1,10 @@
 // A maintainability guard, not a sandbox against malicious code execution.
 import assert from "node:assert/strict";
+import { realpathSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import ts from "typescript";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 
 const defaultRoot = path.resolve(import.meta.dirname, "..");
 const repository = "artifacts/api-server/src/lib/valopay-store.ts";
@@ -253,10 +254,20 @@ export async function inspectDatabaseBoundaries(root = defaultRoot) {
   return { checked, violations };
 }
 
-if (
-  process.argv[1] &&
-  import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href
-) {
+// Real paths: started through a symlinked path, argv names the link while
+// this module's URL names the file, and the check would silently not run.
+function startedDirectly() {
+  try {
+    return (
+      realpathSync(process.argv[1]) ===
+      realpathSync(fileURLToPath(import.meta.url))
+    );
+  } catch {
+    return false;
+  }
+}
+
+if (startedDirectly()) {
   const { checked, violations } = await inspectDatabaseBoundaries();
   assert.equal(
     violations.length,

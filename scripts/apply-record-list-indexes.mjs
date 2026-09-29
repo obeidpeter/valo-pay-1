@@ -1,9 +1,9 @@
 // Narrow, manually invoked deployment operation. Defaults to read-only inspection.
 // No schema push, row writes, index drops, security activation, or credential output.
+import { realpathSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { resolve } from 'node:path';
 
 const requireDb = createRequire(new URL('../lib/db/package.json', import.meta.url));
 const { Client } = requireDb('pg');
@@ -95,7 +95,10 @@ export async function runIndexMigration({ connectionString, apply = false, expec
   }
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+// Real paths: started through a symlinked path, argv names the link while this module's URL names the file, and the
+// command would exit 0 without inspecting anything.
+const startedDirectly = () => { try { return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)); } catch { return false; } };
+if (startedDirectly()) {
   try {
     const args = process.argv.slice(2);
     let apply = false, expectedDatabase;
