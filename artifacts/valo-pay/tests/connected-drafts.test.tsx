@@ -21,9 +21,9 @@ const leave = (user: ReturnType<typeof userEvent.setup>) =>
 describe("connected page drafts", () => {
   it.each([
     ["/credit-desk", "Credit Desk", "Reason for this assessment"],
-    ["/pay-by-bank", "Pay-by-bank", "Amount (₦)"],
+    ["/pay-by-bank", "Pay by Bank", "Amount (₦)"],
     ["/cash-desk", "Cash Desk", "Planning buffer (₦)"],
-    ["/connections", "Permissions & readiness", "Reason for granting permission"],
+    ["/connections", "Permissions and readiness", "Reason for granting permission"],
   ])("%s asks before a typed draft is left, and leaves once the person agrees", async (route, title, field) => {
     const user = userEvent.setup();
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);

@@ -149,10 +149,10 @@ test("loading and error states keep an h1", async ({ page }) => {
   // A page whose first load failed, with nothing to show.
   for (const [route, api, problem] of [
     ["/overview", "**/api/v1/overview?*", "Unable to load the overview"],
-    ["/pay-by-bank", "**/api/v1/connected?*", "Unable to load pay-by-bank"],
+    ["/pay-by-bank", "**/api/v1/connected?*", "Unable to load Pay by Bank"],
     ["/credit-desk", "**/api/v1/connected?*", "Unable to load Credit Desk"],
     ["/cash-desk", "**/api/v1/connected?*", "Unable to load Cash Desk"],
-    ["/connections", "**/api/v1/connected?*", "Unable to load permissions"],
+    ["/connections", "**/api/v1/connected?*", "Unable to load Permissions and readiness"],
   ] as const) {
     await page.route(api, (request) => request.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ error: "Lender not found in this workspace.", requestId: "browser-missing" }) }));
     await page.goto(route);

@@ -9,7 +9,7 @@ afterEach(() => api.uninstall());
 it("walks through authorisation, unconfirmed browser return and a canonical receipt", async () => {
   const user = userEvent.setup();
   renderApp("/pay-by-bank");
-  await screen.findByRole("heading", { name: "Pay-by-bank", level: 1 });
+  await screen.findByRole("heading", { name: "Pay by Bank", level: 1 });
   const due = api
     .state()
     .records.find((r) => r.reference === "DEMO-LOAN-1005")!;
@@ -70,7 +70,7 @@ it("records and revokes one purpose without pretending to connect a bank", async
   const user = userEvent.setup();
   renderApp("/connections");
   await screen.findByRole("heading", {
-    name: "Permissions & readiness",
+    name: "Permissions and readiness",
     level: 1,
   });
   await user.selectOptions(
@@ -112,9 +112,9 @@ it("shows request failures and keeps read-only actions disabled", async () => {
     error: "Temporary connection failure",
   });
   renderApp("/pay-by-bank");
-  expect(await screen.findByText("Unable to load pay-by-bank")).toBeTruthy();
+  expect(await screen.findByText("Unable to load Pay by Bank")).toBeTruthy();
   await userEvent.click(screen.getByRole("button", { name: "Try again" }));
   expect(
-    await screen.findByRole("heading", { name: "Pay-by-bank", level: 1 }),
+    await screen.findByRole("heading", { name: "Pay by Bank", level: 1 }),
   ).toBeTruthy();
 });

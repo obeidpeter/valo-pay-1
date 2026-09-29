@@ -89,7 +89,7 @@ describe('connected review dialogs hand focus back after confirming', () => {
   it('returns Pay-by-bank focus to the opener after Go back, and to the result when confirming removed the opener', async () => {
     const user = userEvent.setup();
     renderApp('/pay-by-bank');
-    await screen.findByRole('heading', { name: 'Pay-by-bank', level: 1 });
+    await screen.findByRole('heading', { name: 'Pay by Bank', level: 1 });
     const due = api.state().records.find((r) => r.reference === 'DEMO-LOAN-1005')!;
     await user.selectOptions(screen.getByLabelText('Customer and instalment'), due.id);
     await user.click(screen.getByRole('button', { name: /Create sample checkout/ }));

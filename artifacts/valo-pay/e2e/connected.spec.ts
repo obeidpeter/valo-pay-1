@@ -7,10 +7,10 @@ test("connected modules are readable, keyboard accessible and fit the viewport",
   page,
 }, info) => {
   for (const [route, title] of [
-    ["/pay-by-bank", "Pay-by-bank"],
+    ["/pay-by-bank", "Pay by Bank"],
     ["/credit-desk", "Credit Desk"],
     ["/cash-desk", "Cash Desk"],
-    ["/connections", "Permissions & readiness"],
+    ["/connections", "Permissions and readiness"],
   ]) {
     await page.goto(route!);
     await expect(
@@ -57,7 +57,7 @@ test("a bank return stays pending until the sample provider confirms payment", a
 }) => {
   await page.goto("/pay-by-bank");
   await expect(
-    page.getByRole("heading", { name: "Pay-by-bank", level: 1 }),
+    page.getByRole("heading", { name: "Pay by Bank", level: 1 }),
   ).toBeVisible();
   const options = await page
     .getByLabel("Customer and instalment")

@@ -28,7 +28,7 @@ import { useWorkspace } from "@/lib/workspace-context";
 import { useDialogFocusReturn, useFocusWhenLost } from "@/lib/focus";
 import { reversalReviewRefusals } from "@/lib/permissions";
 import { PaymentProgress } from "@/features/pay-by-bank/payment-progress";
-const TITLE = "Pay-by-bank",
+const TITLE = "Pay by Bank",
   DESCRIPTION =
     "A clear journey from bank authorisation to a verified receipt, tied to the instalment it pays.";
 export default function PayByBank() {
@@ -107,12 +107,12 @@ function PaymentContent({ api }: { api: ReturnType<typeof useConnected> }) {
       return false;
     }
   };
-  if (api.isLoading) return <Loading what="pay-by-bank" heading />;
+  if (api.isLoading) return <Loading what={TITLE} heading />;
   if (!api.data)
     return (
       <ConnectedState title={TITLE} description={DESCRIPTION}>
         <LoadProblem
-          what="pay-by-bank"
+          what={TITLE}
           error={api.error}
           retry={() => void api.refetch()}
         />

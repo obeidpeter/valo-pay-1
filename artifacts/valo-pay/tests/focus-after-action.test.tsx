@@ -30,7 +30,7 @@ it("moves focus into the settings form on Edit, and back to Edit after Cancel or
 it("moves focus to the result when a pay-by-bank step removes its own button", async () => {
   const user = userEvent.setup();
   renderApp("/pay-by-bank");
-  await screen.findByRole("heading", { name: "Pay-by-bank", level: 1 });
+  await screen.findByRole("heading", { name: "Pay by Bank", level: 1 });
   const due = api.state().records.find((record) => record.reference === "DEMO-LOAN-1005")!;
   await user.selectOptions(screen.getByLabelText("Customer and instalment"), due.id);
   await user.click(screen.getByRole("button", { name: /Create sample checkout/ }));

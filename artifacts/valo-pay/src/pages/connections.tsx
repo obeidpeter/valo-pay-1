@@ -15,7 +15,7 @@ import { useConnected } from "@/lib/connected";
 import { formatDate, formatNumber } from "@/lib/formatters";
 import { useFormDraft } from "@/lib/unsaved-changes";
 import { useWorkspace } from "@/lib/workspace-context";
-const TITLE = "Permissions & readiness",
+const TITLE = "Permissions and readiness",
   DESCRIPTION =
     "Know what each connection may do, who authorised it, and when that permission ends.";
 export default function ConnectionsPage() {
@@ -66,12 +66,12 @@ function ConnectionsContent({ api }: { api: ReturnType<typeof useConnected> }) {
       setFailure((e as Error).message);
     }
   };
-  if (api.isLoading) return <Loading what="permissions" heading />;
+  if (api.isLoading) return <Loading what={TITLE} heading />;
   if (!api.data)
     return (
       <ConnectedState title={TITLE} description={DESCRIPTION}>
         <LoadProblem
-          what="permissions"
+          what={TITLE}
           error={api.error}
           retry={() => void api.refetch()}
         />

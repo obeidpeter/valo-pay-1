@@ -78,7 +78,7 @@ describe("complete synthetic connected journeys through the real app", () => {
       screen.getByRole("link", { name: /Set up sample permissions/ }),
     );
     await screen.findByRole("heading", {
-      name: "Permissions & readiness",
+      name: "Permissions and readiness",
       level: 1,
     });
     await grant(user, "account_read", applicantId);
@@ -182,7 +182,7 @@ describe("complete synthetic connected journeys through the real app", () => {
     const user = userEvent.setup();
     renderApp("/connections");
     await screen.findByRole("heading", {
-      name: "Permissions & readiness",
+      name: "Permissions and readiness",
       level: 1,
     });
     await grant(user, "merchant_account_read");

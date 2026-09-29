@@ -113,7 +113,7 @@ it("does not offer a Compliance viewer payment actions rejected by the server", 
 it("lets an operator clear and correct a checkout amount without restoring the full debt or rounding it", async () => {
   const user = userEvent.setup();
   renderApp("/pay-by-bank");
-  await screen.findByRole("heading", { name: "Pay-by-bank", level: 1 });
+  await screen.findByRole("heading", { name: "Pay by Bank", level: 1 });
   const due = api
     .state()
     .records.find((r) => r.reference === "DEMO-LOAN-1005")!;

@@ -24,9 +24,9 @@ describe("failed background refresh", () => {
     ["/reports", /^\/v1\/close-history$/, "Reports & analytics", "The close history could not be refreshed.", text("#daily-closes")],
     ["/settings", /^\/v1\/settings$/, "Settings & administration", "Collection settings could not be refreshed.", () => screen.queryByRole("heading", { name: "Collection settings" })?.closest("section")?.textContent],
     ["/credit-desk", /^\/v1\/connected$/, "Credit Desk", "Credit Desk could not be refreshed.", text(".connected-page")],
-    ["/pay-by-bank", /^\/v1\/connected$/, "Pay-by-bank", "Pay-by-bank could not be refreshed.", text(".connected-page fieldset")],
+    ["/pay-by-bank", /^\/v1\/connected$/, "Pay by Bank", "Pay by Bank could not be refreshed.", text(".connected-page fieldset")],
     ["/cash-desk", /^\/v1\/connected$/, "Cash Desk", "Cash Desk could not be refreshed.", text(".connected-page fieldset")],
-    ["/connections", /^\/v1\/connected$/, "Permissions & readiness", "Permissions & readiness could not be refreshed.", text(".connected-page fieldset")],
+    ["/connections", /^\/v1\/connected$/, "Permissions and readiness", "Permissions and readiness could not be refreshed.", text(".connected-page fieldset")],
   ])("%s keeps its figures when %s fails to refresh", async (route, request, heading, notice, figures) => {
     const user = userEvent.setup();
     renderApp(route);

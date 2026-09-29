@@ -10,6 +10,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { DiscardOriginalRequest } from "@/components/discard-original-request";
 import { RefreshProblem, type RefreshableQuery } from "@/components/load-problem";
+import { fieldMessageId } from "@/components/form-field";
 import { StatusBadge } from "@/components/record-label";
 import { requestClosed, savedAnswerWithheld } from "@/lib/safe-mutations";
 import { errorWords } from "@/lib/notify";
@@ -51,7 +52,7 @@ export function ConnectedFrame({
       <fieldset
         disabled={recovery?.pending || recovery?.hasUnconfirmedOutcome}
         className="space-y-6 min-w-0"
-        aria-label="Connected workspace actions and records"
+        aria-label="Connected banking actions and records"
       >
         {children}
       </fieldset>
@@ -59,9 +60,9 @@ export function ConnectedFrame({
   );
 }
 /**
- * A connected page's heading and the tabs between the four modules. The page
- * shows them while its workspace loads and when it cannot be loaded too, so
- * every state has its h1 and a way to the other modules.
+ * A connected page's heading and the tabs between the four Connected banking
+ * pages. The page shows them while its data loads and when it cannot be
+ * loaded too, so every state has its h1 and a way to the other pages.
  */
 export function ConnectedHeader({ title, description }: { title: string; description: string }) {
   const [location] = useLocation();
@@ -70,7 +71,7 @@ export function ConnectedHeader({ title, description }: { title: string; descrip
       <header className="connected-heading">
         <div>
           <p className="connected-eyebrow">
-            <Sparkles size={14} aria-hidden="true" /> Connected workspace
+            <Sparkles size={14} aria-hidden="true" /> Connected banking
           </p>
           <h1>{title}</h1>
           <p className="text-sm text-muted-foreground max-w-2xl mt-2">
@@ -78,17 +79,17 @@ export function ConnectedHeader({ title, description }: { title: string; descrip
           </p>
         </div>
         <span className="connected-mode">
-          Sample journeys · no live instructions
+          Sample data only · No live payments
         </span>
       </header>
-      <nav className="connected-tabs" aria-label="Connected modules">
+      <nav className="connected-tabs" aria-label="Connected banking">
         {[
-          { href: "/pay-by-bank", label: "Pay-by-bank", icon: Landmark },
+          { href: "/pay-by-bank", label: "Pay by Bank", icon: Landmark },
           { href: "/credit-desk", label: "Credit Desk", icon: ShieldCheck },
           { href: "/cash-desk", label: "Cash Desk", icon: Building2 },
           {
             href: "/connections",
-            label: "Permissions & readiness",
+            label: "Permissions and readiness",
             icon: KeyRound,
           },
         ].map((i) => (
@@ -142,17 +143,16 @@ export function ConnectedRecovery({
       {recovery?.hasUnconfirmedOutcome && (
         <div className="connected-note" role="alert">
           <h2 className="font-semibold text-foreground">
-            Previous action outcome unconfirmed
+            Request not confirmed
           </h2>
           <p className="mt-2">
-            The response was lost or unavailable. Your action may already have
-            been saved. Retry the original request to recover its result. If it
-            cannot be recovered, check Operations before you start a new action.
+            We do not know yet whether Valo Pay saved this. Check the original
+            request before you change anything.
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-3">
             <Button
               busy={recovery.pending}
-              busyLabel="Recovering result…"
+              busyLabel="Checking original request…"
               onClick={async () => {
                 const submittedScope = recovery.scope;
                 setRecoveryError("");
@@ -176,17 +176,17 @@ export function ConnectedRecovery({
                     setRecoveryError(
                       errorWords(error, "The original request was saved earlier, but its result is no longer available."),
                     );
-                  } else setRecoveryError(errorWords(error, "The service did not confirm the result."));
+                  } else setRecoveryError(errorWords(error, "Valo Pay did not confirm the result. Check the original request again."));
                 }
               }}
             >
-              Retry original sample request
+              Check original request
             </Button>
             <Link
               href="/operations"
               className="inline-flex min-h-10 items-center text-primary underline"
             >
-              Open Operations
+              Open Request history
             </Link>
             <DiscardOriginalRequest
               disabled={recovery.pending}
@@ -207,8 +207,8 @@ export function ConnectedRecovery({
       )}
       {recovered && (
         <p className="connected-note" role="status">
-          Original sample request confirmed. Review the refreshed records below.
-          No live financial instruction was sent.
+          Original request confirmed. Check the updated records below. Nothing
+          was sent to a bank.
         </p>
       )}
     </>
@@ -232,6 +232,38 @@ export function ConnectedPanel({
       <div className="p-5 space-y-4">{children}</div>
     </section>
   );
+}
+/**
+ * The help under a written field such as a reason: its minimum length and,
+ * for a reason the action records, where it is kept.
+ */
+export function FieldHint({ id, minLength, audited = true }: { id: string; minLength: number; audited?: boolean }) {
+  return (
+    <p id={id} className="mt-1 text-xs text-muted-foreground">
+      At least {minLength} characters.{audited ? " Saved in the audit log." : ""}
+    </p>
+  );
+}
+/**
+ * The page's own words for a written field that is too short ("Enter a
+ * reason (at least 8 characters)."), or nothing when it is long enough. The
+ * service trims what it is sent, so the page does too.
+ */
+export function tooShort(value: string, what: string, minLength: number): string {
+  return value.trim().length < minLength ? `Enter ${what} (at least ${minLength} characters).` : "";
+}
+/** A written field's description: its help, and its message when there is one. */
+export function describedBy(id: string, error?: string): string {
+  return error ? `${id}-help ${fieldMessageId(id)}` : `${id}-help`;
+}
+/**
+ * Why a role cannot take an action, in one shape on every connected page:
+ * "Only Admin or Operations can grant a permission. Your role is Finance." In
+ * the sandbox the demo role is the way to try it.
+ */
+export function roleRefusal(roles: readonly string[], action: string, role: string, accessMode?: string): string {
+  const who = roles.length < 2 ? roles[0] : `${roles.slice(0, -1).join(", ")} or ${roles.at(-1)}`;
+  return `Only ${who} can ${action}. Your role is ${role}.${accessMode === "staff" ? "" : " Change your demo role in Settings."}`;
 }
 /** The records whose statuses these pages show. */
 export type ConnectedStatusRecord =

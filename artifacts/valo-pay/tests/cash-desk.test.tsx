@@ -145,7 +145,7 @@ describe("Cash Desk", () => {
       within(dialog).getByRole("button", { name: "Confirm and save" }),
     );
     const retry = await within(dialog).findByRole("button", {
-      name: "Retry original sample request",
+      name: "Check original request",
     });
     expect((reason as HTMLTextAreaElement).disabled).toBe(true);
     expect(

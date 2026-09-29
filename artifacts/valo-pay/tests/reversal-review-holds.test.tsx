@@ -140,7 +140,7 @@ describe('held payments and instalments', () => {
     expect(authorise).toBe('This instalment is held for renewed Finance review of an earlier reversal decision. Resolve that review and run reconciliation before authorising a checkout.');
     api.role = 'Finance';
     renderApp('/pay-by-bank');
-    await screen.findByRole('heading', { name: 'Pay-by-bank', level: 1 });
+    await screen.findByRole('heading', { name: 'Pay by Bank', level: 1 });
     expect(within(screen.getByLabelText('Customer and instalment')).getByRole('option', { name: /DEMO-LOAN-1005 · held for review/ })).toBeTruthy();
     await user.selectOptions(screen.getByLabelText('Customer and instalment'), due.id);
     expect((screen.getByRole('button', { name: /Create sample checkout/ }) as HTMLButtonElement).disabled).toBe(true);
