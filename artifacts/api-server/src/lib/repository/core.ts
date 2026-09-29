@@ -891,7 +891,9 @@ export async function readMerchant(
  * unallocated and exception totals, without the full REC-07 arrays. The stored
  * close is decompressed once (`|| '{}'` makes an in-memory copy of a close's
  * data object), not once for each part taken from it: for a year of closes
- * that is about a quarter of the time.
+ * that is about a quarter of the time. `closeSummary` (domain/close-review.ts)
+ * writes the same summary of a whole close, so My work can compare a pending
+ * review's snapshot with a close loaded this way: change both together.
  */
 export const closeSummarySql =
   "(SELECT (s.d - 'report' - 'operational' - 'metrics') || CASE WHEN s.d ? 'report' THEN jsonb_build_object('report',jsonb_build_object('unallocated',s.d#>'{report,unallocated}','exceptions',s.d#>'{report,exceptions}')) ELSE '{}'::jsonb END FROM (SELECT r.data || '{}'::jsonb AS d OFFSET 0) s)";

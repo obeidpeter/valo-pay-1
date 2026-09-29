@@ -1,4 +1,4 @@
-import { counted, hasFeeSchedule, moneyText, otherCurrenciesText, prepareCloseReviewSchema, decideCloseReviewSchema, reassignCloseReviewSchema, closeReviewHistoryQuerySchema, legacyCollatedCompare, type PrepareCloseReviewInput, type DecideCloseReviewInput, type ReassignCloseReviewInput, type CloseReviewHistoryQuery, type PilotProgressStep } from "@workspace/valopay-schema";
+import { counted, hasFeeSchedule, moneyText, otherCurrenciesText, prepareCloseReviewSchema, decideCloseReviewSchema, reassignCloseReviewSchema, closeReviewHistoryQuerySchema, legacyCollatedCompare, sameJson, type PrepareCloseReviewInput, type DecideCloseReviewInput, type ReassignCloseReviewInput, type CloseReviewHistoryQuery, type PilotProgressStep } from "@workspace/valopay-schema";
 import type { Context, DomainState, ValopayRecord } from "./types";
 import { makeRecord, touch } from "./records";
 import { assertRecordVersion } from "../lib/edit-versions";
@@ -71,9 +71,22 @@ function latestClose(state: DomainState) { return newest(ofKind(state, "closes")
 const closeBusinessDate = (close: ValopayRecord): string | undefined => close.data.reviewBasis?.sourceCompleteness?.businessDate;
 /** The newest close of one business date: each missed date's catch-up close is reviewed on its own. */
 function latestCloseOf(state: DomainState, businessDate: string | undefined) { return newest(ofKind(state, "closes").filter(record => closeBusinessDate(record) === businessDate))[0]; }
-export function reviewIsCurrent(state: DomainState, review: ValopayRecord, basis = closeReviewBasisOnce(state)) {
+/** A close as a load keeps one more than seven days older than the newest close (closeSummarySql, which this must
+ * match): without its operational and metrics parts, and of its report only the unallocated and exception totals. */
+export function closeSummary(close: ValopayRecord): ValopayRecord {
+  const { report, operational: _operational, metrics: _metrics, ...kept } = close.data;
+  return { ...close, data: "report" in close.data ? { ...kept, report: { unallocated: report?.unallocated ?? null, exceptions: report?.exceptions ?? null } } : kept };
+}
+/**
+ * Whether a review is current: its close is the latest of its business date, its inputs are unchanged and it is the
+ * review's intact snapshot. A read of the whole lender (`summaries`) may hold a close as its summary: that summary
+ * must then be the snapshot's. Closes never change once recorded (saveState refuses), so such a read gives the answer
+ * of the decision, which loads the close whole and compares all of it.
+ */
+export function reviewIsCurrent(state: DomainState, review: ValopayRecord, basis = closeReviewBasisOnce(state), summaries = false) {
   const close = ofKind(state, "closes").find(r => r.id === review.data.closeId);
-  return Boolean(close && !closeReviewCurrentProblem(state, close, basis) && review.data.inputDigest === close.data.reviewBasis.inputDigest && review.data.snapshotDigest === digest(close) && review.data.snapshotDigest === digest(review.data.snapshot));
+  const snapshotOf = (record: ValopayRecord) => review.data.snapshotDigest === digest(record) || summaries && sameJson(closeSummary(review.data.snapshot), record);
+  return Boolean(close && !closeReviewCurrentProblem(state, close, basis) && review.data.inputDigest === close.data.reviewBasis.inputDigest && snapshotOf(close) && review.data.snapshotDigest === digest(review.data.snapshot));
 }
 export function closeReviewCurrentProblem(state: DomainState, close: ValopayRecord, basis = closeReviewBasisOnce(state)): string | null {
   if (!close.data.reviewBasis?.inputDigest) return "This older close has no recorded input fingerprint. Run a new daily close before preparing a review.";

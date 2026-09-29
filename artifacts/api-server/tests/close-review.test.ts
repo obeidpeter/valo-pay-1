@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { seedMerchant } from "../src/lib/valopay-seed";
 import { makeRecord } from "../src/domain/records";
 import { advanceRecordVersions } from "../src/lib/edit-versions";
-import { bindCloseReviewBasis, closeReviewBasis, closeReviewIssues, closeReviewCurrentProblem, closeReviewList, closeReviewHistory, closeReviewDetail, decideCloseReview, reassignCloseReview, pilotProgress, prepareCloseReview, reviewIsCurrent } from "../src/domain/close-review";
+import { bindCloseReviewBasis, closeReviewBasis, closeReviewIssues, closeReviewCurrentProblem, closeReviewList, closeReviewHistory, closeReviewDetail, closeSummary, decideCloseReview, reassignCloseReview, pilotProgress, prepareCloseReview, reviewIsCurrent } from "../src/domain/close-review";
 import { personalWorkItems } from "../src/domain/personal-work";
 import type { Context, DomainState } from "../src/domain/types";
 
@@ -184,5 +184,19 @@ function ofKind(state: DomainState, kind: string) { return state.records.filter(
   assert.equal(closeReviewDetail(state, record.id).pendingCorrections[0]!.batchId, "batch-history");
   makeRecord(state, "import-correction-events", { status: "recorded", data: { proposalId: proposal.id, action: "reject" } as any });
   assert.equal(closeReviewDetail(state, record.id).entry.pendingFinancialCorrections, 0);
+}
+{
+  // A read of the whole lender holds a close more than a week older than the newest as its summary (closeSummary, as
+  // closeSummarySql writes it): it judges a review by what the summary keeps (review of PR #71). The decision loads the
+  // close whole and still compares all of it.
+  const state = empty(), record = close(state), review = prepareCloseReview(state, ops, prepareInput(record), reviewers);
+  const summarised = { ...state, records: state.records.map(r => r.id === record.id ? closeSummary(r) : r) };
+  assert.deepEqual(Object.keys(closeSummary(record).data.report), ["unallocated", "exceptions"]);
+  assert.equal(closeSummary(record).data.report.exceptions, null, "a total the close does not hold is null, as in SQL");
+  assert.equal(reviewIsCurrent(state, review), true);
+  assert.equal(reviewIsCurrent(summarised, review), false, "the decision's check needs the whole close");
+  assert.equal(reviewIsCurrent(summarised, review, undefined, true), true, "a read that may hold summaries compares what they keep");
+  review.data.snapshot!.data.summary = "tampered";
+  assert.equal(reviewIsCurrent(summarised, review, undefined, true), false, "the snapshot must still be intact");
 }
 console.log("Close review: independent approval, exact snapshots, historical paging, admin reassignment, immutable evidence and stale refusal passed.");

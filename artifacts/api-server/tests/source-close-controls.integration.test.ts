@@ -184,6 +184,9 @@ try {
   assert.equal(firstPage.closes.some((item: any) => item.id === pendingClose.item.close.id), false);
   const nextPage = ok(await call(`/v1/pilot/close-reviews${query}&offset=25`));
   assert.equal(nextPage.closes.some((item: any) => item.id === pendingClose.item.close.id), true);
+  // My work loads that close as its summary and must give the answer of the decision route, which loads it whole.
+  const reviewWork = ok(await call(`/v1/work${query}&filter=review`, 'replacement')).items.find((item: any) => item.sourceId === pendingClose.review.id);
+  assert.equal(reviewWork.reviewCurrent, true, 'My work calls the older pending close review current, as its decision page does.');
   assert.equal(ok(await call(`/v1/pilot/import-corrections${query}&batchId=${batch.id}`)).proposals.find((item: any) => item.id === laterProposal.id).current, true, 'The closes before a correction loading as summaries leave it current.');
   assert.equal(ok(await call(`/v1/work${query}&filter=review`, 'finance')).items.find((item: any) => item.sourceId === laterProposal.id).reviewCurrent, true);
   const olderDetail = ok(await call(`/v1/pilot/close-reviews/${pendingClose.item.close.id}${query}`, 'replacement'));

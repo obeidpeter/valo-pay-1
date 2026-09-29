@@ -65,7 +65,8 @@ export function personalWorkItems(state: DomainState, ctx: Context, people: Work
       });
     }
     if (record.kind === 'close-reviews' && record.status === 'awaiting_review' && typeof record.data.reviewer === 'string' && record.data.reviewer) {
-      const current = reviewIsCurrent(reviewState, record, basis), dueAt = instant(record.data.preparedAt) || record.createdAt;
+      // This read may hold an older close as its summary: the review is judged as its decision judges the close whole.
+      const current = reviewIsCurrent(reviewState, record, basis, true), dueAt = instant(record.data.preparedAt) || record.createdAt;
       const principal = (ctx as Context & { principalId?: string }).principalId || (ctx.actor.startsWith('Sandbox ') ? 'unidentified-demo-person' : ctx.actor);
       const samePerson = record.data.reviewer === ctx.actor && (record.data.preparedBy === ctx.actor || record.data.preparedPrincipal === principal);
       const escalated = now - Date.parse(dueAt) >= DAY;
