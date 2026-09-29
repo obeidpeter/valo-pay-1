@@ -269,8 +269,10 @@ try {
       const parkedStatus = await exportCleanupStatus();
       assert.deepEqual([parkedStatus.parked - before.parked, parkedStatus.failed - before.failed], [4, 2], 'parked files are counted apart from failures awaiting retry');
       const listed = await parkedExportFiles();
-      assert.deepEqual(listed.filter((file) => reviewIds.includes(file.exportId)).map((file) => [file.exportId, file.merchantId, file.failure, file.attempts, typeof file.since]).sort(), Object.entries(parkedAs).map(([label, reason]) => [files[label as keyof typeof parkedAs].id, first!, reason, 1, 'string']).sort(), 'the operator lists the parked files, with why');
+      assert.deepEqual(listed.files.filter((file) => reviewIds.includes(file.exportId)).map((file) => [file.exportId, file.merchantId, file.failure, file.attempts, typeof file.since]).sort(), Object.entries(parkedAs).map(([label, reason]) => [files[label as keyof typeof parkedAs].id, first!, reason, 1, 'string']).sort(), 'the operator lists the parked files, with why');
       assert.ok(!JSON.stringify(listed).includes(bucket), 'without their storage location');
+      const firstTwo = await parkedExportFiles(2);
+      assert.deepEqual([listed.total, firstTwo.files.length, firstTwo.total], [parkedStatus.parked, 2, parkedStatus.parked], 'a list cut short still says how many files are parked');
       // A due pass retries the storage failures only: a parked file is never attempted again automatically.
       await pool.query('UPDATE valopay_export_cleanup SET next_attempt_at=now() WHERE id=ANY($1::text[])', [[files.down.id, files.race.id]]);
       assert.deepEqual(await runExportCleanupPass({ ids: reviewIds, limit: 20 }), { attempted: 2, removed: 0, deferred: 2 });
@@ -296,7 +298,7 @@ try {
       const released: Array<Record<string, any>> = [], log = { warn: (fields: object) => released.push(fields as Record<string, any>) };
       for (const reason of ['', '   ', 'x'.repeat(201), 'Synthetic\nsecond line']) await assert.rejects(releaseParkedExportFile(files.checksum.id, reason, log), (error: any) => error.status === 400, 'a release needs a reason on one line');
       await assert.rejects(releaseParkedExportFile(files.race.id, 'Synthetic review note.', log), (error: any) => error.status === 404, 'only a parked file is released');
-      assert.deepEqual(await releaseParkedExportFile(files.checksum.id, '  Synthetic review: the object is not this export\'s.  ', log), { exportId: files.checksum.id, merchantId: first!, failure: 'checksum_mismatch' });
+      assert.deepEqual(await releaseParkedExportFile(files.checksum.id, '  Synthetic review: the object is not this export\'s.  ', log), { exportId: files.checksum.id, merchantId: first!, failure: 'checksum_mismatch', reason: 'Synthetic review: the object is not this export\'s.' }, 'the release answers with the reason it recorded');
       assert.deepEqual([await exists('valopay_export_cleanup', files.checksum.id), objects.has(files.checksum.name), deleted.includes(files.checksum.name)], [false, true, false], 'the released file leaves the queue, and its object stays in storage');
       assert.deepEqual(released, [{ event: 'workspace.sweep_file_released', exportId: files.checksum.id, merchantId: first!, failure: 'checksum_mismatch', reason: 'Synthetic review: the object is not this export\'s.' }], 'the release is logged with its reason');
       assert.equal((await exportCleanupStatus()).parked, counted.parked - 2, 'and is no longer counted, nor is the removed file');

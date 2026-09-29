@@ -1,6 +1,7 @@
 import type { File } from "@google-cloud/storage";
 import { Readable } from "node:stream";
 import { createHash, randomUUID } from 'node:crypto';
+import { objectStorageClient } from "./objectStorage";
 
 /**
  * A storage answer other than success. The storage status stays as statusCode
@@ -99,6 +100,14 @@ function beforeAbort<T>(pending:Promise<T>,signal:AbortSignal):Promise<T>{
   pending.then(value=>{signal.removeEventListener('abort',abort);if(!signal.aborted)resolve(value);},error=>{signal.removeEventListener('abort',abort);reject(error);});
   if(signal.aborted)abort();
  });
+}
+/** Whether this process obtains private storage credentials within timeoutMs, as every storage request obtains
+ * them first; nothing is read or written. A retry that cannot would fail each file it claims and push it into backoff. */
+export async function storageCredentialsAvailable(auth:{getRequestHeaders(url?:string):Promise<unknown>}=objectStorageClient.authClient,timeoutMs=5000):Promise<boolean>{
+ const controller=new AbortController(),timer=setTimeout(()=>controller.abort(storageTimeout('Storage credentials were not obtained in time.')),timeoutMs);
+ try{await beforeAbort(auth.getRequestHeaders(new URL('/storage/v1/b',objectStorageClient.apiEndpoint).toString()),controller.signal);return true;}
+ catch{return false;}
+ finally{clearTimeout(timer);controller.abort();}
 }
 /** Keep SDK authentication, but avoid its non-cancellable teeny-request read
  * transport. Native fetch aborts before headers and during the response body. */

@@ -346,19 +346,20 @@ export function createExportCleanupRepository(dependencies: Dependencies) {
     return { ...row, oldest: row.oldest?.toISOString() ?? null };
   }
 
-  /** Operator-only: the files parked for review, longest parked first, with why; never their storage location. */
+  /** Operator-only: the files parked for review, longest parked first, with why, and how many are parked in all;
+   * never their storage location. */
   async function parkedExportFiles(limit = 20) {
     serviceOnly();
     const rows = await runtimeServiceRead(
       async (client) =>
         (
-          await client.query<{ id: string; merchant_id: string; last_failure: string; attempts: number; updated_at: Date }>(
-            "SELECT id,merchant_id,last_failure,attempts,updated_at FROM valopay_export_cleanup WHERE next_attempt_at='infinity' ORDER BY updated_at,id LIMIT $1",
+          await client.query<{ id: string; merchant_id: string; last_failure: string; attempts: number; updated_at: Date; total: number }>(
+            "SELECT id,merchant_id,last_failure,attempts,updated_at,count(*) OVER ()::int AS total FROM valopay_export_cleanup WHERE next_attempt_at='infinity' ORDER BY updated_at,id LIMIT $1",
             [Math.max(1, Math.min(100, Math.floor(limit)))],
           )
         ).rows,
     );
-    return rows.map((row) => ({ exportId: row.id, merchantId: row.merchant_id, failure: row.last_failure, attempts: row.attempts, since: row.updated_at.toISOString() }));
+    return { total: rows[0]?.total ?? 0, files: rows.map((row) => ({ exportId: row.id, merchantId: row.merchant_id, failure: row.last_failure, attempts: row.attempts, since: row.updated_at.toISOString() })) };
   }
   const notParked = () =>
     fail("No parked file has that export ID; nothing was changed.", 404);
@@ -381,8 +382,9 @@ export function createExportCleanupRepository(dependencies: Dependencies) {
       return { exportId, merchantId: row.merchant_id, failure: row.last_failure };
     });
   }
-  /** Operator-only, after review: removes a parked file's tombstone, the operator's reason logged
-   * (workspace.sweep_file_released). Its object is left in storage: nothing whose identity does not match is deleted. */
+  /** Operator-only, after review: removes a parked file's tombstone, the operator's reason logged with it
+   * (workspace.sweep_file_released) and answered. Its object is left in storage: nothing whose identity does not match
+   * is deleted. */
   async function releaseParkedExportFile(
     exportId: string,
     reason: string,
@@ -392,7 +394,7 @@ export function createExportCleanupRepository(dependencies: Dependencies) {
     const why = reason.trim();
     if (!/^[^\p{Cc}\u2028\u2029]{1,200}$/u.test(why))
       fail(
-        "Give the release a reason of 1 to 200 characters on one line: it is written to the service log.",
+        "Give the release a reason of 1 to 200 characters on one line: it is written to the log with the release.",
       );
     const row = await runtimeServiceRead(
       async (client) =>
@@ -404,10 +406,10 @@ export function createExportCleanupRepository(dependencies: Dependencies) {
         ).rows[0],
     );
     if (!row) return notParked();
-    const released = { exportId, merchantId: row.merchant_id, failure: row.last_failure };
+    const released = { exportId, merchantId: row.merchant_id, failure: row.last_failure, reason: why };
     try {
       log.warn(
-        { event: "workspace.sweep_file_released", ...released, reason: why },
+        { event: "workspace.sweep_file_released", ...released },
         "An operator released a parked private export file from cleanup after review; its object is left in storage",
       );
     } catch {

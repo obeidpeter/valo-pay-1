@@ -7,13 +7,13 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { createServer } from "node:net";
+import { connect, createServer } from "node:net";
 import path from "node:path";
 
 const root = path.resolve(import.meta.dirname, "..");
 const tsx = path.join(root, "scripts", "node_modules", "tsx", "dist", "cli.mjs");
 // Nothing the operator's shell holds reaches the scripts: each case sets what it needs.
-const clean = Object.fromEntries(Object.entries(process.env).filter(([name]) => !/^(?:VALOPAY_|PAYSTACK_|DATABASE_URL$|REPLIT_DEV_DOMAIN$)/.test(name)));
+const clean = Object.fromEntries(Object.entries(process.env).filter(([name]) => !/^(?:VALOPAY_|PAYSTACK_|DATABASE_URL$|REPLIT_DEV_DOMAIN$|PRIVATE_OBJECT_DIR$|LOG_LEVEL$)/.test(name)));
 const unusableDatabase = "postgres://unused:unused@127.0.0.1:1/unused";
 
 function run(script, args, env = {}) {
@@ -39,6 +39,24 @@ const noCleanupStorage = await run(cleanup, ['--', '--retry'], { DATABASE_URL: u
 assert.equal(noCleanupStorage.status, 1);
 assert.match(noCleanupStorage.stderr, /^Private storage is not configured here \(PRIVATE_OBJECT_DIR\), so --retry was refused and no file was claimed/);
 assert.doesNotMatch(noCleanupStorage.output, /ECONNREFUSED|could not be checked/);
+// With the setting, a retry still needs storage credentials, obtained as every storage request obtains them from the
+// local storage sidecar, before it claims a file. Where nothing listens at that address, which then refuses at once,
+// the retry is refused before the database; nothing leaves this machine.
+const sidecarListening = await new Promise((resolve) => { const socket = connect(1106, "127.0.0.1"); socket.once("connect", () => { socket.destroy(); resolve(true); }); socket.once("error", () => resolve(false)); });
+if (!sidecarListening) {
+  const noCredentials = await run(cleanup, ['--', '--retry'], { DATABASE_URL: unusableDatabase, PRIVATE_OBJECT_DIR: '/synthetic-private-bucket/private' });
+  assert.equal(noCredentials.status, 1, noCredentials.output);
+  assert.match(noCredentials.stderr, /Private storage credentials could not be obtained here within 5 seconds, so --retry was refused and no file was claimed/);
+  assert.doesNotMatch(noCredentials.output, /could not be checked|synthetic-private-bucket/);
+}
+// A release is recorded by its warning line in this command's log output: where LOG_LEVEL would filter warnings out, or
+// names no level, it is refused before the database.
+for (const level of ['error', 'silent', 'synthetic-level']) {
+  const unlogged = await run(cleanup, ['--release', 'synthetic-export', '--reason', 'Synthetic review note'], { DATABASE_URL: unusableDatabase, LOG_LEVEL: level });
+  assert.equal(unlogged.status, 1, level);
+  assert.match(unlogged.stderr, /The release was refused: its record, a warning line in this command's log output, would not be written with LOG_LEVEL as set/, level);
+  assert.doesNotMatch(unlogged.output, /could not be checked|synthetic-level|Synthetic review note/, level);
+}
 // Releasing a parked file needs its export ID and a reason, and one action at a time; a refusal repeats no value.
 for (const args of [['--release'], ['--release', 'synthetic-export'], ['--release', 'synthetic-export', '--reason'], ['--reason', 'Synthetic review note'], ['--requeue'], ['--requeue', 'synthetic-export', '--retry'],
   ['--', '--release', 'synthetic-export', '--requeue', 'synthetic-export', '--reason', 'Synthetic review note'], ['--release=synthetic-export', '--reason', 'Synthetic review note'], ['--requeue', 'synthetic-export', '--requeue', 'synthetic-export']]) {
@@ -47,7 +65,9 @@ for (const args of [['--release'], ['--release', 'synthetic-export'], ['--releas
   assert.match(refused.stderr, /^Use: pnpm run check:export-cleanup \[-- --retry \| --requeue EXPORT_ID \| --release EXPORT_ID --reason "why"\]/, args.join(' '));
   assert.ok(!refused.output.includes('synthetic-export') && !refused.output.includes('Synthetic review note'), args.join(' '));
 }
-for (const [args, refusal] of [[['--requeue', 'synthetic/export'], /^The export ID must be the queued export's ID/], [['--release', 'synthetic-export', '--reason', ' '], /^Give the release a reason/],
+for (const [args, refusal] of [[['--requeue', 'synthetic/export'], /^The export ID must be the queued export's ID/], [['--requeue', ''], /^The export ID must be the queued export's ID/],
+  [['--release', '', '--reason', 'Synthetic review note'], /^The export ID must be the queued export's ID/], [['--release', 'synthetic-export', '--reason', '--Synthetic reason'], /^The reason after --reason begins with --/],
+  [['--release', 'synthetic-export', '--reason', ' '], /^Give the release a reason/],
   [['--release', 'synthetic-export', '--reason', 'x'.repeat(201)], /^Give the release a reason/], [['--release', 'synthetic-export', '--reason', 'Synthetic\nsecond line'], /^Give the release a reason/]]) {
   const refused = await run(cleanup, args, { DATABASE_URL: unusableDatabase });
   assert.equal(refused.status, 1, args.join(' '));
@@ -186,4 +206,4 @@ try {
   assert.equal(connections, 0, "nothing was sent to a host that is not a Replit development domain");
 } finally { listener.close(); }
 
-console.log("Operator commands passed offline: the cleanup command's refusals, a retry without private storage among them, before it reaches the database, options after pnpm's --, a named mistyped option, uncopied values, the monitor's dry run, its missing origin named and its careful failure, the Paystack check's refusals before any request, provision-pilot's three modes with their usage, staff-access check and store refusal before any connection, rewrap-payloads' usage, key settings and runtime schema refusal before any connection, and the smoke and security scripts' refusal of any host but a Replit development domain.");
+console.log("Operator commands passed offline: the cleanup command's refusals, a retry without private storage or its credentials and a release whose record LOG_LEVEL would drop among them, before it reaches the database, options after pnpm's --, a named mistyped option, uncopied values, the monitor's dry run, its missing origin named and its careful failure, the Paystack check's refusals before any request, provision-pilot's three modes with their usage, staff-access check and store refusal before any connection, rewrap-payloads' usage, key settings and runtime schema refusal before any connection, and the smoke and security scripts' refusal of any host but a Replit development domain.");
