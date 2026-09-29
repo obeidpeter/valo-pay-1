@@ -47,14 +47,18 @@ const pageDescriptions: Record<string, string> = {
   '/settings': 'Change collection settings, the emergency stop and your demo role.',
   '/presentation': 'Give a guided presentation with sample data.',
 };
-const helpTopics: Record<string, HelpTopicId> = {
+/**
+ * Each page's help: a guide about that page, or the help index (null) for a page without one. A Cash Desk section
+ * has a guide of its own (cashSection below).
+ */
+const helpTopics: Record<string, HelpTopicId | null> = {
   '/overview': 'start', '/work': 'cases', '/exceptions': 'cases', '/reconciliation': 'matching',
-  '/collections': 'matching', '/imports': 'imports', '/close-review': 'close', '/customers': 'exports',
+  '/collections': 'collections', '/imports': 'imports', '/close-review': 'close', '/customers': 'customers',
   '/mandates': 'mandates', '/policies': 'policies', '/pay-by-bank': 'payment-status',
   '/credit-desk': 'credit-review', '/cash-desk': 'cash', '/connections': 'permissions',
-  '/reports': 'close', '/exports': 'exports', '/audit': 'recovery', '/evidence': 'start',
-  '/pilot': 'start', '/sources': 'imports', '/operations': 'recovery', '/team': 'access',
-  '/lifecycle': 'exports', '/settings': 'start', '/presentation': 'start',
+  '/reports': 'reports', '/exports': 'exports', '/audit': 'audit', '/evidence': 'evidence',
+  '/pilot': null, '/sources': null, '/operations': 'recovery', '/team': 'team',
+  '/lifecycle': 'retention', '/settings': 'settings', '/presentation': null,
 };
 
 /** `formerly` holds a page's earlier names, which page search still finds but nothing shows. */
@@ -305,7 +309,7 @@ export function Layout({ children }: { children: ReactNode }) {
   const cashView = new URLSearchParams(search).get('view');
   // A Cash Desk section has a guide of its own, and its help returns to that section rather than to the first.
   const cashSection = baseRoute === '/cash-desk' && ['accounting', 'vat', 'payroll'].includes(cashView || '') ? cashView as HelpTopicId : null;
-  const helpTopic: HelpTopicId = cashSection || helpTopics[baseRoute] || 'start';
+  const helpTopic: HelpTopicId | null = cashSection || (helpTopics[baseRoute] ?? null);
   const helpReturn = cashSection ? `${baseRoute}?view=${cashSection}` : baseRoute;
   const [printedAt, setPrintedAt] = useState(() => formatDate(new Date().toISOString()));
   useEffect(() => {

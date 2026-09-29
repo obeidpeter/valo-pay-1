@@ -38,7 +38,8 @@ export default function HelpPage() {
     setDraft(query);
   }, [query]);
   useEffect(() => {
-    document.title = `${glossary ? "Terms explained" : selected?.title || "Help & guides"} · Valo Pay`;
+    // The page is Help; a tab or a guide on it goes first, so a browser tab or history entry names what is open.
+    document.title = `${glossary ? "Terms explained · Help" : selected ? `${selected.title} · Help` : "Help"} · Valo Pay`;
   }, [selected?.title, glossary]);
   useEffect(() => {
     if (navigationKey !== previousNavigation.current) {
@@ -60,11 +61,11 @@ export default function HelpPage() {
       guide.recovery,
       ...helpTerms
         .filter((term) => guide.terms.includes(term.id))
-        .map((term) => `${term.term} ${term.formal} ${term.meaning}`),
+        .map((term) => `${term.term} ${term.also.join(" ")} ${term.meaning}`),
     ),
   );
   const termResults = helpTerms.filter((term) =>
-    matchesHelpSearch(query, term.term, term.formal, term.meaning),
+    matchesHelpSearch(query, term.term, ...term.also, term.meaning),
   );
   const hrefFor = (values: Record<string, string | null>) => {
     const next = new URLSearchParams();
@@ -91,7 +92,7 @@ export default function HelpPage() {
         href="#main"
         className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-card focus:p-4 focus:ring-2 focus:ring-ring"
       >
-        Skip to help
+        Skip to main content
       </a>
       <header className="border-b bg-card">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-5 py-4 sm:px-8">
@@ -103,7 +104,7 @@ export default function HelpPage() {
             <Link href={returnTo || "/"} className={linkClass}>
               <ArrowLeft className="h-4 w-4" aria-hidden="true" />
               {returnTo && returnTo !== "/"
-                ? "Return to your page"
+                ? "Back to your page"
                 : "Back to home"}
             </Link>
             <Link href="/sign-in" className={linkClass}>
@@ -119,12 +120,9 @@ export default function HelpPage() {
         className="mx-auto max-w-6xl px-5 py-8 outline-none sm:px-8 sm:py-12"
       >
         <div className="max-w-2xl">
-          <p className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-            <BookOpen className="h-4 w-4" aria-hidden="true" />
-            Valo Pay help
-          </p>
-          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-            Find your next step
+          <h1 className="flex items-center gap-3 text-3xl font-bold tracking-tight sm:text-4xl">
+            <BookOpen className="h-7 w-7 shrink-0 text-muted-foreground" aria-hidden="true" />
+            Help
           </h1>
           <p className="mt-3 text-base leading-relaxed text-muted-foreground">
             Short guides for everyday work, with the meaning of each result and
@@ -164,9 +162,9 @@ export default function HelpPage() {
         </form>
         <p className="mb-7 flex max-w-3xl items-start gap-2 text-sm leading-relaxed text-muted-foreground">
           <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-          These guides do not open a workspace or change your access. Connected
-          bank, credit and cash workflows currently use samples; check the
-          environment shown in your workspace.
+          Reading help does not open a workspace or change your access. Sample
+          data only. Live payments and bank connections are switched off, and
+          Valo Pay never holds money.
         </p>
         <nav
           aria-label="Help sections"
@@ -205,7 +203,7 @@ export default function HelpPage() {
               {query ? "Back to search results" : "All task guides"}
             </Link>
             <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <p className="mb-2 text-xs font-semibold text-muted-foreground">
                 {selected.category}
               </p>
               <h2
@@ -274,12 +272,7 @@ export default function HelpPage() {
                   .filter((term) => selected.terms.includes(term.id))
                   .map((term) => (
                     <div key={term.id} className="py-4">
-                      <dt className="text-sm font-semibold">
-                        {term.term}
-                        <span className="mt-1 block text-xs font-normal text-muted-foreground">
-                          {term.formal}
-                        </span>
-                      </dt>
+                      <dt className="text-sm font-semibold">{term.term}</dt>
                       <dd className="mt-2 text-sm leading-relaxed text-muted-foreground">
                         {term.meaning}
                       </dd>
@@ -351,12 +344,7 @@ export default function HelpPage() {
               <dl className="grid gap-4 md:grid-cols-2">
                 {termResults.map((term) => (
                   <div key={term.id} className="rounded-xl border bg-card p-5">
-                    <dt className="font-semibold">
-                      {term.term}
-                      <span className="mt-1 block text-xs font-normal text-muted-foreground">
-                        {term.formal}
-                      </span>
-                    </dt>
+                    <dt className="font-semibold">{term.term}</dt>
                     <dd className="mt-3 text-sm leading-relaxed text-muted-foreground">
                       {term.meaning}
                     </dd>
@@ -383,8 +371,8 @@ export default function HelpPage() {
           <div>
             <h2 className="font-semibold">Ready to try a task?</h2>
             <p className="mt-1 max-w-xl text-sm leading-relaxed text-muted-foreground">
-              Sign in for your own workspace, or explicitly open a sample
-              workspace to rehearse. Reading help has not created one.
+              Sign in to use your workspace, or open the sandbox to practise
+              with sample data. Reading help does not create a workspace.
             </p>
           </div>
           <div className="flex shrink-0 flex-wrap gap-4">
@@ -392,7 +380,7 @@ export default function HelpPage() {
               Sign in
             </Link>
             <Link href="/overview" className={linkClass}>
-              Try with sample data
+              Open the sandbox
               <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </Link>
           </div>
@@ -408,7 +396,7 @@ function GuideCard({ guide, href }: { guide: HelpGuide; href: string }) {
       href={href}
       className="group flex flex-col rounded-xl border bg-card p-5 transition-colors hover:border-primary/40 hover:bg-secondary/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
     >
-      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+      <p className="text-xs font-semibold text-muted-foreground">
         {guide.category}
       </p>
       <h3 className="mt-3 font-semibold leading-snug">{guide.title}</h3>

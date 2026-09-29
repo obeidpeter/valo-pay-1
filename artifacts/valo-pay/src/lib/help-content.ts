@@ -4,11 +4,12 @@ export type HelpTopicId =
   | "access"
   | "imports"
   | "matching"
+  | "cases"
+  | "collections"
+  | "close"
+  | "customers"
   | "mandates"
   | "policies"
-  | "cases"
-  | "close"
-  | "exports"
   | "payment-status"
   | "credit-review"
   | "cash"
@@ -16,16 +17,28 @@ export type HelpTopicId =
   | "vat"
   | "payroll"
   | "permissions"
-  | "recovery";
+  | "reports"
+  | "exports"
+  | "audit"
+  | "evidence"
+  | "recovery"
+  | "team"
+  | "retention"
+  | "settings";
+/**
+ * A task guide in its fixed parts (docs/design/writing.md, Help and Terms explained). Its category is the
+ * navigation group its page sits in, so a guide and its page are found in the same place. Its words are the words
+ * on screen, and a step that presses a button starts with that button's own label.
+ */
 export type HelpGuide = {
   id: HelpTopicId;
   category:
     | "Getting started"
-    | "Collections"
-    | "Pay by Bank"
-    | "Credit Desk"
-    | "Cash Desk"
-    | "Access & recovery";
+    | "Daily work"
+    | "Customers and policies"
+    | "Connected banking"
+    | "Oversight"
+    | "Setup and administration";
   title: string;
   summary: string;
   destination: string;
@@ -43,587 +56,926 @@ export const helpGuides: HelpGuide[] = [
     category: "Getting started",
     title: "Choose your workspace and first task",
     summary:
-      "Check who you are working for, what you can do and whether the records are samples.",
-    destination: "Overview and the workspace lender selector",
+      "Check which lender you are working on, what your role allows and that the records are sample data.",
+    destination: "Overview, and Active lender",
     needs:
-      "A sample workspace, or an account with access to the intended organisation and lender. Your role determines which actions are available.",
+      "The sandbox, or an account with access to your organisation and lender. Your role decides what you can do.",
     steps: [
-      "Choose sample data for a rehearsal, or sign in for your own workspace. Signing in does not move anonymous sample work into your account.",
-      "Check the organisation, selected lender, role and environment before starting. Choose the intended lender from the workspace selector.",
-      "On Overview, follow the next action for the task you need. Use My work for assignments and reviews that belong to you.",
+      "To practise, open the sandbox. To use your workspace, sign in. Work in the sandbox is not copied to your workspace.",
+      "Check the lender, your role and the mode at the top of the page. To work on another lender, choose it in Active lender.",
+      "On Overview, follow Your next step. Open My work to find the cases and reviews assigned to you.",
     ],
     result:
-      "You are working in the selected lender’s records. Reading a guide or choosing a goal does not grant permissions.",
+      "You are working on the chosen lender’s records. Reading a guide does not give you more permissions.",
     blocked:
-      "If the lender or task is missing, ask your organisation’s administrator to check your membership and lender access. Do not use another account to bypass a restriction.",
+      "If a lender or task is missing, ask an Admin of your organisation to check your access. Do not use another account to get round a restriction.",
     recovery:
-      "Return to the same account, organisation and lender to find saved work. Unsaved form entries are not guaranteed to survive a refresh.",
-    terms: ["organisation", "sandbox", "role"],
+      "Sign in to the same account and choose the same lender to find your saved work. If you reload the page, anything you have not saved may be lost.",
+    terms: ["sandbox", "your-workspace", "active-lender", "role", "watch-only"],
   },
   {
     id: "access",
     category: "Getting started",
     title: "Sign in or accept an invitation",
     summary:
-      "Enter through the right account and recover an incomplete or unsuccessful invitation.",
-    destination: "Sign in, then your original invitation link",
+      "Sign in with the right account, and what to do when an invitation link does not work.",
+    destination: "Sign in, then your invitation link",
     needs:
-      "Use the email address the invitation was sent to. Staff access also requires the intended organisation, the required authentication factors and an active Valo Pay membership.",
+      "Use the email address the invitation was sent to. For team access you also need the right organisation, two-step verification and an active membership.",
     steps: [
-      "Sign in at the deployed address. If sign-in is unavailable on the current host, return to the address your administrator provided.",
-      "Reopen the complete invitation link after signing in. Choose the invited organisation and complete the required authentication checks.",
-      "Accept the invitation once. After a confirmed acceptance, open the pilot workspace and check that the expected lender and role are available.",
+      "Sign in at the web address your Admin gave you. If sign-in is not available on this site, go back to that address.",
+      "After you sign in, open the full invitation link again. Choose the organisation that invited you and complete two-step verification.",
+      "Select Accept invitation once. When the page confirms that you have joined, open Overview and check that you see the right lender and role.",
     ],
     result:
-      "Membership is confirmed only after the service accepts it. Joining does not enable live payments or customer data.",
+      "You are a member only when Valo Pay confirms it. Your workspace holds sample data only, and live payments and bank connections stay switched off.",
     blocked:
-      "For an incomplete link, reopen the full original link. For an expired, revoked or still-invalid invitation, ask your administrator for a new invitation. A successful sign-in alone is not proof of workspace access.",
+      "If the link is incomplete, open the full link from the original email. If the invitation has expired or was withdrawn, ask an Admin for a new one. Signing in alone does not give you access.",
     recovery:
-      "If acceptance had no clear answer, open the pilot workspace and check whether membership is active before accepting again. Do not share passwords, authentication codes or invitation tokens in a support message.",
-    terms: ["organisation", "role", "unknown-outcome"],
+      "If you are not sure the invitation was accepted, open Overview and check whether you are a member before you accept again. Never share passwords, sign-in codes or invitation links in a support message.",
+    terms: ["organisation", "role", "request-not-confirmed"],
   },
   {
     id: "imports",
-    category: "Collections",
+    category: "Daily work",
     title: "Import your first payment file",
-    summary: "Save and check a sample file, fix its rows, then commit it once.",
+    summary: "Save and check a sample file, fix its rows, then import it once.",
     destination: "Import batches",
     needs:
-      "A selected lender and an Admin, Operations or Finance role. The current import flow accepts synthetic records only. Customer and instalment references must already exist when the selected import kind requires them.",
+      "A chosen lender and the Admin, Operations or Finance role. Imports take sample data only. Some record types refer to customers or instalments, so import those first.",
     steps: [
-      "Choose the record type. For incoming payment records, choose Payment evidence. Select Use sample for a format-matched example, or upload a synthetic CSV.",
-      "Check the source name, source batch ID, row identities, column mapping and amount unit. Naira and kobo are different units.",
-      "Choose Save and check batch. Read the row and field errors, correct them and save again. A saved batch has not yet been committed.",
-      "Review the checked rows and any warnings. Choose Commit checked batch once, then read the saved result before opening Reconciliation.",
+      "Choose the record type. For incoming payments, choose Payment evidence. Select Use sample to load an example, or choose your own sample CSV file.",
+      "Check Source name, Source batch ID, the source row ID column, the column mapping and the amount unit. Naira and kobo are different units.",
+      "Select Save and check batch. Read the row and field errors, correct them and save again. A saved batch is not imported yet.",
+      "Check the rows and any warnings. Select Import checked batch once, then read the result before you open Reconciliation.",
     ],
     result:
-      "A committed batch records its imported rows. Payment observations still need reconciliation; importing evidence does not itself confirm a match or move funds.",
+      "Importing adds the checked rows to Valo Pay. Imported payment evidence still needs matching in Reconciliation. Importing does not confirm a match, and no money moved.",
     blocked:
-      "Correct the named row or field and keep the original source identities. If referenced records are missing, import or select those records first. Do not disguise a duplicate as a new row.",
+      "Correct the row or field the error names, but keep each row’s source row ID. If a record it refers to is missing, import that record first. Do not change a duplicate row to make it look new.",
     recovery:
-      "Reopen the saved batch to continue. If a save or commit has an unknown result, check Operations and the saved batch before resubmitting. An expired original file may no longer be available under the lender’s retention policy.",
-    terms: ["observation", "batch", "committed", "reconciliation", "kobo"],
+      "Open the saved batch to continue. If you do not know whether a save or import worked, check Request history and the saved batch before you try again. The original file may have been deleted under the lender’s data retention policy.",
+    terms: ["observation", "batch", "committed", "source-row-id", "reconciliation", "kobo"],
   },
   {
     id: "matching",
-    category: "Collections",
-    title: "Match a payment to a repayment",
+    category: "Daily work",
+    title: "Match a payment to an instalment",
     summary:
-      "Review who paid, how much arrived and which instalment the evidence supports.",
-    destination: "Reconciliation",
+      "Check who paid, how much arrived and which instalment the payment pays.",
+    destination: "Reconciliation, then Matches to review",
     needs:
-      "Payment evidence and an instalment for the selected lender. Admin, Operations and Finance can run reconciliation; Admin or Finance can confirm, reject or manually allocate a payment.",
+      "Payment evidence and an instalment for the chosen lender. Admin, Operations or Finance can run reconciliation. Admin or Finance can confirm or reject a match, or allocate a payment.",
     steps: [
-      "Run reconciliation to compare the available observations and records. Read any unresolved observations or unallocated payments.",
-      "For a proposed match, compare the customer, references, amount, currency and matching evidence. A proposed match is waiting for a decision.",
-      "Confirm a supported match, or reject it if the evidence does not support it. For a manual allocation, review the selected repayment and amount before saving.",
+      "Select Run reconciliation to compare payment evidence with instalments. Then read any payment evidence that was not matched and any unallocated payments.",
+      "In Matches to review, compare the customer, references, amount and currency with the explanation. A match to review is waiting for a decision.",
+      "Select Confirm match if the evidence supports it, or Reject match if it does not. To pair a payment yourself, select Allocate payment and check the instalment and amount before saving.",
     ],
     result:
-      "A confirmed allocation applies the recorded payment to the named obligation. It does not submit a new debit or transfer money.",
+      "Confirming records that the payment pays that instalment. It does not start a new debit, and no money moved.",
     blocked:
-      "Ask Admin or Finance if your role cannot decide the match. Returned funds, a different currency or a reversal-review hold can block allocation; resolve the stated issue first.",
+      "If your role cannot decide a match, ask Admin or Finance. You cannot allocate a payment that went back to the payer, one in another currency, or one on hold for a reversal review. The page says which applies.",
     recovery:
-      "If confirmation has no clear answer, inspect the original request and current allocation before trying again. Correct an existing outcome through the supported Finance review route; do not erase the original history.",
-    terms: ["reconciliation", "allocation", "instalment", "observation"],
-  },
-  {
-    id: "mandates",
-    category: "Collections",
-    title: "Pause, cancel or reissue a debit mandate",
-    summary:
-      "Review the customer’s recurring-debit permission and the effect of changing its record.",
-    destination: "Mandates",
-    needs:
-      "The selected lender’s mandate, its consent evidence and an Admin or Operations role. Mandates govern recurring debit records; Permissions & readiness manages separate account-read, assessment, accounting and payroll permissions.",
-    steps: [
-      "Find the customer’s mandate. Check its provider reference, debit limit, status and consent evidence before choosing an action.",
-      "For an active mandate, Suspend pauses its use and cancels linked scheduled attempts. Cancel ends the existing mandate record where its current state allows it. Read the change summary and record the reason before confirming.",
-      "Resume is available for a suspended mandate; it does not recreate cancelled attempts. Reissue creates a separate mandate awaiting activation and requires fresh consent evidence. Existing instalments are not relinked automatically.",
-    ],
-    result:
-      "These sandbox actions update the mandate record and history. No instruction is sent to a bank or provider. Attempts already sent retain their recorded outcomes; changing the mandate is not a refund or proof of provider-side cancellation.",
-    blocked:
-      "Ask Admin or Operations if your role cannot act. Cancellation cannot be undone. A cancelled, failed, expired or awaiting-activation mandate may be reissued with fresh consent; do not change existing consent evidence or a debit limit in place.",
-    recovery:
-      "If the action’s result is unclear, check the existing mandate and original operation before trying again. For a real provider mandate, use the accepted provider process and evidence; the sandbox record cannot establish that an external debit authority ended.",
-    terms: ["mandate", "account-read", "unknown-outcome"],
-  },
-  {
-    id: "policies",
-    category: "Collections",
-    title: "Review retry rules and message templates",
-    summary:
-      "Draft a version, compare its effect and ask a separate Compliance reviewer to decide.",
-    destination: "Policies & templates",
-    needs:
-      "Access to the selected lender. Admin drafts and submits policy or template versions; a Compliance reviewer other than the author approves or rejects them. Existing drafts retain their author restrictions.",
-    steps: [
-      "Open the policy or template. Review its current status and author. For an approved version, use Draft next version to propose a change while preserving the approved history.",
-      "Check retry limits, spacing, notice periods and quiet hours, or the template’s rendered sample message. Test this version rehearses a policy against sample instalments; it does not approve the policy or send a collection instruction.",
-      "Submit the draft for review. The separate Compliance reviewer compares the proposed version with the previous evidence and records approval or requests changes with a reason.",
-    ],
-    result:
-      "Approval records a reviewed version. It does not send messages, activate live retries or automatically change each mandate. Applying a policy in Mandates is a separate action requiring the accepted notice and any required fresh consent.",
-    blocked:
-      "You cannot approve your own submission or edit an approved version in place. Follow the author and role explanation on the action. A missing previous version must be investigated; it is not an empty or implicitly accepted baseline.",
-    recovery:
-      "Reopen the current version and its review status before submitting again after an unclear response. Keep earlier versions and decisions. A simulated notice is not proof that a customer received or accepted it.",
-    terms: [
-      "collection-policy",
-      "notification-template",
-      "independent-review",
-      "mandate",
-    ],
+      "If you do not know whether your decision was saved, check the original request and the payment before you try again. To correct a decision, ask Finance to review the match. The original history is always kept.",
+    terms: ["reconciliation", "match", "allocation", "instalment", "observation"],
   },
   {
     id: "cases",
-    category: "Collections",
-    title: "Take ownership of an issue",
+    category: "Daily work",
+    title: "Take ownership of an exception",
     summary:
-      "Give an unresolved item a responsible person, next step and clear handover.",
-    destination: "Exceptions → case, or My work",
+      "Give an open exception an owner, a next step and a clear handover.",
+    destination: "Exceptions, then the exception’s case; or My work",
     needs:
-      "Access to the selected lender and a role eligible to handle cases. Admin, Operations, Finance and Compliance reviewer can coordinate cases within the case’s ownership rules; Read-only can inspect them.",
+      "Access to the chosen lender. Admin, Operations, Finance and Compliance reviewer can work on cases, depending on who owns them. Read-only can view them.",
     steps: [
-      "Open the issue and read its linked evidence, status, owner and deadline.",
-      "Claim an available case if you are eligible, or ask the current owner or Admin to hand it over. Choose only an eligible assignee from the list.",
-      "Record the next step and supporting note. Resolve the underlying financial or evidence issue through the relevant workflow before claiming the issue is resolved.",
+      "Open the exception and its case. Read its linked evidence, status, owner and deadline.",
+      "If the case has no owner and your role allows it, select Claim and save next step. Otherwise ask its owner or an Admin to hand it over.",
+      "Record the next step and a note, then select Save next step. To pass the case on, choose the new owner and select Save handover.",
+      "Fix the payment or evidence problem on its own page, then select Resolve exception.",
     ],
     result:
-      "The case records responsibility and its history. Handing over a case does not confirm a payment or complete a close.",
+      "The case records who is responsible and what happened. Handing over a case does not confirm a payment or complete a daily close.",
     blocked:
-      "Only the current owner or Admin can change or hand over an assigned case. Some financial resolutions require Admin or Finance even when another role can coordinate the case.",
+      "Only the owner or an Admin can change or hand over an assigned case. Some resolutions need Admin or Finance, even when another role can work on the case.",
     recovery:
-      "If another person changed the case, refresh and review their update before saving again. Resolved cases retain their history and cannot be reassigned.",
+      "If someone else changed the case, select Refresh case and read their update before you save again. Resolved cases keep their history and cannot be handed over.",
     terms: ["exception", "case", "role"],
   },
   {
-    id: "close",
-    category: "Collections",
-    title: "Prepare a close for a separate reviewer",
+    id: "collections",
+    category: "Daily work",
+    title: "Track instalments and collection attempts",
     summary:
-      "Explain a saved close and ask another Finance user to review its evidence.",
-    destination: "Reports → daily close, then Finance close review",
+      "See which instalments are due, overdue or failed, and what should happen next.",
+    destination: "Collections",
     needs:
-      "A saved close snapshot and available evidence for the lender. Admin, Operations or Finance can prepare; the named Finance reviewer must be a different staff user.",
+      "Access to the chosen lender. Every role can read the list. Each button says which roles can use it.",
     steps: [
-      "Reconcile the sample payments, then run a daily close from Reports. Open the resulting snapshot in Finance close review.",
-      "Read the source completeness and discrepancies. Explain each issue and name a different Finance reviewer. Any acceptance of unresolved items must be explicit.",
-      "The named reviewer opens the request from My work, checks the saved evidence and either approves it or requests changes.",
+      "Open Collections. Choose All instalments, Overdue, Due today or Failed attempts, and filter by owner if you need to.",
+      "Read each row’s amount, what is outstanding, the due date, its status and owner, and its next step.",
+      "To see what the retry policy would do next, select Test policy. To practise a failed collection attempt, select Simulate failure.",
+      "To add sample instalments, select Import sample data.",
     ],
     result:
-      "Approval records acceptance of that evidence snapshot. It does not resolve exceptions, move money or approve later changes automatically.",
+      "The list shows each instalment as its saved records describe it. Testing a policy or simulating a failure changes only sample records. No money moved, and nothing was sent to a bank.",
     blocked:
-      "Switching demo roles does not create an independent staff reviewer. If a reviewer is unavailable, Admin can reassign the review. Fix stale or incomplete evidence as directed before continuing.",
+      "If an instalment is on hold or in dispute, its row says why. Only Admin or Finance can release an instalment from dispute.",
     recovery:
-      "Reopen the exact close and read its current review status. Changes requested need a new preparation; earlier snapshots and decisions remain in the history.",
-    terms: ["close", "snapshot", "independent-review"],
+      "If an action was interrupted, check Request history before you try again, so it is not done twice.",
+    terms: ["instalment", "collection-attempt", "collection-policy", "outstanding"],
   },
   {
-    id: "exports",
-    category: "Collections",
-    title: "Find and download saved evidence",
+    id: "close",
+    category: "Daily work",
+    title: "Prepare a daily close for a different reviewer",
     summary:
-      "Follow file preparation and return to the original export if it is interrupted.",
-    destination: "Saved exports, or the export control on the source record",
+      "Explain a saved daily close and ask a different Finance team member to review it.",
+    destination: "Reports, then Close review",
     needs:
-      "Current access to the lender and the requested evidence. A close review export needs a current approved review; other export types have their own source and role checks.",
+      "A saved daily close for the lender. Admin, Operations or Finance can prepare it. The Finance reviewer you name must be a different person.",
     steps: [
-      "Request the evidence from its source record, such as an approved close review or customer timeline.",
-      "Read the preparation status. Open Saved exports to follow the saved job rather than starting another export.",
-      "When the file is ready and you remain authorised, download it from that job. Keep its reference and integrity details with the file if you need to verify it later.",
+      "Run reconciliation on the sample payments, then select Run daily close on Reports. Open the saved close in Close review.",
+      "Check that every expected file arrived and read the differences. Explain each one and name a different Finance reviewer. If you accept a difference that is still open, say so.",
+      "Select Submit for Finance review. The reviewer opens it from My work, checks it, and approves it or asks for changes.",
     ],
     result:
-      "You receive the evidence that was prepared for that export. A download is not proof of a live payment, a tax filing or an accounting entry.",
+      "Approval records that the reviewer accepted that daily close. It does not resolve exceptions, move money or approve later changes automatically.",
     blocked:
-      "A preparing, failed, expired or unavailable file cannot be treated as a successful download. Follow the job’s explanation; current access is checked again when retrieving the file.",
+      "A different person must review it. Switching demo roles is not a second person. If the reviewer is away, an Admin can give the review to someone else. If the page says evidence is out of date or incomplete, fix it before you continue.",
     recovery:
-      "Use the existing job’s recovery action when offered. It preserves the original job and file identity. If access was removed, ask the administrator to check the legitimate access route.",
-    terms: ["export", "snapshot", "unknown-outcome"],
+      "Open the same close and read its review status. If the reviewer asked for changes, prepare the close again. Earlier closes and decisions stay in the history.",
+    terms: ["close", "close-review", "reviewer"],
+  },
+  {
+    id: "customers",
+    category: "Customers and policies",
+    title: "Find a customer and their history",
+    summary:
+      "Find a customer, then read their mandates, instalments, payments and history on one page.",
+    destination: "Customers, then the customer’s history",
+    needs:
+      "Access to the chosen lender. Every role can read customer records. Admin, Operations or Finance can add a customer.",
+    steps: [
+      "Open Customers. Search by name, reference or masked phone number, or press / to move to the search box.",
+      "Open the customer’s history from their row. Check their position first: what they still owe and what they have paid.",
+      "Read their mandates, instalments, payments and history. To add a customer, select Add customer and enter sample details only.",
+      "To collect a customer’s records for a dispute, select Export dispute pack (PDF), then download it from Saved exports when it is ready.",
+    ],
+    result:
+      "You see one customer’s records together. Reading them changes nothing, and Valo Pay never holds money.",
+    blocked:
+      "If a customer is missing, check that you chose the right lender in Active lender. Only Admin, Operations or Finance can add a customer.",
+    recovery:
+      "If adding a customer was interrupted, check Request history before you add them again, so you do not add them twice.",
+    terms: ["customer-history", "instalment", "outstanding", "mandate", "sample-data"],
+  },
+  {
+    id: "mandates",
+    category: "Customers and policies",
+    title: "Suspend, resume, cancel or reissue a mandate",
+    summary: "Check a customer’s mandate and what changing it does.",
+    destination: "Mandates",
+    needs:
+      "The chosen lender’s mandate, its consent evidence and the Admin or Operations role. Permissions to read accounts or prepare files are separate: you manage them in Permissions and readiness.",
+    steps: [
+      "Find the customer’s mandate. Check its provider reference, debit limit, status and consent evidence before you choose an action.",
+      "Select Suspend to stop an active mandate being used; its scheduled collection attempts are cancelled. Select Cancel to end the mandate, if its status allows. Read the summary and enter a reason before you confirm.",
+      "Select Resume to use a suspended mandate again; cancelled attempts do not come back. Select Reissue to create a new mandate that waits for activation and needs new consent evidence. Instalments do not move to it automatically.",
+    ],
+    result:
+      "These actions change only the mandate record and its history. Nothing is sent to a bank or provider. Attempts already sent keep their results, and changing a mandate is not a refund.",
+    blocked:
+      "If your role cannot do this, ask someone with the Admin or Operations role. You cannot undo a cancellation. You can reissue a mandate that is cancelled, failed, expired or waiting for activation, with new consent. Do not edit its consent evidence or debit limit in place.",
+    recovery:
+      "If you do not know whether the action worked, check the mandate and the original request before trying again. A real mandate at a provider ends only through the provider’s own process.",
+    terms: ["mandate", "account-read", "request-not-confirmed"],
+  },
+  {
+    id: "policies",
+    category: "Customers and policies",
+    title: "Review retry policies and message templates",
+    summary:
+      "Draft a version, test it and ask a different Compliance reviewer to decide.",
+    destination: "Policies and templates",
+    needs:
+      "Access to the chosen lender. An Admin drafts and submits policy and template versions. A Compliance reviewer who is not the author approves or rejects them.",
+    steps: [
+      "Open the policy or template and check its status and author. To change an approved version, select Draft next version; the approved version and its history stay.",
+      "Check retry limits, the gap between retries, notice periods and quiet hours, or the template’s sample message. Select Test this version to try a policy on sample instalments.",
+      "Select Submit for review. A different Compliance reviewer compares it with the previous version, then approves or rejects it with a reason.",
+    ],
+    result:
+      "Approval records a reviewed version. It does not send messages, start live retries or change any mandate. Applying a policy to a mandate is a separate step on Mandates, and it needs the customer’s accepted notice and any new consent.",
+    blocked:
+      "You cannot approve your own submission or edit an approved version. Each button says who can use it. If the previous version is missing, report it rather than treating it as empty or approved.",
+    recovery:
+      "If you do not know whether your submission was saved, open the version and check its review status before you submit again. Earlier versions and decisions are always kept. A sample notice does not show that a customer received or accepted it.",
+    terms: ["collection-policy", "notification-template", "reviewer", "mandate"],
   },
   {
     id: "payment-status",
-    category: "Pay by Bank",
+    category: "Connected banking",
     title: "Understand payment status without paying twice",
     summary:
-      "Tell a pending or unknown payment result apart from a confirmed receipt.",
-    destination: "Pay by Bank → existing checkout",
+      "Tell a payment that is pending or has an unknown outcome apart from a confirmed payment.",
+    destination: "Pay by Bank, then the checkout",
     needs:
-      "The intended customer, merchant, bill or repayment, amount and currency. The current connected workspace rehearses payment steps with sample data; it is not a live bank checkout.",
+      "The customer, lender, instalment, amount and currency. Pay by Bank practises the payment steps with sample data. It is not a live bank checkout.",
     steps: [
-      "Review the merchant, customer, purpose, amount, currency and any displayed fees before authorising the supported sample flow.",
-      "Read the checkout’s progress. Pending means the result is not yet confirmed. Awaiting authorisation, processing and outcome unknown do not mean payment is confirmed or safely failed.",
-      "Return to the existing checkout to check the result. If the outcome is unknown, use its recovery route and wait for evidence; do not create a replacement payment.",
+      "Check the lender, customer, purpose, amount, currency and any fees. Then practise the customer’s authorisation at their bank.",
+      "Read the checkout’s progress. Pending, Authorised and Outcome unknown all mean the payment is not confirmed. They do not mean it failed either.",
+      "Go back to the same checkout to check the result. If its outcome is unknown, open the linked exception and wait for evidence. Do not create a new checkout to replace it.",
     ],
     result:
-      "A confirmed receipt and settlement status describe different events. Confirmation does not mean the provider’s settlement has completed. In the sample workspace, both are simulated evidence.",
+      "A confirmed payment and a settlement are different events: confirmation does not mean the provider has paid out. In the sandbox, both are sample evidence.",
     blocked:
-      "The page explains missing authority, held repayments and unavailable actions. An unresolved payment outcome belongs to Admin or Finance for evidence-based resolution.",
+      "The page explains what is missing, which instalments are on hold and which actions are not available. If a payment’s outcome stays unknown, Admin or Finance resolves it from the evidence.",
     recovery:
-      "Leaving the page is not a cancellation. Reopen the same checkout or saved request. Do not treat a timeout, blank page or missing notification as proof that nothing was submitted.",
+      "Leaving the page does not cancel anything. Open the same checkout again. A timeout, a blank page or a missing notice does not prove that nothing was sent.",
     terms: ["payment-request", "unknown-outcome", "settlement", "sandbox"],
   },
   {
     id: "credit-review",
-    category: "Credit Desk",
+    category: "Connected banking",
     title: "Review an assessment and its evidence",
     summary:
-      "Understand the inputs and gaps before recording a reviewer outcome.",
-    destination: "Credit Desk → assessment and review",
+      "Understand the evidence and its gaps before you record a review decision.",
+    destination: "Credit Desk, then the assessment and its review",
     needs:
-      "An applicant in the selected lender and separate account-read and credit-assessment permissions. Admin or Operations can assess; a different Admin, Finance or Compliance reviewer can review. These are sample assessments and simulated reviewer outcomes.",
+      "An applicant for the chosen lender, with two separate permissions: Read applicant accounts and Assess an application. Admin or Operations runs the assessment. A different Admin, Finance or Compliance reviewer reviews it.",
     steps: [
-      "Choose the applicant and inspect permissions. Run or open the assessment version for the request being considered.",
-      "Read the evidence coverage, source age, costs, commitments and explanation. Missing evidence or permission is a blocker, not a zero-risk result.",
-      "Use the authorised review panel to record the outcome, rationale and applicant explanation. Explain an override when one is permitted.",
+      "Choose the applicant and check their permissions. Run a new assessment, or open the version for the loan request you are reviewing.",
+      "Read how much evidence there is, how old it is, and the costs, commitments and explanation. Missing evidence or permission stops the assessment. It does not mean zero risk.",
+      "In the review panel, record your decision, your reasons and the explanation for the applicant. If you change the recommended outcome, explain why.",
     ],
     result:
-      "A versioned assessment and reviewer record remain traceable. A rule score is not a default probability, loan approval, disbursement or real lending decision.",
+      "Each assessment version and its review are kept, so you can see who decided what. A credit result is not a lending decision: a score is not a chance of default, a loan approval or a payout.",
     blocked:
-      "Follow the page’s missing-evidence or permission explanation. Only a permitted reviewer can record an outcome; choosing a guide or scenario does not change their role.",
+      "Follow the page’s explanation of missing evidence or permissions. Only a permitted reviewer can record a decision. Reading a guide does not change your role.",
     recovery:
-      "Open Review history for the selected version before submitting again. An already reviewed version keeps its immutable review; a new assessment creates a new version.",
-    terms: ["assessment", "account-read", "snapshot"],
+      "Open Review history for the version before you submit again. A saved review cannot be changed. To start again, run a new assessment: it creates a new version.",
+    terms: ["assessment", "account-read", "reviewer"],
   },
   {
     id: "cash",
-    category: "Cash Desk",
+    category: "Connected banking",
     title: "Read cash balances and their age",
     summary:
-      "Check source timestamps and assumptions before using a cash forecast.",
-    destination: "Cash Desk → Cash & forecast",
+      "Check when balances were read, and the assumptions, before you use a cash forecast.",
+    destination: "Cash Desk, then Cash and forecast",
     needs:
-      "The sample Cash Desk and active business-account read permission. Saved forecasts also depend on the current source balances, commitments and permission.",
+      "The sample business and an active Read business accounts permission. A saved forecast also depends on the current balances, commitments and permission.",
     steps: [
-      "Read each account’s bank balance timestamp and source state. A balance from an earlier time may not describe funds available now.",
-      "Compare commitments, expected receipts, fees and the planning buffer. Treat unknown or withheld figures as needing review, not as zero.",
-      "Review the assumptions before saving a forecast. If the sample source data is stale, use the supported sample refresh and prepare the forecast again.",
+      "Check when each account’s balance was read and whether its source is up to date. An older balance may not show the money available now.",
+      "Compare commitments, expected receipts, fees and the planning buffer. Treat unknown or hidden figures as needing review, not as zero.",
+      "Check the assumptions, then select Save forecast version. If the sample data is out of date, refresh it on the page and prepare the forecast again.",
     ],
     result:
-      "A forecast is a planning scenario based on its recorded evidence. A planning buffer does not reserve bank funds, and refreshing samples does not contact a bank.",
+      "A forecast is a plan based on its recorded evidence. A planning buffer keeps no money aside, and refreshing sample data does not contact a bank.",
     blocked:
-      "Expired or changed permissions and changed evidence can make a saved forecast unavailable for current use. Resolve the stated dependency before preparing a new version.",
+      "If a permission expired or changed, or the evidence changed, you cannot use the saved forecast. Fix what the page names, then prepare a new version.",
     recovery:
-      "Return to the saved forecast and inspect its state. A newly refreshed balance does not automatically approve an old payroll plan or accounting draft.",
-    terms: ["stale", "forecast", "account-read"],
+      "Open the saved forecast and check its state. A new balance does not approve an old payroll plan or accounting draft.",
+    terms: ["stale", "forecast", "business-account-read"],
   },
   {
     id: "accounting",
-    category: "Cash Desk",
+    category: "Connected banking",
     title: "Prepare an accounting draft for review",
     summary:
-      "Check a receipt and mapping, then obtain independent Finance review before export.",
-    destination: "Cash Desk → Accounting",
+      "Check a receipt and how it maps to your accounts, then have a different Finance reviewer check it before export.",
+    destination: "Cash Desk, then Accounting",
     needs:
-      "Current business-account read and accounting-draft permissions, the sample receipt and mapping, an Admin or Operations preparer, and a different Finance reviewer.",
+      "The Read business accounts and Prepare accounting drafts and VAT schedules permissions, and the sample receipt. An Admin or Operations team member prepares the draft, and a different Finance reviewer checks it.",
     steps: [
-      "Prepare the draft and inspect the receipt, gross amount, fees, net amount, invoice allocation and mapping.",
-      "A different Finance reviewer checks the current draft and records approval. Recheck any residual difference or blocked period first.",
-      "Prepare the reviewed export while evidence and permissions remain current, then download the review file.",
+      "Prepare the draft. Check the receipt, the amount before fees, the fee, the amount after fees, the invoice it pays and the account mapping.",
+      "A different Finance reviewer checks the draft and approves it. Before that, recheck any amount still owed and any closed accounting period.",
+      "Prepare the reviewed export while the evidence and permissions are current, then download the export file.",
     ],
     result:
-      "The current flow prepares a sample accounting export. Nothing has been posted to accounting software; the accounting system remains authoritative.",
+      "This prepares a sample accounting export. Nothing was posted to accounting software, and your accounting software stays the official record.",
     blocked:
-      "If permissions or evidence change, refresh the accounting review and obtain a new Finance approval. The previous approval does not cover a changed draft.",
+      "If permissions or evidence change, prepare the review again and get a new Finance approval. The previous approval does not cover a changed draft.",
     recovery:
-      "Inspect the existing receipt and draft after an interruption. Keep the same receipt identity and check its saved result before repeating an action.",
-    terms: ["accounting-draft", "independent-review", "export"],
+      "After an interruption, open the same receipt and draft and check the saved result before you repeat anything. Do not create a new receipt for the same money.",
+    terms: ["accounting-draft", "reviewer", "export"],
   },
   {
     id: "vat",
-    category: "Cash Desk",
-    title: "Prepare a VAT evidence schedule",
+    category: "Connected banking",
+    title: "Prepare a VAT schedule",
     summary:
       "Compare invoice, bank and ledger evidence for an accountant to review.",
-    destination: "Cash Desk → VAT evidence",
+    destination: "Cash Desk, then VAT evidence",
     needs:
-      "Current business-account read and accounting-draft permissions, the sample Cash Desk, and a Finance reviewer to save the schedule.",
+      "The Read business accounts and Prepare accounting drafts and VAT schedules permissions, the sample business, and a Finance reviewer to save the schedule.",
     steps: [
-      "Review invoice amounts, bank allocations and the ledger control separately. Read the evidence gaps and excluded items.",
-      "Resolve or document the evidence needed for review. A bank credit alone does not establish VAT or input-tax recovery.",
-      "Finance saves the review schedule and downloads the saved review when it is available.",
+      "Check invoice amounts, bank payments and the ledger total separately. Read the evidence gaps and the items left out.",
+      "Resolve or note the evidence needed for review. A bank payment alone does not prove that VAT is due or that input tax can be claimed back.",
+      "Finance saves the VAT schedule and downloads it when it is ready.",
     ],
     result:
-      "The schedule is preparation for review with an accountant. It does not file a tax return, pay tax or establish a tax entitlement.",
+      "The schedule helps you prepare for a review with an accountant. No VAT return was filed and no tax was paid.",
     blocked:
-      "Missing evidence, changed sources or changed permissions may withhold earlier figures. Prepare the schedule again under the current permission after reviewing those gaps.",
+      "If evidence is missing, or sources or permissions changed, earlier figures may be hidden. Review the gaps, then prepare the schedule again.",
     recovery:
-      "Check the saved schedule and timestamp before saving another. Keep the original record as historical evidence.",
+      "Check the saved schedule and when it was saved before you save another. The original stays as a record.",
     terms: ["vat-schedule", "export", "stale"],
   },
   {
     id: "payroll",
-    category: "Cash Desk",
+    category: "Connected banking",
     title: "Prepare a reviewed payroll file",
     summary:
-      "Check funding for an approved net-pay run without implying salaries have been paid.",
-    destination: "Cash Desk → Payroll funding",
+      "Check there is money for an approved net-pay run. This does not pay salaries.",
+    destination: "Cash Desk, then Payroll funding",
     needs:
-      "An approved sample net-pay run, active business-account read and payroll-preparation permissions, an Admin or Operations preparer, and a different Finance reviewer.",
+      "An approved sample net-pay run, and the Read business accounts and Prepare payroll funding permissions. An Admin or Operations team member prepares the plan, and a different Finance reviewer checks it.",
     steps: [
-      "Prepare the funding plan from the approved run. Review the source account, balance timestamp, commitments, fees and buffer.",
-      "Have a separate Finance checker review the plan and items. Fix insufficient or stale funding evidence before export.",
-      "Prepare and download the reviewed export when current checks allow it. Keep each item’s outcome visible in the existing plan.",
+      "Prepare the funding plan from the approved run. Check the source account, when its balance was read, and the commitments, fees and buffer.",
+      "Ask a different Finance reviewer to check the plan and its items. If the funding evidence is too low or out of date, fix it before export.",
+      "When the checks pass, prepare and download the reviewed export file. Track each item’s outcome in the same plan.",
     ],
     result:
-      "Funding approval and a downloaded file do not execute salaries. Payroll calculations remain in the payroll system; the sample export leaves payroll unpaid.",
+      "Approving the funding and downloading the file pay no one. No one has been paid, and your payroll system still does the calculations.",
     blocked:
-      "Changed permissions or funding can require a refreshed review and new approval. Successful or unknown items must not be exported again as fresh payments.",
+      "If permissions or funding change, the plan needs a new review and approval. Do not export items already paid, or items whose outcome is unknown, again as new payments.",
     recovery:
-      "Reopen the existing plan and check each item. Unknown outcomes stay on hold until evidence resolves them; do not make a replacement run to bypass that hold.",
-    terms: ["payroll-file", "independent-review", "unknown-outcome"],
+      "Open the same plan and check each item. Items whose outcome is unknown stay on hold until evidence settles them. Do not make a new run to get round the hold.",
+    terms: ["payroll-file", "reviewer", "unknown-outcome"],
   },
   {
     id: "permissions",
-    category: "Access & recovery",
-    title: "Change or withdraw a permission",
+    category: "Connected banking",
+    title: "Grant or withdraw a permission",
     summary:
-      "Check a permission’s purpose and stop new work that depends on it.",
-    destination: "Permissions & readiness",
+      "Check what a permission is for, and stop new work that depends on it.",
+    destination: "Permissions and readiness",
     needs:
-      "Access to the selected lender. In the sample simulator, Admin or Operations can grant a permission; Admin, Operations or Compliance reviewer can revoke one.",
+      "Access to the chosen lender. In the sandbox, Admin or Operations can grant a permission, and Admin, Operations or Compliance reviewer can withdraw one.",
     steps: [
-      "Read the purpose, subject and expiry. Account reading, credit assessment, accounting drafts and payroll preparation use separate permissions.",
-      "To decline optional sample setup, leave the grant form without saving. You can still inspect the explanation of the blocked workflow.",
-      "To withdraw an existing permission, select it, review the displayed subject and consequence, add the required reason and confirm the revocation.",
+      "Read the purpose, subject and expiry. Reading accounts, assessing an application, preparing accounting drafts and preparing payroll funding each need a separate permission.",
+      "If you do not want to set up a sample permission, leave the form without saving. You can still read why the task is blocked.",
+      "To withdraw a permission, select it and check who it covers and what will stop. Enter a reason, then select Withdraw permission.",
     ],
     result:
-      "Revocation blocks new dependent work and keeps historical evidence. In-flight receipts may still be reconciled. It does not undo an earlier payment or revoke unrelated permissions.",
+      "Withdrawing stops new work that depends on the permission and keeps past evidence. Payments already on their way can still be reconciled. It does not undo an earlier payment or withdraw other permissions.",
     blocked:
-      "Ask the appropriate authorised person when your role cannot grant or revoke. A sample permission cannot connect a real account or authorise a live bank debit.",
+      "If your role cannot grant or withdraw a permission, ask an Admin. A sample permission cannot connect a real account or allow a live bank debit. Permission to read an account is not permission to take money from it.",
     recovery:
-      "After an unclear response, inspect the existing permission and recover the original request before submitting again. A later grant does not restore the validity of an earlier dependent approval automatically.",
-    terms: ["account-read", "mandate", "role"],
+      "If you do not know whether your change was saved, check the permission and the original request before you try again. Granting a permission again does not make earlier approvals that relied on it valid again.",
+    terms: ["permission", "account-read", "mandate", "role"],
+  },
+  {
+    id: "reports",
+    category: "Oversight",
+    title: "Read reports and run a daily close",
+    summary:
+      "Check totals, run a daily close, and read billing and pilot results.",
+    destination: "Reports",
+    needs:
+      "Access to the chosen lender. Admin, Operations or Finance can run a daily close. Admin or Finance can issue an invoice.",
+    steps: [
+      "Open Reports and choose a view: Totals and closes, Billing or Pilot results.",
+      "In Totals and closes, select Run daily close to save the day’s reconciliation results and open exceptions. Then prepare the close for review in Close review.",
+      "In Billing, check the statement for the billing month. Select Export billing CSV to download it.",
+      "In Pilot results, read what was measured. Results from sample data do not show live performance.",
+    ],
+    result:
+      "A daily close is saved as a record you can review. Running it is not approval: a different person must review it. Reports use sample data only.",
+    blocked:
+      "If a daily close cannot run, the page says why, such as files missing for that date. Each button says which roles can use it.",
+    recovery:
+      "If a daily close was interrupted, check Request history before you run it again.",
+    terms: ["close", "close-review", "pilot-results", "sample-data"],
+  },
+  {
+    id: "exports",
+    category: "Oversight",
+    title: "Find and download a saved export",
+    summary:
+      "Follow an export while it is prepared, and go back to it if you are interrupted.",
+    destination: "Saved exports, or the export button on the record you are exporting",
+    needs:
+      "Access to the lender and to the record you export. A close review export needs an approved review. Other exports have their own role checks.",
+    steps: [
+      "Start the export from the record it comes from, such as an approved close review or a customer’s history.",
+      "Open Saved exports to follow it. Do not start another export of the same record while one is waiting.",
+      "When it shows Ready to download, download it. Keep the details Saved exports shows with the file, so you can show later that it has not changed.",
+    ],
+    result:
+      "You get the file prepared for that export. A download does not move money, file a tax return or post to accounting software.",
+    blocked:
+      "You cannot download an export that is waiting, has failed or has expired. Follow the explanation shown for it. Your access is checked again when you download.",
+    recovery:
+      "If Saved exports offers Retry export, use it: it keeps the original export. If your access was removed, ask an Admin.",
+    terms: ["export", "request-not-confirmed"],
+  },
+  {
+    id: "audit",
+    category: "Oversight",
+    title: "Search and check the audit log",
+    summary:
+      "Find who changed what and when, and check that no entry has been changed since.",
+    destination: "Audit log",
+    needs: "Access to the chosen lender.",
+    steps: [
+      "Open Audit log. Search by action, person or summary, or press / to move to the search box.",
+      "Read each entry’s time, who made the change, the action and the record it changed.",
+      "Select Check audit log to check that every entry is still linked to the one before it.",
+    ],
+    result:
+      "A check covers the entries that existed when it ran, so check again after new changes. Reading the log changes nothing.",
+    blocked:
+      "If the check fails, an entry or its link does not match. Ask an Admin to look into it. If it keeps happening, contact the Valo Pay team.",
+    recovery:
+      "If a check was interrupted, look in Request history, then select Check audit log again.",
+    terms: ["audit-log"],
+  },
+  {
+    id: "evidence",
+    category: "Oversight",
+    title: "Record go-live evidence and commercial terms",
+    summary:
+      "Keep the evidence needed before live use, the signed commercial terms and the regular reviews.",
+    destination: "Go-live evidence",
+    needs:
+      "Access to the chosen lender. Admin can add evidence. Admin or Finance can add commercial terms and confirm discount dates.",
+    steps: [
+      "Open Go-live evidence and read the live readiness checks: what is recorded and what is not yet checked.",
+      "Select Add evidence and enter its title, owner and date, with a reference or link to the document.",
+      "Select Add terms to record a lender’s commercial terms. When the terms have discount dates, a different person selects Confirm discount dates after checking the signed agreement.",
+      "Every two weeks, record a review of the four tasks in the reviews section.",
+    ],
+    result:
+      "The page shows what is recorded and what is still missing. Sample data is not live evidence, and recording evidence does not switch on live payments.",
+    blocked:
+      "Each button says which roles can use it. A different person must confirm discount dates: switching demo roles is not a second person.",
+    recovery:
+      "If a save was interrupted, check Request history before you add the item again.",
+    terms: ["evidence", "reviewer", "sample-data"],
   },
   {
     id: "recovery",
-    category: "Access & recovery",
-    title: "Recover an interrupted request",
+    category: "Setup and administration",
+    title: "Check a request that was not confirmed",
     summary:
-      "Find the saved result without creating a duplicate consequential action.",
-    destination: "The page’s recovery notice or Operations",
+      "Find out what happened to a request without doing the same thing twice.",
+    destination: "The Request not confirmed notice on the page, or Request history",
     needs:
-      "The same account or anonymous sandbox, the intended lender and current access. Only requests that reached the service can appear in its saved operation history.",
+      "The same account (or the same sandbox, in the same browser), the same lender and current access. Request history lists only requests that reached Valo Pay.",
     steps: [
-      "Read the page’s result carefully. An unsaved form, saved draft, pending request and confirmed result are different states.",
-      "For an unclear submitted result, use the page’s recovery notice or find the original request in Operations. Check its current status and linked record.",
-      "Use the recovery or cancellation offered for that original request. Do not start a replacement payment, import commitment or accounting action while its outcome is unknown.",
+      "Read the page’s message carefully. An unsaved form, a saved draft, a request not confirmed and a confirmed result are different things.",
+      "When a request is not confirmed, select Check original request on the notice, or find the request in Request history. Check its status and the record it changed.",
+      "If the check does not work, select Cancel if unfinished for that request. Do not start a new payment, import or accounting action while its outcome is not known.",
     ],
     result:
-      "Recovery checks the existing operation and keeps its original identity. A completed record can be opened from its saved result.",
+      "Checking uses the original request, so nothing is done twice. If it finished, open the saved result from the notice or from Request history.",
     blocked:
-      "An empty history is not proof that an external payment failed. Invitations use the pilot membership check instead of Operations. Some actions are no longer cancellable after completion.",
+      "An empty Request history does not prove that a payment failed. For an invitation, check your membership in your workspace instead. A finished request can no longer be cancelled.",
     recovery:
-      "If a request is not listed, inspect the target record and the page’s guidance. Do not assume browser refresh preserves unsaved form entries, and never paste sensitive financial data or credentials into a support message.",
-    terms: ["unknown-outcome", "committed", "accounting-draft"],
+      "If a request is not listed, open the record it would have changed and read the page’s guidance. Reloading the page loses anything you did not save. Never paste financial details or passwords into a support message.",
+    terms: ["request-not-confirmed", "request-history"],
+  },
+  {
+    id: "team",
+    category: "Setup and administration",
+    title: "Invite team members and manage their access",
+    summary: "Give each person a role and the lenders they may work on.",
+    destination: "Team and access",
+    needs:
+      "Your workspace with team access switched on, and the Admin role. In the sandbox you practise with demo roles instead.",
+    steps: [
+      "Open Team and access and read Access status. In the sandbox, change your demo role in Settings instead.",
+      "To invite someone, enter their email address and role, then select Create invitation. Share the invitation link with them.",
+      "After they accept, choose the lenders they may work on and select Save lender access.",
+      "Some invitations and role changes need a second Admin to approve them before they take effect.",
+    ],
+    result:
+      "The person works only on the lenders you gave them, in their role. An invitation lasts seven days, and membership lasts 90 days.",
+    blocked:
+      "Only an Admin can invite or change team members. You cannot approve your own invitation or change: another Admin must.",
+    recovery:
+      "If an invitation or change was interrupted, refresh Team and access to see whether it was saved before you try again.",
+    terms: ["team-member", "role", "demo-role"],
+  },
+  {
+    id: "retention",
+    category: "Setup and administration",
+    title: "Choose how long files are kept and delete old ones",
+    summary:
+      "Set how long files and request data are kept, and delete them with a second Admin’s approval.",
+    destination: "Data retention (Admin only)",
+    needs:
+      "The Admin role. In a pilot, a different Admin approves each deletion run.",
+    steps: [
+      "In Retention policy, choose how long each kind of file is kept, enter a reason and select Save retention policy. Saving a policy deletes nothing.",
+      "To keep an item from deletion, choose it and select Place a hold.",
+      "Select Prepare deletion preview to see exactly which items would be deleted.",
+      "A different Admin checks every item and approves the deletion run. Then start the approved run.",
+    ],
+    result:
+      "Only the approved items are deleted, and a deletion record proves each one. Financial records and the audit log are never deleted.",
+    blocked:
+      "An item on hold is never deleted. You cannot approve a deletion preview you prepared yourself.",
+    recovery:
+      "If a run stops part way, open it in the saved deletion runs and resume it. Items already deleted stay deleted.",
+    terms: ["deletion-run", "deletion-record", "audit-log"],
+  },
+  {
+    id: "settings",
+    category: "Setup and administration",
+    title: "Change settings, the emergency stop and your demo role",
+    summary:
+      "Change how collections run for this lender, stop all collection instructions, or practise with another role.",
+    destination: "Settings",
+    needs:
+      "Only an Admin can change collection settings or turn the emergency stop on or off. In the sandbox, anyone can switch demo role.",
+    steps: [
+      "To practise as another role, choose it in Demo role and select Switch role. Switching demo roles is not a second person.",
+      "To change collection settings, select Edit, change the values and select Save.",
+      "To stop all collection instructions, enter a reason and select Turn on emergency stop. In a pilot, turning it off needs a second Admin to approve.",
+      "In Appearance, choose a theme for this browser. Keyboard lists the shortcuts.",
+    ],
+    result:
+      "Your changes apply to this lender and are saved in the audit log. Live payments and bank connections stay switched off whatever you choose.",
+    blocked:
+      "If a control is not available, it says which roles can use it. In the sandbox, change your demo role in Settings.",
+    recovery:
+      "If a change was interrupted, check Request history before you make it again.",
+    terms: ["demo-role", "emergency-stop", "collection-transfer", "role"],
   },
 ];
 
-export const helpTerms = [
+/**
+ * A term in Terms explained: the word exactly as the page shows it and one or two plain sentences. `also` holds the
+ * words earlier releases used for it (the old headings and formal names), which search still finds but the page
+ * never shows.
+ */
+export type HelpTerm = { id: string; term: string; meaning: string; also: readonly string[] };
+
+/** In the order of their headwords, as a reader scans a list of terms. */
+export const helpTerms: readonly HelpTerm[] = [
   {
-    id: "organisation",
-    term: "Organisation",
-    formal: "Tenant",
+    id: "accounting-draft",
+    term: "Accounting draft",
     meaning:
-      "The organisation whose access and records you are using. Lenders within the workspace can have separate access. Selecting a different lender never grants a wider role.",
+      "A proposed entry for a receipt in the accounting records, waiting for a Finance review. Valo Pay never posts it to your accounting software.",
+    also: ["Accounting work waiting for review", "ERP"],
   },
   {
-    id: "sandbox",
-    term: "Sample workspace",
-    formal: "Synthetic sandbox",
+    id: "active-lender",
+    term: "Active lender",
     meaning:
-      "An isolated place to rehearse with fictional records. Sample bank readings, permissions and payment outcomes are not live evidence. Signing in does not activate financial services.",
-  },
-  {
-    id: "role",
-    term: "Your allowed actions",
-    formal: "Role and current authority",
-    meaning:
-      "Your assigned role and current lender access determine what the service permits. Choosing a task, changing a page or reading this guide does not change that authority.",
-  },
-  {
-    id: "observation",
-    term: "Payment evidence",
-    formal: "Observation",
-    meaning:
-      "A record from a statement, provider event or settlement report that needs to be checked. More than one observation can describe the same payment; it must not be counted twice.",
-  },
-  {
-    id: "batch",
-    term: "Import batch",
-    formal: "Saved import batch",
-    meaning:
-      "A saved file, column mapping and row checks kept together. Saving allows review and correction; it does not commit the rows for processing.",
-  },
-  {
-    id: "committed",
-    term: "Committed import",
-    formal: "Commit",
-    meaning:
-      "The checked batch has been accepted for import into the application. A committed payment observation may still need matching; committed does not mean money moved.",
-  },
-  {
-    id: "kobo",
-    term: "Kobo",
-    formal: "NGN minor unit",
-    meaning:
-      "One naira equals 100 kobo. Confirm the import’s amount unit: 2,500 kobo is ₦25, while 2,500 naira is ₦2,500.",
-  },
-  {
-    id: "reconciliation",
-    term: "Match payments to repayments",
-    formal: "Reconciliation",
-    meaning:
-      "Compare payment evidence with recorded obligations, identify matches and surface differences. It does not instruct a bank to move funds.",
+      "The lender whose records you are working on, chosen in the sidebar or, on a phone, at the top of the page. Choosing another lender never gives you a wider role.",
+    also: ["lender", "lender selector", "workspace lender selector", "workspace selector", "merchant"],
   },
   {
     id: "allocation",
-    term: "Apply a payment to a repayment",
-    formal: "Allocation",
+    term: "Allocate payment",
     meaning:
-      "Record which bill or instalment a received payment covers. A proposed allocation still needs a decision where required.",
+      "Putting a payment’s money against an instalment yourself, when Valo Pay did not find a match. Money not yet put against an instalment is unallocated.",
+    also: ["Apply a payment to a repayment", "Allocation", "allocated", "unallocated", "apply", "applied"],
   },
   {
-    id: "instalment",
-    term: "Repayment due",
-    formal: "Instalment or due item",
+    id: "assessment",
+    term: "Assessment",
     meaning:
-      "An amount owed for a stated date. An outstanding obligation is not a balance of funds held by Valo Pay.",
+      "A check of an applicant’s bank evidence against set rules, saved as a new version each time. A credit result is not a lending decision.",
+    also: ["Applicant assessment", "Credit assessment", "Assess an application", "rule score", "score"],
   },
   {
-    id: "exception",
-    term: "Issue needing review",
-    formal: "Exception",
+    id: "audit-log",
+    term: "Audit log",
     meaning:
-      "A discrepancy, missing record, unknown outcome or other condition that cannot be safely resolved automatically. It needs the appropriate evidence and authorised action.",
+      "The record of every change, in the order it happened. Each entry is linked to the one before, so a check can show whether any entry was changed.",
+    also: ["audit trail", "audit record", "Check audit log"],
+  },
+  {
+    id: "instruction-mode",
+    term: "Can send collection instructions",
+    meaning:
+      "A lender mode in which Valo Pay may send collection instructions once live use is approved. Live payments and bank connections are switched off, so no instruction reaches a bank.",
+    also: ["instruction mode", "Mode"],
   },
   {
     id: "case",
     term: "Case",
-    formal: "Coordinated exception",
     meaning:
-      "The issue’s ownership, next step, notes and handover history. Assigning it does not resolve its underlying financial condition.",
+      "Who owns an exception, its next step and its handover history. Handing over a case does not fix the problem behind it.",
+    also: ["Coordinated exception", "Case handling", "Coordinate a case", "handover", "next action"],
+  },
+  {
+    id: "forecast",
+    term: "Cash forecast",
+    meaning:
+      "An estimate of cash from dated balances, expected receipts, commitments and your assumptions. It is not a bank balance, and it keeps no money aside.",
+    also: ["Cash plan", "Cash and forecast"],
+  },
+  {
+    id: "payment-request",
+    term: "Checkout",
+    meaning:
+      "A request for a customer to pay one instalment from their bank. Creating or authorising a checkout does not show that the money arrived.",
+    also: ["Request to pay", "Checkout or payment intent", "payment intent", "Pay-by-bank"],
+  },
+  {
+    id: "close-review",
+    term: "Close review",
+    meaning: "A Finance team member’s check of a daily close. A different person must review it.",
+    also: ["Finance close review", "Finance review"],
+  },
+  {
+    id: "collection-attempt",
+    term: "Collection attempt",
+    meaning:
+      "One try to take a payment from a customer’s account. A failed collection attempt may be retried under the retry policy.",
+    also: ["debit attempt", "failed collection", "Failed attempts", "retry"],
+  },
+  {
+    id: "collection-transfer",
+    term: "Collection transfer",
+    meaning:
+      "The agreement that moves collection work to Valo Pay. Returning collection hands it back to the previous owner.",
+    also: ["cutover", "hand-back", "hand back", "Return collection ownership", "fallback owner"],
+  },
+  {
+    id: "customer-history",
+    term: "Customer history",
+    meaning:
+      "One customer’s mandates, instalments, payments and history on one page. Open it from the customer’s row on Customers.",
+    also: ["Customer timeline", "timeline"],
   },
   {
     id: "close",
     term: "Daily close",
-    formal: "Close snapshot",
     meaning:
-      "A saved account of reconciliation results and outstanding issues at that time. Preparing, reviewing and approving the evidence are separate steps.",
+      "The saved record of the day’s reconciliation results and open exceptions. Preparing, reviewing and approving it are separate steps.",
+    also: ["Close snapshot", "snapshot", "Saved version of evidence", "saved close", "closing positions", "close statement"],
   },
   {
-    id: "snapshot",
-    term: "Saved version of evidence",
-    formal: "Snapshot",
-    meaning:
-      "The evidence recorded at one point in time. A decision on that snapshot does not approve changes made afterwards.",
+    id: "deletion-record",
+    term: "Deletion record",
+    meaning: "The record that proves an item was deleted. It stays after the item has gone.",
+    also: ["deletion receipt", "Saved deletion receipts"],
   },
   {
-    id: "independent-review",
-    term: "A separate person checks the work",
-    formal: "Maker/checker separation",
+    id: "deletion-run",
+    term: "Deletion run",
     meaning:
-      "The preparer and reviewer must be different authorised people where required. Switching roles on the same staff identity does not provide independent approval.",
+      "An approved set of items to delete. In a pilot a different Admin approves it, and financial records and the audit log are never deleted.",
+    also: ["retention run", "deletion preview", "Preview a deletion run", "retention"],
+  },
+  {
+    id: "demo-role",
+    term: "Demo role",
+    meaning:
+      "The role you switch to in the sandbox, in Settings, to try what each role can do. Switching demo roles is not a second person.",
+    also: ["persona", "demo persona", "workspace role selector", "Switch role"],
+  },
+  {
+    id: "emergency-stop",
+    term: "Emergency stop",
+    meaning:
+      "The control that stops all collection instructions for a lender. Only an Admin can turn it on or off, and each change is saved in the audit log.",
+    also: ["kill switch", "Turn on emergency stop", "Turn off emergency stop"],
+  },
+  {
+    id: "evidence",
+    term: "Evidence",
+    meaning:
+      "Proof that people add or export, such as an entry in the evidence register or an evidence pack. Sample data is not live evidence.",
+    also: ["evidence register", "evidence pack", "Go-live evidence"],
+  },
+  {
+    id: "exception",
+    term: "Exception",
+    meaning:
+      "Something that needs a person to review and resolve it, such as a difference, a missing record or an outcome that is unknown.",
+    also: ["Issue needing review", "issue", "item", "discrepancy"],
   },
   {
     id: "export",
-    term: "Prepared file",
-    formal: "Export",
+    term: "Export",
     meaning:
-      "A file prepared from permitted records. Creating or downloading one does not prove that money was transferred, a tax return was filed or accounting software was updated.",
+      "A file Valo Pay prepares from your records, kept on Saved exports. Creating or downloading it does not move money, file a tax return or change your accounting software.",
+    also: ["Prepared file", "job", "saved evidence", "Saved exports"],
   },
   {
-    id: "payment-request",
-    term: "Request to pay",
-    formal: "Checkout or payment intent",
+    id: "batch",
+    term: "Import batch",
+    meaning: "A saved file with its column mapping and row checks. Saving a batch does not import its rows.",
+    also: ["Saved import batch", "source batch"],
+  },
+  {
+    id: "committed",
+    term: "Imported",
     meaning:
-      "A record of what the customer is asked to pay and its progress. Creating or authorising a request is not evidence that a receipt or settlement has completed.",
+      "The checked rows of a batch are now in Valo Pay. Imported payment evidence may still need matching, and importing moves no money.",
+    also: ["Committed import", "Commit", "committed", "Import checked batch", "Last imported"],
+  },
+  {
+    id: "instalment",
+    term: "Instalment",
+    meaning:
+      "An amount a customer owes on a set date. Valo Pay never holds money: it records what is owed and what was paid.",
+    also: ["Repayment due", "Instalment or due item", "due item", "repayment", "bill", "obligation"],
+  },
+  {
+    id: "kobo",
+    term: "Kobo",
+    meaning:
+      "A hundredth of a naira: ₦1.00 is 100 kobo. Check which unit your file uses: 2,500 kobo is ₦25.00, but 2,500 naira is ₦2,500.00.",
+    also: ["NGN minor unit", "minor unit"],
+  },
+  {
+    id: "mandate",
+    term: "Mandate",
+    meaning:
+      "A customer’s permission for recurring bank debits, which you can suspend, resume, cancel or reissue. It does not show that any one debit worked.",
+    also: ["Permission for recurring bank debits", "Debit mandate", "recurring debit"],
+  },
+  {
+    id: "match",
+    term: "Match",
+    meaning:
+      "A pairing of a payment with an instalment that Valo Pay found. A match in Matches to review waits for someone to confirm or reject it.",
+    also: ["proposed match", "Matches to review", "Confirm match", "Reject match"],
+  },
+  {
+    id: "notification-template",
+    term: "Message template",
+    meaning:
+      "The reviewed wording of a message to a customer. A preview or an approved template does not show that a message was sent or read.",
+    also: ["Reviewed message wording", "Notification template"],
+  },
+  {
+    id: "organisation",
+    term: "Organisation",
+    meaning:
+      "The company or cooperative whose Valo Pay account you use. It can hold several lenders, and your access can differ between them.",
+    also: ["Tenant"],
+  },
+  {
+    id: "stale",
+    term: "Out of date",
+    meaning:
+      "The data is too old to rely on. Check the time shown and refresh it on the page before you use it for new work.",
+    also: ["Data may be out of date", "Stale evidence", "stale"],
   },
   {
     id: "unknown-outcome",
     term: "Outcome unknown",
-    formal: "Unconfirmed operation",
     meaning:
-      "The service does not yet have a reliable final result. Check the original request and supporting evidence. A timeout is not permission to submit a replacement payment.",
+      "A bank or provider has not said what happened to a payment. Wait for evidence, and do not create a new payment to replace it.",
+    also: ["unknown outcome", "timeout"],
   },
   {
-    id: "settlement",
-    term: "Provider settlement",
-    formal: "Settlement",
-    meaning:
-      "The provider’s transfer and supporting payout evidence. A confirmed customer payment and a completed settlement are different events.",
+    id: "outstanding",
+    term: "Outstanding",
+    meaning: "The amount still owed on an instalment. Unpaid is a status; outstanding is an amount.",
+    also: ["still due", "residual"],
   },
   {
-    id: "assessment",
-    term: "Applicant assessment",
-    formal: "Credit assessment",
+    id: "observation",
+    term: "Payment evidence",
     meaning:
-      "A versioned analysis of permitted evidence and rules. A rule score is not a default probability or loan decision, and a sample review does not approve real credit.",
-  },
-  {
-    id: "account-read",
-    term: "Permission to read an account",
-    formal: "Account-read consent",
-    meaning:
-      "Authority to use account information for the stated subject, purpose and period. It is not permission to debit the account, assess credit or prepare payroll.",
-  },
-  {
-    id: "mandate",
-    term: "Permission for recurring bank debits",
-    formal: "Debit mandate",
-    meaning:
-      "The recorded authority and terms for recurring debit requests. It is separate from account-read permission and does not prove a particular debit succeeded.",
-  },
-  {
-    id: "collection-policy",
-    term: "Retry rules",
-    formal: "Collection policy",
-    meaning:
-      "A versioned set of limits, timing and notice requirements for collections. A tested or approved policy does not itself send an instruction or replace the consent and notice checks on a mandate.",
-  },
-  {
-    id: "notification-template",
-    term: "Reviewed message wording",
-    formal: "Notification template",
-    meaning:
-      "The versioned text and placeholders used to prepare a customer message. A sample preview or approved template is not evidence that a message was sent, delivered or accepted.",
-  },
-  {
-    id: "stale",
-    term: "Data may be out of date",
-    formal: "Stale evidence",
-    meaning:
-      "The source reading or evidence is too old or has changed. Review the displayed timestamp and refresh through the supported route before relying on it for new work.",
-  },
-  {
-    id: "forecast",
-    term: "Cash plan",
-    formal: "Cash forecast",
-    meaning:
-      "An estimate based on timestamped balances, receipts, commitments and assumptions. It is not a bank balance or a reservation of money.",
-  },
-  {
-    id: "accounting-draft",
-    term: "Accounting work waiting for review",
-    formal: "Accounting draft",
-    meaning:
-      "A proposed mapping and allocation of a receipt to accounting records. Prepared, reviewed, exported and posted are different states; the current sample flow does not post externally.",
-  },
-  {
-    id: "vat-schedule",
-    term: "VAT evidence schedule",
-    formal: "VAT review schedule",
-    meaning:
-      "Preparation that keeps invoice, bank and ledger evidence distinct for review with an accountant. It is not a filed return or a tax payment.",
+      "A record of a payment from a bank statement, a settlement report or a provider notification. Two records can describe the same payment, so Valo Pay counts it once.",
+    also: ["Observation", "payment observation", "source record", "webhook"],
   },
   {
     id: "payroll-file",
-    term: "Payroll preparation file",
-    formal: "Reviewed payroll export",
+    term: "Payroll funding",
     meaning:
-      "Preparation based on an approved net-pay run and reviewed funding. Exported does not mean salaries were executed or confirmed paid.",
+      "The Cash Desk section that checks there is money for an approved net-pay run and prepares a reviewed file for payroll. Exporting the file pays no one.",
+    also: ["Payroll preparation file", "Reviewed payroll export", "payroll file", "Prepare payroll funding"],
   },
-] as const;
+  {
+    id: "permission",
+    term: "Permission",
+    meaning:
+      "A recorded agreement for one purpose, such as reading an applicant’s accounts. You grant it and can withdraw it, and its status is Active, Withdrawn or Expired.",
+    also: ["consent", "authority", "revoke", "Permissions & readiness"],
+  },
+  {
+    id: "pilot-results",
+    term: "Pilot results",
+    meaning:
+      "What a pilot measured, such as how often matches were right. Results from sample data do not show live performance.",
+    also: ["Pilot evidence", "Operational evidence"],
+  },
+  {
+    id: "account-read",
+    term: "Read applicant accounts",
+    meaning:
+      "The permission to read an applicant’s bank accounts for one purpose and period. Permission to read an account is not permission to take money from it.",
+    also: ["Permission to read an account", "Account-read consent", "account-read"],
+  },
+  {
+    id: "business-account-read",
+    term: "Read business accounts",
+    meaning:
+      "The permission to read the sample business’s bank accounts for Cash Desk. Permission to read an account is not permission to take money from it.",
+    also: ["business-account read permission"],
+  },
+  {
+    id: "reconciliation",
+    term: "Reconciliation",
+    meaning:
+      "Comparing payment evidence with instalments to find matches and differences. It does not tell a bank to move money.",
+    also: ["Match payments to repayments", "reconcile"],
+  },
+  {
+    id: "request-history",
+    term: "Request history",
+    meaning:
+      "The page that lists your requests for this lender and what happened to each. It was called Operations.",
+    also: ["Operations", "operations history"],
+  },
+  {
+    id: "request-not-confirmed",
+    term: "Request not confirmed",
+    meaning:
+      "Valo Pay’s answer to a request was lost, so you do not know yet whether it was saved. Check the original request before you change anything.",
+    also: ["Outcome not confirmed", "Unconfirmed operation", "unconfirmed request", "interrupted request"],
+  },
+  {
+    id: "collection-policy",
+    term: "Retry policy",
+    meaning:
+      "The rules for when and how often to retry a collection. Testing or approving a policy sends no instruction and does not replace a mandate’s consent and notice checks.",
+    also: ["Retry rules", "Collection policy", "collection rules"],
+  },
+  {
+    id: "reviewer",
+    term: "Reviewer",
+    meaning:
+      "The different person who checks work that someone else prepared. A different person must review it, and switching demo roles is not a second person.",
+    also: ["preparer", "A separate person checks the work", "Maker/checker separation", "maker", "checker", "independent review"],
+  },
+  {
+    id: "role",
+    term: "Role",
+    meaning:
+      "What you can do in Valo Pay. The roles are Admin, Operations, Finance, Compliance reviewer and Read-only, and reading help does not change yours.",
+    also: ["Your allowed actions", "Role and current authority", "authority"],
+  },
+  {
+    id: "sample-data",
+    term: "Sample data",
+    meaning: "Sample data is made up. It is not real customers or money.",
+    also: ["synthetic", "fixture", "illustrative", "sample records"],
+  },
+  {
+    id: "sandbox",
+    term: "Sandbox",
+    meaning:
+      "The practice workspace you can open without an account. It holds sample data, is kept in this browser and may be deleted after 30 days without changes.",
+    also: ["Sample workspace", "Synthetic sandbox", "anonymous sandbox"],
+  },
+  {
+    id: "settlement",
+    term: "Settlement",
+    meaning:
+      "When the payment provider pays out the money it collected, shown in a settlement report. A confirmed payment and a completed settlement are different events.",
+    also: ["Provider settlement", "payout", "settlement batch"],
+  },
+  {
+    id: "source-row-id",
+    term: "Source row ID",
+    meaning:
+      "A row’s own ID in the source file. Valo Pay uses it to recognise a row it has already imported.",
+    also: ["row identity", "Row ID", "source identity"],
+  },
+  {
+    id: "team-member",
+    term: "Team member",
+    meaning: "A person who uses Valo Pay for a lender. Each team member has one role.",
+    also: ["user", "staff member", "colleague", "member"],
+  },
+  {
+    id: "vat-schedule",
+    term: "VAT schedule",
+    meaning:
+      "The file VAT evidence prepares, keeping invoice, bank and ledger evidence apart for an accountant. It files no VAT return and pays no tax.",
+    also: ["VAT evidence schedule", "VAT review schedule"],
+  },
+  {
+    id: "watch-only",
+    term: "Watch only",
+    meaning:
+      "A lender mode in which Valo Pay records and matches payments but never sends a collection instruction to a bank or provider.",
+    also: ["observation mode", "Observation only", "Mode"],
+  },
+  {
+    id: "your-workspace",
+    term: "Your workspace",
+    meaning:
+      "The workspace linked to your account when you sign in. In this release it also holds sample data only, and work you do in the sandbox is not copied to it.",
+    also: ["account-linked workspace", "pilot workspace", "signed-in workspace"],
+  },
+];
 
 /** Deliberately static: never carry record IDs, invitation tokens, arbitrary URLs or untrusted queries into a return link. */
 export const helpReturnPaths = [
@@ -671,12 +1023,17 @@ export function helpHref(topic: HelpTopicId, returnTo?: string): string {
   if (safe) params.set("returnTo", safe);
   return `/help?${params}`;
 }
+/** The help index, for a page without a guide of its own; it returns to that page. */
+export function helpIndexHref(returnTo?: string): string {
+  const safe = safeHelpReturnTo(returnTo);
+  return safe ? `/help?${new URLSearchParams({ returnTo: safe })}` : "/help";
+}
 
 export function matchesHelpSearch(query: string, ...text: string[]): boolean {
   const normalise = (value: string) =>
     value
       .normalize("NFKD")
-      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[̀-ͯ]/g, "")
       .toLocaleLowerCase();
   const content = normalise(text.join(" "));
   return normalise(query)

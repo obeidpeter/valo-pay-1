@@ -18,7 +18,7 @@ test('public task help supports search, keyboard, history and reflow without ope
   await guide.focus();
   await guide.press('Enter');
   await expect(page.getByRole('heading', { name: 'Understand payment status without paying twice', exact: true })).toBeFocused();
-  await expect(page.getByText(/Pending means/)).toBeVisible();
+  await expect(page.getByText(/Pending, Authorised and Outcome unknown all mean the payment is not confirmed/)).toBeVisible();
   await page.goBack();
   await expect(page.getByRole('heading', { name: 'Search results', exact: true })).toBeFocused();
   await expect(search).toHaveValue('pending');
