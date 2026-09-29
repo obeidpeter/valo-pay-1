@@ -45,6 +45,12 @@ This is a source refactor, not a change to HTTP contracts, stored records, monet
 
 ## Validation and release boundary
 
+### Repository decomposition · 29 September 2026
+
+The follow-on refactor keeps `valopay-store.ts` as an explicit facade with the same 103 public exports. Its implementation lives in private `lib/repository/` modules. `core.ts` owns transactions, lock acquisition, the private session map, state loading/saving and audit orchestration. Typed factories receive the capabilities needed by the recovery journal, team access, read models, retention, export cleanup, payload rewrap and readiness modules. They do not import the core at runtime, and routes cannot import them directly.
+
+SQL statements, transaction boundaries, lock order, journal cancellation fences and cleanup timing remain unchanged. The database boundary guard now checks explicit internal-module and facade-export allowlists, with 16 refusal fixtures and one permitted composition exercised by both normal test runners. Stored receipt JSON and SQL error fields use `unknown` with narrowing instead of unchecked `any`. This decomposition adds no schema migration or configuration.
+
 The normal offline runner includes exact-money oracle/rounding tests, database-money parsing, authority revocation/regrant, Paystack verification and command refusal, source-boundary mutation tests and the affected console tests. Database-backed workflows check real persistence, concurrent writes, access isolation, journal behaviour and saved response contracts. All test figures are synthetic; timings are local measurements, not production guarantees.
 
 This change needs no new database migration, credential, environment variable or enabled gate. Existing runtime-isolation and provider-ingress configuration remain opt-in. Rollback is the previous application build with the same schema; retain records and audit history and do not delete new verification evidence to make an earlier build appear current. Revalidate grants and preparations before any later live activation.

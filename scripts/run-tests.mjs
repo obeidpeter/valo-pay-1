@@ -10,6 +10,7 @@ const vitest = path.join(root, "artifacts", "valo-pay", "node_modules", "vitest"
 if (!existsSync(tsx) || !existsSync(vitest)) throw new Error("tsx or vitest is missing; run pnpm install first.");
 const env = { ...process.env, DATABASE_URL: process.env.DATABASE_URL || "postgres://unused:unused@127.0.0.1:1/unused" };
 const steps = [
+  ["node", ["scripts/check-db-boundary.test.mjs"]],
   ['node', ['scripts/check-effect-boundaries.mjs']],
   ['node', ['scripts/check-effect-boundaries.test.mjs']],
   [tsx, ['artifacts/api-server/tests/exact-money.test.ts']],
