@@ -63,6 +63,14 @@ The [CI run for the reviewed source](https://github.com/obeidpeter/valo-pay/acti
 
 At deployment, financial staging remained disabled and the scheduler reported **off**. An external scheduler, outbound alert delivery, a hosted restore rehearsal with independently verified object/key custody and an independent human operator session remain uncommissioned. Paystack still has no configured account or test key. No provider call, alert delivery, staging migration or live financial activation was performed by this release. The [migration catalogue](database-migrations.md) separates required application changes from these optional rehearsals.
 
+## Merged changes awaiting deployment · 29 September 2026
+
+These changes are merged into `main` after the deployed PR #79 and are not deployed yet.
+
+### Review fixes for PRs #71 to #79
+
+A review of the nine pull requests merged since PR #70 found the defects these fix. Each was reproduced on the earlier code before it was fixed.
+
 ## Changes included in the PR #70 deployment · 26 and 27 September 2026
 
 These changes followed PR #64 and are included in the verified PR #70 deployment above. The following records retain their original test and migration evidence.
