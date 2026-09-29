@@ -15,7 +15,7 @@ describe('beginner navigation and access recovery', () => {
     await user.type(pageSearch, 'payment match');
     const nav = screen.getByRole('navigation', { name: 'Pages' });
     expect(within(nav).getByRole('link', { name: 'Reconciliation' })).toBeTruthy();
-    expect(within(nav).queryByRole('link', { name: 'Team & access' })).toBeNull();
+    expect(within(nav).queryByRole('link', { name: 'Team and access' })).toBeNull();
     expect(within(nav).getByText(/This searches page names, not records\./)).toBeTruthy();
     await user.click(within(nav).getByRole('link', { name: 'Reconciliation' }));
     await screen.findByRole('heading', { name: 'Reconciliation' });
@@ -52,7 +52,7 @@ describe('beginner navigation and access recovery', () => {
     const user = userEvent.setup();
     renderApp('/overview');
     await screen.findByRole('heading', { name: 'Operations overview' });
-    await user.click(screen.getByRole('button', { name: 'Menu' }));
+    await user.click(screen.getByRole('button', { name: 'Open menu' }));
     const drawer = await screen.findByRole('dialog', { name: 'Menu' });
     const search = within(drawer).getByRole('searchbox', { name: 'Find a page' });
     await user.type(search, 'payroll');
@@ -71,7 +71,7 @@ describe('beginner navigation and access recovery', () => {
     const pageSearch = screen.getByRole('searchbox', { name: 'Find a page' });
     await user.type(pageSearch, 'unknownpage');
     expect(screen.getByText(/No pages match/)).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Help & glossary' }).getAttribute('href')).toBe('/help');
+    expect(screen.getByRole('link', { name: 'Help' }).getAttribute('href')).toBe('/help');
     const taskHelp = screen.getByRole('link', { name: /^Help:.*payroll/i });
     expect(taskHelp.getAttribute('href')).toContain('topic=payroll');
     await user.keyboard('{Escape}');
@@ -83,7 +83,7 @@ describe('beginner navigation and access recovery', () => {
     renderApp('/overview');
     await screen.findByRole('heading', { name: 'Operations overview' });
     expect(screen.queryByRole('link', { name: 'Data retention' })).toBeNull();
-    expect(screen.getByRole('link', { name: 'Team & access' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Team and access' })).toBeTruthy();
     expect(api.calls.some(call => call.path.includes('lifecycle'))).toBe(false);
   });
 
@@ -91,7 +91,7 @@ describe('beginner navigation and access recovery', () => {
     const user = userEvent.setup();
     renderApp('/overview');
     await screen.findByRole('heading', { name: 'Operations overview' });
-    await user.click(screen.getByRole('button', { name: 'Menu' }));
+    await user.click(screen.getByRole('button', { name: 'Open menu' }));
     const drawer = await screen.findByRole('dialog', { name: 'Menu' });
     const search = within(drawer).getByRole('searchbox', { name: 'Find a page' });
     await user.type(search, 'payments');

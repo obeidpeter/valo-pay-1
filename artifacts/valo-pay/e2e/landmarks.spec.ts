@@ -72,7 +72,7 @@ async function audit(page: Page, where: string) {
 
 /** On a desktop the sidebar shows the current page's link, however far down the list it sits. */
 async function expectCurrentPageInView(page: Page, label: string) {
-  const sidebar = page.getByRole("complementary", { name: "Console sidebar" }).getByRole("navigation", { name: "Pages" });
+  const sidebar = page.getByRole("complementary", { name: "Sidebar" }).getByRole("navigation", { name: "Pages" });
   const current = sidebar.getByRole("link", { name: label, exact: true });
   await expect(sidebar.locator('[aria-current="page"]')).toHaveCount(1);
   await expect(current).toHaveAttribute("aria-current", "page");
@@ -130,7 +130,7 @@ test("the phone drawer opens on the current page, in the sidebar's groups, and k
   test.skip(!info.project.name.startsWith("mobile"), "The drawer is the phone's navigation.");
   await page.goto("/presentation");
   await settle(page, /^Show how a lender/);
-  await page.getByRole("button", { name: "Menu", exact: true }).click();
+  await page.getByRole("button", { name: "Open menu", exact: true }).click();
   const drawer = page.getByRole("dialog", { name: "Menu" });
   await expect(drawer.getByRole("link", { name: "Presentation", exact: true })).toBeFocused();
   await expect(drawer.getByRole("group", { name: "Daily work" })).toBeVisible();

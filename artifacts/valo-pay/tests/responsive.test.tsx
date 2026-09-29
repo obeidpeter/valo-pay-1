@@ -28,16 +28,16 @@ describe("responsive layout", () => {
     expect(within(sidebarPages!).getByRole('link', { name: 'Presentation' }).getAttribute('href')).toBe('/presentation');
     expect(sidebarLabels).toEqual(expect.arrayContaining(['My work','Data sources','Close review','Data retention','Saved exports']));
     expect(within(sidebarPages!).getByRole('link', { name: 'Saved exports' }).getAttribute('href')).toBe('/exports');
-    expect(sidebarLabels).toEqual(expect.arrayContaining(['Pilot journey', 'Import batches', 'Operations', 'Team & access']));
+    expect(sidebarLabels).toEqual(expect.arrayContaining(['Pilot journey', 'Import batches', 'Request history', 'Team and access']));
 
     const groupNames = (list: HTMLElement) => within(list).getAllByRole("group").map((group) => document.getElementById(group.getAttribute("aria-labelledby")!)!.textContent);
     const sidebarGroups = groupNames(sidebarPages!);
 
-    await user.click(screen.getByRole("button", { name: "Menu" }));
+    await user.click(screen.getByRole("button", { name: "Open menu" }));
     const drawer = await screen.findByRole("dialog", { name: "Menu" });
     const drawerLabels = within(within(drawer).getByRole("navigation", { name: "Pages" })).getAllByRole("link").map((link) => link.getAttribute("aria-label") || link.textContent);
     expect(drawerLabels).toEqual(sidebarLabels);
-    expect(within(drawer).getByRole("link", { name: "Help & glossary" }).getAttribute("href")).toBe("/help");
+    expect(within(drawer).getByRole("link", { name: "Help" }).getAttribute("href")).toBe("/help");
     // The same named groups, in the same order.
     expect(groupNames(within(drawer).getByRole("navigation", { name: "Pages" }))).toEqual(sidebarGroups);
     expect(within(drawer).getByRole('link', { name: 'Saved exports' }).getAttribute('href')).toBe('/exports');
@@ -49,7 +49,7 @@ describe("responsive layout", () => {
     const user = userEvent.setup();
     renderApp("/overview");
     await screen.findByRole("heading", { name: "Operations overview" });
-    await user.click(screen.getByRole("button", { name: "Menu" }));
+    await user.click(screen.getByRole("button", { name: "Open menu" }));
     const drawer = await screen.findByRole("dialog", { name: "Menu" });
     await user.click(within(drawer).getByRole("link", { name: "Audit log" }));
     await screen.findByRole("heading", { name: "Audit log" });
@@ -58,11 +58,11 @@ describe("responsive layout", () => {
     await waitFor(() => expect(document.title).toBe("Audit log · Valo Pay"));
   });
 
-  it("closes the drawer on Escape and returns focus to the Menu button", async () => {
+  it("closes the drawer on Escape and returns focus to the Open menu button", async () => {
     const user = userEvent.setup();
     renderApp("/customers");
     await screen.findByText("Ada Okonkwo");
-    const menu = screen.getByRole("button", { name: "Menu" });
+    const menu = screen.getByRole("button", { name: "Open menu" });
     await user.click(menu);
     await screen.findByRole("dialog", { name: "Menu" });
     await user.keyboard("{Escape}");
@@ -95,10 +95,10 @@ describe("responsive layout", () => {
     const named = groups.map((group) => [document.getElementById(group.getAttribute("aria-labelledby")!)!.textContent, within(group).getAllByRole("link").map((link) => link.getAttribute("aria-label") || link.textContent)]);
     expect(named).toEqual([
       ["Daily work", ["Overview", "My work", "Exceptions", "Reconciliation", "Collections", "Import batches", "Close review"]],
-      ["Customers and policies", ["Customers", "Mandates", "Policies & templates"]],
-      ["Connected banking", ["Pay-by-bank", "Credit Desk", "Cash Desk", "Permissions & readiness"]],
+      ["Customers and policies", ["Customers", "Mandates", "Policies and templates"]],
+      ["Connected banking", ["Pay by Bank", "Credit Desk", "Cash Desk", "Permissions and readiness"]],
       ["Oversight", ["Reports", "Saved exports", "Audit log", "Go-live evidence"]],
-      ["Setup and administration", ["Pilot journey", "Data sources", "Operations", "Team & access", "Data retention", "Settings", "Presentation"]],
+      ["Setup and administration", ["Pilot journey", "Data sources", "Request history", "Team and access", "Data retention", "Settings", "Presentation"]],
     ]);
     const links = within(sidebarPages!).getAllByRole("link");
     for (const link of links) expect(document.getElementById(link.getAttribute("aria-describedby")!)?.textContent).toBeTruthy();
@@ -115,7 +115,7 @@ describe("responsive layout", () => {
     const user = userEvent.setup();
     renderApp("/presentation");
     await screen.findByRole("heading", { level: 1, name: /Show how a lender/ });
-    await user.click(screen.getByRole("button", { name: "Menu" }));
+    await user.click(screen.getByRole("button", { name: "Open menu" }));
     const drawer = await screen.findByRole("dialog", { name: "Menu" });
     const current = within(drawer).getByRole("link", { name: "Presentation" });
     expect(current.getAttribute("aria-current")).toBe("page");

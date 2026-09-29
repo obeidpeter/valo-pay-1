@@ -13,7 +13,7 @@ describe("overview", () => {
   it("shows the sandbox banner, the next scheduled close and the alerts the seeded lender carries", async () => {
     renderApp("/overview");
     expect(await screen.findByRole("heading", { name: "Operations overview" })).toBeTruthy();
-    expect(screen.getByText(/Sandbox · Sample data\. We never hold money\./)).toBeTruthy();
+    expect(screen.getByText("Sample data only. Valo Pay never holds money. Live payments and bank connections are switched off.")).toBeTruthy();
     const nextClose = String(api.state().settings.nextCloseAt);
     expect(screen.getByText(/Last close: Not closed yet/)).toBeTruthy();
     expect(screen.getByText(`Next daily close: ${formatDate(nextClose)}, then every day at this time.`)).toBeTruthy();

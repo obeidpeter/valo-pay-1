@@ -13,7 +13,7 @@ describe("keyboard", () => {
     await screen.findByRole("heading", { name: "Operations overview" });
     await user.tab();
     const skip = document.activeElement as HTMLElement;
-    expect(skip.textContent).toBe("Skip to page content");
+    expect(skip.textContent).toBe("Skip to main content");
     await user.click(skip);
     expect(document.activeElement?.id).toBe("main");
     expect(screen.getByRole("link", { name: /Overview/ }).getAttribute("aria-current")).toBe("page");

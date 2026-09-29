@@ -10,7 +10,7 @@ test.beforeEach(async ({ request, page }) => {
 });
 
 async function navigate(page: Page, name: string) {
-  const menu = page.getByRole("button", { name: "Menu", exact: true });
+  const menu = page.getByRole("button", { name: "Open menu", exact: true });
   if (await menu.isVisible()) await menu.click();
   await page.getByRole("link", { name, exact: true }).click();
 }

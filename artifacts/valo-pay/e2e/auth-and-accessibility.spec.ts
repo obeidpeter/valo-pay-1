@@ -60,11 +60,11 @@ test('enlarged root text uses the drawer and preserves keyboard navigation witho
   for (const route of ['/sources', '/lifecycle', '/reports', '/settings']) {
     await page.goto(route);
     await expect(page.locator('#main h1')).toBeVisible();
-    await expect(page.getByRole('complementary', { name: 'Console sidebar' })).toBeHidden();
-    await expect(page.getByRole('button', { name: 'Menu', exact: true })).toBeVisible();
+    await expect(page.getByRole('complementary', { name: 'Sidebar' })).toBeHidden();
+    await expect(page.getByRole('button', { name: 'Open menu', exact: true })).toBeVisible();
     await expect.poll(() => page.locator('#main').evaluate(main => main.scrollWidth - main.clientWidth), route).toBeLessThanOrEqual(1);
   }
-  const menu = page.getByRole('button', { name: 'Menu', exact: true });
+  const menu = page.getByRole('button', { name: 'Open menu', exact: true });
   await menu.focus();
   await page.keyboard.press('Enter');
   const drawer = page.getByRole('dialog', { name: 'Menu' });
@@ -82,7 +82,7 @@ test('enlarged root text uses the drawer and preserves keyboard navigation witho
   await expect(drawer).toBeVisible();
   await page.evaluate(() => document.documentElement.style.removeProperty('font-size'));
   await page.setViewportSize({ width: 1280, height: 960 });
-  await expect(page.getByRole('complementary', { name: 'Console sidebar' })).toBeVisible();
+  await expect(page.getByRole('complementary', { name: 'Sidebar' })).toBeVisible();
   await expect(drawer).toBeHidden();
   await expect(page.locator('#main')).toBeFocused();
 });

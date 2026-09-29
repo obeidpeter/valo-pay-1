@@ -14,13 +14,13 @@ describe("print", () => {
   it("marks the chrome to leave the page and carries the lender and the sandbox notice instead", async () => {
     renderApp("/overview");
     await screen.findByRole("heading", { name: "Operations overview" });
-    const banner = screen.getByText(/^Sandbox · Sample data\. We never hold money\./).parentElement!;
+    const banner = screen.getByText("Sample data only. Valo Pay never holds money. Live payments and bank connections are switched off.").parentElement!;
     expect(banner.className).toContain("print:hidden");
     expect(screen.getByRole("complementary").className).toContain("print:hidden");
-    expect(screen.getByRole("button", { name: "Menu" }).closest(".sticky")!.className).toContain("print:hidden");
-    const provenance = screen.getByText("Valo Pay · Sample data sandbox").closest("div.print\\:block")!;
+    expect(screen.getByRole("button", { name: "Open menu" }).closest(".sticky")!.className).toContain("print:hidden");
+    const provenance = screen.getByText("Valo Pay · Sandbox").closest("div.print\\:block")!;
     expect(provenance.textContent).toMatch(/Meridian Credit|Cedar Cooperative/);
-    expect(provenance.textContent).toContain("Sample data only. We never hold money. This is not a live payment record");
+    expect(provenance.textContent).toContain("Sample data only. Valo Pay never holds money. This is not a live payment record");
   });
 
   it("says when and from where the page was printed, taking the time again as printing starts", async () => {

@@ -14,9 +14,11 @@ describe("layout", () => {
     const [first, second] = api.merchantIds as [string, string];
     expect(api.calls.some((call) => call.path === "/v1/overview" && call.query.merchantId === first)).toBe(true);
     expect(api.calls.some((call) => call.path === "/v1/overview" && call.query.merchantId === second)).toBe(false);
-    expect(screen.getByText("Environment: sandbox")).toBeTruthy();
+    // The place is named once, in the sidebar: the sandbox for a visitor without an account.
+    expect(screen.getByRole("complementary", { name: "Sidebar" }).textContent).toContain("Sandbox");
     expect(screen.getByText('Demo role:', { exact: false })).toBeTruthy();
-    expect(screen.getByText('observation', { selector: 'strong' })).toBeTruthy();
+    // The lender's observation mode, in plain words.
+    expect(screen.getByText('Watch only', { selector: 'strong' })).toBeTruthy();
 
     // The lender selector exists twice in the document (phone bar and sidebar); the browser shows one. Either changes the lender for both.
     await user.selectOptions(screen.getAllByLabelText("Active lender")[0]!, second);
