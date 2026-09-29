@@ -90,7 +90,8 @@ test('a metric frame follows its amount when the typeface arrives, without waiti
   const held = new Promise<void>(resolve => { release = () => resolve(); });
   await page.route('**/*.woff2', async route => { await held; await route.continue(); });
   await page.setViewportSize({ width: 320, height: 800 });
-  await page.goto('/overview');
+  // Only the document is awaited: Firefox and WebKit hold the load event for the typeface held back here.
+  await page.goto('/overview', { waitUntil: 'domcontentloaded' });
   const metrics = page.getByRole('region', { name: 'Key metrics' });
   await expect(metrics.getByText('Outstanding amount', { exact: true })).toBeVisible();
   await page.evaluate(() => { document.documentElement.style.fontSize = '125%'; });
