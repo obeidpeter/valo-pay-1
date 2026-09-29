@@ -110,6 +110,9 @@ Use the word in the first column. Terms explained defines each one in plain word
 | **exception** | Something that needs a person to review and resolve it | issue, item |
 | **case** | Who owns one exception, its next step and its handover history | |
 | **next step** | What happens next on a case | next action |
+| **handover** | Passing a case to another team member | (for collection transfer) |
+| **collection transfer** | The agreement that moves collection work to Valo Pay; **return collection** hands it back | cutover, hand-back, fallback owner |
+| **emergency stop** | The control that stops all collection instructions. Turn it **on** or **off** | kill switch, activate, deactivate |
 | **Resolved** / **Closed automatically** | A person chose an outcome / Valo Pay closed it because its cause went away | condition cleared |
 | **daily close** | The saved record of the day's reconciliation results and open exceptions | snapshot, close snapshot, closing positions, close statement |
 | **close review** | A Finance team member's check of a daily close | Finance close review |
@@ -264,6 +267,16 @@ Record-specific words stay where they are clear: Active, Suspended, Signed, Conf
 - "·" only between short labels, never between sentences.
 - No arrows in running text: "Cash Desk, then Accounting".
 
+## Files Valo Pay prepares
+
+- PDFs are written for people: plain headings, amounts as "₦25,000.00", dates as "29 Sept 2026" and times in WAT.
+- CSV and JSON files are also read by other systems. Keep their column headers, keys, codes and ISO timestamps as they are.
+- The name Valo Pay gives a saved export reads as words: "Dispute pack (PDF)", never "dispute-pack · pdf".
+
+## Names that code relies on
+
+Some stored values are identifiers as well as text, such as the demo actor names ("Sandbox Admin") that the second-person rules compare, and stored prefixes that code matches. Change how they are shown, never the stored value.
+
 ## Help and Terms explained
 
 - A help guide keeps its fixed parts: Where to go, Before you begin, Follow these steps, What happens afterwards, If you are blocked, If you were interrupted, Terms in this guide.
@@ -280,7 +293,12 @@ The console shows the service's messages as they are written, so they follow thi
 - Something changed after the reader opened it: "This {thing} changed after you opened it. Reload the page and try again."
 - Something is missing: "{Thing} not found. It may have been deleted, or it belongs to another lender."
 - Never name internal concepts, HTTP status codes or field names such as `expectedUpdatedAt`.
-- Use the same words as the console for the same thing.
+- Never put a raw status after an article ("A pending_activation mandate"). Say "This mandate is waiting for activation."
+- Use the same words as the console for the same thing. Send words for display through the shared labels (`valueLabel` and the record-type labels); keep codes in data fields.
+- An explanation that offers choices has three parts: what happened, then each choice on its own line, then what happens next. Shorten the words, never the choices.
+- Requirement and test IDs (BIL-01, AUD-06, Test 5) do not appear in sentences. Go-live evidence may show P1 to P5 as a small tag beside a requirement's name.
+- Texts written for a lender's customers are short, friendly and in the second person. They name the lender and never use staff words.
+- Message templates use `{{lender}}` for the lender's name. `{{merchant}}` keeps working in saved templates.
 
 ## Checking your writing
 
