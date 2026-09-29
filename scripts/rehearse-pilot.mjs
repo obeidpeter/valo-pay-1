@@ -95,13 +95,20 @@ export function runRehearsal({ run, fingerprint, now = () => new Date(), clock =
   };
 }
 
-/** Where a file written at this path lands: a link at the path itself is followed, then its nearest existing ancestor's real path taken. */
+/** The operating system's real path: on Windows the native call also resolves a subst or mapped drive letter. */
+const realPath = file => { try { return realpathSync.native(file); } catch { return realpathSync(file); } };
+
+/** Where a file written at this path lands: links at the path itself are followed from their real directory, as the
+ * system follows them, then the real path of the nearest existing ancestor is taken. */
 function landingPath(file) {
   let target = path.resolve(file);
-  for (let hops = 0; hops < 40 && lstatSync(target, { throwIfNoEntry: false })?.isSymbolicLink(); hops++) target = path.resolve(path.dirname(target), readlinkSync(target));
+  for (let hops = 0; lstatSync(target, { throwIfNoEntry: false })?.isSymbolicLink(); hops++) {
+    if (hops === 40) throw new Error('Write the evidence report to a path whose links resolve, outside this checkout.');
+    target = path.resolve(realPath(path.dirname(target)), readlinkSync(target));
+  }
   let existing = target;
   while (!existsSync(existing) && path.dirname(existing) !== existing) existing = path.dirname(existing);
-  return path.join(realpathSync(existing), path.relative(existing, target));
+  return path.join(realPath(existing), path.relative(existing, target));
 }
 
 // Real paths: started through a symlinked path, argv names the link while this module's URL names the file, and the
@@ -113,10 +120,20 @@ if (startedDirectly()) {
     const output = process.env.VALOPAY_PILOT_REHEARSAL_REPORT;
     if (!output) throw new Error('Set VALOPAY_PILOT_REHEARSAL_REPORT to an evidence file outside this checkout.');
     // Real paths on both sides, so a link in a directory above the report, or at the report itself, cannot lead it into the checkout.
-    const reportPath = path.resolve(output), relative = path.relative(realpathSync(root), landingPath(reportPath));
-    if (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative)) {
-      throw new Error('Write the evidence report outside this checkout so it does not change the source fingerprint.');
+    const reportPath = path.resolve(output), checkout = realPath(root);
+    const refuseInside = () => {
+      const relative = path.relative(checkout, landingPath(reportPath));
+      if (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative)) {
+        throw new Error('Write the evidence report outside this checkout so it does not change the source fingerprint.');
+      }
+    };
+    refuseInside();
+    // The report's directory is made now, before any suite, so one that cannot be made (under a dangling link, say) fails
+    // here rather than after the whole rehearsal; once it exists, where it really is is checked again.
+    try { mkdirSync(path.dirname(reportPath), { recursive: true }); } catch {
+      throw new Error('Write the evidence report to a directory that exists or can be created, outside this checkout.');
     }
+    refuseInside();
     const env = rehearsalEnvironment(process.env);
     const report = runRehearsal({
       fingerprint: () => sourceEvidence(),
