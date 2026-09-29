@@ -104,33 +104,31 @@ try {
     return spawnSync(process.execPath, [join(scratch, validator)], { encoding: "utf8", timeout: 60_000 });
   };
   const repoint = (component, symbol, change) => (copy) => Object.assign(copy.components[component].implementation.find((pointer) => pointer.symbol === symbol), change);
+  // A synthetic module in the scratch tree only, so these cases do not depend on how the real pricing code is written.
+  const probe = "artifacts/api-server/src/domain/pricing-probe.ts";
+  const probing = (source) => (copy) => { writeFileSync(join(scratch, probe), source); repoint("BIL", "designPartnerDiscount", { path: probe })(copy); };
   const refused = (edit, pattern, reason) => {
     const run = validate(edit);
     assert.equal(run.status, 1, reason);
     assert.match(run.stderr, pattern);
   };
-  let run = validate();
-  assert.equal(run.status, 0, run.stderr);
+  const accepted = (edit) => { const run = validate(edit); assert.equal(run.status, 0, run.stderr); };
+  accepted();
   // After PR #78 removed discountRateFor from billing.ts, the matrix still pointed at it and the validator passed.
   refused(repoint("BIL", "designPartnerDiscount", { path: "artifacts/api-server/src/domain/billing.ts", symbol: "discountRateFor" }),
     /artifacts\/api-server\/src\/domain\/billing\.ts no longer declares discountRateFor/, "a pointer to a symbol its file no longer declares fails the validator");
-  // billing.ts imports and calls designPartnerDiscount and names a field after it; commercial-terms.ts declares it.
-  refused(repoint("BIL", "designPartnerDiscount", { path: "artifacts/api-server/src/domain/billing.ts" }),
-    /billing\.ts no longer declares designPartnerDiscount/, "an import, a call or a field name is not a declaration");
   // connected.ts only re-exports consentActive from connected-consents.ts.
   refused(repoint("OB-CNS", "consentActive", { path: "artifacts/api-server/src/domain/connected.ts" }),
     /connected\.ts no longer declares consentActive/, "a re-export is not a declaration");
+  refused(probing(`// designPartnerDiscount prices the month.\nimport { designPartnerDiscount } from "./commercial-terms";\nexport { designPartnerDiscount as pricing };\nexport const label = "designPartnerDiscount", fields = { designPartnerDiscount: true };\nexport const decision = designPartnerDiscount(undefined, "2027-01");\n`),
+    /pricing-probe\.ts no longer declares designPartnerDiscount/, "a comment, an import, an export alias, a string, a field name or a call is not a declaration");
   refused((copy) => Object.assign(Object.values(copy.components).flatMap((component) => component.contracts).find((pointer) => pointer.path.endsWith(".md")), { symbol: "deployment" }),
     /Only a TypeScript or JavaScript file declares a symbol/, "a document cannot declare a symbol");
   // Lines moving and a declaration reformatted, or rewritten as a constant, leave the pointer valid.
-  const terms = join(scratch, "artifacts/api-server/src/domain/commercial-terms.ts"), original = readFileSync(terms, "utf8");
-  writeFileSync(terms, `// Moved down.\n\n${original.replace("export function designPartnerDiscount(", "export function\n  designPartnerDiscount (")}`);
-  run = validate();
-  assert.equal(run.status, 0, run.stderr);
-  writeFileSync(terms, original.replace("export function designPartnerDiscount(data: Terms | undefined, period: string): DiscountDecision {", "export const designPartnerDiscount = (data: Terms | undefined, period: string): DiscountDecision => {"));
-  run = validate();
-  assert.equal(run.status, 0, run.stderr);
-  checks += 7;
+  accepted(probing(`export const before = 1;\n\n\n/** Moved down and wrapped. */\nexport function\n  designPartnerDiscount (\n    data: unknown,\n  ) {\n  return data;\n}\n`));
+  accepted(probing("export const designPartnerDiscount = (data: unknown) => data;\n"));
+  accepted(probing("const rules = { designPartnerDiscount: (data: unknown) => data };\nexport const { designPartnerDiscount } = rules;\n"));
+  checks += 8;
 } finally {
   if (linked) unlinkSync(parser); // the link alone, never the dependencies it names
   rmSync(scratch, { recursive: true, force: true });
