@@ -94,7 +94,8 @@ function raiseBacklog(backlog, codes, warnings) {
 
 /**
  * Additive worker evidence: old builds are explicitly not reported; malformed new answers are never healthy. A startup
- * warning comes with its window (startupWindowsMs), how long one process can give it.
+ * warning comes with its window (startupWindowsMs), how long one process can give it, and the worker that answered
+ * (answeredBy): its process's start, its own start, its restart count and last crash, as the service reports them.
  */
 function backgroundObservation(health, now, codes, warnings, timeoutMs) {
   const worker = health?.background;
@@ -142,6 +143,7 @@ function backgroundObservation(health, now, codes, warnings, timeoutMs) {
       cleanup: { state: cleanup.state, lastCheckedAt: iso(cleanup.lastCheckedAt), lastSuccessAt: iso(cleanup.lastSuccessAt), lastErrorAt: iso(cleanup.lastErrorAt),
         lastResult: result && { attempted: result.attempted, removed: result.removed, deferred: result.deferred, pendingFailures: result.pendingFailures, ...(result.parked === undefined ? {} : { parked: result.parked }) } } },
     ...(Object.keys(pending).length ? { startupWindowsMs: pending, backgroundReadWithinMs: Math.max(...Object.values(pending)) } : {}),
+    answeredBy: { startedAt: instant(health.startedAt) ? iso(health.startedAt) : null, workerStartedAt: iso(worker.startedAt), restartCount: worker.restartCount, lastCrashAt: iso(worker.lastCrashAt) },
   };
 }
 
@@ -221,7 +223,7 @@ export async function probeService({ origin, expectScheduler = false, fetchImpl 
   return { service: base, observedAt: new Date(now).toISOString(), codes: [...new Set(codes)].sort(), warnings: [...new Set(warnings)],
     ...(pending ? { firstReadWithinMs: startupWindowsMs.scheduler_backlog_pending } : {}),
     ...(background.backgroundReadWithinMs ? { backgroundReadWithinMs: background.backgroundReadWithinMs } : {}),
-    ...(Object.keys(startupWindowsMs).length ? { startupWindowsMs } : {}),
+    ...(Object.keys(startupWindowsMs).length ? { startupWindowsMs, ...(background.answeredBy ? { answeredBy: background.answeredBy } : {}) } : {}),
     observations: {
       liveness: health.status === 'fulfilled' && health.value?.status === 'ok' ? 'ok' : 'unavailable',
       database: ready.status === 'fulfilled' && ready.value?.checks?.database?.status === 'ok' ? 'ok' : 'unavailable',
@@ -243,18 +245,24 @@ const STARTUP_STALE = { scheduler_backlog_pending: 'scheduler_stale', background
 const positiveMs = value => Number.isSafeInteger(value) && value > 0;
 /** How long one process can give a startup warning: the probe's window for it, or for a probe that does not say, such as an earlier monitor's, its older limit or two minutes. */
 const startupWindow = (probe, warning) => [probe.startupWindowsMs?.[warning], warning === 'scheduler_backlog_pending' ? probe.firstReadWithinMs : probe.backgroundReadWithinMs].find(positiveMs) ?? YOUNG_AT_MOST_MS;
+/** The worker that answered a probe, as the service names it; undefined for a probe that does not say, such as an older build's. */
+const answeredBy = probe => probe.answeredBy && typeof probe.answeredBy === 'object'
+  ? ['startedAt', 'workerStartedAt', 'restartCount', 'lastCrashAt'].map(field => probe.answeredBy[field] ?? '').join('|') : undefined;
 
 /**
  * Stable incidents suppress repeated delivery; failed delivery never advances state. A probe that found nothing but
  * startup warnings, a process too young to have given its evidence (a first read, heartbeat or cleanup check), is no
  * evidence either way: it neither ends an open incident nor counts towards one, so a restart neither ends nor repeats
  * an incident. But one process can give each warning only so long (its window: startupWindowsMs, or the older limits,
- * or two minutes when the probe does not say), so the state keeps when a run of such probes began (pendingSince) and
- * every startup warning the run has shown, with the window it first came with (pendingWarnings); any other probe ends
- * the run. Once the run has lasted longer than a warning's window, the monitor is meeting a new process at each probe,
- * one restarting before it gave that evidence or an instance the probe itself starts, and the warning counts as its
- * stale code: each such probe is judged by all of them, whichever warnings it caught, so the judged codes only grow
- * within a run. The probe as judged is returned with the state.
+ * or two minutes when the probe does not say), so the state keeps when a run of such probes began (pendingSince),
+ * every startup warning the run has shown, with the window it first came with (pendingWarnings), the first worker that
+ * answered and whether another has since (pendingWorker, pendingRestarted); any other probe ends the run. Once the run
+ * has lasted longer than a warning's window, the monitor is meeting a new process at each probe, one restarting before
+ * it gave that evidence or an instance the probe itself starts, and the warning counts as its stale code: one the probe
+ * shows at once, one it no longer shows only when the run has met another worker, so the same worker's slow first
+ * check is no restart. Workers are told apart by what the service reports, never by the monitor's clock; a probe that
+ * names none, an older build's, is judged by every warning of the run. Within a run the judged codes only grow, and
+ * the probe as judged carries the run (startupRun). It is returned with the state.
  */
 export async function deliverTransition(probe, previous, deliver, { owner, failureThreshold = 2 } = {}) {
   if (!owner?.trim() || !Number.isInteger(failureThreshold) || failureThreshold < 1) throw new Error('An alert owner and positive failure threshold are required.');
@@ -266,7 +274,9 @@ export async function deliverTransition(probe, previous, deliver, { owner, failu
     const going = Number.isFinite(since) && since <= at;
     const seen = Object.fromEntries(Object.entries(going && previousForService.pendingWarnings || {}).filter(([warning, within]) => Object.hasOwn(STARTUP_STALE, warning) && positiveMs(within)));
     for (const warning of waiting) seen[warning] ??= startupWindow(probe, warning);
-    run = { pendingSince: going ? previousForService.pendingSince : probe.observedAt, pendingWarnings: seen };
+    const first = going && typeof previousForService.pendingWorker === 'string' ? previousForService.pendingWorker : answeredBy(probe);
+    const restarted = going && previousForService.pendingRestarted === true || answeredBy(probe) !== undefined && first !== answeredBy(probe);
+    run = { pendingSince: going ? previousForService.pendingSince : probe.observedAt, pendingWarnings: seen, ...(first === undefined ? {} : { pendingWorker: first }), ...(restarted ? { pendingRestarted: true } : {}) };
   }
   const unchanged = { service: probe.service, pending: previousForService.pending ?? '', streak: Number(previousForService.streak || 0), delivered: previousForService.delivered || '', observedAt: probe.observedAt, ...run };
   // A rollback to an older build cannot prove a worker incident has recovered: its probe changes only the run.
@@ -274,10 +284,11 @@ export async function deliverTransition(probe, previous, deliver, { owner, failu
     return { state: unchanged, delivered: false, probe };
   }
   if (run) {
-    const lasted = Date.parse(probe.observedAt) - Date.parse(run.pendingSince);
-    const stale = Object.entries(run.pendingWarnings).filter(([, within]) => lasted > within).map(([warning]) => STARTUP_STALE[warning]).sort();
+    const lasted = Date.parse(probe.observedAt) - Date.parse(run.pendingSince), judgedByRun = answeredBy(probe) === undefined || run.pendingRestarted === true;
+    const stale = Object.entries(run.pendingWarnings).filter(([warning, within]) => lasted > within && (waiting.includes(warning) || judgedByRun)).map(([warning]) => STARTUP_STALE[warning]).sort();
     if (!stale.length) return { state: unchanged, delivered: false, probe };
-    judged = { ...probe, codes: stale, observations: { ...probe.observations, ...(stale.includes('scheduler_stale') ? { schedulerEvidence: 'failed' } : {}) } };
+    const startupRun = { since: run.pendingSince, warnings: Object.entries(run.pendingWarnings).sort(([a], [b]) => a.localeCompare(b)).map(([warning, windowMs]) => ({ warning, windowMs })), restarted: run.pendingRestarted === true };
+    judged = { ...probe, codes: stale, startupRun, observations: { ...probe.observations, ...(stale.includes('scheduler_stale') ? { schedulerEvidence: 'failed' } : {}) } };
   }
   const signature = judged.codes.join('|');
   const streak = previousForService.pending === signature ? Number(previousForService.streak || 0) + 1 : 1;
