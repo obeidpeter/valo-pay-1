@@ -1144,7 +1144,7 @@
               "minLength": 8,
               "maxLength": 200
             },
-            "description": "Optional: without one the write still runs, but a lost answer cannot be recovered and a repeat may apply twice. With one, the request is journaled in Operations and repeatable. 8 to 200 characters, one per unchanged intention. The same key with different input is refused (409). A key whose request was refused cannot run again: its journal entry is closed. A repeat after a lost answer returns the original result, checked before the version; once the lender's retention policy has removed that stored result, the repeat is refused (410). A repeat while the request is still running is answered 503 with Retry-After and operation running, and leaves it to finish. The result is kept with the request's journal entry, so a key names one request of the person who sent it, in its lender. A set_role change is repeatable with its key but is not recorded in Operations, so a refused one may be sent again and retention never removes its result. Its result is kept apart from the journal's, so a journaled write sent with the same key is a separate request."
+            "description": "Optional: without one the write still runs, but a lost answer cannot be recovered and a repeat may apply twice. With one, the request is journaled in Operations and repeatable. 8 to 200 characters, one per unchanged intention. The same key with different input is refused (409). A key whose request was refused cannot run again: its journal entry is closed. A repeat after a lost answer returns the original result, checked before the version; once the lender's retention policy has removed that stored result, the repeat is refused (410). A repeat while the request is still running is answered 503 with Retry-After and operation running, and leaves it to finish. The result is kept with the request's journal entry, so a key names one request of the person who sent it, in its lender. A set_role change is repeatable with its key but is not recorded in Operations, so a refused one may be sent again and retention never removes its result. Its result is kept apart from the journal's, so a journaled write sent with the same key is a separate request. confirm_discount_terms requires one: without it the request is refused (400, naming the header)."
           }
         ],
         "responses": {
@@ -1378,7 +1378,7 @@
           }
         },
         "summary": "Run a domain action on the lender's state",
-        "description": "Every action is audited, most require a reason, and the persona's role applies; the catalogue of actions is in docs/frontend-contract.md. confirm_allocation and reject_allocation require data.proposalId and data.proposalUpdatedAt (AllocationDecisionData), with recordId the payment: a request without either is refused (400, naming it) and saves nothing. A proposal another has replaced, or that has changed since it was read, is 409; a payment with no proposal left to decide is refused (400). expectedUpdatedAt is optional, except for resolve_exception on a coordinated case; sent, it is the updatedAt of the record recordId names, and a record changed since is 409."
+        "description": "Every action is audited, most require a reason, and the persona's role applies; the catalogue of actions is in docs/frontend-contract.md. confirm_allocation and reject_allocation require data.proposalId and data.proposalUpdatedAt (AllocationDecisionData), with recordId the payment: a request without either is refused (400, naming it) and saves nothing. A proposal another has replaced, or that has changed since it was read, is 409; a payment with no proposal left to decide is refused (400). confirm_discount_terms requires an Idempotency-Key and data.discountStartDate, data.fullPriceStartDate and data.discountTermsReference (DiscountConfirmationData), with recordId the commercial terms: the confirmer must be a different person from the proposer (403), and terms with nothing awaiting confirmation, or a proposal that differs from the data, are 409. expectedUpdatedAt is optional, except for resolve_exception on a coordinated case; sent, it is the updatedAt of the record recordId names, and a record changed since is 409."
       }
     },
     "/v1/imports": {
@@ -16188,7 +16188,7 @@
           },
           "data": {
             "$ref": "#/components/schemas/RecordData",
-            "description": "Per-kind fields validated by the shared record schema. Commercial design-partner terms may supply discountStartDate and fullPriceStartDate as first-of-month dates, discountTermsReference and signedFullPriceTerms. The service alone records discountReview attribution when signed dates are saved. Legacy records without reviewed dates remain readable but cannot issue a new design-partner invoice."
+            "description": "Per-kind fields validated by the shared record schema. Commercial design-partner terms may supply discountStartDate and fullPriceStartDate as first-of-month dates, discountTermsReference and signedFullPriceTerms. Saving signed design-partner terms with the full-price terms signed and all three proposes the dates: the service alone records discountReview (who proposed them, which person and when); a different Admin or Finance user must then confirm them with confirm_discount_terms before they price an invoice. A discountReview in the request is refused (400). Legacy records without dates remain readable but cannot issue a new design-partner invoice."
           }
         },
         "required": [
@@ -16221,7 +16221,7 @@
           },
           "data": {
             "$ref": "#/components/schemas/RecordData",
-            "description": "Per-kind update fields, merged with the stored record after the expectedUpdatedAt check. Commercial date edits are reviewed by the authorised writer and restamp discountReview on the service. A client cannot supply different review attribution. Issued invoice records are immutable."
+            "description": "Per-kind update fields, merged with the stored record after the expectedUpdatedAt check. A commercial edit that changes signed, signedFullPriceTerms, designPartner, the dates or the reference proposes them afresh (discountReview, recorded by the service) and drops any confirmation; any other edit keeps the proposal and its confirmation. A client cannot supply or change discountReview (400). Issued invoice records are immutable."
           },
           "expectedUpdatedAt": {
             "type": "string",
@@ -16515,7 +16515,7 @@
         "required": [
           "action"
         ],
-        "description": "An action to run: its name, the record it applies to, the reason for it and any data it needs. For confirm_allocation and reject_allocation, data is an AllocationDecisionData: both of its fields are required."
+        "description": "An action to run: its name, the record it applies to, the reason for it and any data it needs. For confirm_allocation and reject_allocation, data is an AllocationDecisionData, and for confirm_discount_terms a DiscountConfirmationData: all of their fields are required."
       },
       "ActionResult": {
         "type": "object",
@@ -16675,7 +16675,7 @@
           },
           "billing": {
             "$ref": "#/components/schemas/RecordData",
-            "description": "Billing statement and invoice history. Additive pricingReady/pricingExplanation and nextInvoicePricingReady/nextInvoicePricingExplanation distinguish a statement or next invoice held for review. When signed design-partner discount dates are unreviewed, totalKobo and revenue-derived unitEconomics values are null, not zero; existing issued invoices are unchanged. New invoice issuance returns 409 until Finance or Admin records the reviewed monthly contract dates and signed agreement reference. Older responses may omit this metadata."
+            "description": "Billing statement and invoice history. Additive pricingReady/pricingExplanation and nextInvoicePricingReady/nextInvoicePricingExplanation distinguish a statement or next invoice held until signed design-partner terms can price it; the explanation names the actual cause (the full-price terms not recorded as signed, dates or reference missing or invalid, dates changed since they were proposed or confirmed, a proposal awaiting a second person's confirmation, or unreadable stored evidence) in the words the 409 of issue_invoice uses. While held, totalKobo and revenue-derived unitEconomics values are null, not zero, and unitEconomics.note names the cause too; existing issued invoices are unchanged. Additive rateDiscrepancies lists each issued invoice charged at another rate than the terms billing reads for its month now give (the lender's signed terms in effect by the month's end, whichever terms billed it; ordinary terms give the full public price, and design-partner terms count once their discount dates are confirmed, so while those in effect are not, the month's invoices are not compared): invoiceId, invoiceReference, period, commercialId (the terms compared with), chargedRate, agreedRate and an explanation naming those terms, when they took effect and the whole-month rule. rateDiscrepancyGuidance says what to do, since an issued invoice is never changed and has no correction path, including the adjustment lines later invoices carry for its collections at the same rate. Older responses may omit this metadata."
           },
           "experiment": {
             "$ref": "#/components/schemas/RecordData"
@@ -17401,6 +17401,33 @@
           "proposalUpdatedAt"
         ],
         "description": "The data confirm_allocation and reject_allocation require (POST /v1/actions, recordId the payment): the proposed allocation the decision was made on, by its id and the updatedAt it was read with. Both are required: a request without either is refused (400, naming data.proposalId or data.proposalUpdatedAt) and saves nothing. A proposal another has replaced, or that has changed since it was read, is 409; a payment with no proposal left to decide is refused (400). Other fields are ignored."
+      },
+      "DiscountConfirmationData": {
+        "type": "object",
+        "properties": {
+          "discountStartDate": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "description": "The proposed discount start date, as it was read."
+          },
+          "fullPriceStartDate": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "description": "The proposed full-price start date, as it was read."
+          },
+          "discountTermsReference": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500,
+            "description": "The proposed signed agreement reference, as it was read."
+          }
+        },
+        "required": [
+          "discountStartDate",
+          "fullPriceStartDate",
+          "discountTermsReference"
+        ],
+        "description": "The data confirm_discount_terms requires (POST /v1/actions, recordId the commercial terms, with an Idempotency-Key): the proposed discount dates and signed agreement reference the confirmer checked against the signed agreement. All three are required: a request without one is refused (400, naming it) and saves nothing. The confirmer must be an Admin or Finance user other than the person who proposed the dates, whatever demo role they switch to (403). Terms whose dates await no confirmation, or whose proposal differs from these values, are 409 with the reason. Other fields are ignored."
       },
       "ErrorDetail": {
         "type": "object",

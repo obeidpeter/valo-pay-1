@@ -24,3 +24,4 @@ export * from './operations';
 export * from './team';
 export * from './connected';
 export * from './provider-identity';
+export * from './discount-terms';

@@ -98,9 +98,9 @@ try {
   const q = (path: string, merchantId = lender) => `${path}${path.includes("?") ? "&" : "?"}merchantId=${merchantId}`;
   const act = async (data: Record<string, unknown>, merchantId = lender) => ok(await call(q("/v1/actions", merchantId), "POST", { reason: "Contract check of a synthetic action", ...data }, { key: key() }));
 
-  // ---- BIL-02: reviewed contract dates survive real transport, persistence and later corrections ----
-  // Separate synthetic workspace: these invoices must not alter the contract journey's
-  // retained-request fixtures below. All answers still pass the OpenAPI assertions in call().
+  // ---- BIL-02: design-partner dates through real transport and persistence: the cause of a refusal, the proposal and the one visitor ----
+  // Separate synthetic workspace: these requests must not alter the contract journey's retained-request fixtures below.
+  // All answers still pass the OpenAPI assertions in call(). A second person confirms, and invoices are priced, on the staff host below.
   {
     const billingCookie = `valopay_sandbox=${randomBytes(32).toString("hex")}`;
     const billingWorkspace = ok(await call("/v1/workspace", "GET", undefined, { cookie: billingCookie }));
@@ -125,67 +125,66 @@ try {
     const beforeRefusal = await counts();
     const blocked = await billingAct("issue_invoice", { period: firstPeriod });
     assert.equal(blocked.status, 409, JSON.stringify(blocked.data));
+    assert.match(blocked.data.error, /The discount start date, the full-price start date and the signed agreement reference are missing/, "the refusal names what is missing");
     assert.deepEqual(await counts(), beforeRefusal, "a refused invoice changes neither financial records nor audit evidence (its refusal journal is separate)");
 
     const dates = { discountStartDate: `${firstPeriod}-01`, fullPriceStartDate: `${currentPeriod}-01`, discountTermsReference: "SYN-REVIEWED-AGREEMENT" };
     ok(await billingAct("set_role", { role: "Read-only" }));
     assert.equal((await billingCall(`/v1/records/commercial/${terms.id}`, "PATCH", { expectedUpdatedAt: terms.updatedAt, data: dates })).status, 403,
-      "read-only access cannot review commercial dates");
+      "read-only access cannot propose commercial dates");
     ok(await billingAct("set_role", { role: "Finance" }));
-    const forged = await billingCall(`/v1/records/commercial/${terms.id}`, "PATCH", {
-      expectedUpdatedAt: terms.updatedAt,
-      data: { ...dates, discountReview: { reviewedBy: "Someone else", reviewedAt: new Date().toISOString(), ...dates, termsReference: dates.discountTermsReference } },
-    });
-    assert.equal(forged.status, 400, JSON.stringify(forged.data));
-    assert.match(forged.data.error, /review identity/);
-    terms = ok(await billingCall(`/v1/records/commercial/${terms.id}`, "PATCH", { expectedUpdatedAt: terms.updatedAt, data: dates }));
+    /** A proposal of these dates as the service records one, with who and when. */
+    const reviewOf = (who: Record<string, string>) => ({ discountStartDate: dates.discountStartDate, fullPriceStartDate: dates.fullPriceStartDate, termsReference: dates.discountTermsReference, ...who });
+    for (const discountReview of [
+      reviewOf({ reviewedBy: "Someone else", reviewedAt: new Date().toISOString() }),
+      reviewOf({ reviewedBy: "Sandbox Finance", reviewedAt: new Date().toISOString(), confirmedBy: "Someone else", confirmedPrincipal: "someone-else", confirmedAt: new Date().toISOString() }),
+    ]) {
+      const forged = await billingCall(`/v1/records/commercial/${terms.id}`, "PATCH", { expectedUpdatedAt: terms.updatedAt, data: { ...dates, discountReview } });
+      assert.equal(forged.status, 400, JSON.stringify(forged.data));
+      assert.match(forged.data.error, /Who proposed and who confirmed the discount dates is recorded by the service and cannot be supplied or edited/);
+    }
+    // Dates saved without ticking the full-price terms: saved, not proposed, and the refusal and the report name the flag.
+    terms = ok(await billingCall(`/v1/records/commercial/${terms.id}`, "PATCH", { expectedUpdatedAt: terms.updatedAt, data: { ...dates, signedFullPriceTerms: false } }));
+    assert.equal(terms.data.discountReview, undefined, "nothing is proposed while the full-price terms are not signed");
+    const flag = await billingAct("issue_invoice", { period: firstPeriod });
+    assert.equal(flag.status, 409, JSON.stringify(flag.data));
+    assert.match(flag.data.error, /The full-price terms are not recorded as signed: tick “Full-price terms are signed”/);
+    assert.equal(ok(await billingCall("/v1/reports")).billing.nextInvoicePricingExplanation, flag.data.error, "the report gives the refusal's words");
+    // Ticked, the dates are a proposal by the Finance persona, at the database's time, bound to the sandbox's visitor.
+    terms = ok(await billingCall(`/v1/records/commercial/${terms.id}`, "PATCH", { expectedUpdatedAt: terms.updatedAt, data: { signedFullPriceTerms: true } }));
     assert.equal(terms.data.discountReview.reviewedBy, "Sandbox Finance");
-    assert.equal(terms.data.discountReview.reviewedAt, terms.updatedAt, "the database transaction supplies the reviewer time");
-    const reviewed = structuredClone(terms.data.discountReview);
-    terms = ok(await billingCall(`/v1/records/commercial/${terms.id}`, "PATCH", { expectedUpdatedAt: terms.updatedAt, name: "Reviewed contract fixture, renamed" }));
-    assert.deepEqual(terms.data.discountReview, reviewed, "PATCH without data or review preserves the recorded review");
-    assert.deepEqual(ok(await billingCall("/v1/records/commercial")).items.find((row: any) => row.id === terms.id).data.discountReview, reviewed,
-      "the reviewed terms are durable and survive a fresh API read");
-
-    // One canonical historical synthetic receipt, stored through the real scoped
-    // repository. Later correction and both invoices run through HTTP commands.
-    const fixtureRequest = { headers: { cookie: billingCookie }, secure: false, auth: Object.assign(() => ({ userId: null }), { [Symbol.for("@clerk/express.auth")]: true }) } as any;
-    const allocationId = await store.inWorkspace(fixtureRequest, { cookie() {} } as any, async (ctx) => {
-      const state = await store.loadState(ctx, billingLender);
-      const customer = state.records.find((record) => record.kind === "customers")!;
-      const due = makeRecord(state, "due-items", { name: "Synthetic billed instalment", status: "paid", reference: "SYN-BILLING-DUE", customerId: customer.id, amountKobo: 2_500_000,
-        createdAt: ctx.now, data: { dueDate: `${firstPeriod}-10`, owner: "lms", outstandingKobo: 0 } });
-      const payment = makeRecord(state, "payments", { name: "Synthetic historical direct debit", status: "allocated", reference: "SYN-BILLING-RECEIPT", customerId: customer.id, amountKobo: due.amountKobo,
-        createdAt: ctx.now, data: { channel: "direct_debit", collectionStatus: "succeeded", settlementStatus: "settled", observedAt: `${firstPeriod}-10T08:00:00.000Z`, settledAt: `${firstPeriod}-10T08:00:00.000Z`, reversalStatus: "none", refundStatus: "none", allocatedKobo: due.amountKobo, dueItemId: due.id } });
-      const allocation = makeRecord(state, "allocations", { name: "R1", status: "confirmed", customerId: customer.id, amountKobo: due.amountKobo, createdAt: ctx.now,
-        data: { paymentId: payment.id, dueItemId: due.id, rule: "R1", confidence: "certain", automatic: true } });
-      store.appendAudit(state, ctx, "test.billing.fixture", payment.id, "Created labelled synthetic canonical billing evidence.");
-      await store.saveState(ctx, state);
-      return allocation.id;
-    });
-    const firstInvoice = ok(await billingAct("issue_invoice", { period: firstPeriod })).record;
-    assert.equal(firstInvoice.data.designPartnerDiscount.rate, 0.5);
-    assert.equal(firstInvoice.data.usageLines.length, 1);
-    assert.equal(firstInvoice.data.usageLines[0].chargedKobo, 3_750);
-    assert.deepEqual(firstInvoice.data.terms.discountReview, reviewed);
-    const originalInvoice = structuredClone(firstInvoice);
-    const previousTermsVersion = terms.updatedAt;
-    terms = ok(await billingCall(`/v1/records/commercial/${terms.id}`, "PATCH", {
-      expectedUpdatedAt: previousTermsVersion, data: { fullPriceStartDate: `${secondPeriod}-01`, discountTermsReference: "SYN-REVIEWED-AGREEMENT-AMENDED" },
-    }));
-    assert.equal(terms.data.discountReview.fullPriceStartDate, `${secondPeriod}-01`);
-    assert.notEqual(terms.data.discountReview.reviewedAt, reviewed.reviewedAt);
-    assert.equal((await billingCall(`/v1/records/commercial/${terms.id}`, "PATCH", { expectedUpdatedAt: previousTermsVersion, name: "Stale change" })).status, 409);
-    ok(await billingAct("review_allocation", { correct: false }, allocationId));
-    const secondInvoice = ok(await billingAct("issue_invoice", { period: secondPeriod })).record;
-    assert.equal(secondInvoice.data.designPartnerDiscount.rate, 0, "the newly reviewed dates apply to the next invoice");
-    assert.equal(secondInvoice.data.adjustments.length, 1);
-    assert.deepEqual([secondInvoice.data.adjustments[0].originalInvoiceId, secondInvoice.data.adjustments[0].discountRate, secondInvoice.data.adjustments[0].kobo],
-      [firstInvoice.id, 0.5, -3_750], "the correction refunds the original discounted charge, never the new public price");
-    const savedInvoices = ok(await billingCall("/v1/records/invoices")).items;
-    assert.deepEqual(savedInvoices.find((row: any) => row.id === firstInvoice.id), originalInvoice, "changed terms and a later adjustment never rewrite an issued invoice");
+    assert.equal(terms.data.discountReview.reviewedAt, terms.updatedAt, "the database transaction supplies the proposal time");
+    assert.match(terms.data.discountReview.proposedPrincipal, /\S/, "the proposal names the person behind the persona");
+    assert.equal(terms.data.discountReview.confirmedBy, undefined);
+    const proposed = structuredClone(terms.data.discountReview);
+    const awaiting = await billingAct("issue_invoice", { period: firstPeriod });
+    assert.equal(awaiting.status, 409, JSON.stringify(awaiting.data));
+    assert.match(awaiting.data.error, /The discount dates await confirmation: a different Admin or Finance user from the person who proposed them must confirm them/);
+    // A confirmation is keyed, so the operations journal records it: without a key it is refused, naming the header.
+    refusedFor(await call(bq("/v1/actions"), "POST", { action: "confirm_discount_terms", recordId: terms.id, reason: "Confirm without a key", data: dates }, { cookie: billingCookie }), 400, "Idempotency-Key");
+    // Switching demo roles is not a second person.
     ok(await billingAct("set_role", { role: "Admin" }));
-    console.log("Billing HTTP/PostgreSQL contract checks passed: service review attribution, omitted PATCH fields, role/version refusals, atomic invoice refusal, amended future pricing and immutable historical-rate corrections.");
+    const self = await billingAct("confirm_discount_terms", dates, terms.id);
+    assert.equal(self.status, 403, JSON.stringify(self.data));
+    assert.match(self.data.error, /switching demo roles does not provide independent confirmation/);
+    terms = ok(await billingCall(`/v1/records/commercial/${terms.id}`, "PATCH", { expectedUpdatedAt: terms.updatedAt, name: "Reviewed contract fixture, renamed" }));
+    assert.deepEqual(terms.data.discountReview, proposed, "PATCH without data keeps the recorded proposal");
+    assert.deepEqual(ok(await billingCall("/v1/records/commercial")).items.find((row: any) => row.id === terms.id).data.discountReview, proposed,
+      "the proposal is durable and survives a fresh API read");
+    // A single-person review an earlier build stamped (no principal, no confirmation) is a proposal awaiting confirmation.
+    const fixtureRequest = { headers: { cookie: billingCookie }, secure: false, auth: Object.assign(() => ({ userId: null }), { [Symbol.for("@clerk/express.auth")]: true }) } as any;
+    await store.inWorkspace(fixtureRequest, { cookie() {} } as any, async (ctx) => {
+      const state = await store.loadState(ctx, billingLender);
+      const stored = state.records.find((record) => record.id === terms.id)!;
+      stored.data.discountReview = reviewOf({ reviewedBy: "Sandbox Finance", reviewedAt: stored.updatedAt });
+      store.appendAudit(state, ctx, "test.billing.fixture", stored.id, "Stored a synthetic single-person review as an earlier build recorded it.");
+      await store.saveState(ctx, state);
+    });
+    const legacy = ok(await billingCall("/v1/reports")).billing;
+    assert.deepEqual([legacy.nextInvoicePricingReady, legacy.nextInvoicePricingExplanation], [false, awaiting.data.error], "an earlier build's single-person review awaits confirmation");
+    const legacySelf = await billingAct("confirm_discount_terms", dates, terms.id);
+    assert.equal(legacySelf.status, 403, "in a sandbox, its reviewer is the visitor who would confirm it");
+    console.log("Billing HTTP/PostgreSQL sandbox checks passed: the refusal names its cause, proposals recorded by the service, forged proposals and confirmations refused, keyed confirmation, and one visitor in every demo role.");
   }
 
   // ---- The sandbox team directory has the lenders its contract requires ----
@@ -536,6 +535,92 @@ try {
   assert.equal(ok(await call(`/v1/team/changes/${requested.pendingChange.id}/approve`, "POST", undefined, { identity: "second" })).status, "active");
   const financeTeam = ok(await call("/v1/team", "GET", undefined, { identity: "admin" }));
   assert.ok(financeTeam.members.every((row: any) => Array.isArray(row.lenderIds) && typeof row.allLenders === "boolean"));
+  // ---- BIL-02 on the staff host: one person proposes design-partner dates, a different person confirms them ----
+  // The Finance member is active with access to the staff lender again. Invoices run through HTTP; the
+  // receipt and an earlier build's single-person review are stored through the scoped repository.
+  {
+    const { previousMonth, monthOf } = await import("../src/domain/billing");
+    const current = monthOf(new Date().toISOString());
+    const third = previousMonth(`${current}-15T12:00:00.000Z`), second = previousMonth(`${third}-15T12:00:00.000Z`), first = previousMonth(`${second}-15T12:00:00.000Z`);
+    const staffCall = (who: string, path: string, method = "GET", body?: unknown) => call(q(path, staffLender.id), method, body, { identity: who, ...(method === "GET" ? {} : { key: key() }) });
+    const staffAct = (who: string, action: string, data: Record<string, unknown> = {}, recordId?: string) =>
+      staffCall(who, "/v1/actions", "POST", { action, data, recordId, reason: "Verify two-person design-partner pricing on synthetic terms." });
+    const billing = async () => ok(await staffCall("admin", "/v1/reports")).billing;
+    const readTerms = async (id: string) => ok(await staffCall("admin", "/v1/records/commercial")).items.find((row: any) => row.id === id);
+    const agreement = { discountStartDate: `${first}-01`, fullPriceStartDate: `${current}-01`, discountTermsReference: "SYN-STAFF-AGREEMENT" };
+    const staffRequest = { headers: {}, secure: false, auth: Object.assign(() => staffAuth(admin), { [Symbol.for("@clerk/express.auth")]: true }) } as any;
+    // The terms an earlier build reviewed: its administrator saved the dates alone, so nobody confirmed them. One receipt in the first month.
+    const fixture = await store.inWorkspace(staffRequest, { cookie() {} } as any, async (ctx) => {
+      const state = await store.loadState(ctx, staffLender.id);
+      const customer = makeRecord(state, "customers", { name: "Synthetic staff customer", status: "active", reference: "SYN-STAFF-CUSTOMER", createdAt: ctx.now, data: { phoneMasked: "+234 •••• 32" } });
+      const terms = makeRecord(state, "commercial", { name: "Staff contract lender", status: "signed", reference: "SYN-STAFF-TERMS", createdAt: ctx.now, data: { signed: true, signedFullPriceTerms: true, designPartner: true, licenceKobo: 1_500_000, effectiveDate: `${first}-01`, ...agreement,
+        discountReview: { reviewedBy: `Clerk:${admin}`, reviewedAt: ctx.now, discountStartDate: agreement.discountStartDate, fullPriceStartDate: agreement.fullPriceStartDate, termsReference: agreement.discountTermsReference } } });
+      const due = makeRecord(state, "due-items", { name: "Synthetic billed instalment", status: "paid", reference: "SYN-STAFF-DUE", customerId: customer.id, amountKobo: 2_500_000, createdAt: ctx.now, data: { dueDate: `${first}-10`, owner: "lms", outstandingKobo: 0 } });
+      const payment = makeRecord(state, "payments", { name: "Synthetic historical direct debit", status: "allocated", reference: "SYN-STAFF-RECEIPT", customerId: customer.id, amountKobo: due.amountKobo,
+        createdAt: ctx.now, data: { channel: "direct_debit", collectionStatus: "succeeded", settlementStatus: "settled", observedAt: `${first}-10T08:00:00.000Z`, settledAt: `${first}-10T08:00:00.000Z`, reversalStatus: "none", refundStatus: "none", allocatedKobo: due.amountKobo, dueItemId: due.id } });
+      const allocation = makeRecord(state, "allocations", { name: "R1", status: "confirmed", customerId: customer.id, amountKobo: due.amountKobo, createdAt: ctx.now, data: { paymentId: payment.id, dueItemId: due.id, rule: "R1", confidence: "certain", automatic: true } });
+      store.appendAudit(state, ctx, "test.billing.fixture", terms.id, "Created labelled synthetic terms, reviewed by one person as an earlier build recorded them, and a canonical receipt.");
+      await store.saveState(ctx, state);
+      return { termsId: terms.id, allocationId: allocation.id };
+    });
+    const awaiting = /The discount dates await confirmation: a different Admin or Finance user from the person who proposed them must confirm them/;
+    assert.deepEqual([(await billing()).nextInvoicePricingReady, (await billing()).nextInvoicePeriod], [false, first]);
+    assert.match((await billing()).nextInvoicePricingExplanation, awaiting, "a single-person review awaits confirmation");
+    const refused = await staffAct("finance", "issue_invoice", { period: first });
+    assert.equal(refused.status, 409, JSON.stringify(refused.data));
+    assert.match(refused.data.error, awaiting, "the refusal names the missing confirmation");
+    const byReviewer = await staffAct("admin", "confirm_discount_terms", agreement, fixture.termsId);
+    assert.equal(byReviewer.status, 403, "its reviewer cannot confirm it");
+    const confirmed = ok(await staffAct("finance", "confirm_discount_terms", agreement, fixture.termsId));
+    assert.match(confirmed.message, /^Discount dates confirmed: 50% discount from /);
+    assert.deepEqual([confirmed.record.data.discountReview.confirmedBy, confirmed.record.data.discountReview.confirmedAt], [`Clerk:${finance}`, confirmed.record.updatedAt], "the second person and the database time are recorded");
+    assert.match(confirmed.record.data.discountReview.confirmedPrincipal, /\S/);
+    const again = await staffAct("finance", "confirm_discount_terms", agreement, fixture.termsId);
+    assert.equal(again.status, 409, "confirmed dates are not confirmed twice");
+    assert.equal((await billing()).nextInvoicePricingReady, true);
+    const firstInvoice = ok(await staffAct("finance", "issue_invoice", { period: first })).record;
+    assert.deepEqual([firstInvoice.data.designPartnerDiscount.rate, firstInvoice.data.usageLines.length, firstInvoice.data.usageLines[0].chargedKobo], [0.5, 1, 3_750]);
+    assert.deepEqual(firstInvoice.data.terms.discountReview, confirmed.record.data.discountReview, "the invoice keeps the proposal and its confirmation");
+    const originalInvoice = structuredClone(firstInvoice);
+
+    // One person changes the dates: a new proposal, bound to that person, that prices nothing until someone else confirms it.
+    let terms = await readTerms(fixture.termsId);
+    const previousTermsVersion = terms.updatedAt;
+    const amended = { ...agreement, fullPriceStartDate: `${second}-01` };
+    terms = ok(await staffCall("admin", `/v1/records/commercial/${terms.id}`, "PATCH", { expectedUpdatedAt: previousTermsVersion, data: { fullPriceStartDate: amended.fullPriceStartDate } }));
+    assert.deepEqual([terms.data.discountReview.reviewedBy, terms.data.discountReview.reviewedAt, terms.data.discountReview.confirmedBy], [`Clerk:${admin}`, terms.updatedAt, undefined], "a date change resets the confirmation");
+    assert.match(terms.data.discountReview.proposedPrincipal, /\S/);
+    assert.notEqual(terms.data.discountReview.proposedPrincipal, confirmed.record.data.discountReview.confirmedPrincipal, "two different people are recorded");
+    assert.equal((await staffCall("admin", `/v1/records/commercial/${terms.id}`, "PATCH", { expectedUpdatedAt: previousTermsVersion, name: "Stale change" })).status, 409);
+    const unconfirmed = await staffAct("finance", "issue_invoice", { period: second });
+    assert.equal(unconfirmed.status, 409);
+    assert.match(unconfirmed.data.error, awaiting);
+    const samePerson = await staffAct("admin", "confirm_discount_terms", amended, terms.id);
+    assert.equal(samePerson.status, 403, "the same principal cannot confirm its own proposal");
+    assert.match(samePerson.data.error, /A different person must confirm these discount dates/);
+    const staleView = await staffAct("finance", "confirm_discount_terms", agreement, terms.id);
+    assert.equal(staleView.status, 409, "a confirmation of the dates as they were read before the change is refused");
+    ok(await staffAct("finance", "confirm_discount_terms", amended, terms.id));
+    ok(await staffAct("finance", "review_allocation", { correct: false }, fixture.allocationId));
+    const secondInvoice = ok(await staffAct("finance", "issue_invoice", { period: second })).record;
+    assert.equal(secondInvoice.data.designPartnerDiscount.rate, 0, "the newly confirmed dates apply to the next invoice");
+    assert.deepEqual(secondInvoice.data.adjustments.map((line: any) => [line.originalInvoiceId, line.discountRate, line.kobo]),
+      [[firstInvoice.id, 0.5, -3_750]], "the correction refunds the original discounted charge, never the new public price");
+
+    // The agreement is corrected again and confirmed: both issued months now differ from it. They are reported, never rewritten, and invoicing goes on.
+    const corrected = { ...agreement, discountStartDate: `${second}-01` };
+    terms = ok(await staffCall("admin", `/v1/records/commercial/${terms.id}`, "PATCH", { expectedUpdatedAt: (await readTerms(terms.id)).updatedAt, data: { discountStartDate: corrected.discountStartDate, fullPriceStartDate: corrected.fullPriceStartDate } }));
+    ok(await staffAct("finance", "confirm_discount_terms", corrected, terms.id));
+    const differences = (await billing()).rateDiscrepancies.map((line: any) => [line.invoiceId, line.period, line.chargedRate, line.agreedRate]);
+    assert.deepEqual(differences, [[firstInvoice.id, first, 0.5, 0], [secondInvoice.id, second, 0, 0.5]], "each issued month the confirmed agreement prices differently is reported");
+    assert.match((await billing()).rateDiscrepancyGuidance, /Valo Pay has no way to correct an issued invoice's discount/);
+    const thirdInvoice = ok(await staffAct("finance", "issue_invoice", { period: third })).record;
+    assert.equal(thirdInvoice.data.designPartnerDiscount.rate, 0.5, "new invoices are priced from the confirmed dates");
+    assert.equal((await billing()).rateDiscrepancies.length, 2, "the new invoice agrees with the agreement");
+    const savedInvoices = ok(await staffCall("admin", "/v1/records/invoices")).items;
+    assert.deepEqual(savedInvoices.find((row: any) => row.id === firstInvoice.id), originalInvoice, "changed terms, a correction and a reported difference never rewrite an issued invoice");
+    console.log("Billing HTTP/PostgreSQL staff checks passed: an earlier single-person review awaiting confirmation, the reviewer and the same principal refused, a different principal confirming, pricing ready, a date change resetting the confirmation, historical-rate corrections and rate differences reported, never rewritten.");
+  }
   const readiness = ok(await call("/v1/team/readiness", "GET", undefined, { identity: "admin" }));
   assert.equal(readiness.canCommission, true);
   for (const path of ["/v1/team/readiness/encryption", "/v1/team/readiness/protect"]) assert.equal((await call(path, "POST", undefined, { identity: "admin" })).status, 503, `${path} needs a managed key, which this host does not have`);

@@ -131,6 +131,7 @@ export * from './decideCloseReviewInputAction';
 export * from './decideCloseReviewInputSourceExceptionsItem';
 export * from './decideCloseReviewParams';
 export * from './decideImportCorrectionParams';
+export * from './discountConfirmationData';
 export * from './downloadExportParams';
 export * from './effectiveCloseSchedule';
 export * from './effectiveCloseScheduleRuntimeState';

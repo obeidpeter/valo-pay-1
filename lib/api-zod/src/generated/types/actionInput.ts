@@ -8,7 +8,7 @@
 import type { RecordData } from './recordData';
 
 /**
- * An action to run: its name, the record it applies to, the reason for it and any data it needs. For confirm_allocation and reject_allocation, data is an AllocationDecisionData: both of its fields are required.
+ * An action to run: its name, the record it applies to, the reason for it and any data it needs. For confirm_allocation and reject_allocation, data is an AllocationDecisionData, and for confirm_discount_terms a DiscountConfirmationData: all of their fields are required.
  */
 export interface ActionInput {
   action: string;

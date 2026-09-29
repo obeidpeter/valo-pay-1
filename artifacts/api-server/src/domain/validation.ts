@@ -1,7 +1,7 @@
 import {
   ABSOLUTE_TICKET_FLOOR_KOBO, PLATFORM_OWNER, activationWorkflows, currencyMinorUnit, defaultStatus, describeIssues,
   editableKinds, exceptionCatalogue, exceptionTransitions, executionOwners, experimentRules, isActionOnlyStatus, mandateTransitions, normaliseFailureCode, observationEventKey,
-  normaliseOwner, policyGuardrails, recordDataSchemas, recordStatuses, recordTextLimits, resolveExceptionType, roles, isKnownFailureCode, isRealDate, templateTextProblems,
+  normaliseOwner, policyGuardrails, recordDataSchemas, recordStatuses, recordTextLimits, resolveExceptionType, roles, isKnownFailureCode, isRealDate, templateTextProblems, discountTermsStatus,
 } from "@workspace/valopay-schema";
 import { isDeepStrictEqual } from "node:util";
 import type { ZodIssue } from "zod";
@@ -392,13 +392,16 @@ export function validateRecord(
   if (["evidence", "experiments"].includes(kind)) requireRole(ctx, ["Admin"]);
   if (["commercial", "costs", "settlement-batches"].includes(kind)) requireRole(ctx, ["Admin", "Finance"]);
   if (kind === 'commercial') {
-    if (!isDeepStrictEqual(data.discountReview, existing?.data.discountReview)) throw new Error('The discount review identity is recorded by the service and cannot be supplied or edited.');
+    if (!isDeepStrictEqual(data.discountReview, existing?.data.discountReview)) throw new Error('Who proposed and who confirmed the discount dates is recorded by the service and cannot be supplied or edited.');
     const problem = discountDateProblem(data);
     if (problem) throw new Error(problem);
-    const reviewed = reviewedDiscount(data, ctx);
+    const proposal = reviewedDiscount(data, ctx);
     const pricingKeys = ['signed', 'signedFullPriceTerms', 'designPartner', 'discountStartDate', 'fullPriceStartDate', 'discountTermsReference'];
-    if (reviewed && (!existing?.data.discountReview || pricingKeys.some(key => !isDeepStrictEqual(data[key], existing?.data[key])))) data.discountReview = reviewed;
-    else if (!reviewed) delete data.discountReview;
+    // An edit that leaves the flags, dates and reference alone keeps their proposal and any confirmation; any other
+    // change, or a save of dates with no current proposal, proposes them afresh for a different person to confirm.
+    const kept = ['awaiting_confirmation', 'confirmed'].includes(discountTermsStatus(data).state) && pricingKeys.every(key => isDeepStrictEqual(data[key], existing?.data[key]));
+    if (proposal && !kept) data.discountReview = proposal;
+    else if (!proposal) delete data.discountReview;
   }
   // SCH-04: the business calendar decides when collections run, so only the roles that run them maintain it.
   if (kind === "calendar") requireRole(ctx, ["Admin", "Operations"]);
