@@ -7,7 +7,7 @@
  */
 
 /**
- * Attempted, removed and deferred counts from one bounded pass, plus pendingFailures: the count of all durable cleanup tombstones with last_failure set, including leased or delayed retries. A quiet poll or another file's success cannot clear a pending failure. No storage paths or tenant identities. Use the operator cleanup status command for full backlog depth and age.
+ * Attempted, removed and deferred counts from one bounded pass, plus two counts of durable cleanup tombstones: pendingFailures, those whose last attempt failed and that wait for a retry, including leased or delayed retries; and parked, those whose stored file's ownership, generation or checksum metadata did not match, parked for an operator's review with no further automatic attempt. A quiet poll or another file's success clears neither. parked is absent from builds before files were parked, which count such files among pendingFailures. No storage paths or tenant identities. Use the operator cleanup status command for full backlog depth and age, and to release or re-queue a parked file.
  */
 export interface CleanupPassResult {
   /** @minimum 0 */
@@ -18,4 +18,6 @@ export interface CleanupPassResult {
   deferred: number;
   /** @minimum 0 */
   pendingFailures: number;
+  /** @minimum 0 */
+  parked?: number;
 }

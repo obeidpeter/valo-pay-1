@@ -33,6 +33,26 @@ assert.equal(badCleanup.status, 1); assert.ok(!badCleanup.output.includes('synth
 assert.match(badCleanup.stderr, /Use: pnpm run check:export-cleanup/);
 const noCleanupDatabase = await run(cleanup, ['--']);
 assert.equal(noCleanupDatabase.status, 1); assert.match(noCleanupDatabase.stderr, /DATABASE_URL is required/);
+// Releasing a parked file needs its export ID and a reason, and one action at a time; a refusal repeats no value.
+for (const args of [['--release'], ['--release', 'synthetic-export'], ['--release', 'synthetic-export', '--reason'], ['--reason', 'Synthetic review note'], ['--requeue'], ['--requeue', 'synthetic-export', '--retry'],
+  ['--', '--release', 'synthetic-export', '--requeue', 'synthetic-export', '--reason', 'Synthetic review note'], ['--release=synthetic-export', '--reason', 'Synthetic review note'], ['--requeue', 'synthetic-export', '--requeue', 'synthetic-export']]) {
+  const refused = await run(cleanup, args, { DATABASE_URL: unusableDatabase });
+  assert.equal(refused.status, 1, args.join(' '));
+  assert.match(refused.stderr, /^Use: pnpm run check:export-cleanup \[-- --retry \| --requeue EXPORT_ID \| --release EXPORT_ID --reason "why"\]/, args.join(' '));
+  assert.ok(!refused.output.includes('synthetic-export') && !refused.output.includes('Synthetic review note'), args.join(' '));
+}
+for (const [args, refusal] of [[['--requeue', 'synthetic/export'], /^The export ID must be the queued export's ID/], [['--release', 'synthetic-export', '--reason', ' '], /^Give the release a reason/],
+  [['--release', 'synthetic-export', '--reason', 'x'.repeat(201)], /^Give the release a reason/], [['--release', 'synthetic-export', '--reason', 'Synthetic\nsecond line'], /^Give the release a reason/]]) {
+  const refused = await run(cleanup, args, { DATABASE_URL: unusableDatabase });
+  assert.equal(refused.status, 1, args.join(' '));
+  assert.match(refused.stderr, refusal, args.join(' '));
+  assert.ok(!refused.output.includes('synthetic/export') && !refused.output.includes('Synthetic'), args.join(' '));
+}
+// Re-queueing and releasing need only the database: with none they stop there.
+for (const args of [['--requeue', 'synthetic-export'], ['--release', 'synthetic-export', '--reason', 'Synthetic review note']]) {
+  const noDatabase = await run(cleanup, args);
+  assert.equal(noDatabase.status, 1, args.join(' ')); assert.match(noDatabase.stderr, /DATABASE_URL is required/, args.join(' '));
+}
 
 const monitor = "scripts/monitor-valopay.mjs";
 let result = await run(monitor, ["--"], { VALOPAY_MONITOR_ORIGIN: "https://127.0.0.1:1" });
@@ -160,4 +180,4 @@ try {
   assert.equal(connections, 0, "nothing was sent to a host that is not a Replit development domain");
 } finally { listener.close(); }
 
-console.log("Operator commands passed offline: options after pnpm's --, a named mistyped option, uncopied values, the monitor's dry run, its missing origin named and its careful failure, the Paystack check's refusals before any request, provision-pilot's three modes with their usage, staff-access check and store refusal before any connection, rewrap-payloads' usage, key settings and runtime schema refusal before any connection, and the smoke and security scripts' refusal of any host but a Replit development domain.");
+console.log("Operator commands passed offline: the cleanup command's refusals before it reaches the database, options after pnpm's --, a named mistyped option, uncopied values, the monitor's dry run, its missing origin named and its careful failure, the Paystack check's refusals before any request, provision-pilot's three modes with their usage, staff-access check and store refusal before any connection, rewrap-payloads' usage, key settings and runtime schema refusal before any connection, and the smoke and security scripts' refusal of any host but a Replit development domain.");

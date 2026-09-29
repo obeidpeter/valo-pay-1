@@ -34,6 +34,8 @@ export const healthCheckResponseBackgroundCleanupLastResultOneDeferredMin = 0;
 
 export const healthCheckResponseBackgroundCleanupLastResultOnePendingFailuresMin = 0;
 
+export const healthCheckResponseBackgroundCleanupLastResultOneParkedMin = 0;
+
 
 
 export const HealthCheckResponse = zod.object({
@@ -97,9 +99,10 @@ export const HealthCheckResponse = zod.object({
   "attempted": zod.number().int().min(healthCheckResponseBackgroundCleanupLastResultOneAttemptedMin),
   "removed": zod.number().int().min(healthCheckResponseBackgroundCleanupLastResultOneRemovedMin),
   "deferred": zod.number().int().min(healthCheckResponseBackgroundCleanupLastResultOneDeferredMin),
-  "pendingFailures": zod.number().int().min(healthCheckResponseBackgroundCleanupLastResultOnePendingFailuresMin)
-}).describe('Attempted, removed and deferred counts from one bounded pass, plus pendingFailures: the count of all durable cleanup tombstones with last_failure set, including leased or delayed retries. A quiet poll or another file\'s success cannot clear a pending failure. No storage paths or tenant identities. Use the operator cleanup status command for full backlog depth and age.'),zod.null()])
-}).describe('The worker\'s most recent bounded cleanup pass and aggregate queue read. Empty polls count as success only when no persisted failed tombstones remain. A rejected pass/read, deferred removal or pendingFailures above zero is failed; lastSuccessAt remains the last successful check. Null lastResult means no check or a rejected check. After a restart, pending until this worker checks; older timestamps remain evidence. Stale after three intervals plus 15 seconds without a completed check. This is not proof all queued files were deleted; ordinary leases or delayed work can remain.')
+  "pendingFailures": zod.number().int().min(healthCheckResponseBackgroundCleanupLastResultOnePendingFailuresMin),
+  "parked": zod.number().int().min(healthCheckResponseBackgroundCleanupLastResultOneParkedMin).optional()
+}).describe('Attempted, removed and deferred counts from one bounded pass, plus two counts of durable cleanup tombstones: pendingFailures, those whose last attempt failed and that wait for a retry, including leased or delayed retries; and parked, those whose stored file\'s ownership, generation or checksum metadata did not match, parked for an operator\'s review with no further automatic attempt. A quiet poll or another file\'s success clears neither. parked is absent from builds before files were parked, which count such files among pendingFailures. No storage paths or tenant identities. Use the operator cleanup status command for full backlog depth and age, and to release or re-queue a parked file.'),zod.null()])
+}).describe('The worker\'s most recent bounded cleanup pass and aggregate queue read. Empty polls count as success only when no persisted failed or parked tombstones remain. A rejected pass/read, deferred removal, or pendingFailures or parked above zero is failed; lastSuccessAt remains the last successful check. Null lastResult means no check or a rejected check. After a restart, pending until this worker checks; older timestamps remain evidence. Stale after three intervals plus 15 seconds without a completed check. This is not proof all queued files were deleted; ordinary leases or delayed work can remain.')
 }).optional().describe('This instance\'s worker, independently of scheduler mode. The main thread timestamps heartbeats received every 10 seconds; starting or running becomes stale after 45 seconds without one. restartCount counts new start attempts after the first; crashCount includes failed starts and unexpected exits. Both reset with the API process, not after a steady worker run. No tenant identities or error bodies are exposed.')
 }).describe('The liveness answer: the build, when the process started, its uptime, close scheduler and background worker observations. Background status is optional for older builds. Liveness stays ok while a worker fails; the monitor separately raises worker incidents.')
 

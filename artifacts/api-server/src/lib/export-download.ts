@@ -155,6 +155,16 @@ export async function writeExportBytes(file:File,bytes:Buffer,metadata:Record<st
   if(!response.ok)throw storageFailure(response.status,'saved');
  }finally{clearTimeout(timer);signal?.removeEventListener('abort',abort);controller.abort();}
 }
+/** Why a stored file is not the export it should be: its ownership, generation or checksum metadata does not match,
+ * which no retry changes, so it is never deleted. A bounded reason, never a storage response, path or credential. */
+export const EXPORT_IDENTITY_MISMATCHES=['ownership_mismatch','generation_invalid','artifact_metadata_invalid','checksum_mismatch'] as const;
+export type ExportIdentityMismatch=typeof EXPORT_IDENTITY_MISMATCHES[number];
+const identityMismatch=(mismatch:ExportIdentityMismatch,message:string)=>Object.assign(new Error(message),{mismatch});
+/** The mismatch a deletion was refused for; none for storage, network, a timeout or the delete's generation race, which a retry can clear. */
+export function exportIdentityMismatch(error:unknown):ExportIdentityMismatch|undefined{
+ const mismatch=error instanceof Error?(error as {mismatch?:unknown}).mismatch:undefined;
+ return EXPORT_IDENTITY_MISMATCHES.find(reason=>reason===mismatch);
+}
 /** Delete only the observed generation of this lender's immutable export.
  * A timed-out/lost acknowledgement is retried by reading metadata first. */
 export async function deleteRetainedExport(file:File,expected:{id:string;merchantId:string;checksum?:string}):Promise<'deleted'|'already_absent'>{
@@ -163,8 +173,9 @@ export async function deleteRetainedExport(file:File,expected:{id:string;merchan
   let metadata:Record<string,any>;
   try{metadata=await readExportMetadata(file,controller.signal,8000);}catch(error){if((error as any).statusCode===404)return 'already_absent';throw error;}
   const custom=metadata.metadata||{};
-  if(custom.valopayExportId!==expected.id||custom.valopayMerchantId!==expected.merchantId||!/^\d+$/.test(String(metadata.generation)))throw new Error('Export ownership or generation could not be verified.');
-  if(expected.checksum){let artifact;try{artifact=JSON.parse(String(custom.valopayArtifact));}catch{throw new Error('Export artifact metadata is invalid.');}if(artifact?.checksum!==expected.checksum)throw new Error('Export checksum metadata changed.');}
+  if(custom.valopayExportId!==expected.id||custom.valopayMerchantId!==expected.merchantId)throw identityMismatch('ownership_mismatch','Export ownership could not be verified.');
+  if(!/^\d+$/.test(String(metadata.generation)))throw identityMismatch('generation_invalid','Export generation could not be verified.');
+  if(expected.checksum){let artifact;try{artifact=JSON.parse(String(custom.valopayArtifact));}catch{throw identityMismatch('artifact_metadata_invalid','Export artifact metadata is invalid.');}if(artifact?.checksum!==expected.checksum)throw identityMismatch('checksum_mismatch','Export checksum metadata changed.');}
   const url=new URL(`/storage/v1/b/${encodeURIComponent(file.bucket.name)}/o/${encodeURIComponent(file.name)}`,file.storage.apiEndpoint);
   url.searchParams.set('ifGenerationMatch',String(metadata.generation));
   const headers=await beforeAbort(file.storage.authClient.getRequestHeaders(url.toString()),controller.signal);

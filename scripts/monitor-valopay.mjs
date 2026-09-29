@@ -109,7 +109,7 @@ function backgroundObservation(health, now, codes, warnings, timeoutMs) {
       || !count(worker.crashCount) || !count(worker.restartCount) || ![worker.startedAt, worker.lastHeartbeatAt, worker.lastCrashAt].every(nullableInstant)
       || !['disabled', 'pending', 'ok', 'failed', 'stale'].includes(cleanup?.state)
       || ![cleanup.lastCheckedAt, cleanup.lastSuccessAt, cleanup.lastErrorAt].every(nullableInstant)
-      || !(result === null || count(result?.attempted) && count(result?.removed) && count(result?.deferred) && count(result?.pendingFailures) && result.removed + result.deferred === result.attempted)
+      || !(result === null || count(result?.attempted) && count(result?.removed) && count(result?.deferred) && count(result?.pendingFailures) && (result.parked === undefined || count(result.parked)) && result.removed + result.deferred === result.attempted)
       || (worker.jobs.cleanup ? !positive(cleanup.intervalMs) || !positive(cleanup.staleAfterMs) || cleanup.state === 'disabled' : cleanup.state !== 'disabled' || cleanup.intervalMs !== null || cleanup.staleAfterMs !== null)) {
     codes.push('background_unverified'); return { background: 'unverified' };
   }
@@ -122,8 +122,15 @@ function backgroundObservation(health, now, codes, warnings, timeoutMs) {
   if (worker.jobs.cleanup) {
     if (cleanup.state === 'pending' && fresh(worker.startedAt, cleanup.staleAfterMs)) { warnings.push('background_cleanup_pending'); pending.background_cleanup_pending = cleanup.staleAfterMs; }
     else if (cleanup.state === 'stale' || !fresh(cleanup.lastCheckedAt, cleanup.staleAfterMs)) codes.push('background_cleanup_stale');
-    else if (cleanup.state === 'failed') codes.push('background_cleanup_failed');
-    else if (cleanup.state !== 'ok' || !result || result.deferred > 0 || result.pendingFailures > 0 || cleanup.lastSuccessAt !== cleanup.lastCheckedAt) codes.push('background_unverified');
+    else if (cleanup.state === 'failed') {
+      // A file parked for an operator's review, whose identity did not match, is no failed check: no retry changes it,
+      // and only a release or re-queue after review ends it. The pass that parks it counts it as deferred, while a
+      // failure awaiting a retry is counted in pendingFailures. Any such failure, or a failed check from a build that
+      // does not count parked files, is a failed check.
+      if (!(result?.parked > 0) || result.pendingFailures > 0) codes.push('background_cleanup_failed');
+      if (result?.parked > 0) codes.push('background_cleanup_needs_review');
+    }
+    else if (cleanup.state !== 'ok' || !result || result.deferred > 0 || result.pendingFailures > 0 || result.parked > 0 || cleanup.lastSuccessAt !== cleanup.lastCheckedAt) codes.push('background_unverified');
   }
   // Any text Date.parse reads is a time, so each time is copied in ISO form.
   const iso = value => value === null ? null : new Date(Date.parse(value)).toISOString();
@@ -132,7 +139,7 @@ function backgroundObservation(health, now, codes, warnings, timeoutMs) {
     background: { state: worker.state, jobs: Object.fromEntries(['closes', 'backlog', 'exports', 'cleanup'].map(key => [key, worker.jobs[key]])),
       lastHeartbeatAt: iso(worker.lastHeartbeatAt), crashCount: worker.crashCount, restartCount: worker.restartCount, lastCrashAt: iso(worker.lastCrashAt),
       cleanup: { state: cleanup.state, lastCheckedAt: iso(cleanup.lastCheckedAt), lastSuccessAt: iso(cleanup.lastSuccessAt), lastErrorAt: iso(cleanup.lastErrorAt),
-        lastResult: result && { attempted: result.attempted, removed: result.removed, deferred: result.deferred, pendingFailures: result.pendingFailures } } },
+        lastResult: result && { attempted: result.attempted, removed: result.removed, deferred: result.deferred, pendingFailures: result.pendingFailures, ...(result.parked === undefined ? {} : { parked: result.parked }) } } },
     ...(Object.keys(pending).length ? { startupWindowsMs: pending, backgroundReadWithinMs: Math.max(...Object.values(pending)) } : {}),
   };
 }

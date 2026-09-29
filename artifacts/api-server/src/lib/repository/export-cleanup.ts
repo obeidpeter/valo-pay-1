@@ -1,6 +1,6 @@
 /** Internal repository export-cleanup. Import through valopay-store; external access is rejected by the boundary check. */
 import type { PoolClient } from "@workspace/db";
-import { deleteRetainedExport } from "../export-download";
+import { deleteRetainedExport, exportIdentityMismatch } from "../export-download";
 import { objectStorageClient } from "../objectStorage";
 import {
   runtimeIsolationEnabled,
@@ -283,17 +283,20 @@ export function createExportCleanupRepository(dependencies: Dependencies) {
         result.removed++;
       } catch (error) {
         result.deferred++;
-        // A bounded code, never a storage response, private path or credential. Retry retains the ownership guard;
-        // an object whose identity changed remains queued for an operator to investigate, never deleted by force.
-        const retrySeconds = Math.min(
-          3600,
-          30 * 2 ** Math.min(row.attempts - 1, 7),
-        );
+        // A bounded code, never a storage response, private path or credential. Storage, network, a timeout or the
+        // delete's generation race is retried with backoff, under the same ownership guard. An object whose identity
+        // does not match (exportIdentityMismatch) is parked instead: no retry changes it and it is never deleted by
+        // force, so it waits for an operator's review with no further automatic attempt (next_attempt_at 'infinity').
+        const mismatch = exportIdentityMismatch(error);
+        const failure = mismatch ?? "storage_or_queue_unavailable";
+        const retrySeconds = mismatch
+          ? null
+          : Math.min(3600, 30 * 2 ** Math.min(row.attempts - 1, 7));
         await runtimeServiceRead((client) =>
           client.query(
-            `UPDATE valopay_export_cleanup SET lease_token=NULL,lease_until=NULL,last_failure='storage_or_queue_unavailable',
-        next_attempt_at=now()+make_interval(secs=>$3),updated_at=now() WHERE id=$1 AND lease_token=$2`,
-            [row.id, token, retrySeconds],
+            `UPDATE valopay_export_cleanup SET lease_token=NULL,lease_until=NULL,last_failure=$3,
+        next_attempt_at=CASE WHEN $4::int IS NULL THEN 'infinity'::timestamptz ELSE now()+make_interval(secs=>$4::int) END,updated_at=now() WHERE id=$1 AND lease_token=$2`,
+            [row.id, token, failure, retrySeconds],
           ),
         );
         try {
@@ -302,10 +305,12 @@ export function createExportCleanupRepository(dependencies: Dependencies) {
               event: "workspace.sweep_file_left",
               exportId: row.id,
               merchantId: row.merchant_id,
-              reason: "failed",
-              retrySeconds,
+              reason: failure,
+              ...(retrySeconds === null ? { parked: true } : { retrySeconds }),
             },
-            "Private export cleanup failed and remains queued for retry",
+            retrySeconds === null
+              ? "Private export cleanup found a file whose identity does not match; it is parked for an operator's review"
+              : "Private export cleanup failed and remains queued for retry",
           );
         } catch {
           /* no effect on work */
@@ -315,25 +320,100 @@ export function createExportCleanupRepository(dependencies: Dependencies) {
     return result;
   }
 
-  /** Operator-only aggregate status. No export payload, customer identifier or private storage path is returned. */
-  async function exportCleanupStatus() {
+  const serviceOnly = () => {
     if (runtimeIsolationEnabled())
       fail(
         "Export cleanup is owned by the sandbox service, outside restricted tenant runtimes.",
         403,
       );
+  };
+  /** Operator-only aggregate status. No export payload, customer identifier or private storage path is returned.
+   * failed counts files waiting for a retry after a failed attempt; parked, those parked for an operator's review. */
+  async function exportCleanupStatus() {
+    serviceOnly();
     const row = await runtimeServiceRead(
       async (client) =>
         (
-          await client.query<{ pending: number; leased: number; ready: number; retried: number; failed: number; oldest: Date | null }>(`SELECT count(*)::int AS pending,
+          await client.query<{ pending: number; leased: number; ready: number; retried: number; failed: number; parked: number; oldest: Date | null }>(`SELECT count(*)::int AS pending,
     count(*) FILTER (WHERE lease_until>now())::int AS leased,
     count(*) FILTER (WHERE next_attempt_at<=now() AND (lease_until IS NULL OR lease_until<=now()))::int AS ready,
     count(*) FILTER (WHERE attempts>0)::int AS retried,
-    count(*) FILTER (WHERE last_failure IS NOT NULL)::int AS failed,
+    count(*) FILTER (WHERE last_failure IS NOT NULL AND next_attempt_at<>'infinity')::int AS failed,
+    count(*) FILTER (WHERE next_attempt_at='infinity')::int AS parked,
     min(created_at) AS oldest FROM valopay_export_cleanup`)
         ).rows[0]!,
     );
     return { ...row, oldest: row.oldest?.toISOString() ?? null };
+  }
+
+  /** Operator-only: the files parked for review, longest parked first, with why; never their storage location. */
+  async function parkedExportFiles(limit = 20) {
+    serviceOnly();
+    const rows = await runtimeServiceRead(
+      async (client) =>
+        (
+          await client.query<{ id: string; merchant_id: string; last_failure: string; attempts: number; updated_at: Date }>(
+            "SELECT id,merchant_id,last_failure,attempts,updated_at FROM valopay_export_cleanup WHERE next_attempt_at='infinity' ORDER BY updated_at,id LIMIT $1",
+            [Math.max(1, Math.min(100, Math.floor(limit)))],
+          )
+        ).rows,
+    );
+    return rows.map((row) => ({ exportId: row.id, merchantId: row.merchant_id, failure: row.last_failure, attempts: row.attempts, since: row.updated_at.toISOString() }));
+  }
+  const notParked = () =>
+    fail("No parked file has that export ID; nothing was changed.", 404);
+  /** Operator-only, after review: makes a parked file due again with no failure recorded, for the next pass to attempt
+   * under the same ownership guard. A file whose identity still does not match is parked again, never deleted. */
+  async function requeueParkedExportFile(exportId: string) {
+    serviceOnly();
+    return runtimeServiceRead(async (client) => {
+      const row = (
+        await client.query<{ merchant_id: string; last_failure: string }>(
+          "SELECT merchant_id,last_failure FROM valopay_export_cleanup WHERE id=$1 AND next_attempt_at='infinity' FOR UPDATE",
+          [exportId],
+        )
+      ).rows[0];
+      if (!row) return notParked();
+      await client.query(
+        "UPDATE valopay_export_cleanup SET last_failure=NULL,next_attempt_at=now(),updated_at=now() WHERE id=$1",
+        [exportId],
+      );
+      return { exportId, merchantId: row.merchant_id, failure: row.last_failure };
+    });
+  }
+  /** Operator-only, after review: removes a parked file's tombstone, the operator's reason logged
+   * (workspace.sweep_file_released). Its object is left in storage: nothing whose identity does not match is deleted. */
+  async function releaseParkedExportFile(
+    exportId: string,
+    reason: string,
+    log: { warn(fields: object, message: string): void },
+  ) {
+    serviceOnly();
+    const why = reason.trim();
+    if (!/^[^\p{Cc}\u2028\u2029]{1,200}$/u.test(why))
+      fail(
+        "Give the release a reason of 1 to 200 characters on one line: it is written to the service log.",
+      );
+    const row = await runtimeServiceRead(
+      async (client) =>
+        (
+          await client.query<{ merchant_id: string; last_failure: string }>(
+            "DELETE FROM valopay_export_cleanup WHERE id=$1 AND next_attempt_at='infinity' RETURNING merchant_id,last_failure",
+            [exportId],
+          )
+        ).rows[0],
+    );
+    if (!row) return notParked();
+    const released = { exportId, merchantId: row.merchant_id, failure: row.last_failure };
+    try {
+      log.warn(
+        { event: "workspace.sweep_file_released", ...released, reason: why },
+        "An operator released a parked private export file from cleanup after review; its object is left in storage",
+      );
+    } catch {
+      /* the release stands, and the command reports it */
+    }
+    return released;
   }
   return {
     sweepExpiredWorkspaces,
@@ -341,5 +421,8 @@ export function createExportCleanupRepository(dependencies: Dependencies) {
     removeSweptExportFiles,
     runExportCleanupPass,
     exportCleanupStatus,
+    parkedExportFiles,
+    requeueParkedExportFile,
+    releaseParkedExportFile,
   };
 }

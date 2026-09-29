@@ -134,6 +134,21 @@ await section("keys in the contract", () => {
   }
 });
 
+// ---- 2b. The health answer's cleanup result counts files parked for review apart, and an older answer without the count still parses ----
+await section("parked cleanup files", async () => {
+  const result = schemas.CleanupPassResult;
+  assert.deepEqual(result.properties.parked, { type: "integer", minimum: 0 }, "the cleanup result counts files parked for an operator's review");
+  assert.ok(!result.required.includes("parked"), "the count is optional: an older build's answer has none");
+  const { HealthCheckResponse } = await import("@workspace/api-zod");
+  const cleanup = (lastResult: object) => ({ status: "ok", build: "fixture", startedAt: "2026-09-29T10:00:00.000Z", uptimeSeconds: 1, scheduler: { state: "off", intervalMs: null, ticks: 0, lastTickAt: null, lastRun: null },
+    background: { state: "running", jobs: { closes: false, backlog: false, exports: true, cleanup: true }, heartbeatIntervalMs: 10_000, staleAfterMs: 45_000, startedAt: null, lastHeartbeatAt: null, crashCount: 0, restartCount: 0, lastCrashAt: null,
+      cleanup: { state: "failed", intervalMs: 60_000, staleAfterMs: 195_000, lastCheckedAt: null, lastSuccessAt: null, lastErrorAt: null, lastResult } } });
+  assert.equal(HealthCheckResponse.parse(cleanup({ attempted: 0, removed: 0, deferred: 0, pendingFailures: 1 })).background?.cleanup.lastResult?.parked, undefined, "an older build's answer parses");
+  assert.equal(HealthCheckResponse.parse(cleanup({ attempted: 0, removed: 0, deferred: 0, pendingFailures: 0, parked: 2 })).background?.cleanup.lastResult?.parked, 2, "and a newer one keeps its count");
+  assert.equal(HealthCheckResponse.safeParse(cleanup({ attempted: 0, removed: 0, deferred: 0, pendingFailures: 0, parked: -1 })).success, false);
+  checks += 5;
+});
+
 // ---- 3. The routes, answered before any query ----
 const { default: app } = await import("../src/app.js");
 const server = app.listen(0);
@@ -282,5 +297,5 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log(`API contract checks passed (${checks} checks): the error body and statuses, the 422 of an operation that computes money, the Idempotency-Key each write takes and the 410 of a repeat after retention, a missing merchantId, unreadable bodies on writes without one, offset date-times, the versions edits require and the documented refusals.`);
+console.log(`API contract checks passed (${checks} checks): the error body and statuses, the 422 of an operation that computes money, the Idempotency-Key each write takes and the 410 of a repeat after retention, the health answer's optional count of parked cleanup files, a missing merchantId, unreadable bodies on writes without one, offset date-times, the versions edits require and the documented refusals.`);
 process.exit(0);
