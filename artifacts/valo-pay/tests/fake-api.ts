@@ -112,12 +112,15 @@ function toHttpError(error: unknown): { status: number; body: unknown } {
 type Handler = (params: Record<string, string>, query: Record<string, string>, body: any) => unknown;
 
 export function installFakeApi(options: { now?: string; role?: string; queuedExports?: boolean } = {}): FakeApi {
+  // One captured instant: separately reading the clock can make a simulated
+  // service success newer than the failure a test arranges at api.now.
+  const now = options.now ?? new Date().toISOString();
   const states = new Map<string, DomainState>();
   const failures: Array<{ pattern: RegExp; method?: string; failure: { status: number; error: string; details?: Array<{ field: string; message: string }>; headers?: Record<string, string> } | "offline" }> = [];
   const holds: Array<{ pattern: RegExp; promise: Promise<void> }> = [];
   const api: FakeApi = {
-    merchantIds: [], role: options.role ?? "Admin", principalId: 'synthetic-console-person-1', now: options.now ?? new Date().toISOString(), calls: [],
-    scheduler: { state: 'running', intervalMs: 60_000, lastTickAt: options.now ?? new Date().toISOString(), lastSuccessAt: options.now ?? new Date().toISOString(), lastErrorAt: null },
+    merchantIds: [], role: options.role ?? "Admin", principalId: 'synthetic-console-person-1', now, calls: [],
+    scheduler: { state: 'running', intervalMs: 60_000, lastTickAt: now, lastSuccessAt: now, lastErrorAt: null },
     state(merchantId) { const id = merchantId ?? api.merchantIds[0]!; return states.get(id) ?? fail("Lender not found in this workspace.", 404); },
     mutate(fn, merchantId) { return withState(merchantId ?? api.merchantIds[0]!, fn, { action: "test.mutation", objectId: "workspace", summary: "Arranged by a console test" }); },
     lifecycleExternal: [],

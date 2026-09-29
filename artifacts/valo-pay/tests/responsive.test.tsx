@@ -23,7 +23,7 @@ describe("responsive layout", () => {
     expect(lenders).toHaveLength(2);
     expect(lenders.map((select) => select.value)).toEqual([api.merchantIds[0], api.merchantIds[0]]);
     const [sidebarPages] = screen.getAllByRole("navigation", { name: "Pages" });
-    const sidebarLabels = within(sidebarPages!).getAllByRole("link").map((link) => link.textContent);
+    const sidebarLabels = within(sidebarPages!).getAllByRole("link").map((link) => link.getAttribute("aria-label") || link.textContent);
     expect(sidebarLabels).toHaveLength(25);
     expect(within(sidebarPages!).getByRole('link', { name: 'Presentation' }).getAttribute('href')).toBe('/presentation');
     expect(sidebarLabels).toEqual(expect.arrayContaining(['My work','Data sources','Close review','Data retention','Saved exports']));
@@ -35,8 +35,9 @@ describe("responsive layout", () => {
 
     await user.click(screen.getByRole("button", { name: "Menu" }));
     const drawer = await screen.findByRole("dialog", { name: "Menu" });
-    const drawerLabels = within(drawer).getAllByRole("link").map((link) => link.textContent);
+    const drawerLabels = within(within(drawer).getByRole("navigation", { name: "Pages" })).getAllByRole("link").map((link) => link.getAttribute("aria-label") || link.textContent);
     expect(drawerLabels).toEqual(sidebarLabels);
+    expect(within(drawer).getByRole("link", { name: "Help & glossary" }).getAttribute("href")).toBe("/help");
     // The same named groups, in the same order.
     expect(groupNames(within(drawer).getByRole("navigation", { name: "Pages" }))).toEqual(sidebarGroups);
     expect(within(drawer).getByRole('link', { name: 'Saved exports' }).getAttribute('href')).toBe('/exports');
@@ -91,7 +92,7 @@ describe("responsive layout", () => {
     await screen.findByRole("heading", { name: "Operations overview" });
     const [sidebarPages] = screen.getAllByRole("navigation", { name: "Pages" });
     const groups = within(sidebarPages!).getAllByRole("group");
-    const named = groups.map((group) => [document.getElementById(group.getAttribute("aria-labelledby")!)!.textContent, within(group).getAllByRole("link").map((link) => link.textContent)]);
+    const named = groups.map((group) => [document.getElementById(group.getAttribute("aria-labelledby")!)!.textContent, within(group).getAllByRole("link").map((link) => link.getAttribute("aria-label") || link.textContent)]);
     expect(named).toEqual([
       ["Daily work", ["Overview", "My work", "Exceptions", "Reconciliation", "Collections", "Import batches", "Close review"]],
       ["Customers and policies", ["Customers", "Mandates", "Policies & templates"]],
@@ -100,9 +101,10 @@ describe("responsive layout", () => {
       ["Setup and administration", ["Pilot journey", "Data sources", "Operations", "Team & access", "Data retention", "Settings", "Presentation"]],
     ]);
     const links = within(sidebarPages!).getAllByRole("link");
+    for (const link of links) expect(document.getElementById(link.getAttribute("aria-describedby")!)?.textContent).toBeTruthy();
     const icons = links.map((link) => [...link.querySelector("svg")!.classList].find((name) => name.startsWith("lucide-")));
     expect(new Set(icons).size).toBe(links.length);
-    expect(new Set(links.map((link) => link.textContent)).size).toBe(links.length);
+    expect(new Set(links.map((link) => link.getAttribute("aria-label") || link.textContent)).size).toBe(links.length);
     // Every page the console routes to has a link; only the record pages (a customer, a case) are reached from their lists.
     const app = [join(process.cwd(), "src", "App.tsx"), join(process.cwd(), "artifacts", "valo-pay", "src", "App.tsx")].find((candidate) => existsSync(candidate))!;
     const routes = [...readFileSync(app, "utf8").matchAll(/path: '(\/[^']+)'/g)].map((match) => match[1]!).filter((path) => !path.includes(":"));

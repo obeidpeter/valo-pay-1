@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { PublicFrame } from "@/components/public-frame";
 import { Button } from "@/components/ui/button";
+import { ContextualHelp } from "@/components/contextual-help";
 import { authEnabled, ClerkSlot, ClerkSignIn, ClerkSignUp } from "@/lib/auth";
 import "@/sign-in.css";
 
@@ -31,10 +32,12 @@ const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 function Shell({
   title,
   intro,
+  returnTo,
   children,
 }: {
   title: string;
   intro: string;
+  returnTo: "/sign-in" | "/sign-up";
   children: ReactNode;
 }) {
   useEffect(() => {
@@ -63,6 +66,7 @@ function Shell({
             <ShieldCheck aria-hidden="true" />
             <span>Signing in does not activate live financial services.</span>
           </p>
+          <ContextualHelp topic="access" returnTo={returnTo} className="mt-4" />
         </div>
         <aside aria-labelledby="context-title" className="auth-context">
           <h2 id="context-title" className="auth-eyebrow">
@@ -208,6 +212,7 @@ function SandboxOption() {
 export function SignInPage() {
   return (
     <Shell
+      returnTo="/sign-in"
       title="Sign in to your workspace"
       intro="Return to the collections, credit reviews and business cash plans saved in your account."
     >
@@ -233,6 +238,7 @@ export function SignInPage() {
 export function SignUpPage() {
   return (
     <Shell
+      returnTo="/sign-up"
       title="Create your workspace"
       intro="Create an account-linked workspace for collections, credit reviews and business cash planning."
     >

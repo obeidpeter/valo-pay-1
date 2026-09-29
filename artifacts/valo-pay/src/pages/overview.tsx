@@ -1,5 +1,6 @@
 import React from 'react';
 import { ConnectedIntroduction } from '@/components/connected-introduction';
+import { GetStarted } from '@/components/get-started';
 import { Link } from 'wouter';
 import { ScrollFrame } from '@/components/scroll-frame';
 import { EmptyRow, EmptyState } from '@/components/empty-state';
@@ -32,12 +33,14 @@ const metricIcons = [ArrowDownLeft, ArrowUpRight, CheckCheck, AlertCircle];
 
 /** The overview's heading, the same while its figures load, when they are shown and when they could not be loaded. */
 function OverviewHeader() {
+  const { workspace, merchantId } = useWorkspace();
+  const lender = workspace?.merchants.find(merchant => merchant.id === merchantId);
   return (
     <header className="flex flex-wrap items-end justify-between gap-4">
       <div>
         <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Your workspace at a glance</p>
         <h1 className="text-3xl font-bold tracking-tight">Operations overview</h1>
-        <p className="mt-2 text-sm text-muted-foreground">Track collections, unpaid instalments and work that needs your attention.</p>
+        <p className="mt-2 text-sm text-muted-foreground">{lender?.name || 'This lender'}’s workspace brings customer records, payment matches and issues needing review together{workspace?.environment === 'sandbox' ? ' using sample data only' : ''}.</p>
       </div>
       <Button asChild variant="outline" className="gap-2"><Link href="/reports"><FileBarChart2 aria-hidden="true" className="h-4 w-4" /> View reports</Link></Button>
     </header>
@@ -45,17 +48,17 @@ function OverviewHeader() {
 }
 
 export default function OverviewPage() {
-  const { merchantId } = useWorkspace();
+  const { merchantId, workspace } = useWorkspace();
   const overviewQuery = useGetOverview(
     { merchantId: merchantId! },
     { query: { enabled: !!merchantId, refetchInterval: 60_000, queryKey: getGetOverviewQueryKey({ merchantId: merchantId! }) } }
   );
   const { data: overview, isLoading, error, refetch } = overviewQuery;
 
-  if (!merchantId) return null;
-  if (isLoading) return <Loading what="the overview" heading />;
+  if (!merchantId) return <div className="space-y-6"><OverviewHeader /><section className="rounded-xl border bg-card" aria-label="Lender access"><EmptyState title="No lender workspace is available" action={<Button asChild><Link href={workspace?.role === 'Admin' ? '/pilot' : '/help?topic=access'}>{workspace?.role === 'Admin' ? 'Set up a sample lender' : 'Understand lender access'}</Link></Button>}>{workspace?.role === 'Admin' ? 'Create a sample lender to begin the pilot journey. Staff access and acceptance for real data remain separate checks.' : 'Ask your organisation’s administrator to assign the lender you should work with. Signing in does not grant access to every lender; there are no lender records to show here yet.'}</EmptyState></section></div>;
+  if (isLoading) return <div className="space-y-6"><Loading what="the overview" heading /><GetStarted /></div>;
   // A failed refresh keeps the figures on the page, with a notice; only a first load that failed shows this card, under the page's heading.
-  if (error && !overview) return <div className="space-y-6"><OverviewHeader /><div role="alert" className="rounded-xl border bg-card p-6"><p className="font-semibold">Unable to load the overview</p><p className="mt-1 text-sm text-muted-foreground">Your records are unchanged. Try loading this page again.</p><Button variant="outline" className="mt-4" onClick={() => refetch()}>Try again</Button></div></div>;
+  if (error && !overview) return <div className="space-y-6"><OverviewHeader /><GetStarted /><div role="alert" className="rounded-xl border bg-card p-6"><p className="font-semibold">Unable to load the overview</p><p className="mt-1 text-sm text-muted-foreground">Your records are unchanged. Try loading this page again.</p><Button variant="outline" className="mt-4" onClick={() => refetch()}>Try again</Button></div></div>;
   if (!overview) return null;
 
   const upcoming = [...overview.upcoming].sort((a, b) => String(a.data.dueDate || '').localeCompare(String(b.data.dueDate || '')));
@@ -66,6 +69,8 @@ export default function OverviewPage() {
 
       <RefreshProblem what="The overview" query={overviewQuery} />
 
+      <GetStarted overview={overview} />
+
       <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl border bg-card px-4 py-3 text-xs text-muted-foreground">
         <span className="inline-flex items-center gap-2 font-medium text-foreground"><Clock aria-hidden="true" className="h-4 w-4 text-muted-foreground" /> Daily close</span>
         <p>Last close: {overview.lastClose ? formatDate(overview.lastClose) : 'Not closed yet'}</p>
@@ -75,7 +80,7 @@ export default function OverviewPage() {
 
       <section aria-labelledby="overview-metrics-title">
         <h2 id="overview-metrics-title" className="sr-only">Key metrics</h2>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4 print:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-4 print:grid-cols-2">
           {overview.metrics.map((metric, index) => {
             const Icon = metricIcons[index % metricIcons.length];
             return (
@@ -84,7 +89,7 @@ export default function OverviewPage() {
                   <p className="text-xs font-medium text-muted-foreground">{metric.label}</p>
                   <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${metric.key === 'settled' ? 'bg-success/10 text-success' : metric.key === 'exceptions' ? 'bg-warning text-warning-foreground' : 'bg-secondary/60 text-muted-foreground'}`}><Icon aria-hidden="true" className="h-4 w-4" /></span>
                 </div>
-                <p className="mt-4 break-words text-[1.75rem] font-semibold leading-none tracking-tight tabular-nums">
+                <p className="mt-4 overflow-x-auto whitespace-nowrap text-[1.75rem] font-semibold leading-tight tracking-tight tabular-nums">
                   {metric.unit === 'kobo' ? formatKobo(metric.value) : metric.unit === 'percent' ? formatPercent(metric.value / 100) : formatNumber(metric.value)}
                   {metric.unit !== 'kobo' && metric.unit !== 'percent' && metric.unit !== 'count' && <span className="ml-1 text-sm font-normal text-muted-foreground">{metric.unit}</span>}
                 </p>

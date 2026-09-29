@@ -7,7 +7,7 @@ import { Button } from './ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from './ui/sheet';
 import { BrandLockup } from './brand';
 import { ErrorBoundary, ErrorNotice } from './error-boundary';
-import { focusMain, useDialogActivationTracking } from '@/lib/focus';
+import { focusMain, useConsoleViewportReset, useDialogActivationTracking } from '@/lib/focus';
 import { formatDate } from '@/lib/formatters';
 import { useTheme } from '@/lib/theme';
 import { SandboxGuide } from './sandbox-guide';
@@ -16,6 +16,45 @@ import { useQueuePosition } from '@/lib/queue-position';
 import { WorkspaceRefreshProblem } from './workspace-unavailable';
 import { SubmissionRecoveryNotice } from './submission-recovery-notice';
 import { getCountPendingOperationsQueryKey, useCountPendingOperations } from '@workspace/api-client-react';
+import { ContextualHelp } from './contextual-help';
+import type { HelpTopicId } from '@/lib/help-content';
+
+const pageDescriptions: Record<string, string> = {
+  '/overview': 'See what needs attention and where to start.',
+  '/work': 'Find your assigned issues and handovers.',
+  '/exceptions': 'Issues that need investigation and a recorded resolution.',
+  '/reconciliation': 'Match payments to bills or repayments.',
+  '/collections': 'Track repayments and collection attempts.',
+  '/imports': 'Review a file, save a batch and commit valid records.',
+  '/close-review': 'Prepare a close for a separate reviewer.',
+  '/customers': 'Find a customer and their payment history.',
+  '/mandates': 'Permissions for recurring bank debits.',
+  '/policies': 'Review collection rules and message templates.',
+  '/pay-by-bank': 'Create and track a request to pay an instalment.',
+  '/credit-desk': 'Prepare and review an applicant’s assessment.',
+  '/cash-desk': 'Understand business cash and prepare accounting or payroll work.',
+  '/connections': 'Review specific permissions and capability readiness.',
+  '/reports': 'Review results, billing and daily close evidence.',
+  '/exports': 'Retrieve generated files and check their saved status.',
+  '/audit': 'Inspect the history of recorded changes.',
+  '/evidence': 'Review commercial terms and go-live requirements.',
+  '/pilot': 'Follow saved progress or set up a lender.',
+  '/sources': 'Describe incoming files and provider evidence.',
+  '/operations': 'Check unconfirmed requests before sending them again.',
+  '/team': 'Review invitations and staff access.',
+  '/lifecycle': 'Administrator controls for data retention.',
+  '/settings': 'Review workspace settings and keyboard shortcuts.',
+  '/presentation': 'Explore a guided sample presentation.',
+};
+const helpTopics: Record<string, HelpTopicId> = {
+  '/overview': 'start', '/work': 'cases', '/exceptions': 'cases', '/reconciliation': 'matching',
+  '/collections': 'matching', '/imports': 'imports', '/close-review': 'close', '/customers': 'exports',
+  '/mandates': 'mandates', '/policies': 'policies', '/pay-by-bank': 'payment-status',
+  '/credit-desk': 'credit-review', '/cash-desk': 'cash', '/connections': 'permissions',
+  '/reports': 'close', '/exports': 'exports', '/audit': 'recovery', '/evidence': 'start',
+  '/pilot': 'start', '/sources': 'imports', '/operations': 'recovery', '/team': 'access',
+  '/lifecycle': 'exports', '/settings': 'start', '/presentation': 'start',
+};
 
 type NavItem = { href: string; label: string; icon: LucideIcon };
 /**
@@ -83,23 +122,39 @@ export function revealCurrentPage(list: HTMLElement | null): void {
 function NavLinks({ location, spacious = false, onNavigate, pending = 0 }: { location: string; spacious?: boolean; onNavigate?: () => void; pending?: number }) {
   // The sidebar and the drawer each render the list, so their group names need ids of their own.
   const id = useId();
+  const { workspace } = useWorkspace();
+  const [filter, setFilter] = useState('');
+  const normalise = (value: string) => value.toLocaleLowerCase().replace(/[-&]/g, ' ').replace(/\s+/g, ' ').trim();
+  const query = normalise(filter);
+  const groups = navGroups.map(group => ({ ...group, items: group.items.filter(item =>
+    (item.href !== '/lifecycle' || workspace?.role === 'Admin') &&
+    (!query || query.split(' ').every(word => normalise(`${item.label} ${pageDescriptions[item.href]}`).includes(word)))
+  ) })).filter(group => group.items.length);
+  const pageCount = groups.reduce((count, group) => count + group.items.length, 0);
   return (
     <>
-      {navGroups.map((group, index) => (
+      <div className="mb-3 space-y-1">
+        <label htmlFor={`${id}-find-page`} className="block px-1 text-xs font-medium">Find a page</label>
+        <input id={`${id}-find-page`} type="search" value={filter} onChange={event => setFilter(event.target.value)} onKeyDown={event => { if (event.key === 'Escape' && filter) { event.stopPropagation(); setFilter(''); } }} placeholder="Try payments or payroll" className="min-h-10 w-full rounded-lg border bg-background px-3 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" />
+        {query && <p role="status" className="px-1 text-xs text-muted-foreground">{pageCount} {pageCount === 1 ? 'page' : 'pages'} found. This searches page names, not records.</p>}
+        {query && <button type="button" onClick={() => setFilter('')} className="min-h-9 px-1 text-xs font-medium underline">Clear page search</button>}
+      </div>
+      {groups.map((group, index) => (
         <div key={group.id} role="group" aria-labelledby={`${id}-${group.id}`} className="space-y-0.5">
           <p id={`${id}-${group.id}`} className={`nav-group-label ${index > 0 ? 'mt-2' : 'mt-0'}`}>{group.label}</p>
           {group.items.map(item => {
             const active = location === item.href || location.startsWith(`${item.href}/`);
             return (
-              <Link key={item.href} href={item.href} aria-current={active ? 'page' : undefined} onClick={onNavigate} className={`console-nav-link flex items-center gap-3 px-3 rounded-lg text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${spacious ? 'py-3' : 'py-1.5'} ${active ? 'is-active' : 'text-muted-foreground hover:bg-secondary hover:text-foreground'}`}>
-                <item.icon className="h-4 w-4" aria-hidden="true" />
-                {item.label}
+              <Link key={item.href} href={item.href} aria-label={item.href === '/operations' && pending > 0 ? `${item.label}, ${pending} unconfirmed ${pending === 1 ? 'request' : 'requests'}` : item.label} aria-describedby={`${id}-${item.href.slice(1)}-purpose`} aria-current={active ? 'page' : undefined} onClick={() => { setFilter(''); onNavigate?.(); }} className={`console-nav-link flex items-center gap-3 px-3 rounded-lg text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${spacious ? 'py-3' : 'py-1.5'} ${active ? 'is-active' : 'text-muted-foreground hover:bg-secondary hover:text-foreground'}`}>
+                <item.icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+                <span className="min-w-0">{item.label}<span id={`${id}-${item.href.slice(1)}-purpose`} className={query || spacious || ['/overview', '/collections', '/pay-by-bank', '/credit-desk', '/cash-desk'].includes(item.href) ? 'mt-0.5 block text-[11px] font-normal leading-snug' : 'sr-only'}>{pageDescriptions[item.href]}</span></span>
                 {item.href === '/operations' && pending > 0 && <><span aria-hidden="true" className="ml-auto rounded-full bg-warning px-2 text-[11px] font-semibold text-warning-foreground">{pending}</span><span className="sr-only">, {pending} unconfirmed {pending === 1 ? 'request' : 'requests'}</span></>}
               </Link>
             );
           })}
         </div>
       ))}
+      {!groups.length && <p className="p-2 text-sm text-muted-foreground">No pages match. Try a task such as payments, imports or reports.</p>}
     </>
   );
 }
@@ -158,6 +213,7 @@ function AuthBlock({ role, signOut }: { role: string | undefined; signOut: () =>
 
 export function Layout({ children }: { children: ReactNode }) {
   const presentation = usePresentation();
+  useConsoleViewportReset();
   useDialogActivationTracking();
   const search = useSearch();
   const embedded = new URLSearchParams(search).get('embedded') === '1';
@@ -211,6 +267,9 @@ export function Layout({ children }: { children: ReactNode }) {
   const staffAdministrator = workspace?.accessMode === 'staff' && workspace.role === 'Admin';
   const lenderName = lender?.name;
   const pageTitle = navItems.find(n => n.href === location)?.label || (location.startsWith('/cases/') ? 'Case handling' : 'Customer timeline');
+  const baseRoute = location.startsWith('/cases/') ? '/exceptions' : location.startsWith('/customers/') ? '/customers' : location;
+  const cashView = new URLSearchParams(search).get('view');
+  const helpTopic: HelpTopicId = baseRoute === '/cash-desk' && ['accounting', 'vat', 'payroll'].includes(cashView || '') ? cashView as HelpTopicId : helpTopics[baseRoute] || 'start';
   const [printedAt, setPrintedAt] = useState(() => formatDate(new Date().toISOString()));
   useEffect(() => {
     const stamp = () => setPrintedAt(formatDate(new Date().toISOString()));
@@ -248,6 +307,7 @@ export function Layout({ children }: { children: ReactNode }) {
             </Button>
           </SheetTrigger>
           <SheetContent side="left" className="flex w-72 max-w-[90vw] flex-col p-0" aria-describedby={undefined}
+            onEscapeKeyDown={(event) => { if (event.target instanceof HTMLInputElement && event.target.type === 'search' && event.target.value) event.preventDefault(); }}
             onOpenAutoFocus={(event) => { event.preventDefault(); (drawerPages.current?.querySelector<HTMLElement>('a[aria-current="page"]') ?? drawerPages.current?.querySelector('a'))?.focus(); }}
             onCloseAutoFocus={(event) => { if (currentLocation.current !== openedAt.current || (sidebarRef.current?.getClientRects().length && getComputedStyle(sidebarRef.current).display !== 'none')) { event.preventDefault(); focusMain(); } }}>
             <SheetHeader className="border-b p-4 pr-12 text-left">
@@ -257,6 +317,7 @@ export function Layout({ children }: { children: ReactNode }) {
               <NavLinks location={location} spacious onNavigate={() => setMenuOpen(false)} pending={pending} />
             </nav>
             <div className="border-t p-4">
+              <Link href="/help" onClick={() => setMenuOpen(false)} className="mb-3 flex min-h-11 items-center text-sm font-semibold underline">Help & glossary</Link>
               <AuthBlock role={workspace?.role} signOut={signOut} />
             </div>
           </SheetContent>
@@ -284,6 +345,7 @@ export function Layout({ children }: { children: ReactNode }) {
           </nav>
 
           <div className="p-3 border-t mt-auto">
+            <Link href="/help" className="mb-2 flex min-h-10 items-center px-2 text-sm font-semibold underline-offset-4 hover:underline">Help & glossary</Link>
             {/* The sidebar has to fit a 720 px window with every page in view (measured in the design rationale), so this row stays one line high. */}
             <div className="flex items-center gap-3 [&:not(:last-child)]:mb-3">
               <span className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary"><Layers className="h-4 w-4 text-muted-foreground" aria-hidden="true" /></span>
@@ -299,10 +361,11 @@ export function Layout({ children }: { children: ReactNode }) {
         {/* Main Content */}
         <main ref={mainRef} id="main" tabIndex={-1} className="min-w-0 flex-1 overflow-auto bg-background focus:outline-none print:overflow-visible">
           <div className="workspace-bar flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3 md:px-8 print:hidden">
-            <div className="console-desktop-context items-center gap-2 text-xs"><span className="text-muted-foreground">Workspace</span><ChevronRight className="h-3 w-3 text-muted-foreground" aria-hidden="true" /><span className="font-medium">{pageTitle}</span></div>
+            <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs"><span className="text-muted-foreground">Workspace</span><ChevronRight className="h-3 w-3 text-muted-foreground" aria-hidden="true" /><span className="font-medium">{pageTitle}</span></div>
             <p aria-live="polite" className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs"><span>{workspace?.accessMode === 'staff' ? 'Role' : 'Demo role'}: <strong className="font-semibold">{workspace?.role || 'Loading…'}</strong></span>{lender?.mode && <span>Mode: <strong className="font-semibold">{lender.mode}</strong></span>}<span className="text-muted-foreground">Times in WAT</span></p>
           </div>
           <div className="console-content p-4 sm:p-6 md:p-8 max-w-[1440px] mx-auto print:max-w-none print:p-0" aria-busy={isLoading && !workspace}>
+            {!embedded && <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-b pb-3 text-xs print:hidden"><p className="text-muted-foreground">{pageDescriptions[baseRoute]}</p><ContextualHelp topic={helpTopic} returnTo={baseRoute} /></div>}
             {/* Print only: the provenance the screen's banner and sidebar carried. */}
             <div className="hidden print:block mb-6 border-b pb-3">
               <div className="flex items-baseline justify-between gap-4 text-sm">

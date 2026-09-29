@@ -24,6 +24,7 @@ it("walks through authorisation, unconfirmed browser return and a canonical rece
     await screen.findByRole("button", { name: "Review & authorise" }),
   );
   const dialog = screen.getByRole("dialog");
+  expect(within(dialog).getByText(/does not calculate or charge payment fees/)).toBeTruthy();
   await user.type(
     within(dialog).getByLabelText("Reason"),
     "Review sample payment details",

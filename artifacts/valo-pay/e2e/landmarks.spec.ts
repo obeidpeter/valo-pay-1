@@ -74,6 +74,7 @@ async function audit(page: Page, where: string) {
 async function expectCurrentPageInView(page: Page, label: string) {
   const sidebar = page.getByRole("complementary", { name: "Console sidebar" }).getByRole("navigation", { name: "Pages" });
   const current = sidebar.getByRole("link", { name: label, exact: true });
+  await expect(sidebar.locator('[aria-current="page"]')).toHaveCount(1);
   await expect(current).toHaveAttribute("aria-current", "page");
   await expect.poll(async () => {
     const [list, link] = await Promise.all([sidebar.boundingBox(), current.boundingBox()]);
@@ -86,11 +87,22 @@ for (const [route, heading] of routes) {
     await page.goto(route);
     await settle(page, heading);
     await audit(page, route);
-    const label = await page.evaluate((path) => {
+    const navLink = await page.evaluate((path) => {
       const link = [...document.querySelectorAll<HTMLAnchorElement>('aside nav[aria-label="Pages"] a')].find((item) => item.getAttribute("href") === path);
-      return link?.textContent?.trim() ?? null;
+      if (!link) return null;
+      // The purpose is a separate aria-describedby span. Its text belongs to
+      // the description, not the link's explicitly declared accessible name.
+      const visibleLabel = [...(link.querySelector("span")?.childNodes ?? [])]
+        .filter(node => node.nodeType === Node.TEXT_NODE)
+        .map(node => node.textContent).join("").trim();
+      return { label: link.getAttribute("aria-label"), visibleLabel };
     }, route.split("?")[0]!);
-    if (label && !info.project.name.startsWith("mobile")) await expectCurrentPageInView(page, label);
+    if (navLink) {
+      expect(navLink.visibleLabel, `${route} has a readable navigation label`).toMatch(/\S/);
+      expect(navLink.label, `${route} has an explicit accessible name`).toMatch(/\S/);
+      expect(navLink.label, `${route} accessible name includes its visible label`).toContain(navLink.visibleLabel);
+      if (!info.project.name.startsWith("mobile")) await expectCurrentPageInView(page, navLink.label!);
+    }
   });
 }
 

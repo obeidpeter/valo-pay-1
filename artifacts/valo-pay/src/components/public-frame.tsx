@@ -17,7 +17,10 @@ export function PublicFrame({ children, className = '' }: { children: ReactNode;
       <header className="public-header">
         <div className="public-container flex items-center justify-between gap-4 py-5">
           <BrandLockup />
-          <Link href="/" className="public-back inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4 shrink-0" aria-hidden="true" /> Back to home</Link>
+          <nav aria-label="Public pages" className="flex flex-wrap items-center justify-end gap-x-5 gap-y-2 text-sm">
+            <Link href="/help" className="inline-flex min-h-11 items-center font-medium underline-offset-4 hover:underline">Help</Link>
+            <Link href="/" className="public-back inline-flex min-h-11 items-center gap-2 font-medium text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4 shrink-0" aria-hidden="true" /> Back to home</Link>
+          </nav>
         </div>
       </header>
       {children}

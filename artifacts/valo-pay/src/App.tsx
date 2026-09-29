@@ -27,6 +27,7 @@ import { PresentationProvider } from '@/components/presentation-guide';
 import LandingPage from '@/pages/landing';
 const SignInPage: PageLoader = () => import('@/pages/sign-in').then((m) => ({ default: m.SignInPage }));
 const SignUpPage: PageLoader = () => import('@/pages/sign-in').then((m) => ({ default: m.SignUpPage }));
+const HelpPage: PageLoader = () => import('@/pages/help');
 
 // When the app loads, before the router first subscribes to the browser's location, so the
 // unsaved-changes guard hears Back and Forward before the router changes the page.
@@ -223,6 +224,7 @@ function App() {
               <Route path="/sign-in/*?">{(params) => <LazyPage load={SignInPage} params={params} />}</Route>
               <Route path="/sign-up/*?">{(params) => <LazyPage load={SignUpPage} params={params} />}</Route>
               <Route path="/team-invite">{() => <LazyPage load={TeamInvitePage} />}</Route>
+              <Route path="/help">{() => <LazyPage load={HelpPage} />}</Route>
               <Route component={Console} />
             </Switch>
           </RoutedErrorBoundary>

@@ -65,6 +65,7 @@ export default function LandingPage() {
                 {link.label}
               </a>
             ))}
+            <Link href="/help?topic=start">Help</Link>
           </nav>
           <div className="lp-header-actions">
             <Button
@@ -129,6 +130,7 @@ export default function LandingPage() {
                   <ArrowRight aria-hidden="true" />
                 </a>
               ))}
+              <Link href="/help?topic=start" onClick={() => setMenuOpen(false)}>Help & glossary<ArrowRight aria-hidden="true" /></Link>
             </nav>
           )}
         </div>

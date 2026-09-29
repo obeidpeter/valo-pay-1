@@ -7,10 +7,11 @@ import { StaffSession } from "@/components/staff-session";
 import { PilotError, PilotHeading, PilotPanel } from "@/components/pilot-ui";
 import { Button } from "@/components/ui/button";
 import { useSessionUser } from "@/lib/auth";
+import { ContextualHelp } from "@/components/contextual-help";
 
 /** Shown when the acceptance got no answer: team changes are not in Operations, so the pilot workspace shows whether it took effect. */
 const ACCEPTANCE_PROBLEM =
-  "Your invitation could not be accepted. Open the pilot workspace to check whether your membership is active before you try again.";
+  "We did not receive confirmation that your invitation was accepted. Open the pilot workspace to check whether your membership is active before accepting again.";
 /** Shown when the acceptance's answer is not the confirmation its schema describes: the membership may already be active. */
 const UNCONFIRMED_ACCEPTANCE =
   "The service returned an incomplete confirmation. Open the pilot workspace to check whether your membership is active before accepting again.";
@@ -87,6 +88,7 @@ export default function TeamInvitePage() {
           </p>
         )}
       </PilotPanel>
+      <ContextualHelp topic="access" returnTo="/team-invite" />
     </main>
   );
 }
