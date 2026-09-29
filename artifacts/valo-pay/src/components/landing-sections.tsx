@@ -20,17 +20,17 @@ import { PilotEnquiry, ProductWalkthrough } from "./product-walkthrough";
 const steps = [
   {
     title: "Start with a sample workflow",
-    text: "Open the sandbox without an account. Follow a collection, a pay-by-bank checkout, a credit assessment or a business cash plan using synthetic records.",
+    text: "Open the sandbox without an account. Follow a collection, a Pay by Bank checkout, a credit assessment or a cash plan, all with sample data.",
     detail: "No bank connection needed",
   },
   {
     title: "See how each decision is made",
-    text: "Check the source, permissions and review history. Try incomplete evidence and uncertain payment outcomes, as well as the straightforward cases.",
+    text: "Check the source, permissions and review history. Try incomplete evidence and payments whose outcome is unknown, as well as the simple cases.",
     detail: "Evidence before action",
   },
   {
     title: "Scope a pilot around your team",
-    text: "Agree the use case, data access, provider support and success measures. Live use requires separate agreements, testing and approvals for each capability.",
+    text: "Agree the use case, data access, provider support and how you will measure success. Each product needs its own agreement, testing and approval before live use.",
     detail: "A defined path to live use",
   },
 ];
@@ -39,42 +39,42 @@ const boundaries = [
   {
     icon: Wallet,
     title: "Your money stays outside Valo Pay",
-    text: "Valo Pay does not hold funds. The sandbox simulates payments; any future live movement must use an approved bank or payment-provider route.",
+    text: "Valo Pay never holds money. Payments in the sandbox are simulated. In future, any real payment must go through an approved bank or payment provider.",
   },
   {
     icon: Fingerprint,
     title: "Permission is specific to the task",
-    text: "Reading accounts, assessing credit and preparing payroll are separate permissions. Reading data never gives authority to move money.",
+    text: "Reading accounts, assessing credit and preparing payroll are separate permissions. Permission to read an account is not permission to take money from it.",
   },
   {
     icon: UserRoundCheck,
     title: "Reviews remain visible and accountable",
-    text: "Credit results are illustrative, not lending approvals. Accounting and payroll drafts need an independent review. A downloaded file is not a completed payment or accounting entry.",
+    text: "A credit result is not a lending decision. A different person must review accounting and payroll drafts. A downloaded file is not a completed payment or accounting entry.",
   },
 ];
 
 const audiences = [
   {
     icon: Landmark,
-    title: "Lenders & cooperatives",
+    title: "Lenders and cooperatives",
     task: "Start with collections",
-    text: "Bring mandates, payment evidence and unresolved collections into one daily routine. Explore how pay-by-bank fits alongside it.",
+    text: "Bring mandates, payment evidence and unresolved collections into one daily routine. Then see how Pay by Bank fits in.",
     link: "/overview",
-    action: "Explore collections",
+    action: "Explore Collections",
   },
   {
     icon: UserRoundCheck,
-    title: "Credit & risk teams",
+    title: "Credit and risk teams",
     task: "Start with an application",
-    text: "Inspect income evidence, affordability and policy reasons. See how an independent reviewer records an outcome and an applicant explanation.",
+    text: "Check income evidence, affordability and policy reasons. See how a different person records the review and the explanation for the applicant.",
     link: "/credit-desk",
     action: "Explore Credit Desk",
   },
   {
     icon: Building2,
-    title: "SME finance teams",
+    title: "Finance teams at small businesses",
     task: "Start with business cash",
-    text: "Explore cash forecasts, accounting drafts, VAT evidence and payroll funding in a separate sample business entity.",
+    text: "Explore cash forecasts, accounting drafts, VAT evidence and payroll funding for a sample business.",
     link: "/cash-desk",
     action: "Explore Cash Desk",
   },
@@ -84,32 +84,32 @@ const questions = [
   {
     question: "What can I use today?",
     answer:
-      "You can explore the collections console, Pay-by-bank, Credit Desk, Cash Desk and Permissions & readiness with synthetic data. These are working sample workflows. They do not connect to your bank, move money, approve a real loan, post to accounting software or file tax.",
+      "You can try Collections, Pay by Bank, Credit Desk and Cash Desk, and the Permissions and readiness page, with sample data. They do not connect to your bank, move money, approve a real loan, post to accounting software or file tax.",
   },
   {
     question: "Do I need to sign in or connect a bank?",
     answer:
-      "No. Open the sandbox to try sample records without signing in or adding credentials. Sign in for an account-linked workspace on future visits. Your anonymous sample work does not transfer into that workspace. Do not enter real customer or bank data into the synthetic sandbox.",
+      "No. Open the sandbox to try sample data without signing in or connecting a bank. Sign in to use your workspace, which is linked to your account and kept for your next visit. Work you do in the sandbox is not copied to your workspace. Do not enter real customer or bank details in the sandbox.",
   },
   {
     question: "Does a credit score mean a loan is approved?",
     answer:
-      "No. Credit Desk shows evidence checks, an illustrative rule score, affordability and policy reasons for a human reviewer. Its sample score has not been validated as a prediction of default, and no result authorises lending or disbursement.",
+      "No. Credit Desk shows evidence checks, a sample rule score (not validated), an affordability check and policy reasons for a person to review. A credit result is not a lending decision. Credit Desk never approves a loan or pays one out.",
   },
   {
     question: "Are Paystack and Xero already connected?",
     answer:
-      "Paystack is the preferred first payment provider, and Xero is the first accounting target. The connected workflows currently use synthetic records. A provider name or a successful demo does not establish a live integration, bank coverage or permission to initiate payments or post entries.",
+      "Paystack is the preferred first payment provider, and Xero the first accounting software Valo Pay aims to connect to. Pay by Bank, Credit Desk and Cash Desk use sample data only. A provider’s name or a working demo is not a live connection. It does not show which banks are covered, and it gives no permission to make payments or post accounting entries.",
   },
   {
     question: "Can I use Cash Desk without being a lender?",
     answer:
-      "Cash Desk is designed for business finance teams as well as lenders. Its sample SME is a separate legal entity from borrower records. A future pilot is scoped to your business and the capabilities you need; it does not automatically include or require every collections product.",
+      "Yes. Cash Desk is for business finance teams as well as lenders. Its sample business is kept separate from the lender’s customer records. A pilot covers your business and only the products you choose. It does not have to include Collections.",
   },
   {
     question: "What happens before a pilot goes live?",
     answer:
-      "The team agrees the scope and price, verifies the data and payment routes, documents the relevant permissions and completes operational acceptance checks. Requirements differ by capability. The Permissions & readiness page shows the release requirements; the sandbox has no shortcut to turn on live operations.",
+      "You and the Valo Pay team agree the scope and price, check the data and payment routes, record the permissions needed and complete acceptance checks. Each product has its own requirements, shown on the Permissions and readiness page. You cannot switch on live use from the sandbox.",
   },
 ];
 
@@ -126,17 +126,15 @@ export function LandingSections({ signedIn }: { signedIn: boolean }) {
       >
         <div className="public-container">
           <div className="lp-section-intro lp-split-intro">
-            <p className="lp-section-kicker">
-              From a first look to a focused pilot
-            </p>
+            <p className="lp-section-kicker">How it works</p>
             <h2 id="how-title">
               Try the workflow.{" "}
               <br />
               Understand the decisions.
             </h2>
             <p>
-              Start with a safe place to explore. Build a live plan around the
-              work your team actually needs to do.
+              Start in a safe place to explore. Then plan live use around the
+              work your team really does.
             </p>
           </div>
           <ol className="lp-process-grid">
@@ -207,28 +205,29 @@ export function LandingSections({ signedIn }: { signedIn: boolean }) {
       >
         <div className="public-container lp-trust-layout">
           <div className="lp-trust-copy">
-            <p className="lp-section-kicker">Clear about what is ready</p>
+            <p className="lp-section-kicker">Limits and live use</p>
             <h2 id="boundaries-title">
               Confidence starts{" "}
               <br />
               with clear boundaries.
             </h2>
             <p>
-              Explore what the software does today, with the limits visible.
-              Every new financial workflow currently runs on sample data.
+              See what Valo Pay does today, and where its limits are. Every new
+              financial workflow runs on sample data for now.
             </p>
             <div className="lp-readiness-note">
               <LockKeyhole aria-hidden="true" />
               <div>
-                <strong>Live operations are disabled</strong>
+                <strong>Live payments and bank connections are switched off</strong>
                 <p>
-                  Bank connections, real payment initiation, accounting posting,
-                  tax filing and payouts need separate acceptance.
+                  Bank connections, real payments, posting to accounting
+                  software, tax filing and payouts each need their own approval
+                  before live use.
                 </p>
               </div>
             </div>
             <Link href="/connections" className="lp-text-link">
-              View permissions & readiness
+              Open Permissions and readiness
               <ArrowUpRight aria-hidden="true" />
             </Link>
           </div>
@@ -255,56 +254,57 @@ export function LandingSections({ signedIn }: { signedIn: boolean }) {
       >
         <div className="public-container">
           <div className="lp-section-intro lp-split-intro">
-            <p className="lp-section-kicker">Pricing with the scope attached</p>
+            <p className="lp-section-kicker">Pricing</p>
             <h2 id="pricing-title">
               A clear cost for{" "}
               <br />a defined workflow.
             </h2>
             <p>
-              Explore the synthetic sandbox without a paid plan. Pilot scope,
-              implementation and commercial terms are agreed separately before
-              live use.
+              The sandbox is free to try. Before any live use, you and the Valo
+              Pay team agree the pilot’s scope, set-up and commercial terms.
             </p>
           </div>
           <div className="lp-commercial-grid">
             <div className="lp-pricing-card">
               <div className="lp-licence-price">
-                <p>Core collections · proposed entry pricing</p>
+                <p>Core collections · proposed starting price</p>
                 <p>
                   <span>From</span>
-                  <strong>₦150,000</strong>
-                  <span>/ month</span>
+                  <strong>₦150,000.00</strong>
+                  <span>a month</span>
                 </p>
                 <p className="lp-price-scope">
-                  Planning basis: fewer than 3,000 qualifying collections per
-                  month. This is an indicative proposal, not a checkout offer.
+                  Based on fewer than 3,000 qualifying collections a month. This
+                  is a guide price, not an offer you can accept online.
                 </p>
               </div>
               <div className="lp-fee-example">
-                <h3>What the entry proposal includes</h3>
+                <h3>How the proposed price works</h3>
                 <dl>
                   <div>
-                    <dt>One-time implementation</dt>
-                    <dd>₦1,000,000</dd>
+                    <dt>One-time set-up</dt>
+                    <dd>₦1,000,000.00</dd>
                   </div>
                   <div>
                     <dt>Per qualifying direct debit</dt>
-                    <dd>0.3%, capped at ₦150</dd>
+                    <dd>0.3%, up to ₦150.00</dd>
                   </div>
                   <div>
-                    <dt>Example: a ₦30,000 collection</dt>
-                    <dd>₦90 usage fee</dd>
+                    <dt>Example: a ₦30,000.00 collection</dt>
+                    <dd>₦90.00 usage fee</dd>
                   </div>
                 </dl>
                 <p>
-                  Usage applies to contract-defined, settled and unreversed
-                  direct debits after the reversal window. Reconciled transfers
-                  and card receipts do not become direct-debit fees.
+                  The usage fee applies only to direct debits that meet your
+                  contract’s definition and have settled. It is charged only
+                  after the reversal window closes, and never on a reversed
+                  debit. Bank transfers and card payments have no usage fee,
+                  even when Valo Pay matches them.
                 </p>
                 <p>
-                  Provider charges and VAT are additional where applicable. The
-                  example is the usage component only; volume tiers and complete
-                  pilot terms are confirmed in writing.
+                  Payment provider charges and VAT are extra where they apply.
+                  The example shows the usage fee only. The Valo Pay team
+                  confirms volume prices and the full pilot terms in writing.
                 </p>
               </div>
             </div>
@@ -313,12 +313,12 @@ export function LandingSections({ signedIn }: { signedIn: boolean }) {
                 <ShieldCheck aria-hidden="true" />
               </span>
               <p className="lp-module-kicker">
-                Pay-by-bank · Credit Desk · Cash Desk
+                Pay by Bank · Credit Desk · Cash Desk
               </p>
-              <h3>Start with the capabilities you need.</h3>
+              <h3>Start with the products you need.</h3>
               <p>
-                New modules are scoped and priced separately for a pilot. The
-                collections entry price is not an all-product subscription.
+                Each of these products has its own scope and price in a pilot.
+                The Core collections price does not include them.
               </p>
               <ul role="list">
                 <li>
@@ -354,7 +354,7 @@ export function LandingSections({ signedIn }: { signedIn: boolean }) {
       >
         <div className="public-container lp-faq-layout">
           <div className="lp-section-intro">
-            <p className="lp-section-kicker">Before you begin</p>
+            <p className="lp-section-kicker">Common questions</p>
             <h2 id="questions-title">A few useful answers.</h2>
             <p>
               What you can try now, what the sample data means and what comes
@@ -438,17 +438,20 @@ export function LandingFooter() {
           <div className="lp-footer-brand">
             <BrandLockup href="#main" />
             <p>Collections, credit and cash operations.</p>
-            <span>Synthetic sandbox · No live financial operations</span>
+            <span>
+              Sample data only. Live payments and bank connections are switched
+              off.
+            </span>
           </div>
-          <nav aria-label="Product workspaces" className="lp-footer-links">
+          <nav aria-label="Explore the sandbox" className="lp-footer-links">
             <h2>Explore the sandbox</h2>
             <Link href="/overview">Collections</Link>
-            <Link href="/pay-by-bank">Pay-by-bank</Link>
+            <Link href="/pay-by-bank">Pay by Bank</Link>
             <Link href="/credit-desk">Credit Desk</Link>
             <Link href="/cash-desk">Cash Desk</Link>
-            <Link href="/connections">Permissions & readiness</Link>
+            <Link href="/connections">Permissions and readiness</Link>
           </nav>
-          <nav aria-label="Product sections" className="lp-footer-links">
+          <nav aria-label="Discover Valo Pay" className="lp-footer-links">
             <h2>Discover Valo Pay</h2>
             <a href="#what">Products</a>
             <a href="#product-tour">Product tour</a>
@@ -457,24 +460,24 @@ export function LandingFooter() {
             <a href="#questions">Common questions</a>
             <a href="#pilot">Discuss a pilot</a>
           </nav>
-          <nav aria-label="Help and documentation" className="lp-footer-links">
+          <nav aria-label="Useful information" className="lp-footer-links">
             <h2>Useful information</h2>
-            <Link href="/help">Task guides & glossary</Link>
-            <a href="#boundaries">Our boundaries</a>
+            <Link href="/help">Help</Link>
+            <a href="#boundaries">Limits and live use</a>
             <a href="https://github.com/obeidpeter/valo-pay#readme">
-              How the sandbox works
+              How the sandbox works (GitHub)
             </a>
             <a href="https://github.com/obeidpeter/valo-pay/blob/main/docs/connected-banking.md">
-              What is implemented
+              What is built so far (GitHub)
             </a>
             <a href="https://github.com/obeidpeter/valo-pay/blob/main/docs/DATABASE_SECURITY.md">
-              Security and data access
+              Security and data access (GitHub)
             </a>
             <Link href="/sign-in">Sign in</Link>
           </nav>
         </div>
         <div className="lp-footer-bottom">
-          <p>Valo Pay · We never hold money.</p>
+          <p>Valo Pay never holds money.</p>
           <div className="lp-footer-location">
             <span>Built for lenders and businesses in Nigeria.</span>
             <span className="lp-nigerian-flag" aria-hidden="true" />

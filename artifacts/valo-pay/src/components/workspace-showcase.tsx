@@ -20,19 +20,19 @@ export const publicWorkspaces = [
     path: "/overview",
     lead: "Keep every collection in view.",
     description:
-      "Bring mandates, payment matching, exceptions and daily close into one clear operating picture.",
-    details: ["Mandates & retries", "Reconciliation", "Customer timelines"],
+      "See mandates, payment matching, exceptions and the daily close in one place.",
+    details: ["Mandates and retries", "Reconciliation", "Customer history"],
     preview: "A clear next step for every payment",
-    note: "Matched receipts stay separate from items that still need review.",
+    note: "Matched payments stay separate from those that still need review.",
   },
   {
-    name: "Pay-by-bank",
+    name: "Pay by Bank",
     icon: Landmark,
     path: "/pay-by-bank",
     lead: "Follow the payment through.",
     description:
-      "Explore a one-time checkout, review its authorisation and follow the receipt into reconciliation.",
-    details: ["Amount-bound checkout", "Receipt verification", "Refund review"],
+      "Try a one-time checkout. See the customer authorise it at their bank, then follow the payment into reconciliation.",
+    details: ["Checkout for an exact amount", "Payment confirmation", "Refund review"],
     preview: "Authorisation is only the beginning",
     note: "Returning from a bank screen does not mean a payment has been confirmed.",
   },
@@ -42,10 +42,10 @@ export const publicWorkspaces = [
     path: "/credit-desk",
     lead: "Make the evidence clear.",
     description:
-      "Inspect sample financial evidence, an explained rule score and repayment capacity before a separate review.",
-    details: ["Evidence quality", "Affordability", "Independent review"],
+      "Check sample financial evidence, a rule score with its reasons and an affordability check before a different person reviews them.",
+    details: ["Evidence quality", "Affordability check", "Review by a different person"],
     preview: "Evidence first. A considered decision.",
-    note: "Illustrative rule scores are not validated credit ratings or lending decisions.",
+    note: "The sample rule score is not validated. A credit result is not a lending decision.",
   },
   {
     name: "Cash Desk",
@@ -54,13 +54,13 @@ export const publicWorkspaces = [
     lead: "Plan the work ahead.",
     description:
       "Explore business cash, forecasts, accounting drafts, VAT evidence and reviewed payroll funding.",
-    details: ["Cash scenarios", "Accounting & VAT", "Payroll planning"],
+    details: ["Cash and forecast", "Accounting and VAT evidence", "Payroll funding"],
     preview: "See today. Prepare for the next 30 days.",
     note: "Forecasts are planning estimates. Exports do not post entries, file tax or pay employees.",
   },
 ] as const;
 
-/** Switching this illustrative preview never reads an account or creates a workspace. */
+/** Switching this example preview never reads an account or creates a workspace. */
 export function WorkspaceShowcase() {
   const [active, setActive] = useState(0);
   const tabs = useRef<Array<HTMLButtonElement | null>>([]);
@@ -68,11 +68,11 @@ export function WorkspaceShowcase() {
   return (
     <figure
       className="lp-showcase"
-      aria-label="Explore four Valo Pay workspaces with illustrative sample data"
+      aria-label="Preview of four Valo Pay products, with sample data"
     >
       <div className="lp-showcase-chrome">
         <span>
-          <BrandMark /> Workspace preview
+          <BrandMark /> Product preview
         </span>
         <span className="lp-sample-label">
           <span aria-hidden="true" /> Sample data
@@ -81,7 +81,7 @@ export function WorkspaceShowcase() {
       <div
         className="lp-showcase-tabs"
         role="tablist"
-        aria-label="Preview a workspace"
+        aria-label="Preview a product"
       >
         {publicWorkspaces.map((workspace, index) => (
           <button
@@ -145,7 +145,7 @@ export function WorkspaceShowcase() {
             </div>
             <ul
               className="lp-showcase-records"
-              aria-label="Illustrative payment records"
+              aria-label="Example payment records"
             >
               <li>
                 <span className="lp-person-mark" aria-hidden="true">
@@ -155,7 +155,7 @@ export function WorkspaceShowcase() {
                   <strong>Ada Okonkwo</strong>
                   <small>Instalment 1 · Matched</small>
                 </span>
-                <strong>₦42,000</strong>
+                <strong>₦42,000.00</strong>
               </li>
               <li>
                 <span className="lp-person-mark" aria-hidden="true">
@@ -165,17 +165,17 @@ export function WorkspaceShowcase() {
                   <strong>Túndé Bakare</strong>
                   <small>Instalment 2 · Matched</small>
                 </span>
-                <strong>₦25,000</strong>
+                <strong>₦25,000.00</strong>
               </li>
               <li>
                 <span className="lp-person-mark is-review" aria-hidden="true">
                   CO
                 </span>
                 <span>
-                  <strong>Chiamaka Obi</strong>
-                  <small>Proposed match · Needs review</small>
+                  <strong>Chiamaka Ọbi</strong>
+                  <small>Proposed match · Waiting for review</small>
                 </span>
-                <strong>₦18,000</strong>
+                <strong>₦18,000.00</strong>
               </li>
             </ul>
           </>
@@ -190,32 +190,32 @@ export function WorkspaceShowcase() {
                 </strong>
               </div>
               <span className="lp-preview-status is-pending">
-                Pending receipt
+                Waiting for confirmation
               </span>
             </div>
             <ol
               className="lp-payment-stages"
-              aria-label="Illustrative payment verification steps"
+              aria-label="Example payment steps"
             >
               <li>
                 <Check aria-hidden="true" />
                 <span>
-                  <strong>Review the payment</strong>
+                  <strong>Checkout details</strong>
                   <small>Amount, recipient and instalment are linked.</small>
                 </span>
               </li>
               <li>
                 <Check aria-hidden="true" />
                 <span>
-                  <strong>Record authorisation</strong>
-                  <small>One payment, with its own permission.</small>
+                  <strong>Bank authorisation</strong>
+                  <small>The customer authorises this one payment.</small>
                 </span>
               </li>
               <li className="is-current">
                 <CircleDot aria-hidden="true" />
                 <span>
-                  <strong>Wait for receipt evidence</strong>
-                  <small>Only a confirmed receipt can be reconciled.</small>
+                  <strong>Payment confirmation</strong>
+                  <small>Only a confirmed payment can be matched.</small>
                 </span>
               </li>
             </ol>
@@ -228,7 +228,7 @@ export function WorkspaceShowcase() {
                 <FileCheck2 aria-hidden="true" />
               </span>
               <div>
-                <small>Illustrative assessment</small>
+                <small>Example assessment</small>
                 <strong>Ready for lender review</strong>
                 <p>
                   The evidence supports the conversation. The lender makes the
@@ -238,20 +238,20 @@ export function WorkspaceShowcase() {
             </div>
             <dl className="lp-credit-checks">
               <div>
-                <dt>Account-read permission</dt>
-                <dd>Separate grant</dd>
+                <dt>Read applicant accounts</dt>
+                <dd>Granted separately</dd>
               </div>
               <div>
-                <dt>Assessment permission</dt>
-                <dd>Separate grant</dd>
+                <dt>Assess an application</dt>
+                <dd>Granted separately</dd>
               </div>
               <div>
-                <dt>Evidence & affordability</dt>
-                <dd>Explainable checks</dd>
+                <dt>Evidence and affordability</dt>
+                <dd>Checks you can follow</dd>
               </div>
               <div>
-                <dt>Final outcome</dt>
-                <dd>Independent reviewer</dd>
+                <dt>Final review</dt>
+                <dd>By a different person</dd>
               </div>
             </dl>
           </>
@@ -262,23 +262,23 @@ export function WorkspaceShowcase() {
               <div>
                 <span>Sample available business cash</span>
                 <strong>
-                  ₦24.2<span>m</span>
+                  ₦24,200,000<span>.00</span>
                 </strong>
               </div>
-              <span className="lp-preview-status">NGN · Sample SME</span>
+              <span className="lp-preview-status">Sample business</span>
             </div>
             <div
               className="lp-cash-scenarios"
-              aria-label="Illustrative cash planning scenarios"
+              aria-label="Example cash scenarios"
             >
               <div>
                 <span>Base case · day 30</span>
-                <strong>₦30.5m</strong>
+                <strong>₦30,500,000.00</strong>
                 <i aria-hidden="true" style={{ width: "100%" }} />
               </div>
               <div>
                 <span>Downside · day 30</span>
-                <strong>₦17.58m</strong>
+                <strong>₦17,580,000.00</strong>
                 <i aria-hidden="true" style={{ width: "57.6%" }} />
               </div>
             </div>
@@ -301,8 +301,8 @@ export function WorkspaceShowcase() {
         </div>
       </div>
       <figcaption>
-        Illustrative sample workflows. No live bank connection or financial
-        instruction.
+        Examples with sample data. Live payments and bank connections are
+        switched off.
       </figcaption>
     </figure>
   );
@@ -322,17 +322,15 @@ export function LandingWorkspaces() {
       />
       <div className="public-container">
         <div className="lp-section-intro lp-split-intro">
-          <p className="lp-section-kicker">
-            One platform. Four focused workspaces.
-          </p>
+          <p className="lp-section-kicker">Products</p>
           <h2 id="workspaces-title">
             Start with the work{" "}
             <br />
             you need to do.
           </h2>
           <p>
-            Follow a collection, inspect a credit assessment or plan business
-            cash. Each workspace keeps its own records, permissions and review
+            Follow a collection, check a credit assessment or plan business
+            cash. Each product keeps its own records, permissions and review
             steps.
           </p>
         </div>
@@ -366,14 +364,14 @@ export function LandingWorkspaces() {
         <div className="lp-permission-bridge">
           <ShieldCheck aria-hidden="true" />
           <div>
-            <strong>Connected by context. Governed by permission.</strong>
+            <strong>Linked records. Separate permissions.</strong>
             <p>
-              A permission to read data does not authorise a payment, a lending
-              decision or an accounting entry.
+              Permission to read an account is not permission to take money from
+              it, make a lending decision or post an accounting entry.
             </p>
           </div>
           <Link href="/connections">
-            View permissions & readiness <ArrowUpRight aria-hidden="true" />
+            Open Permissions and readiness <ArrowUpRight aria-hidden="true" />
           </Link>
         </div>
       </div>

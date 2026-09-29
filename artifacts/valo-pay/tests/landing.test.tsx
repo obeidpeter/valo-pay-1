@@ -15,7 +15,7 @@ describe("landing page", () => {
   it("closes section navigation on Escape and focuses the chosen section", async () => {
     const user = userEvent.setup();
     renderApp("/");
-    const toggle = screen.getByRole("button", { name: "Open navigation" });
+    const toggle = screen.getByRole("button", { name: "Open menu" });
     await user.click(toggle);
     await user.keyboard("{Escape}");
     expect(toggle.getAttribute("aria-expanded")).toBe("false");
@@ -25,7 +25,7 @@ describe("landing page", () => {
     expect(document.activeElement).toBe(
       within(
         screen.getByRole("navigation", { name: "Mobile sections" }),
-      ).getByRole("link", { name: "Workspaces" }),
+      ).getByRole("link", { name: "Products" }),
     );
     await user.click(
       within(
@@ -40,10 +40,10 @@ describe("landing page", () => {
   it("previews all four workspaces by keyboard without fetching or creating a sandbox", async () => {
     const user = userEvent.setup();
     renderApp("/");
-    const tabs = screen.getByRole("tablist", { name: "Preview a workspace" });
+    const tabs = screen.getByRole("tablist", { name: "Preview a product" });
     await user.click(within(tabs).getByRole("tab", { name: "Collections" }));
     for (const [key, name, path] of [
-      ["{ArrowRight}", "Pay-by-bank", "/pay-by-bank"],
+      ["{ArrowRight}", "Pay by Bank", "/pay-by-bank"],
       ["{ArrowRight}", "Credit Desk", "/credit-desk"],
       ["{End}", "Cash Desk", "/cash-desk"],
       ["{ArrowRight}", "Collections", "/overview"],
@@ -75,7 +75,7 @@ describe("landing page", () => {
     expect(document.querySelector("iframe")).toBeNull();
     expect(
       screen
-        .getByRole("link", { name: "Open full screen" })
+        .getByRole("link", { name: "Open the full page" })
         .getAttribute("href"),
     ).toBe("/cash-desk");
     await user.click(
@@ -83,7 +83,7 @@ describe("landing page", () => {
     );
     expect(
       screen
-        .getByTitle("Interactive Valo Pay cash desk preview — sample data")
+        .getByTitle("Interactive preview of Cash Desk, with sample data")
         .getAttribute("src"),
     ).toBe("/cash-desk?embedded=1");
     await user.click(screen.getByRole("button", { name: "Close preview" }));
@@ -106,7 +106,7 @@ describe("landing page", () => {
     renderApp("/");
     for (const [name, route] of [
       ["Collections", "overview"],
-      ["Pay-by-bank", "pay-by-bank"],
+      ["Pay by Bank", "pay-by-bank"],
       ["Credit Desk", "credit-desk"],
       ["Cash Desk", "cash-desk"],
     ]) {
@@ -119,9 +119,7 @@ describe("landing page", () => {
       );
       expect(
         screen
-          .getByTitle(
-            `Interactive Valo Pay ${name!.toLowerCase()} preview — sample data`,
-          )
+          .getByTitle(`Interactive preview of ${name}, with sample data`)
           .getAttribute("src"),
       ).toBe(`/preview/${route}?embedded=1`);
     }
@@ -133,7 +131,7 @@ describe("landing page", () => {
     expect(
       await screen.findByRole("heading", {
         level: 1,
-        name: "Collections, credit and cash. One clear workspace.",
+        name: "Collections, credit and cash. One clear view.",
       }),
     ).toBeTruthy();
     await waitFor(() =>
@@ -144,23 +142,25 @@ describe("landing page", () => {
     const lines = Array.from(screen.getByRole("main").querySelectorAll("p, h1"))
       .slice(0, 3)
       .map((node) => node.textContent ?? "");
-    expect(lines[0]).toBe("Financial operations for Nigerian lenders and SMEs");
-    expect(lines[2]).toMatch(/^We never hold money\./);
+    expect(lines[0]).toBe(
+      "Financial operations for Nigerian lenders and small businesses",
+    );
+    expect(lines[2]).toMatch(/^Valo Pay never holds money\./);
     expect(
       screen
         .getByRole("link", { name: "Skip to main content" })
         .getAttribute("href"),
     ).toBe("#main");
-    expect(screen.getByText("Live operations are disabled")).toBeTruthy();
+    expect(
+      screen.getByText("Live payments and bank connections are switched off"),
+    ).toBeTruthy();
     expect(
       screen.getByText(
-        "Illustrative sample workflows. No live bank connection or financial instruction.",
+        "Examples with sample data. Live payments and bank connections are switched off.",
       ),
     ).toBeTruthy();
-    const contact = screen
-      .getAllByRole("link", { name: "Discuss a pilot" })
-      .find((link) => link.getAttribute("href")?.startsWith("mailto:"));
-    expect(contact?.getAttribute("href")).toMatch(
+    const contact = screen.getByRole("link", { name: "Email the Valo Pay team" });
+    expect(contact.getAttribute("href")).toMatch(
       /^mailto:pilots@example\.test\?subject=/,
     );
     for (const link of document.querySelectorAll<HTMLAnchorElement>(

@@ -12,7 +12,7 @@ const landmarkRules = [
 ];
 
 const routes: Array<[string, string | RegExp]> = [
-  ["/", "Collections, credit and cash. One clear workspace."],
+  ["/", "Collections, credit and cash. One clear view."],
   ["/sign-in", "Sign in to your workspace"],
   ["/sign-up", "Create your workspace"],
   ["/team-invite", "Join your pilot workspace"],

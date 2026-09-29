@@ -5,7 +5,7 @@ test('entering the console from a scrolled public page keeps the environment hea
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/');
   // The footer's entry point exercises a real long public page on every viewport.
-  const entry = page.getByRole('navigation', { name: 'Product workspaces' }).getByRole('link', { name: 'Collections', exact: true });
+  const entry = page.getByRole('navigation', { name: 'Explore the sandbox' }).getByRole('link', { name: 'Collections', exact: true });
   await entry.scrollIntoViewIfNeeded();
   expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(100);
   await entry.click();

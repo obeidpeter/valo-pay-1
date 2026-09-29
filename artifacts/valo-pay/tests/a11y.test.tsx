@@ -21,7 +21,7 @@ async function violations(): Promise<string[]> {
 
 describe("accessibility", () => {
   it.each([
-    ["/", "Collections, credit and cash. One clear workspace."],
+    ["/", "Collections, credit and cash. One clear view."],
     ["/sign-in", "Sign in to your workspace"],
     ["/no-such-page", "Page not found"],
     ["/overview", "Operations overview"],

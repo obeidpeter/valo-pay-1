@@ -34,7 +34,7 @@ Returning users can sign in from the header. Reviewers and potential partners ca
 
 ## The conceptual model on the page
 
-The brand descriptor is "Collections, credit and cash operations", in the same words in the page title, the lockup, its link label and the footer. Collections remains the operational foundation; Pay-by-bank, Credit Desk and Cash Desk have their own tasks, permissions and review steps. The hero says "Collections, credit and cash. One clear workspace." and immediately states that Valo Pay never holds money. The product category is broader than collections, while the offered experience remains a synthetic sandbox.
+The brand descriptor is "Collections, credit and cash operations", in the same words in the page title, the lockup, its link label and the footer. Collections remains the operational foundation; Pay-by-bank, Credit Desk and Cash Desk have their own tasks, permissions and review steps. The hero says "Collections, credit and cash. One clear view." and immediately states that Valo Pay never holds money. The product category is broader than collections, while the offered experience remains a synthetic sandbox.
 
 The four sample journeys do not establish live bank connections, payment initiation, validated underwriting, accounting posting, tax filing or payouts. A grant to read accounts is not authority to perform those actions. The boundaries section, module descriptions and FAQ repeat the relevant limits near the choice they qualify; they do not imply that a future provider integration already exists.
 
@@ -42,7 +42,7 @@ Anonymous and signed-in sessions use the same console interface but separate wor
 
 ## Information hierarchy and the visual foundations
 
-- **The opening hierarchy.** The eyebrow names Nigerian lenders and SMEs; the H1 names collections, credit and cash; the description begins "We never hold money." A separate availability strip identifies all four sample workspaces and links to live-use boundaries. The first screen establishes both product breadth and current availability.
+- **The opening hierarchy.** The eyebrow names Nigerian lenders and SMEs; the H1 names collections, credit and cash; the description begins "Valo Pay never holds money." A separate availability strip identifies all four sample workspaces and links to live-use boundaries. The first screen establishes both product breadth and current availability.
 - **One hierarchy of type.** One H1, one H2 per section and H3s for the jobs, process steps and audiences. Weight and size carry the hierarchy, so the page still reads in greyscale (design first in greyscale, then add colour).
 - **Left-aligned, asymmetric layout.** The desktop hero pairs the main copy with a four-workspace illustrative showcase. Its tabs are real controls that change local sample content only, using arrow keys, Home and End as well as pointer selection. They do not read a bank account or create a sandbox. Each preview identifies its illustrative status and links to the corresponding real workspace.
 - **Grid and spacing.** Four product cards describe the focused workspaces. The product tour has four screen choices, the process has three numbered steps and the audience section has three routes into the console. The boundaries, commercial scope and FAQ use paired desktop columns that stack as the viewport narrows. Section spacing and card padding maintain the relationship between a task, its explanation and its action.

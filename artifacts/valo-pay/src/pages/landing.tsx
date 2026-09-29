@@ -25,7 +25,7 @@ const landingTargets = [
   "questions",
 ];
 const sectionLinks = [
-  { href: "#what", label: "Workspaces" },
+  { href: "#what", label: "Products" },
   { href: "#product-tour", label: "Product tour" },
   { href: "#how", label: "How it works" },
   { href: "#pricing", label: "Pricing" },
@@ -97,7 +97,7 @@ export default function LandingPage() {
               variant="outline"
               size="icon"
               className="lp-menu-toggle"
-              aria-label={menuOpen ? "Close navigation" : "Open navigation"}
+              aria-label={menuOpen ? "Close menu" : "Open menu"}
               aria-expanded={menuOpen}
               aria-controls="landing-navigation"
               onClick={() => setMenuOpen(!menuOpen)}
@@ -117,7 +117,7 @@ export default function LandingPage() {
             >
               {[
                 ...sectionLinks,
-                { href: "#boundaries", label: "Availability & boundaries" },
+                { href: "#boundaries", label: "Limits and live use" },
                 { href: "#pilot", label: "Discuss a pilot" },
                 { href: "#questions", label: "Common questions" },
               ].map((link) => (
@@ -130,7 +130,7 @@ export default function LandingPage() {
                   <ArrowRight aria-hidden="true" />
                 </a>
               ))}
-              <Link href="/help?topic=start" onClick={() => setMenuOpen(false)}>Help & glossary<ArrowRight aria-hidden="true" /></Link>
+              <Link href="/help?topic=start" onClick={() => setMenuOpen(false)}>Help<ArrowRight aria-hidden="true" /></Link>
             </nav>
           )}
         </div>
@@ -141,16 +141,16 @@ export default function LandingPage() {
           <div className="public-container lp-hero">
             <div className="lp-hero-copy">
               <p className="lp-eyebrow">
-                Financial operations for Nigerian lenders and SMEs
+                Financial operations for Nigerian lenders and small businesses
               </p>
               <h1 id="hero-title">
                 Collections, credit and cash. <br />
-                <span>One clear workspace.</span>
+                <span>One clear view.</span>
               </h1>
               <p className="lp-hero-description">
-                We never hold money. Valo Pay brings payment records, credit
-                evidence and business cash planning into view—so your team can
-                see what happened and decide what comes next.
+                Valo Pay never holds money. It shows your payment records,
+                credit evidence and cash plans in one place. Your team can see
+                what happened and decide what to do next.
               </p>
               <div className="lp-hero-actions">
                 <Button asChild size="lg" className="lp-primary">
@@ -167,11 +167,12 @@ export default function LandingPage() {
                 </Button>
               </div>
               <p className="lp-sandbox-hint">
-                Working sample journeys. No sign-in or bank connection needed.
+                No sign-in or bank connection needed. Sample data is made up. It
+                is not real customers or money.
               </p>
               <ul
                 className="lp-hero-benefits"
-                aria-label="How the workspace supports your team"
+                aria-label="What Valo Pay gives your team"
               >
                 <li>
                   <Check aria-hidden="true" /> Clear evidence
@@ -184,7 +185,7 @@ export default function LandingPage() {
                 </li>
               </ul>
               <a href="#product-tour" className="lp-hero-tour">
-                Take a closer look at the workspaces{" "}
+                Take the product tour{" "}
                 <ArrowRight aria-hidden="true" />
               </a>
             </div>
@@ -196,11 +197,11 @@ export default function LandingPage() {
                 <ShieldCheck aria-hidden="true" /> Available today
               </span>
               <p>
-                Explore Collections, Pay-by-bank, Credit Desk and Cash Desk with
+                Try Collections, Pay by Bank, Credit Desk and Cash Desk with
                 sample data.
               </p>
               <a href="#boundaries">
-                What needs approval for live use{" "}
+                Limits and live use{" "}
                 <ArrowRight aria-hidden="true" />
               </a>
             </div>
