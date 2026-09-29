@@ -78,7 +78,7 @@ function awaitingFirstRead(health, interval) {
   const uptime = health?.uptimeSeconds;
   return Number.isSafeInteger(uptime) && uptime >= 0 && Number.isFinite(interval) && interval > 0 && uptime * 1000 < firstReadWithin(interval);
 }
-/** How long one process can be young when a probe does not say (firstReadWithinMs): two minutes, above the 80 seconds at a minute. */
+/** How long one process can give a startup warning when a probe does not say (startupWindowsMs): two minutes, above the 80 seconds of a first read at a minute. */
 const YOUNG_AT_MOST_MS = 120_000;
 /**
  * The lenders' failing and overdue closes are incidents; public anonymous sandboxes', which a visitor's own synthetic
@@ -91,8 +91,11 @@ function raiseBacklog(backlog, codes, warnings) {
   if (backlog?.publicSandboxes?.overdue > 0) warnings.push('scheduler_public_sandbox_closes_overdue');
 }
 
-/** Additive worker evidence: old builds are explicitly not reported; malformed new answers are never healthy. */
-function backgroundObservation(health, now, codes, warnings) {
+/**
+ * Additive worker evidence: old builds are explicitly not reported; malformed new answers are never healthy. A startup
+ * warning comes with its window (startupWindowsMs), how long one process can give it.
+ */
+function backgroundObservation(health, now, codes, warnings, timeoutMs) {
   const worker = health?.background;
   if (worker === undefined) return { background: 'not_reported' };
   const count = value => Number.isSafeInteger(value) && value >= 0;
@@ -110,24 +113,27 @@ function backgroundObservation(health, now, codes, warnings) {
       || (worker.jobs.cleanup ? !positive(cleanup.intervalMs) || !positive(cleanup.staleAfterMs) || cleanup.state === 'disabled' : cleanup.state !== 'disabled' || cleanup.intervalMs !== null || cleanup.staleAfterMs !== null)) {
     codes.push('background_unverified'); return { background: 'unverified' };
   }
-  const fresh = (at, within) => instant(at) && now - Date.parse(at) <= within && Date.parse(at) <= now + worker.heartbeatIntervalMs;
-  const pending = [];
-  if (worker.state === 'starting' && fresh(worker.startedAt, worker.staleAfterMs)) { warnings.push('background_starting'); pending.push(worker.staleAfterMs); }
+  // The worker's clock may run a heartbeat interval ahead, and its answer comes up to the request's time limit after now was read.
+  const fresh = (at, within) => instant(at) && now - Date.parse(at) <= within && Date.parse(at) <= now + worker.heartbeatIntervalMs + timeoutMs;
+  const pending = {};
+  if (worker.state === 'starting' && fresh(worker.startedAt, worker.staleAfterMs)) { warnings.push('background_starting'); pending.background_starting = worker.staleAfterMs; }
   else if (worker.state === 'stale' || worker.state === 'running' && !fresh(worker.lastHeartbeatAt, worker.staleAfterMs)) codes.push('background_stale');
   else if (worker.state !== 'running') codes.push('background_not_running');
   if (worker.jobs.cleanup) {
-    if (cleanup.state === 'pending' && fresh(worker.startedAt, cleanup.staleAfterMs)) { warnings.push('background_cleanup_pending'); pending.push(cleanup.staleAfterMs); }
+    if (cleanup.state === 'pending' && fresh(worker.startedAt, cleanup.staleAfterMs)) { warnings.push('background_cleanup_pending'); pending.background_cleanup_pending = cleanup.staleAfterMs; }
     else if (cleanup.state === 'stale' || !fresh(cleanup.lastCheckedAt, cleanup.staleAfterMs)) codes.push('background_cleanup_stale');
     else if (cleanup.state === 'failed') codes.push('background_cleanup_failed');
     else if (cleanup.state !== 'ok' || !result || result.deferred > 0 || result.pendingFailures > 0 || cleanup.lastSuccessAt !== cleanup.lastCheckedAt) codes.push('background_unverified');
   }
+  // Any text Date.parse reads is a time, so each time is copied in ISO form.
+  const iso = value => value === null ? null : new Date(Date.parse(value)).toISOString();
   return {
     // Rebuild the allowlisted observation instead of reflecting a health body into alert delivery.
     background: { state: worker.state, jobs: Object.fromEntries(['closes', 'backlog', 'exports', 'cleanup'].map(key => [key, worker.jobs[key]])),
-      lastHeartbeatAt: worker.lastHeartbeatAt, crashCount: worker.crashCount, restartCount: worker.restartCount, lastCrashAt: worker.lastCrashAt,
-      cleanup: { state: cleanup.state, lastCheckedAt: cleanup.lastCheckedAt, lastSuccessAt: cleanup.lastSuccessAt, lastErrorAt: cleanup.lastErrorAt,
+      lastHeartbeatAt: iso(worker.lastHeartbeatAt), crashCount: worker.crashCount, restartCount: worker.restartCount, lastCrashAt: iso(worker.lastCrashAt),
+      cleanup: { state: cleanup.state, lastCheckedAt: iso(cleanup.lastCheckedAt), lastSuccessAt: iso(cleanup.lastSuccessAt), lastErrorAt: iso(cleanup.lastErrorAt),
         lastResult: result && { attempted: result.attempted, removed: result.removed, deferred: result.deferred, pendingFailures: result.pendingFailures } } },
-    ...(pending.length ? { backgroundReadWithinMs: Math.max(...pending) } : {}),
+    ...(Object.keys(pending).length ? { startupWindowsMs: pending, backgroundReadWithinMs: Math.max(...Object.values(pending)) } : {}),
   };
 }
 
@@ -154,7 +160,7 @@ export async function probeService({ origin, expectScheduler = false, fetchImpl 
     if (ready.value?.checks?.schema?.status === 'indexes_missing') warnings.push('schema_indexes_missing');
     else if (ready.value?.checks?.schema?.status !== 'ok') codes.push('schema_unready');
   }
-  const background = health.status === 'fulfilled' ? backgroundObservation(health.value, now, codes, warnings) : { background: 'unverified' };
+  const background = health.status === 'fulfilled' ? backgroundObservation(health.value, now, codes, warnings, timeoutMs) : { background: 'unverified' };
   if (expectScheduler === 'external' && health.status === 'fulfilled') {
     // The job's own runs are not visible here: they show in its run history and its close.one_shot lines. Each web
     // instance reads what is still owed at the scheduler's interval instead, so a job that has stopped running shows
@@ -200,10 +206,14 @@ export async function probeService({ origin, expectScheduler = false, fetchImpl 
   // In external mode the monitor saw the backlog only from a build that reads it; from one before, the mode alone.
   const sawBacklog = health.status === 'fulfilled' && health.value?.scheduler?.state === 'external' && reportsBacklog(health.value.scheduler);
   const pending = warnings.includes('scheduler_backlog_pending');
+  // Each startup warning's window, which the incident rule needs: for a first read, how long a process can be young at
+  // the interval it reads at. firstReadWithinMs and backgroundReadWithinMs (the longest worker window) are kept for
+  // receivers that read them.
+  const startupWindowsMs = { ...background.startupWindowsMs, ...(pending ? { scheduler_backlog_pending: firstReadWithin(Number(health.value.scheduler.intervalMs)) } : {}) };
   return { service: base, observedAt: new Date(now).toISOString(), codes: [...new Set(codes)].sort(), warnings: [...new Set(warnings)],
-    // With that warning, how long a process can be young at the interval it reads at, which the incident rule needs.
-    ...(pending ? { firstReadWithinMs: firstReadWithin(Number(health.value.scheduler.intervalMs)) } : {}),
+    ...(pending ? { firstReadWithinMs: startupWindowsMs.scheduler_backlog_pending } : {}),
     ...(background.backgroundReadWithinMs ? { backgroundReadWithinMs: background.backgroundReadWithinMs } : {}),
+    ...(Object.keys(startupWindowsMs).length ? { startupWindowsMs } : {}),
     observations: {
       liveness: health.status === 'fulfilled' && health.value?.status === 'ok' ? 'ok' : 'unavailable',
       database: ready.status === 'fulfilled' && ready.value?.checks?.database?.status === 'ok' ? 'ok' : 'unavailable',
@@ -220,38 +230,50 @@ export async function probeService({ origin, expectScheduler = false, fetchImpl 
   };
 }
 
+/** The startup warnings, which say a process is too young to have given its evidence, and the code each counts as once no process can be that young. */
+const STARTUP_STALE = { scheduler_backlog_pending: 'scheduler_stale', background_starting: 'background_stale', background_cleanup_pending: 'background_cleanup_stale' };
+const positiveMs = value => Number.isSafeInteger(value) && value > 0;
+/** How long one process can give a startup warning: the probe's window for it, or for a probe that does not say, such as an earlier monitor's, its older limit or two minutes. */
+const startupWindow = (probe, warning) => [probe.startupWindowsMs?.[warning], warning === 'scheduler_backlog_pending' ? probe.firstReadWithinMs : probe.backgroundReadWithinMs].find(positiveMs) ?? YOUNG_AT_MOST_MS;
+
 /**
- * Stable incidents suppress repeated delivery; failed delivery never advances state. A probe that found nothing but a
- * process too young to have read what is still owed (scheduler_backlog_pending) is no evidence either way: it neither
- * ends an open incident nor counts towards one, so a restart neither ends nor repeats an incident. But one process is
- * young only so long (firstReadWithinMs, or two minutes when the probe does not say), so the state keeps when a run of
- * such probes began (pendingSince), and any other probe ends the run: once it has lasted longer than that, the monitor
- * is meeting a new process at each probe, one restarting before its first read or an instance the probe itself starts,
- * and each such probe counts as scheduler_stale. The probe as judged is returned with the state.
+ * Stable incidents suppress repeated delivery; failed delivery never advances state. A probe that found nothing but
+ * startup warnings, a process too young to have given its evidence (a first read, heartbeat or cleanup check), is no
+ * evidence either way: it neither ends an open incident nor counts towards one, so a restart neither ends nor repeats
+ * an incident. But one process can give each warning only so long (its window: startupWindowsMs, or the older limits,
+ * or two minutes when the probe does not say), so the state keeps when a run of such probes began (pendingSince) and
+ * every startup warning the run has shown, with the window it first came with (pendingWarnings); any other probe ends
+ * the run. Once the run has lasted longer than a warning's window, the monitor is meeting a new process at each probe,
+ * one restarting before it gave that evidence or an instance the probe itself starts, and the warning counts as its
+ * stale code: each such probe is judged by all of them, whichever warnings it caught, so the judged codes only grow
+ * within a run. The probe as judged is returned with the state.
  */
 export async function deliverTransition(probe, previous, deliver, { owner, failureThreshold = 2 } = {}) {
   if (!owner?.trim() || !Number.isInteger(failureThreshold) || failureThreshold < 1) throw new Error('An alert owner and positive failure threshold are required.');
   const previousForService = previous?.service === probe.service ? previous : {};
-  let judged = probe, pendingSince;
-  const waiting = ['scheduler_backlog_pending', 'background_starting', 'background_cleanup_pending'].filter(warning => probe.warnings?.includes(warning));
-  // A rollback to an older build cannot prove a worker incident has recovered.
-  if (!probe.codes.length && probe.observations?.background === 'not_reported' && previousForService.delivered?.split('|').some(code => code.startsWith('background_'))) {
-    return { state: { ...previousForService, observedAt: probe.observedAt }, delivered: false, probe };
-  }
+  const waiting = Object.keys(STARTUP_STALE).filter(warning => probe.warnings?.includes(warning));
+  let judged = probe, run;
   if (!probe.codes.length && waiting.length) {
     const at = Date.parse(probe.observedAt), since = Date.parse(previousForService.pendingSince ?? '');
-    pendingSince = Number.isFinite(since) && since <= at ? previousForService.pendingSince : probe.observedAt;
-    const limits = [probe.firstReadWithinMs, probe.backgroundReadWithinMs].filter(value => Number.isSafeInteger(value) && value > 0);
-    const youngAtMost = limits.length ? Math.max(...limits) : YOUNG_AT_MOST_MS;
-    if (!(at - Date.parse(pendingSince) > youngAtMost)) {
-      return { state: { service: probe.service, pending: previousForService.pending ?? '', streak: Number(previousForService.streak || 0), delivered: previousForService.delivered || '', observedAt: probe.observedAt, pendingSince }, delivered: false, probe };
-    }
-    const stale = waiting.map(warning => ({ scheduler_backlog_pending: 'scheduler_stale', background_starting: 'background_stale', background_cleanup_pending: 'background_cleanup_stale' })[warning]);
-    judged = { ...probe, codes: stale.sort(), observations: { ...probe.observations, ...(waiting.includes('scheduler_backlog_pending') ? { schedulerEvidence: 'failed' } : {}) } };
+    const going = Number.isFinite(since) && since <= at;
+    const seen = Object.fromEntries(Object.entries(going && previousForService.pendingWarnings || {}).filter(([warning, within]) => Object.hasOwn(STARTUP_STALE, warning) && positiveMs(within)));
+    for (const warning of waiting) seen[warning] ??= startupWindow(probe, warning);
+    run = { pendingSince: going ? previousForService.pendingSince : probe.observedAt, pendingWarnings: seen };
+  }
+  const unchanged = { service: probe.service, pending: previousForService.pending ?? '', streak: Number(previousForService.streak || 0), delivered: previousForService.delivered || '', observedAt: probe.observedAt, ...run };
+  // A rollback to an older build cannot prove a worker incident has recovered: its probe changes only the run.
+  if (!probe.codes.length && probe.observations?.background === 'not_reported' && unchanged.delivered.split('|').some(code => code.startsWith('background_'))) {
+    return { state: unchanged, delivered: false, probe };
+  }
+  if (run) {
+    const lasted = Date.parse(probe.observedAt) - Date.parse(run.pendingSince);
+    const stale = Object.entries(run.pendingWarnings).filter(([, within]) => lasted > within).map(([warning]) => STARTUP_STALE[warning]).sort();
+    if (!stale.length) return { state: unchanged, delivered: false, probe };
+    judged = { ...probe, codes: stale, observations: { ...probe.observations, ...(stale.includes('scheduler_stale') ? { schedulerEvidence: 'failed' } : {}) } };
   }
   const signature = judged.codes.join('|');
   const streak = previousForService.pending === signature ? Number(previousForService.streak || 0) + 1 : 1;
-  const state = { service: probe.service, pending: signature, streak, delivered: previousForService.delivered || '', observedAt: probe.observedAt, ...(pendingSince ? { pendingSince } : {}) };
+  const state = { service: probe.service, pending: signature, streak, delivered: previousForService.delivered || '', observedAt: probe.observedAt, ...run };
   if (signature === state.delivered || (signature && streak < failureThreshold)) return { state, delivered: false, probe: judged };
   const event = { version: 1, kind: signature ? 'incident' : 'recovery', owner, ...judged };
   await deliver(event);

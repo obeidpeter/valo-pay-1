@@ -83,6 +83,16 @@ try {
   assert.deepEqual((await workerProbe({ ...worker, cleanup: { ...worker.cleanup, lastResult: { attempted: 0, removed: 1, deferred: 0 } } })).codes, ['background_unverified']);
   const privateMarker = 'synthetic-private-marker';
   assert.ok(!JSON.stringify(await workerProbe({ ...worker, privatePath: privateMarker, jobs: { ...worker.jobs, secret: privateMarker }, cleanup: { ...worker.cleanup, lastResult: { ...worker.cleanup.lastResult, tenant: privateMarker } } })).includes(privateMarker), 'only allowlisted operational observations can enter alert delivery');
+  // Any string Date.parse reads passes as a time, so every time copied into the observation is rebuilt in ISO form.
+  const marked = 'Tue Sep 29 2026 10:00:00 GMT+0000 (synthetic-private-marker)', plain = new Date(now).toUTCString(), second = new Date(Date.parse(plain)).toISOString();
+  const rebuilt = await workerProbe({ ...worker, lastHeartbeatAt: plain, lastCrashAt: marked, cleanup: { ...worker.cleanup, lastCheckedAt: plain, lastSuccessAt: plain, lastErrorAt: marked } });
+  assert.deepEqual([rebuilt.codes, JSON.stringify(rebuilt).includes(privateMarker)], [[], false], 'text a timestamp carries never reaches alert delivery');
+  assert.deepEqual([rebuilt.observations.background.lastHeartbeatAt, rebuilt.observations.background.lastCrashAt, rebuilt.observations.background.cleanup], [second, '2026-09-29T10:00:00.000Z', { state: 'ok', lastCheckedAt: second, lastSuccessAt: second, lastErrorAt: '2026-09-29T10:00:00.000Z', lastResult: worker.cleanup.lastResult }], 'each copied time is in ISO form');
+  // A worker's clock may run a heartbeat interval ahead of the monitor's, and its answer comes up to the probe's time
+  // limit (8 s by default) after the monitor read its own: a time up to both ahead is fresh, one further ahead is not.
+  const ahead = (by, timeoutMs) => probeService({ origin: 'https://example.com', now, timeoutMs, fetchImpl: async url => new Response(JSON.stringify(url.endsWith('readyz') ? readiness() : { status: 'ok', scheduler: { state: 'off' },
+    background: { ...worker, lastHeartbeatAt: new Date(now + by).toISOString(), cleanup: { ...worker.cleanup, lastCheckedAt: new Date(now + by).toISOString(), lastSuccessAt: new Date(now + by).toISOString() } } })) });
+  assert.deepEqual([(await ahead(11_000)).codes, (await ahead(18_000)).codes, (await ahead(18_001)).codes, (await ahead(13_000, 2_000)).codes], [[], [], ['background_cleanup_stale', 'background_stale'], ['background_cleanup_stale', 'background_stale']], 'a worker clock ahead by up to the heartbeat interval and the probe\'s time limit is fresh');
   let workerState; const workerEvents = [];
   const workerTransition = async probe => { const result = await deliverTransition(probe, workerState, async event => workerEvents.push(event), { owner: 'Synthetic operator' }); workerState = result.state; return result; };
   await workerTransition(await workerProbe({ ...worker, state: 'restarting' }));
@@ -90,8 +100,16 @@ try {
   const starting = at => ({ ...worker, state: 'starting', jobs: { ...worker.jobs, cleanup: false }, cleanup: disabledCleanup, startedAt: new Date(at).toISOString(), lastHeartbeatAt: null });
   await workerTransition(await workerProbe(starting(now)));
   assert.deepEqual(workerEvents.map(event => event.kind), ['incident'], 'a restarting worker without its first heartbeat cannot clear an incident');
+  assert.equal(workerState.pendingSince, new Date(now).toISOString(), 'the starting worker began a run of startup-only probes');
   await workerTransition(await workerProbe(undefined));
   assert.equal(workerEvents.length, 1, 'a rollback to a build that does not report worker health cannot clear its incident');
+  assert.deepEqual([workerState.delivered, workerState.pendingSince, workerState.pendingWarnings], ['background_not_running', undefined, undefined], 'but, like any probe that is not startup-only, it ends the run');
+  const anHourLater = await workerTransition(await workerProbe(starting(now + 3_600_000), now + 3_600_000));
+  assert.deepEqual([anHourLater.probe.codes, anHourLater.delivered, workerState.pendingSince], [[], false, new Date(now + 3_600_000).toISOString()], 'so a worker starting an hour later begins a new run, and is no evidence yet');
+  // An older build's young process is startup-only: it goes on with the run, and changes nothing else while a worker incident is open.
+  const olderYoung = { service: 'https://example.com', observedAt: new Date(now + 3_660_000).toISOString(), codes: [], warnings: ['scheduler_backlog_pending'], firstReadWithinMs: 80_000, observations: { background: 'not_reported' } };
+  const goesOn = await workerTransition(olderYoung);
+  assert.deepEqual([goesOn.delivered, workerState.delivered, workerState.pendingSince, workerState.pendingWarnings], [false, 'background_not_running', new Date(now + 3_600_000).toISOString(), { background_starting: 45_000, scheduler_backlog_pending: 80_000 }], 'an older build\'s young process joins the run');
   await workerTransition(workerOk);
   assert.deepEqual(workerEvents.map(event => event.kind), ['incident', 'recovery']);
   workerState = undefined; workerEvents.length = 0;
@@ -222,6 +240,41 @@ try {
   assert.equal(unsaid.pending, '', 'ninety seconds of pending probes is still no evidence');
   unsaid = (await deliverTransition(pendingOnly(2.5), unsaid, async () => {}, { owner: 'Synthetic rehearsal operator' })).state;
   assert.deepEqual([unsaid.pending, unsaid.pendingSince], ['scheduler_stale', pendingOnly(0).observedAt], 'but after two minutes each counts as stale');
+  const earlierState = { service: 'https://example.com', pending: '', streak: 0, delivered: '', observedAt: pendingOnly(0).observedAt, pendingSince: pendingOnly(0).observedAt };
+  assert.equal((await deliverTransition(pendingOnly(2.5), earlierState, async () => {}, { owner: 'Synthetic rehearsal operator' })).state.pending, 'scheduler_stale', 'a run an earlier monitor saved, without its warnings, goes on from when it began');
+  // Each startup warning has its own window, which the probe gives (startupWindowsMs): a first heartbeat 45 s, a first
+  // cleanup check 195 s at its default interval, a first read 80 s at the deployed minute. The monitor's state keeps
+  // every startup warning a run of such probes has shown (pendingWarnings), and each counts as its stale code once the
+  // run has lasted longer than its own window, whatever each probe happened to catch: the judged codes only grow, so a
+  // crash loop, or instances each probe starts, open one incident.
+  const isoAt = at => new Date(at).toISOString();
+  const readAt = (expectScheduler, at) => ({ ...notRead[expectScheduler], ...(expectScheduler === 'on' ? { lastSuccessAt: isoAt(at) } : {}), backlog: { checkedAt: isoAt(at), overdue: 0, failing: 0, lateAfterMinutes: 30 } });
+  /** A process as a probe meets it, young: its worker starting or running, its first cleanup check pending or made and, with closes expected, its first read pending or made. */
+  const processAt = ({ starting = false, cleanupPending = false, readPending = false }, expectScheduler) => at => ({
+    status: 'ok', uptimeSeconds: 1, scheduler: !expectScheduler ? { state: 'off' } : readPending ? notRead[expectScheduler] : readAt(expectScheduler, at),
+    background: { ...worker, state: starting ? 'starting' : 'running', startedAt: isoAt(at - 500), lastHeartbeatAt: starting ? null : isoAt(at - 100),
+      cleanup: cleanupPending ? { ...worker.cleanup, state: 'pending', lastCheckedAt: null, lastSuccessAt: null, lastResult: null } : { ...worker.cleanup, lastCheckedAt: isoAt(at - 100), lastSuccessAt: isoAt(at - 100) } },
+  });
+  const windows = await probeService({ origin: 'https://example.com', expectScheduler: 'on', now, fetchImpl: async url => new Response(JSON.stringify(url.endsWith('readyz') ? readiness() : processAt({ starting: true, cleanupPending: true, readPending: true }, 'on')(now))) });
+  assert.deepEqual([windows.warnings, windows.startupWindowsMs, windows.firstReadWithinMs, windows.backgroundReadWithinMs], [['background_starting', 'background_cleanup_pending', 'scheduler_backlog_pending'], { background_starting: 45_000, background_cleanup_pending: 195_000, scheduler_backlog_pending: 80_000 }, 80_000, 195_000], 'the probe gives each startup warning its own window, and keeps the older limits for receivers that read them');
+  for (const expectScheduler of [false, 'on', 'external']) {
+    const caught = [{ starting: true, cleanupPending: true, readPending: true }, { cleanupPending: true, readPending: true }];
+    const codes = [...(expectScheduler ? ['scheduler_stale'] : []), 'background_cleanup_stale', 'background_stale'].sort().join('|');
+    assert.deepEqual(await timeline(expectScheduler, Array.from({ length: 6 }, (_, index) => processAt(caught[index % 2], expectScheduler))), [`incident:${codes}@2`], `${expectScheduler || 'closes off'}: a worker caught starting at every other probe opens one incident`);
+  }
+  let seed = 7;
+  const random = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+  /** A process each probe meets young, showing a random subset of the startup warnings, at least one. */
+  const randomProcess = expectScheduler => { const starting = random() < 0.5, readPending = Boolean(expectScheduler) && random() < 0.5; return processAt({ starting, cleanupPending: starting || !readPending || random() < 0.5, readPending }, expectScheduler); };
+  assert.deepEqual([await timeline(false, Array.from({ length: 12 }, () => randomProcess(false))), await timeline('on', Array.from({ length: 12 }, () => randomProcess('on')))], [['incident:background_cleanup_stale|background_stale@2'], ['incident:background_cleanup_stale|background_stale|scheduler_stale@2']], 'random subsets open one incident');
+  // A minute apart, each warning counts from its own window: a first cleanup check still pending (195 s) no longer holds
+  // back scheduler_stale (80 s). The incident opens at the shortest window passed, and a later delivery only adds a code
+  // whose own window has passed since, however the probes alternate: none drops out.
+  assert.deepEqual(await timeline('on', Array.from({ length: 6 }, () => processAt({ cleanupPending: true, readPending: true }, 'on')), 1), ['incident:scheduler_stale@3', 'incident:background_cleanup_stale|scheduler_stale@5'], 'a pending first cleanup check does not delay scheduler_stale');
+  assert.deepEqual(await timeline(false, Array.from({ length: 10 }, (_, index) => processAt(index % 2 ? { cleanupPending: true } : { starting: true, cleanupPending: true }, false)), 1), ['incident:background_stale@2', 'incident:background_cleanup_stale|background_stale@5'], 'a worker caught starting every other minute opens the incident at 45 s, and cleanup joins it at 195 s');
+  seed = 7;
+  const hour = (await timeline('on', Array.from({ length: 60 }, () => randomProcess('on')), 1)).map(line => line.split(/[:@]/));
+  assert.ok(hour.length && hour.length <= 3 && hour.every(([kind, codes], index) => kind === 'incident' && (!index || hour[index - 1][1].split('|').every(code => codes.split('|').includes(code)) && codes !== hour[index - 1][1])), `an hour of random subsets a minute apart delivers only a growing incident: ${hour.map(line => line.join(' ')).join(', ')}`);
   assert.deepEqual((await probeService({ origin: 'https://example.com', now, fetchImpl: fake({ state: 'off' }, 'incomplete') })).codes, ['schema_unready']);
   for (const [label, status, body] of [
     ['malformed JSON', 503, '{"private":"synthetic-private-diagnostic",'],
@@ -283,5 +336,5 @@ try {
   assert.equal(deliveryConfiguration({ VALOPAY_MONITOR_OWNER: 'Operator', VALOPAY_MONITOR_ALERT_URL: 'http://alerts.example/receiver' }).status, 'incomplete');
   assert.equal(deliveryConfiguration({ VALOPAY_MONITOR_OWNER: 'Operator', VALOPAY_ALERT_RESEND_KEY: 'synthetic-secret', VALOPAY_ALERT_FROM: 'alerts@example.com', VALOPAY_ALERT_TO: 'operations@example.test' }).status, 'configured');
   await assert.rejects(() => sendEmail(received[0], { apiKey: 'synthetic-secret', from: 'alerts@example.com', to: 'operations@example.test', fetchImpl: async () => { throw new Error('provider secret'); } }), error => !error.message.includes('provider secret'));
-  console.log('Operational monitor passed: real local HTTP probe/delivery, incident threshold, no repeat, recovery, failed-delivery retry, close failures that stay raised until the failing lender closes (across other lenders\' passes and a restart), overdue closes, public sandboxes\' counted apart as warnings, a process too young to have read giving a warning that neither ends nor repeats an incident, until such warnings have lasted longer than one process can be young (a crash loop, or an instance each probe starts), when they count as stale, schema readiness, scheduler mode versus execution evidence, the backlog an external host\'s web instances read, explicit labelled delivery tests without incident-state changes, redacted failures.');
+  console.log('Operational monitor passed: real local HTTP probe/delivery, incident threshold, no repeat, recovery, failed-delivery retry, close failures that stay raised until the failing lender closes (across other lenders\' passes and a restart), overdue closes, public sandboxes\' counted apart as warnings, a process too young to have read giving a warning that neither ends nor repeats an incident, until such warnings have lasted longer than one process can be young (a crash loop, or an instance each probe starts), when they count as stale, each startup warning at its own window and kept for the whole run, so alternating and random subsets open one incident whose codes only grow, a rollback that ends the run, a worker clock ahead by up to a heartbeat and the probe\'s time limit, times copied in ISO form, schema readiness, scheduler mode versus execution evidence, the backlog an external host\'s web instances read, explicit labelled delivery tests without incident-state changes, redacted failures.');
 } finally { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); }
