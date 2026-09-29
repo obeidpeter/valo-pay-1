@@ -33,8 +33,10 @@ if (!refusal && options.has('--retry') && !(await (await import('../../artifacts
   refusal = "Private storage credentials could not be obtained here within 5 seconds, so --retry was refused and no file was claimed: a retry that cannot reach storage would push every due file into backoff. Run it where the service's storage credentials are, such as the service's own shell, or leave the files to the service's background worker.";
 }
 if (refusal) {
-  console.error(refusal);
+  // Ends once the refusal is written: a credentials request to a storage sidecar that never answers cannot be cancelled
+  // and would otherwise keep the process, such as a scheduled retry, running.
   process.exitCode = 1;
+  process.stderr.write(`${refusal}\n`, () => process.exit());
 } else {
   const { closeDatabase, exportCleanupStatus, runExportCleanupPass, parkedExportFiles, requeueParkedExportFile, releaseParkedExportFile } = await import('../../artifacts/api-server/src/lib/valopay-store');
   const { logger } = await import('../../artifacts/api-server/src/lib/logger');

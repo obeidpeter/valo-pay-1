@@ -2,8 +2,9 @@
 // entry point, its options after the `--` that `pnpm run x -- --flag` passes
 // on, a mistyped option, and the refusals that come before any provider,
 // database or host is reached. Nothing here leaves this machine: the monitor
-// probes a closed loopback port, and the other checks stop before they would
-// connect.
+// probes a closed loopback port, a cleanup retry asks the storage sidecar's
+// loopback address for credentials, and the other checks stop before they
+// would connect.
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
@@ -16,12 +17,12 @@ const tsx = path.join(root, "scripts", "node_modules", "tsx", "dist", "cli.mjs")
 const clean = Object.fromEntries(Object.entries(process.env).filter(([name]) => !/^(?:VALOPAY_|PAYSTACK_|DATABASE_URL$|REPLIT_DEV_DOMAIN$|PRIVATE_OBJECT_DIR$|LOG_LEVEL$)/.test(name)));
 const unusableDatabase = "postgres://unused:unused@127.0.0.1:1/unused";
 
-function run(script, args, env = {}) {
+function run(script, args, env = {}, limitMs = 60_000) {
   const child = spawn(process.execPath, script.endsWith(".ts") ? [tsx, script, ...args] : [script, ...args], { cwd: root, env: { ...clean, ...env } });
   let stdout = "", stderr = "";
   child.stdout.on("data", (chunk) => { stdout += chunk; });
   child.stderr.on("data", (chunk) => { stderr += chunk; });
-  const timer = setTimeout(() => child.kill(), 60_000);
+  const timer = setTimeout(() => child.kill(), limitMs);
   return new Promise((resolve) => child.on("close", (status) => { clearTimeout(timer); resolve({ status, stdout, stderr, output: stdout + stderr }); }));
 }
 
@@ -48,6 +49,19 @@ if (!sidecarListening) {
   assert.equal(noCredentials.status, 1, noCredentials.output);
   assert.match(noCredentials.stderr, /Private storage credentials could not be obtained here within 5 seconds, so --retry was refused and no file was claimed/);
   assert.doesNotMatch(noCredentials.output, /could not be checked|synthetic-private-bucket/);
+  // A sidecar that accepts the connection and never answers leaves a credentials request open that cannot be cancelled:
+  // the refusal still ends the command, so a scheduled retry cannot hang. The silent server takes the sidecar's own
+  // address, which the code fixes, only while nothing else holds it; no proxy stands in between.
+  const silentSockets = new Set();
+  const silent = createServer((socket) => { silentSockets.add(socket); socket.on("error", () => {}); });
+  if (await new Promise((resolve) => { silent.once("error", () => resolve(false)); silent.listen(1106, "127.0.0.1", () => resolve(true)); })) {
+    const unanswered = await run(cleanup, ['--', '--retry'], { DATABASE_URL: unusableDatabase, PRIVATE_OBJECT_DIR: '/synthetic-private-bucket/private', HTTPS_PROXY: '', https_proxy: '', HTTP_PROXY: '', http_proxy: '' }, 20_000);
+    for (const socket of silentSockets) socket.destroy();
+    silent.close();
+    assert.ok(silentSockets.size > 0, "the credentials request reached the silent server");
+    assert.equal(unanswered.status, 1, `a refused retry ends by itself within 20 seconds: ${unanswered.output}`);
+    assert.match(unanswered.stderr, /Private storage credentials could not be obtained here within 5 seconds, so --retry was refused and no file was claimed/);
+  }
 }
 // A release is recorded by its warning line in this command's log output: where LOG_LEVEL would filter warnings out, or
 // names no level, it is refused before the database.
@@ -206,4 +220,4 @@ try {
   assert.equal(connections, 0, "nothing was sent to a host that is not a Replit development domain");
 } finally { listener.close(); }
 
-console.log("Operator commands passed offline: the cleanup command's refusals, a retry without private storage or its credentials and a release whose record LOG_LEVEL would drop among them, before it reaches the database, options after pnpm's --, a named mistyped option, uncopied values, the monitor's dry run, its missing origin named and its careful failure, the Paystack check's refusals before any request, provision-pilot's three modes with their usage, staff-access check and store refusal before any connection, rewrap-payloads' usage, key settings and runtime schema refusal before any connection, and the smoke and security scripts' refusal of any host but a Replit development domain.");
+console.log("Operator commands passed offline: the cleanup command's refusals, a retry without private storage or its credentials, ended even while the storage sidecar never answers, and a release whose record LOG_LEVEL would drop among them, before it reaches the database, options after pnpm's --, a named mistyped option, uncopied values, the monitor's dry run, its missing origin named and its careful failure, the Paystack check's refusals before any request, provision-pilot's three modes with their usage, staff-access check and store refusal before any connection, rewrap-payloads' usage, key settings and runtime schema refusal before any connection, and the smoke and security scripts' refusal of any host but a Replit development domain.");
