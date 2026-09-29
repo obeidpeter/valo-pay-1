@@ -11,6 +11,7 @@ import { useWorkspace } from '@/lib/workspace-context';
 import { readableLabel } from './record-label';
 import { formatDate } from '@/lib/formatters';
 import { majorToMinor, minorToMajor, moneyFieldLabel } from '@/lib/money-input';
+import { percentToStored, storedToPercent, type PercentStorage } from '@/lib/percent-input';
 import { currencyMinorUnit } from '@workspace/valopay-schema';
 import { permissionReason } from '@/lib/permissions';
 import { referenceOf } from '@/lib/notify';
@@ -39,6 +40,8 @@ type FieldDef = {
   isData?: boolean; // if true, placed in record.data
   required?: boolean;
   help?: string;
+  /** A rate typed in per cent and stored as basis points or as a fraction of 1, converted exactly (lib/percent-input). */
+  percent?: PercentStorage;
 };
 
 type RecordDialogProps = {
@@ -138,6 +141,7 @@ export function RecordDialog({ kind, record, isOpen, onOpenChange, fields: sourc
       const stored = String(record?.data?.[currencyField ?? ''] || 'NGN'), storedCurrency = currencyMinorUnit(stored) === undefined ? 'NGN' : stored;
       fields.forEach(field => {
         if (isMoney(field) && initial[field.name] !== undefined && initial[field.name] !== '') initial[field.name] = minorToMajor(Number(initial[field.name]), currencyField ? storedCurrency : 'NGN');
+        if (field.percent && initial[field.name] !== undefined && initial[field.name] !== null && initial[field.name] !== '') initial[field.name] = storedToPercent(field.percent, initial[field.name]);
       });
       setFormData(initial);
       setInitialForm(submissionFingerprint(initial));
@@ -202,6 +206,9 @@ export function RecordDialog({ kind, record, isOpen, onOpenChange, fields: sourc
       else if (isMoney(f) && !empty && currencyMinorUnit(moneyCurrency) !== undefined) {
         try { majorToMinor(String(value), moneyCurrency); } catch (error) { errors[f.name] = (error as Error).message; }
       }
+      else if (f.percent && !empty) {
+        try { percentToStored(f.percent, String(value)); } catch (error) { errors[f.name] = (error as Error).message; }
+      }
       else if (f.type === 'number' && !empty && !Number.isFinite(Number(value))) errors[f.name] = `Enter ${f.label} as a number.`;
     });
     if (!Object.keys(errors).length && validate) Object.assign(errors, validate(formData));
@@ -227,6 +234,7 @@ export function RecordDialog({ kind, record, isOpen, onOpenChange, fields: sourc
         return;
       }
       if (isMoney(f)) val = majorToMinor(String(val), moneyCurrency);
+      else if (f.percent) val = percentToStored(f.percent, String(val));
       else if (f.name === currencyField) val = String(val).trim().toUpperCase();
       else if (f.type === 'number') val = Number(val);
       if(['consentGaps','linePaymentIds','confirmedJobs'].includes(f.name)&&typeof val==='string')val=val.split(/[|,]/).map(s=>s.trim()).filter(Boolean);
@@ -332,8 +340,8 @@ export function RecordDialog({ kind, record, isOpen, onOpenChange, fields: sourc
                 ) : (
                   <input 
                     id={`record-${f.name}`}
-                    type={isMoney(f) ? 'text' : f.type === 'number' ? 'number' : f.type==='date'?'date':'text'}
-                    inputMode={isMoney(f) ? 'decimal' : undefined}
+                    type={isMoney(f) || f.percent ? 'text' : f.type === 'number' ? 'number' : f.type==='date'?'date':'text'}
+                    inputMode={isMoney(f) || f.percent ? 'decimal' : undefined}
                     className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" 
                     value={Array.isArray(formData[f.name])?formData[f.name].join(" | "):(formData[f.name]??'')} 
                     onChange={e => handleChange(f.name, e.target.value)} 
