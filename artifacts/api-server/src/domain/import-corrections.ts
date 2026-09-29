@@ -274,27 +274,39 @@ export function importCorrectionComparison(
     impactVersion(proposal),
   );
 }
-/** Reassignment never rewrites the proposal. Follow its versioned event chain; ambiguous history fails closed. */
-export function importCorrectionAssignment(state: DomainState, proposal: ValopayRecord) {
+export const inconsistentAssignment =
+  "This correction has inconsistent assignment history. Ask an administrator to investigate the recorded events.";
+/** Reassignment never rewrites the proposal. Follow its versioned event chain
+ * as far as it is unambiguous: `consistent` is false where it forks, breaks or
+ * leaves events off the chain, which only bad data does. A read shows that one
+ * proposal as far as its history agrees; a decision refuses it. */
+export function followImportCorrectionAssignment(state: DomainState, proposal: ValopayRecord) {
   const events = state.records.filter(r => r.merchantId === state.merchant.id && r.kind === "import-correction-events" && r.data.proposalId === proposal.id && r.data.action === "reassign");
   let reviewer = String(proposal.data.reviewer), eventId: string | null = null, updatedAt = proposal.createdAt;
   const history: Array<{ id: string; fromReviewer: string; reviewer: string; actor: string; reason: string; at: string }> = [];
   while (history.length < events.length) {
     const next = events.filter(r => r.data.previousAssignmentEventId === eventId);
     if (next.length !== 1 || next[0]!.data.fromReviewer !== reviewer || next[0]!.data.proposalDigest !== proposal.data.proposalDigest || history.some(r => r.id === next[0]!.id))
-      refuse("This correction has inconsistent assignment history. Ask an administrator to investigate the recorded events.");
+      return { reviewer, eventId, updatedAt, history, consistent: false };
     const event = next[0]!;
     history.push({ id: event.id, fromReviewer: reviewer, reviewer: event.data.reviewer, actor: event.data.actor, reason: event.data.reason, at: event.createdAt });
     reviewer = event.data.reviewer; eventId = event.id; updatedAt = event.createdAt;
   }
-  return { reviewer, eventId, updatedAt, history };
+  return { reviewer, eventId, updatedAt, history, consistent: true };
+}
+/** The current assignment for a decision or reassignment: ambiguous history fails closed. */
+export function importCorrectionAssignment(state: DomainState, proposal: ValopayRecord) {
+  const { consistent, ...assignment } = followImportCorrectionAssignment(state, proposal);
+  if (!consistent) refuse(inconsistentAssignment);
+  return assignment;
 }
 export function importCorrectionView(
   state: DomainState,
   ctx: Context,
   proposal: ValopayRecord,
+  assignment = followImportCorrectionAssignment(state, proposal),
 ) {
-  const decision = decisionOf(state, proposal.id), assignment = importCorrectionAssignment(state, proposal);
+  const decision = decisionOf(state, proposal.id);
   let current = false;
   // A decided proposal is never current, so it is not compared again.
   if (!decision)
@@ -457,8 +469,11 @@ export function reassignImportCorrection(
   if (input.proposalDigest !== proposal.data.proposalDigest || input.expectedAssignmentEventId !== assignment.eventId)
     refuse("This correction or its assignment changed. Refresh it before reassigning the reviewer.");
   if (input.reviewer === assignment.reviewer) refuse("Choose a different active Finance reviewer.");
-  if (input.reviewer === proposal.data.proposedBy || input.reviewer === `Clerk:${proposal.data.proposedPrincipal}` || !reviewers.some(r => r.actor === input.reviewer && r.role === "Finance"))
+  // The proposer's principal is a digest of their identity, never an actor: the decision compares it.
+  if (input.reviewer === proposal.data.proposedBy || !reviewers.some(r => r.actor === input.reviewer && r.role === "Finance"))
     refuse("Choose another active Finance reviewer with access to this lender, independent of the proposer.", 403);
+  // A demo persona is the same browser person as the proposer, so it could never decide, as for a close review.
+  if (input.reviewer.startsWith("Sandbox ")) refuse("Choose a staff Finance reviewer. Demo roles cannot provide independent review.", 403);
   makeRecord(state, "import-correction-events", {
     name: "Import correction reviewer reassigned", status: "recorded", createdAt: ctx.now, updatedAt: ctx.now,
     data: { proposalId: id, targetId: proposal.data.targetId, batchId: proposal.data.batchId, proposalDigest: proposal.data.proposalDigest,

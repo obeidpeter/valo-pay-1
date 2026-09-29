@@ -636,6 +636,44 @@ assert.equal(
   assert.equal(decideImportCorrection(loaded, reviewer, proposal.id, { proposalDigest: proposal.proposalDigest, action: "approve", reason: "Independently compared the source" }, reviewers).status, "approved");
   assert.doesNotThrow(() => assertImportedCorrectionChange(before.records.find((r) => r.id === target!.id)!, loaded.records.find((r) => r.id === target!.id)!, before, loaded), "the save's check uses the same rule");
 }
+{
+  // Review of PR #71: a forked reviewer assignment (two reassignments from the same version, which only bad data
+  // holds) failed My work, Mark as read and the batch's correction list for the whole lender. Only that proposal fails.
+  const state = fresh(), admin = { actor: "Clerk:admin", principalId: "person-admin", role: "Admin", now: finance.now };
+  const people = [{ ...finance, name: "Synthetic Finance reviewer" }, { ...admin, name: "Synthetic administrator" }];
+  const { batch } = imported(state, "customers", "source_row_id,name,reference,consentProvenance\nc-1,Synthetic customer one,FORK-C-1,Synthetic consent\nc-2,Synthetic customer two,FORK-C-2,Synthetic consent");
+  const [forked, healthy] = state.records.filter((r) => r.data.importIdentity?.batchId === batch.id).map((target) => {
+    const input = { batchId: batch.id, targetId: target.id, expectedUpdatedAt: target.updatedAt, changes: { name: `${target.name} corrected` }, syntheticOnly: true as const };
+    return proposeImportCorrection(state, ctx, { ...input, previewDigest: previewImportCorrection(state, ctx, input).previewDigest, reviewer: finance.actor, reason: "Correct the synthetic source name", evidence: "SYNTHETIC-FORK-EVIDENCE" }, reviewers);
+  }) as [ReturnType<typeof proposeImportCorrection>, ReturnType<typeof proposeImportCorrection>];
+  for (const other of ["Clerk:other-one", "Clerk:other-two"])
+    makeRecord(state, "import-correction-events", { status: "recorded", createdAt: finance.now, data: { proposalId: forked.id, targetId: forked.preview.targetId, batchId: batch.id, proposalDigest: forked.proposalDigest, action: "reassign", actor: admin.actor, principalId: admin.principalId, reason: "Synthetic forked history", previousAssignmentEventId: null, fromReviewer: finance.actor, reviewer: other } });
+  const own = derivePersonalWork(state, finance, people);
+  const healthyItem = own.items.find((item) => item.sourceId === healthy.id)!, forkedItem = own.items.find((item) => item.sourceId === forked.id)!;
+  assert.equal(healthyItem.notice, null, "the other correction is listed as before");
+  assert.match(forkedItem.notice!, /inconsistent assignment history/, "the forked one is listed with what is wrong");
+  assert.equal(derivePersonalWork(state, admin, people, { scope: "team" }).items.find((item) => item.sourceId === forked.id)?.escalated, true, "and escalated to the administrator");
+  const read = (item: typeof healthyItem) => recordWorkReceipt(state, finance, people, "read", { sourceId: item.sourceId, eventId: item.eventId, expectedUpdatedAt: item.sourceVersion, expectedDigest: item.sourceDigest });
+  assert.equal(read(healthyItem).sourceId, healthy.id, "Mark as read works for the rest of the lender");
+  assert.deepEqual(listImportCorrections(state, finance, batch.id).proposals.map((proposal) => proposal.id).sort(), [forked.id, healthy.id].sort(), "the batch's list still answers");
+  assert.throws(() => decideImportCorrection(state, finance, forked.id, { proposalDigest: forked.proposalDigest, action: "reject", reason: "Synthetic decision on bad history" }, reviewers), /inconsistent assignment history/, "a decision on the forked proposal still fails closed");
+  assert.throws(() => reassignImportCorrection(state, admin, forked.id, { proposalDigest: forked.proposalDigest, expectedAssignmentEventId: null, reviewer: "Clerk:another", reason: "Synthetic recovery on bad history" }, [{ actor: "Clerk:another", role: "Finance" }]), /inconsistent assignment history/);
+}
+{
+  // Review of PR #71: reassignment compared the new reviewer, an actor, with `Clerk:<the proposer's principal>`; a
+  // principal is a digest of the person's identity, so it never matched a proposer and could only refuse a colleague.
+  // Independence from the proposer is their actor here and their principal at the decision. A demo persona shares the
+  // browser person's principal, so it could be assigned and then never decide: it is refused, as a close review's is.
+  const state = fresh(), admin = { actor: "Clerk:admin", principalId: "person-admin", role: "Admin", now: finance.now };
+  const { batch, target } = imported(state, "customers", "source_row_id,name,reference,consentProvenance\nc-1,Synthetic customer,ASSIGN-C-1,Synthetic consent");
+  const input = { batchId: batch.id, targetId: target.id, expectedUpdatedAt: target.updatedAt, changes: { name: "Corrected synthetic customer" }, syntheticOnly: true as const };
+  const proposal = proposeImportCorrection(state, ctx, { ...input, previewDigest: previewImportCorrection(state, ctx, input).previewDigest, reviewer: finance.actor, reason: "Correct the misspelled source name", evidence: "SYNTHETIC-ASSIGN-EVIDENCE" }, reviewers);
+  const request = { proposalDigest: proposal.proposalDigest, expectedAssignmentEventId: null, reason: "The named reviewer is away this week." };
+  const demo = { actor: "Sandbox Finance", role: "Finance" };
+  assert.throws(() => reassignImportCorrection(state, admin, proposal.id, { ...request, reviewer: demo.actor }, [demo]), (error: any) => error.status === 403 && /Demo roles cannot provide independent review/.test(error.message));
+  const colleague = { actor: `Clerk:${ctx.principalId}`, role: "Finance" };
+  assert.equal(reassignImportCorrection(state, admin, proposal.id, { ...request, reviewer: colleague.actor }, [colleague]).reviewer, colleague.actor, "a colleague is judged by their own actor");
+}
 console.log(
-  "Import correction checks passed: immutable provenance, exact comparison, independent approval, stale dependencies, controlled financial changes, the proposer's own authority, withdrawal and isolation.",
+  "Import correction checks passed: immutable provenance, exact comparison, independent approval, stale dependencies, controlled financial changes, the proposer's own authority, withdrawal and isolation; currency that later closes leave unchanged, each pending correction compared once a read, a forked assignment confined to its proposal and independent reassignment.",
 );

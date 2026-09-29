@@ -554,7 +554,7 @@ function ProposalCard({
           <label className="block space-y-1 font-medium">Replacement Finance reviewer
             <select className={pilotField} value={replacement} disabled={busy} onChange={event => setReplacement(event.target.value)}>
               <option value="">Choose an independent reviewer</option>
-              {workbench.reviewers.filter(person => person.actor !== proposal.reviewer && person.actor !== proposal.proposedBy && person.actor !== `Clerk:${proposal.proposedPrincipal}`).map(person => <option key={person.actor} value={person.actor}>{person.name}</option>)}
+              {workbench.reviewers.filter(person => person.actor !== proposal.reviewer && person.actor !== proposal.proposedBy && !person.actor.startsWith('Sandbox ')).map(person => <option key={person.actor} value={person.actor}>{person.name}</option>)}
             </select>
           </label>
           <p className="text-xs text-muted-foreground">If no eligible reviewer is listed, grant another person Finance access in Team first. The new reviewer may reject stale evidence so a fresh proposal can be prepared.</p>

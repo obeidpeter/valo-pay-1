@@ -4,7 +4,7 @@ import { makeRecord } from './records';
 import { closeReviewBasisOnce, reviewIsCurrent } from './close-review';
 import { canonicalDigest } from '../lib/digests';
 import { contractAnswer } from '../lib/contract';
-import { importCorrectionAssignment, importCorrectionView } from './import-corrections';
+import { followImportCorrectionAssignment, importCorrectionView, inconsistentAssignment } from './import-corrections';
 
 export type WorkAssignee = { actor: string; name: string; role: string };
 const workRoles = ['Admin', 'Operations', 'Finance', 'Compliance reviewer'];
@@ -74,22 +74,23 @@ export function personalWorkItems(state: DomainState, ctx: Context, people: Work
       result.push({ id: `review:${record.id}`, eventId, sourceId: record.id, sourceVersion: record.updatedAt, sourceDigest: digest({ merchantId: state.merchant.id, id: record.id, updatedAt: record.updatedAt, status: record.status, data: record.data, current }), type: 'review', title: 'Daily close awaiting review', nextAction: samePerson ? 'A different person must review this close. Open the review to inspect its assignment.' : current ? 'Open the close, inspect the evidence and record your decision.' : 'The close evidence has changed. Open the review to see what must be prepared again.', assignee: record.data.reviewer, assigneeName: name(record.data.reviewer), dueAt: null, overdue: false, escalated, escalationReason: escalated ? 'This review has waited at least 24 hours for a decision.' : null, reviewCurrent: current, href: `/close-review?close=${encodeURIComponent(String(record.data.closeId))}`, readAt: events.find(saved => saved.data.action === 'read' && saved.data.eventId === eventId && saved.data.actor === record.data.reviewer)?.createdAt || null, canAcknowledge: false, assignmentEventId: null, notice: samePerson ? 'Changing demo roles is not independent review. The preparer cannot approve their own work.' : current ? null : 'A fresh close and review are required; this reminder does not approve the old evidence.' });
     }
     if (record.kind === 'import-corrections' && !decided.has(record.id)) {
-      const proposal = importCorrectionView(reviewState, ctx, record);
-      const assignment = importCorrectionAssignment(reviewState, record), current = proposal.current;
+      // Its assignment is followed once. History that only bad data forks is this item's notice, not the queue's failure.
+      const followed = followImportCorrectionAssignment(reviewState, record), proposal = importCorrectionView(reviewState, ctx, record, followed);
+      const { consistent, ...assignment } = followed, current = proposal.current;
       const targetLabel = records.find(source => source.id === proposal.preview.targetId)?.name || record.data.before?.name || `Source row ${proposal.preview.rowId}`;
       const samePerson = assignment.reviewer === ctx.actor && (proposal.proposedBy === ctx.actor || proposal.proposedPrincipal === (ctx.principalId || ctx.actor));
       const unavailable = !people.some(person => person.actor === assignment.reviewer && person.role === 'Finance');
-      const escalated = unavailable || now - Date.parse(record.createdAt) >= DAY;
+      const escalated = !consistent || unavailable || now - Date.parse(record.createdAt) >= DAY;
       const eventId = `correction:${record.id}:${assignment.eventId || 'original'}:${current ? 'current' : 'stale'}:${escalated ? 'escalated' : 'pending'}`;
       result.push({ id: `correction:${record.id}`, eventId, sourceId: record.id, sourceVersion: assignment.updatedAt,
-        sourceDigest: digest({ merchantId: state.merchant.id, id: record.id, proposalDigest: proposal.proposalDigest, assignment, current, unavailable }),
-        type: 'correction', title: 'Import correction awaiting review', nextAction: `${targetLabel}. ${unavailable ? 'Ask an administrator to assign an active independent Finance reviewer.' : samePerson ? 'A different person must review this correction.' : current ? 'Compare the imported value with the proposed correction and its evidence, then record your decision.' : 'The source or related evidence changed. Reject or withdraw this proposal, then prepare a fresh comparison.'}`,
+        sourceDigest: digest({ merchantId: state.merchant.id, id: record.id, proposalDigest: proposal.proposalDigest, assignment, current, unavailable, ...(consistent ? {} : { consistent }) }),
+        type: 'correction', title: 'Import correction awaiting review', nextAction: `${targetLabel}. ${!consistent ? 'Ask an administrator to investigate its recorded reviewer assignments.' : unavailable ? 'Ask an administrator to assign an active independent Finance reviewer.' : samePerson ? 'A different person must review this correction.' : current ? 'Compare the imported value with the proposed correction and its evidence, then record your decision.' : 'The source or related evidence changed. Reject or withdraw this proposal, then prepare a fresh comparison.'}`,
         assignee: assignment.reviewer, assigneeName: name(assignment.reviewer), waitingSince: record.createdAt, dueAt: null, overdue: false, escalated,
-        escalationReason: unavailable ? 'The assigned Finance reviewer is no longer available in this lender.' : escalated ? 'This correction has waited at least 24 hours for a decision.' : null,
+        escalationReason: !consistent ? 'The recorded reviewer assignments for this correction disagree.' : unavailable ? 'The assigned Finance reviewer is no longer available in this lender.' : escalated ? 'This correction has waited at least 24 hours for a decision.' : null,
         reviewCurrent: current, href: `/imports?batch=${encodeURIComponent(proposal.preview.batchId)}&correction=${encodeURIComponent(record.id)}`,
         readAt: events.find(saved => saved.data.action === 'read' && saved.data.eventId === eventId && saved.data.actor === assignment.reviewer)?.createdAt || null,
         canAcknowledge: false, assignmentEventId: assignment.eventId,
-        notice: samePerson ? 'Changing demo roles is not independent review. The proposer cannot approve their own correction.' : proposal.preview.financial ? 'This pending instalment correction blocks Finance preparation, approval and evidence export for the daily close.' : null,
+        notice: !consistent ? inconsistentAssignment : samePerson ? 'Changing demo roles is not independent review. The proposer cannot approve their own correction.' : proposal.preview.financial ? 'This pending instalment correction blocks Finance preparation, approval and evidence export for the daily close.' : null,
       });
     }
   }
@@ -118,7 +119,7 @@ export function recordWorkReceipt(state: DomainState, ctx: Context, people: Work
   if (!eligible(ctx, people)) refuse('Your current staff role cannot acknowledge work. Ask an administrator to check your access.', 403);
   const source = localRecords(state).find(record => record.id === input.sourceId);
   if (!source) refuse('This work item was not found in the selected lender.', 404);
-  const intended = source.kind === 'exceptions' ? source.data.case?.assignee : source.kind === 'close-reviews' ? source.data.reviewer : source.kind === 'import-corrections' ? importCorrectionAssignment(state, source).reviewer : undefined;
+  const intended = source.kind === 'exceptions' ? source.data.case?.assignee : source.kind === 'close-reviews' ? source.data.reviewer : source.kind === 'import-corrections' ? followImportCorrectionAssignment(state, source).reviewer : undefined;
   if (intended !== ctx.actor) refuse('Only the currently assigned staff member can acknowledge or mark this work as read.', 403);
   // A source has one item: only it is derived, once, so a receipt compares nothing else under the lender's write lock.
   const item = personalWorkItems(state, ctx, people, source.id)[0];
