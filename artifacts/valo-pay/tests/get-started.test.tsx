@@ -94,6 +94,20 @@ describe('role-aware starting point', () => {
     expect(api.calls.filter(call => call.method === 'POST')).toEqual([]);
   });
 
+  it('opens the access guide, not the first-task guide, from both of its access links', async () => {
+    api.role = 'Unrecognised sample role';
+    const user = userEvent.setup();
+    renderApp('/overview');
+    await screen.findByRole('heading', { name: 'Operations overview' });
+    expect(within(start()).getByRole('link', { name: 'Read the access guide' }).getAttribute('href')).toBe('/help?topic=access&returnTo=%2Foverview');
+    await user.click(within(start()).getByRole('button', { name: 'Get started · 3 steps' }));
+    const access = within(start()).getByRole('link', { name: 'Understand your access' });
+    expect(access.getAttribute('href')).toBe('/help?topic=access&returnTo=%2Foverview');
+    await user.click(access);
+    expect(await screen.findByRole('heading', { name: 'Sign in or accept an invitation', level: 2 })).toBeTruthy();
+    expect(api.calls.filter(call => call.method === 'POST')).toEqual([]);
+  });
+
   it('does not retain previous lender progress after access is removed', async () => {
     const user = userEvent.setup();
     renderApp('/overview');
