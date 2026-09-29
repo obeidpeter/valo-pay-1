@@ -197,9 +197,14 @@ try {
   const reviewedHistorical = ok(await call(`/v1/pilot/close-reviews/${pendingClose.review.id}/decision${query}`, 'replacement', 'POST', replacementDecision));
   assert.equal(reviewedHistorical.status, 'approved', 'A legitimate older business-date close loads its whole evidence for the decision.');
   assert.deepEqual(reviewedHistorical.data.snapshot, originalReview.data.snapshot);
+  // While it stays current, its evidence exports although its close loads as a summary elsewhere: the export loads that
+  // close whole, as the decision does (review of PR #71).
+  const historicalExport = { kind: 'reviewed-close', format: 'json', closeReviewId: pendingClose.review.id };
+  assert.equal(ok(await call(`/v1/exports${query}`, 'finance', 'POST', historicalExport)).status, 'queued', 'An approved, current older close exports its reviewed evidence.');
   const laterApproval = ok(await call(`/v1/pilot/import-corrections/${laterProposal.id}/decision${query}`, 'finance', 'POST', { proposalDigest: laterProposal.proposalDigest, action: 'approve', reason: 'Independently compared the unchanged source after a month of later closes.' }));
   assert.equal(laterApproval.status, 'approved', 'Later closes do not stop an unchanged correction being approved.');
   assert.equal(ok(await call(`/v1/records/customers${query}`)).items.find((row: any) => row.id === imported.id).name, 'Synthetic customer corrected twice');
+  assert.equal((await call(`/v1/exports${query}`, 'finance', 'POST', historicalExport)).status, 409, 'Changed records still make that review stale for a new export.');
   assert.equal((await call(`/v1/pilot/close-reviews/${pendingClose.review.id}/reassign${query}`, 'admin', 'POST', { ...reassignInput, expectedUpdatedAt: reviewedHistorical.updatedAt, reviewer: `Clerk:${finance}` })).status, 409, 'Completed decisions cannot be reassigned.');
   assert.equal(ok(await call(`/v1/actions${query}`, 'admin', 'POST', { action: 'verify_audit' })).data.valid, true);
   console.log('Source-close controls: dated manifest replay, lender isolation, independent correction approval, durable replay and retained source provenance passed.');
