@@ -9,7 +9,7 @@ import { billableCollection, issueInvoice, monthOf, pendingAdjustments, previous
 import { supersedeAllocation } from "../src/domain/reconciliation.js";
 import { makeRecord, recordsOf } from "../src/domain/records.js";
 import { seedMerchant } from "../src/lib/valopay-seed.js";
-import type { DomainState, TypedRecord, ValopayRecord } from "../src/domain/types.js";
+import type { Context, DomainState, TypedRecord, ValopayRecord } from "../src/domain/types.js";
 import { validateRecord } from '../src/domain/validation.js';
 
 const { assertFinalState } = await import("../src/lib/valopay-store.js");
@@ -17,17 +17,27 @@ let checks = 0;
 const finance = (now: string) => ctxAt(now, "Finance");
 const LICENCE = 60_000_000; // contracted Scale licence in the seed
 const invoiceFor = (state: DomainState, period: string, now: string) => executeAction(state, finance(now), { action: "issue_invoice", reason: "month end", data: { period } }).record!;
+/** A signed-in staff member: the actor is their account, the principal the person behind it. */
+const staffAt = (name: string, role: string, now: string): Context => ({ actor: `Clerk:user_${name}`, principalId: `principal-${name}`, role, now, accessMode: 'staff' });
+/** A second person confirms the dates the lender's terms propose, as confirm_discount_terms records it. */
+function confirmTerms(state: DomainState, now: string, by = 'fixture_admin') {
+  const terms = recordsOf(state, 'commercial')[0]!;
+  return executeAction(state, staffAt(by, 'Admin', now), { action: 'confirm_discount_terms', recordId: terms.id, reason: 'Checked against the signed agreement',
+    data: { discountStartDate: terms.data.discountStartDate, fullPriceStartDate: terms.data.fullPriceStartDate, discountTermsReference: terms.data.discountTermsReference } });
+}
 
 /** A seeded lender whose design-partner terms are signed from `effectiveDate`, so its first invoice is for that month or an earlier one. */
-function fixture(id: string, effectiveDate = "2027-06-01"): { state: DomainState; collection: (reference: string, observedAt: string, amountKobo?: number) => TypedRecord<"payments"> } {
+function fixture(id: string, effectiveDate = "2027-06-01", dates = { discountStartDate: '2027-01-01', fullPriceStartDate: '2028-01-01' }): { state: DomainState; collection: (reference: string, observedAt: string, amountKobo?: number) => TypedRecord<"payments"> } {
   const state = seedMerchant(id);
   const terms = recordsOf(state, "commercial")[0]!;
   terms.data.signed = true; terms.data.effectiveDate = effectiveDate;
   // These dates describe this fixture's reviewed agreement, not a platform calendar default.
   terms.data.signedFullPriceTerms = true;
-  terms.data.discountStartDate = '2027-01-01'; terms.data.fullPriceStartDate = '2028-01-01';
+  Object.assign(terms.data, dates);
   terms.data.discountTermsReference = 'synthetic-agreement';
-  validateRecord(state, finance(wat('2026-12-01T09:00:00')), 'commercial', terms);
+  // One person saves the dates, proposing them; a different person confirms them.
+  validateRecord(state, staffAt('fixture_finance', 'Finance', wat('2026-12-01T09:00:00')), 'commercial', terms);
+  confirmTerms(state, wat('2026-12-02T09:00:00'));
   // The seeded receipts become transfers so only the collections each case creates are billable (BIL-01 is covered in measurement-golden).
   for (const payment of recordsOf(state, "payments")) payment.data.channel = "transfer";
   const customer = recordsOf(state, "customers")[0]!;
@@ -48,14 +58,211 @@ assert.equal(monthOf(wat("2028-01-01T00:30:00")), "2028-01", "00:30 WAT on 1 Jan
 assert.equal(previousMonth(wat("2028-02-01T00:30:00")), "2028-01", "at 00:30 WAT on 1 February the previous month is January");
 checks += 5;
 
+// ---------- Review fix: a design-partner price that is not ready names its actual cause, in the same words everywhere ----------
+{
+  const state = seedMerchant('pricing-causes');
+  const terms = recordsOf(state, 'commercial')[0]!;
+  terms.data.signed = true; terms.data.effectiveDate = '2027-06-01';
+  for (const payment of recordsOf(state, 'payments')) payment.data.channel = 'transfer';
+  state.settings.billingPeriod = '2027-06';
+  const now = wat('2027-07-02T09:00:00');
+  /** An edit through the record API's checks; null removes a field, as a PATCH does. */
+  const save = (patch: Record<string, unknown>) => {
+    const edit = structuredClone(terms);
+    for (const [key, value] of Object.entries(patch)) if (value === null) delete edit.data[key]; else edit.data[key] = value;
+    validateRecord(state, finance(wat('2027-06-20T09:00:00')), 'commercial', edit, true);
+    Object.assign(terms, edit);
+  };
+  /** The invoice refusal (409), the statement, the next invoice and the report give one cause in the same words. */
+  const cause = () => {
+    const before = structuredClone(state);
+    let refusal: (Error & { status?: number }) | undefined;
+    try { issueInvoice(state, finance(now), { period: '2027-06' }); } catch (error) { refusal = error as Error & { status?: number }; }
+    assert.equal(refusal?.status, 409, 'the invoice is refused as a conflict with the terms');
+    assert.deepEqual(state, before, 'a refused invoice changes nothing');
+    const billing = buildReports(state, now).billing;
+    assert.deepEqual([billing.pricingReady, billing.nextInvoicePricingReady, billing.totalKobo], [false, false, null]);
+    assert.equal(billing.pricingExplanation, refusal!.message, 'the statement names the cause the refusal names');
+    assert.equal(billing.nextInvoicePricingExplanation, refusal!.message, 'so does the next invoice');
+    assert.ok(String(billing.unitEconomics.note).includes(refusal!.message), `the report names it too: ${billing.unitEconomics.note}`);
+    checks += 7;
+    return refusal!.message;
+  };
+  // Dates and reference saved without ticking “Full-price terms are signed”: the save succeeds, and the flag is the cause, not the dates.
+  save({ signedFullPriceTerms: false, discountStartDate: '2027-01-01', fullPriceStartDate: '2028-01-01', discountTermsReference: 'SYN-CAUSES' });
+  assert.equal(recordsOf(state, 'commercial')[0]!.data.discountReview, undefined, 'nothing is proposed while the full-price terms are not signed');
+  const flag = cause();
+  assert.match(flag, /^These design-partner terms cannot price a new invoice yet\. The full-price terms are not recorded as signed: tick “Full-price terms are signed”/);
+  assert.doesNotMatch(flag, /missing|correcting|await/, 'the dates are complete and valid, so they are not blamed');
+  // An agreement saved before the dates existed, with the flag ticked: the missing dates and reference are named.
+  save({ signedFullPriceTerms: true, discountStartDate: null, fullPriceStartDate: null, discountTermsReference: null });
+  assert.match(cause(), /The discount start date, the full-price start date and the signed agreement reference are missing: enter them from the signed agreement\.$/);
+  // Neither the flag nor the dates: both causes, each in its own words.
+  terms.data.signedFullPriceTerms = false;
+  const both = cause();
+  assert.match(both, /full-price terms are not recorded as signed.*The discount start date, the full-price start date and the signed agreement reference are missing/);
+  // Stored before today's checks (written directly, not through the record API): a missing reference, a mid-month date, an unreadable date.
+  Object.assign(terms.data, { signedFullPriceTerms: true, discountStartDate: '2027-01-01', fullPriceStartDate: '2028-01-01', discountTermsReference: ' ' });
+  assert.match(cause(), /The signed agreement reference is missing: enter it from the signed agreement\.$/);
+  Object.assign(terms.data, { discountTermsReference: 'SYN-CAUSES', discountStartDate: '2027-01-15' });
+  assert.match(cause(), /The saved discount dates need correcting\. Discount dates must be the first day of a real billing month\./);
+  Object.assign(terms.data, { discountStartDate: 20270101 });
+  assert.match(cause(), /The saved discount start date cannot be read: enter it again from the signed agreement\.$/);
+  // Proposed, then changed outside the record API: the proposal no longer matches the dates.
+  terms.data.discountStartDate = '2027-01-01';
+  save({ fullPriceStartDate: '2028-01-01' });
+  assert.equal(terms.data.discountReview?.discountStartDate, '2027-01-01', 'saving complete signed terms records a proposal');
+  terms.data.fullPriceStartDate = '2027-12-01';
+  assert.match(cause(), /The discount dates or agreement reference changed after they were proposed: save the commercial terms again/);
+  // A proposal stored in a form the service cannot read.
+  Object.assign(terms.data, { fullPriceStartDate: '2028-01-01', discountReview: { ...terms.data.discountReview, reviewedBy: 42 } });
+  assert.match(cause(), /The recorded proposal or confirmation of these discount dates cannot be read/);
+  checks += 9;
+}
+
+// ---------- Review fix: design-partner pricing takes two people: one proposes the dates by saving them, a different one confirms them ----------
+{
+  const state = seedMerchant('two-people');
+  const terms = recordsOf(state, 'commercial')[0]!;
+  terms.data.signed = true; terms.data.effectiveDate = '2027-06-01';
+  for (const payment of recordsOf(state, 'payments')) payment.data.channel = 'transfer';
+  state.settings.billingPeriod = '2027-06';
+  const now = wat('2027-07-02T09:00:00');
+  /** A signed-in staff member: the actor is their account, the principal the person behind it. */
+  const staff = (name: string, role: string, at = wat('2027-06-20T09:00:00')): Context => ({ actor: `Clerk:user_${name}`, principalId: `principal-${name}`, role, now: at, accessMode: 'staff' });
+  const dates = { discountStartDate: '2027-01-01', fullPriceStartDate: '2028-01-01', discountTermsReference: 'SYN-TWO-PEOPLE' };
+  const save = (ctx: Context, patch: Record<string, unknown>) => {
+    const edit = structuredClone(terms);
+    Object.assign(edit.data, patch);
+    validateRecord(state, ctx, 'commercial', edit, true);
+    Object.assign(terms, edit);
+  };
+  const confirm = (ctx: Context, data: Record<string, unknown> = dates) => executeAction(state, ctx, { action: 'confirm_discount_terms', recordId: terms.id, reason: 'Checked against the signed agreement', data });
+  const billing = () => buildReports(state, now).billing;
+  const refusedWith = (status: number, pattern: RegExp) => (error: unknown) => (error as { status?: number }).status === status && pattern.test((error as Error).message);
+  const proposal = { reviewedBy: 'Clerk:user_ada', reviewedAt: wat('2027-06-20T09:00:00'), proposedPrincipal: 'principal-ada', discountStartDate: '2027-01-01', fullPriceStartDate: '2028-01-01', termsReference: 'SYN-TWO-PEOPLE' };
+
+  // One person saves the dates. That is a proposal: it prices nothing until a different person confirms it.
+  save(staff('ada', 'Finance'), { signedFullPriceTerms: true, ...dates });
+  assert.equal(billing().nextInvoicePricingReady, false, 'the person who saved the dates cannot price an invoice alone');
+  assert.throws(() => issueInvoice(state, finance(now), { period: '2027-06' }), refusedWith(409, /The discount dates await confirmation: a different Admin or Finance user from the person who proposed them must confirm them/));
+  assert.deepEqual(terms.data.discountReview, proposal, 'the service records who proposed the dates, which person that is, when, and what they proposed');
+  // The proposer cannot confirm, in another role or under another account of the same person; nor can a role without the right.
+  assert.throws(() => confirm(staff('ada', 'Admin')), refusedWith(403, /A different person must confirm these discount dates/));
+  assert.throws(() => confirm({ ...staff('ada-second-login', 'Admin'), principalId: 'principal-ada' }), refusedWith(403, /A different person must confirm/));
+  assert.throws(() => confirm(staff('olu', 'Operations')), /not permitted/);
+  // The confirmer names what they checked: dates that are not the proposal's are refused, and nothing is recorded.
+  assert.throws(() => confirm(staff('bola', 'Admin'), { ...dates, fullPriceStartDate: '2027-12-01' }), refusedWith(409, /changed since you read them/));
+  assert.throws(() => confirm(staff('bola', 'Admin'), { discountStartDate: '2027-01-01' }), (error: unknown) => (error as { issues?: Array<{ path: unknown[] }> }).issues?.some((issue) => issue.path.join('.') === 'data.fullPriceStartDate') === true);
+  assert.deepEqual(terms.data.discountReview, proposal, 'refused confirmations record nothing');
+  // A different person confirms: who, which person and when are recorded, and the confirmed dates price the month.
+  const answer = confirm(staff('bola', 'Admin', wat('2027-06-21T10:00:00')));
+  const confirmed = { ...proposal, confirmedBy: 'Clerk:user_bola', confirmedPrincipal: 'principal-bola', confirmedAt: wat('2027-06-21T10:00:00') };
+  assert.deepEqual(terms.data.discountReview, confirmed);
+  assert.equal(terms.updatedAt, wat('2027-06-21T10:00:00'));
+  assert.match(answer.message, /confirmed/i);
+  assert.deepEqual([billing().pricingReady, billing().nextInvoicePricingReady], [true, true]);
+  assert.match(billing().nextInvoicePricingExplanation, /^50% design-partner discount for this billing month\. Confirmed agreement: discount from 2027-01-01; full price from 2028-01-01\.$/);
+  assert.throws(() => confirm(staff('chi', 'Finance')), refusedWith(409, /already confirmed by Clerk:user_bola/));
+  const ordinary = structuredClone(state);
+  recordsOf(ordinary, 'commercial')[0]!.data.designPartner = false;
+  assert.throws(() => executeAction(ordinary, staff('chi', 'Finance'), { action: 'confirm_discount_terms', recordId: terms.id, reason: 'Checked', data: dates }), refusedWith(409, /not a design partner's: they are billed at the full public price/));
+  // An edit that leaves the flags, dates and reference alone keeps the proposal and the confirmation.
+  save(staff('ada', 'Finance', wat('2027-06-22T09:00:00')), { monthlyVolume: 4_321 });
+  assert.deepEqual(terms.data.discountReview, confirmed, 'unrelated edits keep both');
+  // Any change to them returns the terms to a proposal awaiting confirmation, by whoever saved it.
+  save(staff('bola', 'Admin', wat('2027-06-23T09:00:00')), { fullPriceStartDate: '2027-12-01' });
+  assert.deepEqual(terms.data.discountReview, { ...proposal, reviewedBy: 'Clerk:user_bola', reviewedAt: wat('2027-06-23T09:00:00'), proposedPrincipal: 'principal-bola', fullPriceStartDate: '2027-12-01' });
+  assert.equal(billing().nextInvoicePricingReady, false, 'a changed date needs a new confirmation');
+  assert.throws(() => confirm(staff('bola', 'Admin'), { ...dates, fullPriceStartDate: '2027-12-01' }), refusedWith(403, /different person/), 'the person who changed them cannot confirm the change');
+  save(staff('ada', 'Finance', wat('2027-06-24T09:00:00')), { signedFullPriceTerms: false });
+  assert.equal(recordsOf(state, 'commercial')[0]!.data.discountReview, undefined, 'unticking the full-price terms withdraws the proposal');
+  save(staff('ada', 'Finance', wat('2027-06-24T10:00:00')), { signedFullPriceTerms: true });
+  assert.deepEqual([terms.data.discountReview?.reviewedBy, terms.data.discountReview?.confirmedBy], ['Clerk:user_ada', undefined], 'ticking it again proposes the dates afresh');
+  confirm(staff('bola', 'Admin', wat('2027-06-25T09:00:00')), { ...dates, fullPriceStartDate: '2027-12-01' });
+  assert.equal(billing().nextInvoicePricingReady, true);
+  // Confirmed dates changed outside the record API: the confirmation no longer matches them.
+  terms.data.fullPriceStartDate = '2028-02-01';
+  assert.throws(() => issueInvoice(state, finance(now), { period: '2027-06' }), refusedWith(409, /The discount dates or agreement reference changed after they were confirmed/));
+  // No client supplies who proposed or who confirmed.
+  terms.data.fullPriceStartDate = '2027-12-01';
+  for (const forged of [{ ...terms.data.discountReview, confirmedBy: 'Clerk:user_zed' }, { ...proposal, confirmedBy: 'Clerk:user_zed', confirmedPrincipal: 'principal-zed', confirmedAt: now }, undefined]) {
+    assert.throws(() => save(staff('ada', 'Finance'), { discountReview: forged }), /recorded by the service and cannot be supplied or edited/);
+  }
+  // A review an earlier build recorded, by one person with no confirmation, is a proposal awaiting confirmation.
+  const legacy = { reviewedBy: 'Clerk:user_ada', reviewedAt: '2026-09-29T10:00:00.000Z', discountStartDate: '2027-01-01', fullPriceStartDate: '2027-12-01', termsReference: 'SYN-TWO-PEOPLE' };
+  terms.data.discountReview = structuredClone(legacy);
+  assert.equal(billing().nextInvoicePricingReady, false, 'a single-person review from before this fix prices nothing');
+  assert.match(billing().nextInvoicePricingExplanation, /await confirmation/);
+  assert.throws(() => confirm(staff('ada', 'Admin'), { ...dates, fullPriceStartDate: '2027-12-01' }), refusedWith(403, /different person/), 'its reviewer cannot confirm it');
+  confirm(staff('bola', 'Admin', wat('2027-06-26T09:00:00')), { ...dates, fullPriceStartDate: '2027-12-01' });
+  assert.deepEqual(terms.data.discountReview, { ...legacy, confirmedBy: 'Clerk:user_bola', confirmedPrincipal: 'principal-bola', confirmedAt: wat('2027-06-26T09:00:00') });
+  const invoice = invoiceFor(state, '2027-06', now);
+  assert.deepEqual([invoice.data.designPartnerDiscount.rate, invoice.data.terms?.discountReview], [0.5, terms.data.discountReview], 'the invoice keeps the proposal and its confirmation');
+  checks += 34;
+}
+{
+  // In a sandbox every demo role is its one visitor: switching roles is not a second person.
+  const state = seedMerchant('sandbox-two-people');
+  const terms = recordsOf(state, 'commercial')[0]!;
+  const dates = { discountStartDate: '2027-01-01', fullPriceStartDate: '2028-01-01', discountTermsReference: 'SYN-SANDBOX' };
+  // The sandbox's visitor as the service knows them (principalId), and a demo role without one, which stands for the visitor.
+  const visitor = (role: string): Context => ({ ...ctxAt(wat('2027-06-20T09:00:00'), role), principalId: 'sandbox-visitor', accessMode: 'sandbox' });
+  const propose = (ctx: Context, discountStartDate: string) => {
+    const edit = structuredClone(terms);
+    Object.assign(edit.data, { signed: true, signedFullPriceTerms: true, effectiveDate: '2027-06-01', ...dates, discountStartDate });
+    validateRecord(state, ctx, 'commercial', edit, true);
+    Object.assign(terms, edit);
+  };
+  const confirm = (ctx: Context) => () => executeAction(state, ctx, { action: 'confirm_discount_terms', recordId: terms.id, reason: 'Switched to Admin', data: { ...dates, discountStartDate: terms.data.discountStartDate } });
+  const oneVisitor = (error: unknown) => (error as { status?: number }).status === 403 && /switching demo roles does not provide independent confirmation/.test((error as Error).message);
+  propose(visitor('Finance'), '2027-01-01');
+  assert.equal(terms.data.discountReview?.proposedPrincipal, 'sandbox-visitor');
+  assert.throws(confirm(visitor('Admin')), oneVisitor);
+  propose(ctxAt(wat('2027-06-20T09:00:00'), 'Finance'), '2027-02-01');
+  assert.equal(terms.data.discountReview?.proposedPrincipal, 'unidentified-demo-person', 'a demo role without a principal is recorded as the sandbox placeholder');
+  assert.throws(confirm(ctxAt(wat('2027-06-20T09:00:00'), 'Admin')), oneVisitor);
+  // A single-person review an earlier build recorded in a sandbox names no principal; its demo role is still the visitor.
+  terms.data.discountReview = { reviewedBy: 'Sandbox Finance', reviewedAt: '2026-09-29T10:00:00.000Z', discountStartDate: '2027-02-01', fullPriceStartDate: '2028-01-01', termsReference: 'SYN-SANDBOX' };
+  assert.throws(confirm(visitor('Admin')), oneVisitor);
+  assert.equal(terms.data.discountReview.confirmedBy, undefined);
+  checks += 6;
+}
+
+// ---------- Review fix: an issued invoice charged at another rate than the confirmed agreement gives is reported, never rewritten ----------
+{
+  // The signed agreement gives the discount from March 2027 until March 2028; earlier invoices were issued under the calendar-2027 rule.
+  const { state } = fixture('rate-discrepancy', '2027-01-01', { discountStartDate: '2027-03-01', fullPriceStartDate: '2028-03-01' });
+  const terms = recordsOf(state, 'commercial')[0]!;
+  const calendarRule = (period: string, sequence: number, rate: number) => makeRecord(state, 'invoices', { name: `Invoice ${period}`, status: 'issued', reference: `INV-${period}-00${sequence}`, createdAt: wat(`${period}-28T09:00:00`),
+    data: { period, issuedAt: wat(`${period}-28T09:00:00`), issuedBy: 'Sandbox Finance', sequence, usageLines: [], adjustments: [], terms: { commercialId: terms.id, prospect: terms.name, contractedLicenceKobo: LICENCE, designPartner: true, effectiveDate: '2027-01-01' },
+      designPartnerDiscount: { rate, kobo: -LICENCE * rate, note: 'Design-partner discount of 50% in 2027 on the licence and this invoice’s usage lines.' }, totals: { netKobo: LICENCE * (1 - rate), vatBps: 750, vatKobo: 0, totalKobo: LICENCE * (1 - rate), creditNote: false } } });
+  const issued = [calendarRule('2027-01', 1, 0.5), calendarRule('2027-02', 2, 0.5), calendarRule('2027-03', 3, 0.5)];
+  const before = structuredClone(state.records);
+  state.settings.billingPeriod = '2027-04';
+  const statement = () => buildReports(state, wat('2027-05-02T09:00:00')).billing;
+  const listed = () => (statement().rateDiscrepancies as Array<Record<string, any>> | undefined)?.map((line) => [line.invoiceId, line.invoiceReference, line.period, line.chargedRate, line.agreedRate]);
+  assert.deepEqual(listed(), [[issued[0]!.id, 'INV-2027-01-001', '2027-01', 0.5, 0], [issued[1]!.id, 'INV-2027-02-002', '2027-02', 0.5, 0]], 'each month charged at another rate than the confirmed agreement gives is listed; March agrees');
+  assert.equal(statement().rateDiscrepancies[0].explanation, 'INV-2027-01-001 for 2027-01 charged the 50% design-partner discount; the confirmed agreement gives the full public price for that month.');
+  assert.match(statement().rateDiscrepancyGuidance, /An issued invoice is never changed, and Valo Pay has no way to correct an issued invoice's discount/);
+  assert.match(statement().rateDiscrepancyGuidance, /Agree any difference with the lender outside Valo Pay/);
+  assert.deepEqual(state.records, before, 'reporting a difference changes no invoice and creates no money');
+  assert.equal(statement().pendingAdjustmentsKobo, 0, 'nothing is added to the next invoice automatically');
+  // A new invoice can still be issued, priced from the confirmed dates, and agrees with them.
+  const april = invoiceFor(state, '2027-04', wat('2027-05-02T09:00:00'));
+  assert.deepEqual([april.reference, april.data.designPartnerDiscount.rate], ['INV-2027-04-004', 0.5]);
+  assert.equal(listed()!.length, 2, 'the new invoice agrees with the agreement');
+  checks += 9;
+}
+
 // BIL-02: a calendar year is not signed authority to end the pilot/bridge discount.
 {
   const { state } = fixture('unreviewed-discount', '2028-01-01');
   delete recordsOf(state, 'commercial')[0]!.data.discountReview;
   state.settings.billingPeriod = '2028-01';
   const before = structuredClone(state);
-  assert.throws(() => issueInvoice(state, finance(wat('2028-02-02T09:00:00')), { period: '2028-01' }), /review.*discount dates/i,
-    'Older design-partner agreements need reviewed contract dates before a new invoice, not an automatic full-price calendar rollover.');
+  assert.throws(() => issueInvoice(state, finance(wat('2028-02-02T09:00:00')), { period: '2028-01' }), /No proposal is recorded for these discount dates/,
+    'Older design-partner agreements need proposed and confirmed contract dates before a new invoice, not an automatic full-price calendar rollover.');
   assert.deepEqual(state, before, 'Refused pricing creates no invoice or financial change');
   const billing = buildReports(state, wat('2028-02-02T09:00:00')).billing;
   assert.equal(billing.totalKobo, null); assert.equal(billing.pricingReady, false);
@@ -66,17 +273,19 @@ checks += 5;
   checks += 8;
 }
 
-// The funded contract may cover a different year; the server records the review and keeps its exact evidence on the invoice.
+// The funded contract may cover a different year; the server records the proposal and its confirmation and keeps their exact evidence on the invoice.
 {
   const { state, collection } = fixture('contract-dates', '2028-05-01');
   const terms = recordsOf(state, 'commercial')[0]!;
   const edit = structuredClone(terms);
   Object.assign(edit.data, { discountStartDate: '2028-05-01', fullPriceStartDate: '2028-07-01', discountTermsReference: 'reviewed-pilot-and-bridge' });
-  const ctx = finance(wat('2028-04-20T09:00:00'));
+  const ctx = staffAt('fixture_finance', 'Finance', wat('2028-04-20T09:00:00'));
   validateRecord(state, ctx, 'commercial', edit, true);
   Object.assign(terms.data, edit.data);
   assert.equal(terms.data.discountReview?.reviewedBy, ctx.actor);
   assert.equal(terms.data.discountReview?.reviewedAt, ctx.now);
+  assert.equal(terms.data.discountReview?.confirmedBy, undefined, 'the changed dates await a new confirmation');
+  confirmTerms(state, wat('2028-04-21T09:00:00'));
   collection('CONTRACT-RECEIPT', wat('2028-05-10T09:00:00'));
   const may = invoiceFor(state, '2028-05', wat('2028-06-02T09:00:00'));
   assert.equal(may.data.designPartnerDiscount?.rate, 0.5);
@@ -87,12 +296,12 @@ checks += 5;
   assert.equal(invoiceFor(state, '2028-07', wat('2028-08-02T09:00:00')).data.designPartnerDiscount?.rate, 0);
   assert.deepEqual(may, immutable, 'Later billing never reprices issued evidence');
   terms.data.fullPriceStartDate = '2028-09-01';
-  assert.throws(() => invoiceFor(state, '2028-08', wat('2028-09-02T09:00:00')), /review.*discount dates/i, 'A persisted date changed outside its review cannot reuse stale review evidence');
+  assert.throws(() => invoiceFor(state, '2028-08', wat('2028-09-02T09:00:00')), /changed after they were confirmed/, 'A persisted date changed outside its review cannot reuse stale review evidence');
   assert.deepEqual(may, immutable);
   checks += 10;
 }
 
-// Dates are reviewed by an authorised writer, never by a supplied identity or an inferred calendar.
+// Dates are proposed by an authorised writer, never by a supplied identity or an inferred calendar.
 {
   const { state } = fixture('date-validation');
   const terms = recordsOf(state, 'commercial')[0]!;
@@ -100,14 +309,14 @@ checks += 5;
   for (const patch of [{ fullPriceStartDate: '2027-01-01' }, { discountStartDate: '2027-02-30' }, { discountStartDate: '2027-06-15' }, { discountTermsReference: '' }]) {
     assert.throws(() => validateRecord(state, finance(wat('2027-06-02T09:00:00')), 'commercial', changed(patch), true));
   }
-  assert.throws(() => validateRecord(state, finance(wat('2027-06-02T09:00:00')), 'commercial', changed({ discountReview: { ...terms.data.discountReview, reviewedBy: 'Someone else' } }), true), /review identity/);
+  assert.throws(() => validateRecord(state, finance(wat('2027-06-02T09:00:00')), 'commercial', changed({ discountReview: { ...terms.data.discountReview, reviewedBy: 'Someone else' } }), true), /recorded by the service and cannot be supplied or edited/);
   assert.throws(() => validateRecord(state, ctxAt(wat('2027-06-02T09:00:00'), 'Read-only'), 'commercial', changed({ fullPriceStartDate: '2028-02-01' }), true), /read-only access/);
   const cleared = changed({ signedFullPriceTerms: false });
   validateRecord(state, finance(wat('2027-06-02T09:00:00')), 'commercial', cleared, true);
   assert.equal(cleared.data.discountReview, undefined);
   const untouched = structuredClone(terms);
   validateRecord(state, finance(wat('2027-06-02T09:00:00')), 'commercial', untouched, true);
-  assert.deepEqual(untouched.data.discountReview, terms.data.discountReview, 'Unrelated edits retain the original review time');
+  assert.deepEqual(untouched.data.discountReview, terms.data.discountReview, 'Unrelated edits retain the original proposal and its confirmation');
   checks += 8;
 }
 
@@ -136,8 +345,8 @@ checks += 5;
     const billing = buildReports(state, wat('2027-07-02T09:00:00')).billing;
     assert.equal(billing.pricingReady, false, `${label}: malformed stored evidence needs review`);
     assert.equal(billing.totalKobo, null, `${label}: no assumed price`);
-    assert.throws(() => issueInvoice(state, finance(wat('2027-07-02T09:00:00')), { period: '2027-06' }), /review.*discount dates/i,
-      `${label}: a documented pricing refusal, not an incidental TypeError`);
+    assert.throws(() => issueInvoice(state, finance(wat('2027-07-02T09:00:00')), { period: '2027-06' }), /These design-partner terms cannot price a new invoice yet\. The (recorded proposal or confirmation of these discount dates|saved (discount start date|signed agreement reference)) cannot be read/,
+      `${label}: a documented pricing refusal naming the unreadable evidence, not an incidental TypeError`);
     assert.deepEqual(state, before, `${label}: refusal and report preserve historical state`);
     checks += 4;
   }
@@ -462,4 +671,4 @@ checks += 5;
   checks += 2;
 }
 
-console.log(`Billing golden tests passed (${checks} checks): invoice lines, VAT, WAT months and period rules, every month invoiced in order with a zero invoice for a quiet one, the latest signed terms in effect found by the lender's id, withheld collections and the reversal window from settlement, adjustment credits and debits with references at the rate first billed, refunds of unapplied money, debits settled without a webhook, credit note, recovery fee gate and window, and receipts by channel in naira with other currencies beside them.`);
+console.log(`Billing golden tests passed (${checks} checks): invoice lines, VAT, WAT months and period rules, every month invoiced in order with a zero invoice for a quiet one, the latest signed terms in effect found by the lender's id, withheld collections and the reversal window from settlement, adjustment credits and debits with references at the rate first billed, refunds of unapplied money, debits settled without a webhook, credit note, recovery fee gate and window, receipts by channel in naira with other currencies beside them, a design-partner price that is not ready naming its cause in the same words everywhere, discount dates proposed by one person and confirmed by another, and issued invoices whose rate differs from the confirmed agreement reported, never rewritten.`);

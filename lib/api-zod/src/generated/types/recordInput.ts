@@ -21,6 +21,6 @@ export interface RecordInput {
   amountKobo?: number;
   /** @maxLength 100 */
   customerId?: string;
-  /** Per-kind fields validated by the shared record schema. Commercial design-partner terms may supply discountStartDate and fullPriceStartDate as first-of-month dates, discountTermsReference and signedFullPriceTerms. The service alone records discountReview attribution when signed dates are saved. Legacy records without reviewed dates remain readable but cannot issue a new design-partner invoice. */
+  /** Per-kind fields validated by the shared record schema. Commercial design-partner terms may supply discountStartDate and fullPriceStartDate as first-of-month dates, discountTermsReference and signedFullPriceTerms. Saving signed design-partner terms with the full-price terms signed and all three proposes the dates: the service alone records discountReview (who proposed them, which person and when); a different Admin or Finance user must then confirm them with confirm_discount_terms before they price an invoice. A discountReview in the request is refused (400). Legacy records without dates remain readable but cannot issue a new design-partner invoice. */
   data?: RecordData;
 }

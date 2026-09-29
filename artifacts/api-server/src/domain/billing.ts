@@ -219,6 +219,28 @@ export function pendingAdjustments(state: DomainState): AdjustmentLine[] {
   return lines.sort((a, b) => a.paymentReference.localeCompare(b.paymentReference));
 }
 
+/** An issued invoice whose design-partner rate differs from what the confirmed agreement of the terms that billed it gives for its month. */
+export interface RateDiscrepancy { invoiceId: string; invoiceReference: string; period: string; commercialId: string; chargedRate: number; agreedRate: number; explanation: string }
+const rateText = (rate: number): string => rate > 0 ? `the ${Math.round(rate * 100)}% design-partner discount` : "the full public price";
+/** What Finance does about a discrepancy: there is no correction for an issued invoice's discount, so it is agreed outside the platform. */
+export const RATE_DISCREPANCY_GUIDANCE = "An issued invoice is never changed, and Valo Pay has no way to correct an issued invoice's discount: the next invoice's adjustment lines correct only collections that were reversed, refunded, confirmed as duplicates or re-allocated. Agree any difference with the lender outside Valo Pay and keep a record of what you agreed. New invoices are priced from the confirmed dates.";
+/**
+ * BIL-02: every issued invoice charged at another design-partner rate than the confirmed agreement of the terms that
+ * billed it gives for its month, such as one issued under the earlier calendar-year rule. It is only reported: an
+ * issued invoice is never rewritten and no money is created. Terms that are not confirmed cannot be compared.
+ */
+export function rateDiscrepancies(state: DomainState): RateDiscrepancy[] {
+  const terms = new Map(recordsOf(state, "commercial").map((item) => [item.id, item]));
+  return issuedInvoices(state).flatMap((invoice) => {
+    const billedBy = terms.get(String(invoice.data.terms?.commercialId ?? ""));
+    if (billedBy?.data.designPartner !== true) return [];
+    const period = String(invoice.data.period), agreed = designPartnerDiscount(billedBy.data, period), chargedRate = rateOf(invoice.data.designPartnerDiscount?.rate, 0);
+    if (!agreed.ready || agreed.rate === chargedRate) return [];
+    return [{ invoiceId: invoice.id, invoiceReference: invoice.reference, period, commercialId: billedBy.id, chargedRate, agreedRate: agreed.rate!,
+      explanation: `${invoice.reference} for ${period} charged ${rateText(chargedRate)}; the confirmed agreement gives ${rateText(agreed.rate!)} for that month.` }];
+  });
+}
+
 /** BIL-03: the recovery fee, billed only after the 30-day window closes and only when the gate is open. */
 export function recoveryFeeLines(state: DomainState, period: string) {
   const enabled = state.settings.recoveryFeeEnabled === true && state.settings.recoveryFeeDecision === "proven";
@@ -327,6 +349,7 @@ export function buildBillingStatement(state: DomainState, now: string): Record<s
     pricingReady: pricing.ready, pricingExplanation: pricing.explanation,
     invoices, nextInvoicePeriod: nextPeriod, nextInvoicePricingReady: nextPricing.ready, nextInvoicePricingExplanation: nextPricing.explanation,
     pendingAdjustments: adjustments, pendingAdjustmentsKobo: sumMoney(adjustments.map((line) => line.kobo)),
+    rateDiscrepancies: rateDiscrepancies(state), rateDiscrepancyGuidance: RATE_DISCREPANCY_GUIDANCE,
     adjustmentRule: "If a billed collection is reversed, refunded, confirmed as a duplicate or affected by an invalidated allocation, the correction appears as a credit or debit on the next invoice. Issued invoices are never changed. A correction is priced at the rate of the invoice that first billed the collection.",
     recoveryFee: recoveryFeeLines(state, period).note,
     implementationExcludedFromRecurring: true, synthetic: true,
