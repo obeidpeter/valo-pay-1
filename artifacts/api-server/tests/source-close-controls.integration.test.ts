@@ -149,6 +149,13 @@ try {
   assert.equal(amendedDue.amountKobo, 6000000); assert.equal(amendedDue.data.outstandingKobo, 6000000);
   assert.equal(amendedDue.reference, 'SOURCE-D-1'); assert.equal(amendedDue.data.dueDate, '2028-12-02');
   assert.deepEqual(amendedDue.data.importIdentity, due.data.importIdentity);
+  // A correction proposed now has the closes and close reviews recorded so far as its evidence. The later closes below
+  // take those closes out of loadState's full-report week, so they load as summaries; the unchanged proposal must stay
+  // current and approvable (review of PR #71).
+  const beforeLater = ok(await call(`/v1/records/customers${query}`)).items.find((row: any) => row.id === imported.id);
+  const laterInput = { batchId: batch.id, targetId: imported.id, expectedUpdatedAt: beforeLater.updatedAt, changes: { name: 'Synthetic customer corrected twice' }, syntheticOnly: true };
+  const laterPreview = ok(await call(`/v1/pilot/import-corrections/preview${query}`, 'admin', 'POST', laterInput));
+  const laterProposal = ok(await call(`/v1/pilot/import-corrections${query}`, 'admin', 'POST', { ...laterInput, previewDigest: laterPreview.previewDigest, reviewer: `Clerk:${finance}`, reason: 'The synthetic source register confirms a second correction.', evidence: 'Synthetic lender register entry SOURCE-C-1, second revision.' }));
   const pendingClose = await prepareLatest(), originalReview = structuredClone(pendingClose.review);
   const reassignInput = { expectedUpdatedAt: pendingClose.review.updatedAt, reviewer: `Clerk:${replacement}`, reason: 'The original reviewer is unavailable; another Finance colleague will inspect the same evidence.' };
   assert.equal((await call(`/v1/pilot/close-reviews/${pendingClose.review.id}/reassign${query}`, 'finance', 'POST', reassignInput)).status, 403);
@@ -177,6 +184,11 @@ try {
   assert.equal(firstPage.closes.some((item: any) => item.id === pendingClose.item.close.id), false);
   const nextPage = ok(await call(`/v1/pilot/close-reviews${query}&offset=25`));
   assert.equal(nextPage.closes.some((item: any) => item.id === pendingClose.item.close.id), true);
+  // My work loads that close as its summary and must give the answer of the decision route, which loads it whole.
+  const reviewWork = ok(await call(`/v1/work${query}&filter=review`, 'replacement')).items.find((item: any) => item.sourceId === pendingClose.review.id);
+  assert.equal(reviewWork.reviewCurrent, true, 'My work calls the older pending close review current, as its decision page does.');
+  assert.equal(ok(await call(`/v1/pilot/import-corrections${query}&batchId=${batch.id}`)).proposals.find((item: any) => item.id === laterProposal.id).current, true, 'The closes before a correction loading as summaries leave it current.');
+  assert.equal(ok(await call(`/v1/work${query}&filter=review`, 'finance')).items.find((item: any) => item.sourceId === laterProposal.id).reviewCurrent, true);
   const olderDetail = ok(await call(`/v1/pilot/close-reviews/${pendingClose.item.close.id}${query}`, 'replacement'));
   assert.deepEqual(olderDetail.entry.close.data.report, originalReview.data.snapshot.data.report, 'The direct historical route fetches the complete saved report.');
   assert.equal(olderDetail.entry.reviews[0].current, true, 'Newer closes for other business dates do not invalidate this unchanged date.');
@@ -185,6 +197,14 @@ try {
   const reviewedHistorical = ok(await call(`/v1/pilot/close-reviews/${pendingClose.review.id}/decision${query}`, 'replacement', 'POST', replacementDecision));
   assert.equal(reviewedHistorical.status, 'approved', 'A legitimate older business-date close loads its whole evidence for the decision.');
   assert.deepEqual(reviewedHistorical.data.snapshot, originalReview.data.snapshot);
+  // While it stays current, its evidence exports although its close loads as a summary elsewhere: the export loads that
+  // close whole, as the decision does (review of PR #71).
+  const historicalExport = { kind: 'reviewed-close', format: 'json', closeReviewId: pendingClose.review.id };
+  assert.equal(ok(await call(`/v1/exports${query}`, 'finance', 'POST', historicalExport)).status, 'queued', 'An approved, current older close exports its reviewed evidence.');
+  const laterApproval = ok(await call(`/v1/pilot/import-corrections/${laterProposal.id}/decision${query}`, 'finance', 'POST', { proposalDigest: laterProposal.proposalDigest, action: 'approve', reason: 'Independently compared the unchanged source after a month of later closes.' }));
+  assert.equal(laterApproval.status, 'approved', 'Later closes do not stop an unchanged correction being approved.');
+  assert.equal(ok(await call(`/v1/records/customers${query}`)).items.find((row: any) => row.id === imported.id).name, 'Synthetic customer corrected twice');
+  assert.equal((await call(`/v1/exports${query}`, 'finance', 'POST', historicalExport)).status, 409, 'Changed records still make that review stale for a new export.');
   assert.equal((await call(`/v1/pilot/close-reviews/${pendingClose.review.id}/reassign${query}`, 'admin', 'POST', { ...reassignInput, expectedUpdatedAt: reviewedHistorical.updatedAt, reviewer: `Clerk:${finance}` })).status, 409, 'Completed decisions cannot be reassigned.');
   assert.equal(ok(await call(`/v1/actions${query}`, 'admin', 'POST', { action: 'verify_audit' })).data.valid, true);
   console.log('Source-close controls: dated manifest replay, lender isolation, independent correction approval, durable replay and retained source provenance passed.');

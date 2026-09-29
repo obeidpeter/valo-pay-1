@@ -247,7 +247,10 @@ router.post("/v1/exports",async(req,res)=>{
  const body=S.CreateExportBody.parse(req.body);
  if(!kinds.has(body.kind)&&!(exportKinds as readonly string[]).includes(body.kind))fail("Unknown export kind.");
  if(["customer-pack","dispute-pack"].includes(body.kind)&&!body.customerId)fail("A dispute pack needs customerId.");
-  const result=await withState(req,res,(state,ctx)=>queueExport(state,ctx,body,process.env.PRIVATE_OBJECT_DIR||''),true,S.CreateExportResponse);
+ // A reviewed close is checked as current against its whole close, which the load keeps as a summary once more than a
+ // week older than the newest: that one close is loaded whole, as for the review's decision.
+ const whole=body.kind==='reviewed-close'&&body.closeReviewId?{closeReviewIds:[body.closeReviewId]}:{};
+  const result=await withState(req,res,(state,ctx)=>queueExport(state,ctx,body,process.env.PRIVATE_OBJECT_DIR||''),true,S.CreateExportResponse,{},whole);
  req.log.info({event:"export.queued",kind:body.kind,format:body.format,exportId:result.id},"Export queued durably");
  res.json(result);
 });

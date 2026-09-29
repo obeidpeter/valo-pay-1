@@ -3,6 +3,8 @@ import { createHash, randomUUID } from 'node:crypto';
 import { seedMerchant } from '../src/lib/valopay-seed';
 import { queueExport, retryExport, exportJobView, exportHealth, exportIsClaimable, processExportJob, retryExportWrite, EXPORT_WRITE_ATTEMPTS, EXPORT_LEASE_MS, EXPORT_STALL_MS, EXPORT_CONFIRM_LEASE_MS, MAX_EXPORT_BYTES, type ClaimedExport, type ExportArtifact, type ExportJobRepository, type ExportJobStorage, type ExportStage } from '../src/lib/export-jobs';
 import type { DomainState } from '../src/domain/types';
+import { makeRecord } from '../src/domain/records';
+import { bindCloseReviewBasis, closeReviewIssues, decideCloseReview, prepareCloseReview, summariseLoadedClose } from '../src/domain/close-review';
 // Imports initialize the shared pool, but this suite never connects to it.
 process.env.DATABASE_URL ||= 'postgres://unused:unused@127.0.0.1:1/unused';
 const {generateExportArtifact,exportDescriptor}=await import('../src/lib/valopay-exports');
@@ -336,5 +338,27 @@ const renderCustomer=renderState.records.find(record=>record.kind==='customers')
 await assert.rejects(renderDisputePackPdf(buildDisputePack(renderState,ctx,renderCustomer.id),{timeoutMs:0}),/time limit|timed out/);checks++;
 const oversizedField=buildDisputePack(renderState,ctx,renderCustomer.id);oversizedField.note='x'.repeat(50_001);
 await assert.rejects(renderDisputePackPdf(oversizedField),(error:any)=>error.exportPdfFieldTooLarge===true);checks++;
+{
+  // Review of PR #71: loadState keeps a close more than seven days older than the newest as its summary, and the export
+  // route loaded the lender that way, so an approved review of such a close, still current, was refused as no longer
+  // current. Its currency check compares the whole close with the review's snapshot: the route now loads that close
+  // whole (closeReviewIds), as the decision does, and a review that is stale is still refused.
+  const lender = seedMerchant('reviewed-close-export'); lender.records = [];
+  const at = (day: number) => `2026-09-${String(day).padStart(2, '0')}T08:00:00.000Z`;
+  const daily = (day: number) => bindCloseReviewBasis(lender, makeRecord<string>(lender, 'closes', { name: `Synthetic close ${day} September`, status: 'completed', createdAt: at(day), data: { closedAt: at(day), report: { unallocated: { count: 0 }, proposed: { count: 0 }, possibleDuplicates: { count: 0 } }, operational: { attempts: 1 } } }));
+  const close = daily(1), finance = { actor: 'Clerk:finance', principalId: 'person-finance', role: 'Finance', now: at(1) };
+  const review = prepareCloseReview(lender, { actor: 'Clerk:operator', principalId: 'person-operator', role: 'Operations', now: at(1) }, { closeId: close.id, expectedUpdatedAt: close.updatedAt, reviewer: finance.actor, preparationNote: 'Checked the synthetic close inputs.', unresolvedAcceptance: 'Synthetic owners follow up the open items.', discrepancyResponses: closeReviewIssues(close).map(issue => ({ issueId: issue.id, explanation: 'Synthetic explanation for this check.' })) }, [finance]);
+  decideCloseReview(lender, finance, review.id, { action: 'approve', expectedUpdatedAt: review.updatedAt, note: 'Independently checked this synthetic snapshot.', sourceExceptions: review.data.snapshot!.data.reviewBasis.sourceCompleteness.issues.map((issue: any) => ({ issueId: issue.id, reason: 'Accepted for this synthetic rehearsal only.', evidence: 'Synthetic delivery register.' })) });
+  // Later business dates' closes leave the 1 September close more than seven days older than the newest.
+  for (let day = 2; day <= 10; day++) daily(day);
+  const input = { kind: 'reviewed-close', format: 'json' as const, closeReviewId: review.id };
+  const summarised = { ...structuredClone(lender), records: structuredClone(lender).records.map(record => record.id === close.id ? summariseLoadedClose(record) : record) };
+  assert.throws(() => queueExport(summarised, ctx, input, '/private/test'), (error: any) => error.status === 409 && /no longer current/.test(error.message), 'with its close only a summary, the check cannot find the review current');
+  assert.equal(queueExport(structuredClone(lender), ctx, input, '/private/test').status, 'queued', 'with its close whole, the current review exports');
+  const changed = structuredClone(lender);
+  makeRecord(changed, 'customers', { name: 'Synthetic customer recorded after the close', status: 'active' });
+  assert.throws(() => queueExport(changed, ctx, input, '/private/test'), (error: any) => error.status === 409 && /no longer current/.test(error.message), 'a review whose records changed is still refused');
+  checks += 3;
+}
 console.log(JSON.stringify({benchmark:'synthetic-export-volume',rows:10000,bytes:volume.bytes.length,generationMs:volume.artifact.generationMs,limitBytes:MAX_EXPORT_BYTES}));
 console.log(`Export job tests passed (${checks} checks): durable queue, no I/O in a transaction, upload acknowledgement recovery, commit failure, expired leases, fencing, safe failures, tenant denial, two-worker bound, hand-back on stop and hand-back when the lender stays busy.`);

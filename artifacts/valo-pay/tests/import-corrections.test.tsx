@@ -121,12 +121,15 @@ it('opens the exact linked correction and lets an administrator recover its revi
     return proposeImportCorrection(state, ctx, { ...input, previewDigest: preview.previewDigest, reviewer: 'Departed Finance', reason: 'Correct spelling against the source file', evidence: 'SOURCE-CORRECT-RECOVERY' }, [{ actor: 'Departed Finance', role: 'Finance' }]);
   });
   const original = JSON.stringify(api.state().records.find(record => record.id === proposal.id));
+  api.staff = [{ actor: 'Clerk:replacement-finance', name: 'Replacement Finance reviewer', role: 'Finance' }];
   const user = userEvent.setup();
   renderApp(`/imports?batch=${batchId}&correction=${proposal.id}`);
   const card = await screen.findByRole('article', { name: 'Correction c-1' });
   await waitFor(() => expect(document.activeElement).toBe(card));
   await user.click(screen.getByText('Recover reviewer assignment'));
-  await user.selectOptions(screen.getByLabelText('Replacement Finance reviewer'), 'Sandbox Finance');
+  // A demo persona is the same browser person as the proposer and could never decide, so it is not offered (review of PR #71).
+  expect(within(screen.getByLabelText('Replacement Finance reviewer')).getAllByRole('option').map(option => option.textContent)).toEqual(['Choose an independent reviewer', 'Replacement Finance reviewer']);
+  await user.selectOptions(screen.getByLabelText('Replacement Finance reviewer'), 'Clerk:replacement-finance');
   expect((screen.getByRole('button', { name: 'Reassign correction reviewer' }) as HTMLButtonElement).disabled).toBe(true);
   await user.type(screen.getByLabelText('Reassignment reason'), 'The named reviewer no longer has access to this lender.');
   await user.click(screen.getByRole('button', { name: 'Reassign correction reviewer' }));
@@ -135,7 +138,7 @@ it('opens the exact linked correction and lets an administrator recover its revi
   expect(api.state().records.find(record => record.id === targetId)!.name).toBe('Original sample customer');
   expect(JSON.stringify(api.state().records.find(record => record.id === proposal.id))).toBe(original);
   expect(api.state().records.filter(record => record.kind === 'import-correction-events').map(record => record.data.action)).toEqual(['reassign']);
-  cleanup(); queryClient.clear(); api.role = 'Finance'; api.principalId = 'independent-replacement-person';
+  cleanup(); queryClient.clear(); api.role = 'Finance'; api.actor = 'Clerk:replacement-finance'; api.principalId = 'independent-replacement-person';
   renderApp(`/imports?batch=${batchId}&correction=${proposal.id}`);
   expect(await screen.findByRole('button', { name: 'Approve and apply correction' })).toBeTruthy();
   expect(screen.queryByText('Recover reviewer assignment')).toBeNull();

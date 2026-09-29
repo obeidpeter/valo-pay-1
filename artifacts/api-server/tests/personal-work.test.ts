@@ -3,8 +3,9 @@ import { personalWorkQuerySchema, workReceiptInputSchema, personalWorkViewSchema
 import { seedMerchant } from '../src/lib/valopay-seed';
 import { makeRecord } from '../src/domain/records';
 import { derivePersonalWork, personalWorkItems, recordWorkReceipt } from '../src/domain/personal-work';
-import { bindCloseReviewBasis, closeReviewIssues, prepareCloseReview } from '../src/domain/close-review';
+import { bindCloseReviewBasis, closeReviewDetail, closeReviewIssues, decideCloseReview, prepareCloseReview } from '../src/domain/close-review';
 import { ResponseContractError } from '../src/lib/contract';
+import { canonicalDigest } from '../src/lib/digests';
 import type { DomainState, Context } from '../src/domain/types';
 
 const now = '2026-09-25T10:00:00.000Z';
@@ -25,6 +26,18 @@ function assigned(state: DomainState, options: { actor?: string; due?: string; h
   record.data.case.handoverEventId = event.id;
   record.data.case.eventId = event.id;
   return { record, event };
+}
+/** A lender as loadState reads it (closeSummarySql): every close more than seven days older than the newest keeps its
+ * data without the report's detail and the operational and metrics parts, with the report's unallocated and exception
+ * totals. */
+function asLoaded(state: DomainState): DomainState {
+  const loaded = structuredClone(state), closes = loaded.records.filter(record => record.kind === 'closes');
+  const cutoff = Math.max(...closes.map(record => Date.parse(record.createdAt))) - 7 * 86_400_000;
+  for (const close of closes.filter(record => Date.parse(record.createdAt) < cutoff)) {
+    const { report, operational: _operational, metrics: _metrics, ...kept } = close.data;
+    close.data = 'report' in close.data ? { ...kept, report: { unallocated: report?.unallocated ?? null, exceptions: report?.exceptions ?? null } } : kept;
+  }
+  return loaded;
 }
 {
   const state = fixture();
@@ -121,6 +134,49 @@ function assigned(state: DomainState, options: { actor?: string; due?: string; h
   check(stale.reviewCurrent === false && !stale.readAt, 'changed close inputs produce visible stale-review remediation, not implied approval');
   review.status = 'approved';
   check(derivePersonalWork(state, bobCtx, people).total === 0, 'decided reviews leave pending queue');
+}
+{
+  // Review of PR #71: My work judged a pending review against its close as loadState returns it, a summary once the
+  // close is more than seven days older than the newest, so it called the review stale while its decision page, which
+  // loads that close whole (closeReviewIds), accepted it. My work now gives the decision's answer.
+  const state = fixture('summarised-review'); state.records = [];
+  const at = (day: number) => `2026-09-${String(day).padStart(2, '0')}T08:00:00.000Z`;
+  const daily = (day: number) => bindCloseReviewBasis(state, makeRecord<string>(state, 'closes', { name: `Sample close ${day} September`, status: 'completed', createdAt: at(day), data: { closedAt: at(day), summary: 'Sample close', report: { variances: { count: 0, batches: [] }, positionRebuild: { mismatches: [] }, unallocated: { count: 0 }, proposed: { count: 0 }, possibleDuplicates: { count: 0 }, exceptions: { count: 0 } }, operational: { attempts: 2 }, metrics: { matched: 1 } } }));
+  const close = daily(1);
+  const review = prepareCloseReview(state, { ...admin, now: '2026-09-01T09:00:00.000Z' }, { closeId: close.id, expectedUpdatedAt: close.updatedAt, reviewer: bob.actor, preparationNote: 'Reviewed the sample close inputs.', unresolvedAcceptance: 'Sample owners retain each unresolved case for follow-up.', discrepancyResponses: closeReviewIssues(close).map(issue => ({ issueId: issue.id, explanation: 'Sample evidence reviewed; the case owner will follow up.' })) }, people);
+  // Later business dates' closes: the 1 September close is now more than seven days older than the newest.
+  for (let day = 2; day <= 10; day++) daily(day);
+  const bobCtx = { ...bob, now: '2026-09-10T10:00:00.000Z' }, loaded = asLoaded(state);
+  check(!('operational' in loaded.records.find(record => record.id === close.id)!.data), 'the load summarises the 1 September close');
+  // The decision page and the decision load that close whole.
+  const whole = structuredClone(loaded);
+  whole.records = whole.records.map(record => record.id === close.id ? structuredClone(close) : record);
+  check(closeReviewDetail(whole, close.id).entry.reviews[0]!.current, 'the decision page calls the review current');
+  const item = personalWorkItems(loaded, bobCtx, people).find(work => work.sourceId === review.id)!;
+  check(item.reviewCurrent === true && item.notice === null, 'My work agrees about a close loaded as its summary');
+  check(decideCloseReview(whole, bobCtx, review.id, { action: 'approve', expectedUpdatedAt: review.updatedAt, note: 'Independently checked this unchanged snapshot.', sourceExceptions: review.data.snapshot!.data.reviewBasis.sourceCompleteness.issues.map((issue: any) => ({ issueId: issue.id, reason: 'Accepted for this synthetic rehearsal only.', evidence: 'Synthetic delivery register.' })) }).status === 'approved', 'and the decision accepts it');
+  // A summary that differs from the snapshot's is stale, as that close loaded whole would be.
+  const changed = asLoaded(state);
+  changed.records.find(record => record.id === close.id)!.data.report.unallocated = { count: 1 };
+  check(personalWorkItems(changed, bobCtx, people).find(work => work.sourceId === review.id)!.reviewCurrent === false, 'a changed summary is stale');
+  const renamed = asLoaded(state);
+  renamed.records.find(record => record.id === close.id)!.name = 'Renamed sample close';
+  check(personalWorkItems(renamed, bobCtx, people).find(work => work.sourceId === review.id)!.reviewCurrent === false, 'a changed close is stale');
+  // A damaged snapshot (removed, without data, or not a record) reads as stale, as before, and My work and Mark as read
+  // still answer for the lender: the snapshot's own digest is checked before any summary is compared (review follow-up).
+  const damage: Array<[string, (data: Record<string, any>) => void]> = [
+    ['a removed snapshot', data => { delete data.snapshot; }],
+    ['a snapshot without data', data => { data.snapshot = { id: close.id }; }],
+    ['a snapshot that is not a record', data => { data.snapshot = 'damaged'; }],
+    ['a snapshot that is not a record, with a digest of it', data => { data.snapshot = 'damaged'; data.snapshotDigest = canonicalDigest('damaged'); }],
+  ];
+  for (const [label, harm] of damage) {
+    const damaged = asLoaded(state);
+    harm(damaged.records.find(record => record.id === review.id)!.data);
+    const item = derivePersonalWork(damaged, { ...admin, now: bobCtx.now }, people, { scope: 'team' }).items.find(work => work.sourceId === review.id)!;
+    check(item.reviewCurrent === false, `My work answers for the lender and reads a review with ${label} as stale`);
+    check(recordWorkReceipt(damaged, bobCtx, people, 'read', request(item)).sourceId === review.id, `Mark as read answers for a review with ${label}`);
+  }
 }
 {
   const state = fixture('pages');

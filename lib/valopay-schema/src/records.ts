@@ -674,11 +674,13 @@ export const recordDataSchemas = {
     ...common, batchId: z.string(), revision: z.number().int().min(1), actor: z.string(), mapping: z.record(z.string()), amountUnit: z.enum(["naira", "kobo"]),
     valid: z.number().int(), invalid: z.number().int(), skipped: z.number().int(),
   }).partial().passthrough(),
-  /** A proposed correction to one imported record (immutable): the records before and after, the comparison and the digests its approval checks again. */
+  /** A proposed correction to one imported record (immutable): the records before and after, the comparison and the digests its approval checks again,
+   * the role it was proposed with (its checks use that authority) and the rule of its impact digest (2 covers each earlier close and close review as the
+   * comparison lists it; a proposal saved before either was kept has neither). */
   "import-corrections": z.object({
     ...common, batchId: z.string(), targetId: z.string(), input: z.record(z.any()), before: recordCopy, after: recordCopy,
-    impactDigest: z.string(), preview: importCorrectionPreviewSchema.partial().passthrough(), proposedBy: z.string(), proposedPrincipal: z.string(),
-    reviewer: z.string(), reason: z.string(), evidence: z.string(), proposalDigest: z.string(),
+    impactDigest: z.string(), impactVersion: z.number().int(), preview: importCorrectionPreviewSchema.partial().passthrough(), proposedBy: z.string(), proposedPrincipal: z.string(),
+    proposedRole: z.string(), reviewer: z.string(), reason: z.string(), evidence: z.string(), proposalDigest: z.string(),
   }).partial().passthrough(),
   /** A decision or administrator reassignment on a proposed import correction (immutable). */
   "import-correction-events": z.object({
