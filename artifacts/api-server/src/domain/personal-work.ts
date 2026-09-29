@@ -32,14 +32,18 @@ function receiptView(record: ValopayRecord, duplicate: boolean) {
   return contractAnswer(workReceiptSchema, { id: record.id, merchantId: record.merchantId, action: record.data.action, sourceId: record.data.sourceId, eventId: record.data.eventId, actor: record.data.actor, at: record.createdAt, duplicate, syntheticOnly: true, financialStatusChanged: false });
 }
 
-/** Pure read model: saved assignment/review records are the source of truth, never notification delivery state. */
-export function personalWorkItems(state: DomainState, ctx: Context, people: WorkAssignee[]): PersonalWorkItem[] {
+/** Pure read model: saved assignment/review records are the source of truth, never notification delivery state. A
+ * receipt derives only its own source's item (`sourceId`). */
+export function personalWorkItems(state: DomainState, ctx: Context, people: WorkAssignee[], sourceId?: string): PersonalWorkItem[] {
   const records = localRecords(state), now = Date.parse(ctx.now), events = records.filter(record => record.kind === 'work-events');
   // The reviews are checked against one input digest, computed at most once for this read.
   const reviewState = { ...state, records }, basis = closeReviewBasisOnce(reviewState);
+  // A decided correction leaves the queue before it is compared again.
+  const decided = new Set(records.filter(record => record.kind === 'import-correction-events' && ['approve', 'reject', 'withdraw'].includes(record.data.action)).map(record => record.data.proposalId));
   const name = (actor: string, fallback?: string) => people.find(person => person.actor === actor)?.name || fallback || 'Former or unavailable staff member';
   const result: PersonalWorkItem[] = [];
   for (const record of records) {
+    if (sourceId !== undefined && record.id !== sourceId) continue;
     if (record.kind === 'exceptions' && !['resolved', 'closed'].includes(record.status) && typeof record.data.case?.assignee === 'string' && record.data.case.assignee) {
       const assignment = record.data.case, { event, ambiguous } = caseAssignment(records, record);
       const acknowledged = event && events.some(saved => saved.data.action === 'acknowledge' && saved.data.sourceId === record.id && saved.data.assignmentEventId === event.id && saved.data.actor === assignment.assignee);
@@ -68,9 +72,8 @@ export function personalWorkItems(state: DomainState, ctx: Context, people: Work
       const eventId = `review:${record.id}:${record.updatedAt}:${current ? 'current' : 'stale'}:${escalated ? 'escalated' : 'pending'}`;
       result.push({ id: `review:${record.id}`, eventId, sourceId: record.id, sourceVersion: record.updatedAt, sourceDigest: digest({ merchantId: state.merchant.id, id: record.id, updatedAt: record.updatedAt, status: record.status, data: record.data, current }), type: 'review', title: 'Daily close awaiting review', nextAction: samePerson ? 'A different person must review this close. Open the review to inspect its assignment.' : current ? 'Open the close, inspect the evidence and record your decision.' : 'The close evidence has changed. Open the review to see what must be prepared again.', assignee: record.data.reviewer, assigneeName: name(record.data.reviewer), dueAt: null, overdue: false, escalated, escalationReason: escalated ? 'This review has waited at least 24 hours for a decision.' : null, reviewCurrent: current, href: `/close-review?close=${encodeURIComponent(String(record.data.closeId))}`, readAt: events.find(saved => saved.data.action === 'read' && saved.data.eventId === eventId && saved.data.actor === record.data.reviewer)?.createdAt || null, canAcknowledge: false, assignmentEventId: null, notice: samePerson ? 'Changing demo roles is not independent review. The preparer cannot approve their own work.' : current ? null : 'A fresh close and review are required; this reminder does not approve the old evidence.' });
     }
-    if (record.kind === 'import-corrections') {
+    if (record.kind === 'import-corrections' && !decided.has(record.id)) {
       const proposal = importCorrectionView(reviewState, ctx, record);
-      if (proposal.status !== 'awaiting_review') continue;
       const assignment = importCorrectionAssignment(reviewState, record), current = proposal.current;
       const targetLabel = records.find(source => source.id === proposal.preview.targetId)?.name || record.data.before?.name || `Source row ${proposal.preview.rowId}`;
       const samePerson = assignment.reviewer === ctx.actor && (proposal.proposedBy === ctx.actor || proposal.proposedPrincipal === (ctx.principalId || ctx.actor));
@@ -116,12 +119,12 @@ export function recordWorkReceipt(state: DomainState, ctx: Context, people: Work
   if (!source) refuse('This work item was not found in the selected lender.', 404);
   const intended = source.kind === 'exceptions' ? source.data.case?.assignee : source.kind === 'close-reviews' ? source.data.reviewer : source.kind === 'import-corrections' ? importCorrectionAssignment(state, source).reviewer : undefined;
   if (intended !== ctx.actor) refuse('Only the currently assigned staff member can acknowledge or mark this work as read.', 403);
-  const currentItem = personalWorkItems(state, ctx, people).find(record => record.sourceId === input.sourceId);
-  if (!currentItem || currentItem.sourceVersion !== input.expectedUpdatedAt || currentItem.sourceDigest !== input.expectedDigest) refuse('This work item changed. Refresh My work and review the current assignment before continuing.');
+  // A source has one item: only it is derived, once, so a receipt compares nothing else under the lender's write lock.
+  const item = personalWorkItems(state, ctx, people, source.id)[0];
+  if (!item || item.sourceVersion !== input.expectedUpdatedAt || item.sourceDigest !== input.expectedDigest) refuse('This work item changed. Refresh My work and review the current assignment before continuing.');
   const prior = localRecords(state).find(record => record.kind === 'work-events' && record.data.action === action && record.data.sourceId === input.sourceId && record.data.eventId === input.eventId && record.data.actor === ctx.actor && record.data.sourceDigest === input.expectedDigest);
   if (prior) return receiptView(prior, true);
-  const item = personalWorkItems(state, ctx, people).find(record => record.sourceId === input.sourceId && record.eventId === input.eventId);
-  if (!item || item.sourceVersion !== input.expectedUpdatedAt || item.sourceDigest !== input.expectedDigest) refuse('This work item changed. Refresh My work and review the current assignment before continuing.');
+  if (item.eventId !== input.eventId) refuse('This work item changed. Refresh My work and review the current assignment before continuing.');
   if (action === 'acknowledge' && (!item.canAcknowledge || !item.assignmentEventId)) refuse('There is no current handover for you to acknowledge. Open the case to review its assignment.');
   const record = makeRecord(state, 'work-events', { name: action === 'read' ? 'Work notification read' : 'Handover acknowledged', status: 'recorded', createdAt: ctx.now, updatedAt: ctx.now, data: { action, sourceId: item.sourceId, eventId: item.eventId, assignmentEventId: item.assignmentEventId, sourceVersion: item.sourceVersion, sourceDigest: item.sourceDigest, actor: ctx.actor, summary: item.title, href: item.href, synthetic: true } });
   return receiptView(record, false);

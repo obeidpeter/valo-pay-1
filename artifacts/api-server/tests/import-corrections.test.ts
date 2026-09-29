@@ -550,6 +550,64 @@ assert.equal(
   assert.equal(decideImportCorrection(state, finance, proposal.id, { ...decision, action: 'reject', assignmentEventId: second.assignmentEventId }, reviewers).status, 'rejected', 'new reviewer can close stale work without applying it');
 }
 {
+  // Review of PR #71: My work, Mark as read and a batch's correction list compared every correction the lender ever
+  // had again, each digesting every close and close review recorded before it, before skipping the decided ones (29
+  // decided corrections over 250 closes and reviews of about 20 KB took about 3.5 s a read). Each comparison reads its
+  // proposal's saved input, and each digest of a close or a review reads its report or its snapshot: both are counted.
+  const state = fresh(), admin = { actor: "Clerk:admin", principalId: "person-admin", role: "Admin", now: "2026-09-24T09:00:00.000Z" };
+  const people = [{ ...finance, name: "Synthetic Finance reviewer" }, { ...admin, name: "Synthetic administrator" }];
+  const rows = Array.from({ length: 6 }, (_, row) => `c-${row},Synthetic customer ${row},WORK-C-${row},Synthetic consent`).join("\n");
+  const { batch } = imported(state, "customers", `source_row_id,name,reference,consentProvenance\n${rows}`);
+  let comparisons = 0, evidenceReads = 0;
+  const counted = (object: Record<string, unknown>, key: string, count: () => void) => {
+    const value = object[key];
+    Object.defineProperty(object, key, { enumerable: true, configurable: true, get: () => { count(); return value; } });
+  };
+  const positions = Array.from({ length: 40 }, (_, index) => ({ customerId: `customer-${index}`, reference: `POSITION-${index}`, outstandingKobo: 1000 * index, note: "Synthetic position change for the count" }));
+  for (let day = 0; day < 10; day++) {
+    const at = new Date(Date.parse("2026-09-10T18:00:00.000Z") + day * 86_400_000).toISOString();
+    const close = makeRecord(state, "closes" as string, { status: "completed", createdAt: at, name: `Synthetic close ${day}`, data: { closedAt: at, report: { unallocated: { count: 0 }, proposed: { count: 0 }, customerPositionsChanged: positions } } });
+    const review = makeRecord(state, "close-reviews" as string, { status: "changes_requested", createdAt: at, name: `Synthetic review ${day}`, data: { closeId: close.id, reviewer: finance.actor, snapshot: structuredClone(close) } });
+    counted(close.data, "report", () => { evidenceReads += 1; });
+    counted(review.data, "snapshot", () => { evidenceReads += 1; });
+  }
+  const proposals = state.records.filter((r) => r.data.importIdentity?.batchId === batch.id).map((target) => {
+    const input = { batchId: batch.id, targetId: target.id, expectedUpdatedAt: target.updatedAt, changes: { name: `${target.name} corrected` }, syntheticOnly: true as const };
+    return proposeImportCorrection(state, ctx, { ...input, previewDigest: previewImportCorrection(state, ctx, input).previewDigest, reviewer: finance.actor, reason: "Correct the synthetic source name", evidence: "SYNTHETIC-WORK-COUNT" }, reviewers);
+  });
+  for (const [index, action] of (["reject", "approve", "withdraw", "reject", "approve"] as const).entries()) {
+    const decided = proposals[index + 1]!;
+    decideImportCorrection(state, action === "withdraw" ? ctx : finance, decided.id, { proposalDigest: decided.proposalDigest, action, reason: "Synthetic decision for the count" }, reviewers);
+  }
+  const countComparisons = (id: string) => counted(state.records.find((r) => r.id === id)!.data, "input", () => { comparisons += 1; });
+  for (const proposal of proposals) countComparisons(proposal.id);
+  const pending = proposals[0]!, reset = () => { comparisons = 0; evidenceReads = 0; };
+  const read = (item: { sourceId: string; eventId: string; sourceVersion: string; sourceDigest: string }) => recordWorkReceipt(state, finance, people, "read", { sourceId: item.sourceId, eventId: item.eventId, expectedUpdatedAt: item.sourceVersion, expectedDigest: item.sourceDigest });
+  reset();
+  const own = derivePersonalWork(state, finance, people);
+  assert.deepEqual(own.items.map((item) => item.sourceId), [pending.id]);
+  assert.equal(comparisons, 1, "My work compares only the pending correction: decided ones leave the queue before any comparison");
+  assert.equal(evidenceReads, 0, "a pending correction's currency check reads no close report or review snapshot");
+  reset();
+  assert.equal(derivePersonalWork(state, admin, people, { scope: "team" }).total, 1);
+  assert.deepEqual([comparisons, evidenceReads], [1, 0], "the team workload likewise");
+  reset();
+  assert.deepEqual(listImportCorrections(state, finance, batch.id).proposals.map((proposal) => proposal.status).sort(), ["approved", "approved", "awaiting_review", "rejected", "rejected", "withdrawn"]);
+  assert.deepEqual([comparisons, evidenceReads], [1, 0], "the batch's correction list compares only its pending correction");
+  reset();
+  assert.equal(read(own.items[0]!).duplicate, false);
+  assert.deepEqual([comparisons, evidenceReads], [1, 0], "Mark as read derives its one item, once");
+  // A proposal saved before impact versions keeps its first check, of the closes and reviews whole: once a read.
+  asEarlierBuild(state, pending.id);
+  countComparisons(pending.id);
+  reset();
+  const earlierItem = derivePersonalWork(state, finance, people).items[0]!;
+  assert.deepEqual([comparisons, evidenceReads, Number(earlierItem.reviewCurrent)], [1, 20, 1], "a proposal saved without a version is checked by its first rule, once");
+  reset();
+  assert.equal(read(earlierItem).duplicate, false);
+  assert.deepEqual([comparisons, evidenceReads], [1, 20], "and Mark as read checks it once");
+}
+{
   // Review of PR #71: a proposal's impact digest covered every close recorded before it as loadState returns it, and
   // loadState summarises a close more than seven days older than the newest. A week of later daily closes changed an
   // unchanged proposal's digest: it read as stale and approval was refused, so a replacement reviewer could only reject.

@@ -296,12 +296,14 @@ export function importCorrectionView(
 ) {
   const decision = decisionOf(state, proposal.id), assignment = importCorrectionAssignment(state, proposal);
   let current = false;
-  try {
-    const comparison = importCorrectionComparison(state, ctx, proposal).preview;
-    current = comparison.blockers.length === 0 && comparison.previewDigest === proposal.data.preview.previewDigest;
-  } catch {
-    /* changed source or dependencies */
-  }
+  // A decided proposal is never current, so it is not compared again.
+  if (!decision)
+    try {
+      const comparison = importCorrectionComparison(state, ctx, proposal).preview;
+      current = comparison.blockers.length === 0 && comparison.previewDigest === proposal.data.preview.previewDigest;
+    } catch {
+      /* changed source or dependencies */
+    }
   return contractAnswer(importCorrectionViewSchema, {
     id: proposal.id,
     merchantId: state.merchant.id,
@@ -323,7 +325,7 @@ export function importCorrectionView(
           ? "withdrawn"
           : "rejected"
       : "awaiting_review",
-    current: !decision && current,
+    current,
     preview: proposal.data.preview,
     decision: decision
       ? {
