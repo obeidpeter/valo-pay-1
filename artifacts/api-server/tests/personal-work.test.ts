@@ -5,6 +5,7 @@ import { makeRecord } from '../src/domain/records';
 import { derivePersonalWork, personalWorkItems, recordWorkReceipt } from '../src/domain/personal-work';
 import { bindCloseReviewBasis, closeReviewDetail, closeReviewIssues, decideCloseReview, prepareCloseReview } from '../src/domain/close-review';
 import { ResponseContractError } from '../src/lib/contract';
+import { canonicalDigest } from '../src/lib/digests';
 import type { DomainState, Context } from '../src/domain/types';
 
 const now = '2026-09-25T10:00:00.000Z';
@@ -161,6 +162,21 @@ function asLoaded(state: DomainState): DomainState {
   const renamed = asLoaded(state);
   renamed.records.find(record => record.id === close.id)!.name = 'Renamed sample close';
   check(personalWorkItems(renamed, bobCtx, people).find(work => work.sourceId === review.id)!.reviewCurrent === false, 'a changed close is stale');
+  // A damaged snapshot (removed, without data, or not a record) reads as stale, as before, and My work and Mark as read
+  // still answer for the lender: the snapshot's own digest is checked before any summary is compared (review follow-up).
+  const damage: Array<[string, (data: Record<string, any>) => void]> = [
+    ['a removed snapshot', data => { delete data.snapshot; }],
+    ['a snapshot without data', data => { data.snapshot = { id: close.id }; }],
+    ['a snapshot that is not a record', data => { data.snapshot = 'damaged'; }],
+    ['a snapshot that is not a record, with a digest of it', data => { data.snapshot = 'damaged'; data.snapshotDigest = canonicalDigest('damaged'); }],
+  ];
+  for (const [label, harm] of damage) {
+    const damaged = asLoaded(state);
+    harm(damaged.records.find(record => record.id === review.id)!.data);
+    const item = derivePersonalWork(damaged, { ...admin, now: bobCtx.now }, people, { scope: 'team' }).items.find(work => work.sourceId === review.id)!;
+    check(item.reviewCurrent === false, `My work answers for the lender and reads a review with ${label} as stale`);
+    check(recordWorkReceipt(damaged, bobCtx, people, 'read', request(item)).sourceId === review.id, `Mark as read answers for a review with ${label}`);
+  }
 }
 {
   const state = fixture('pages');

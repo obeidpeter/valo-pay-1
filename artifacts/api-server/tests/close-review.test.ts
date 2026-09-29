@@ -196,7 +196,13 @@ function ofKind(state: DomainState, kind: string) { return state.records.filter(
   assert.equal(reviewIsCurrent(state, review), true);
   assert.equal(reviewIsCurrent(summarised, review), false, "the decision's check needs the whole close");
   assert.equal(reviewIsCurrent(summarised, review, undefined, true), true, "a read that may hold summaries compares what they keep");
+  // A part of the snapshot the summary drops (a report detail) is caught only by the snapshot's own digest.
+  const proposed = review.data.snapshot!.data.report.proposed;
+  review.data.snapshot!.data.report.proposed = { count: 9, kobo: 900 };
+  assert.equal(reviewIsCurrent(summarised, review, undefined, true), false, "the snapshot must still be intact where the summary does not look");
+  review.data.snapshot!.data.report.proposed = proposed;
+  assert.equal(reviewIsCurrent(summarised, review, undefined, true), true);
   review.data.snapshot!.data.summary = "tampered";
-  assert.equal(reviewIsCurrent(summarised, review, undefined, true), false, "the snapshot must still be intact");
+  assert.equal(reviewIsCurrent(summarised, review, undefined, true), false, "and a part the summary keeps must match");
 }
 console.log("Close review: independent approval, exact snapshots, historical paging, admin reassignment, immutable evidence and stale refusal passed.");

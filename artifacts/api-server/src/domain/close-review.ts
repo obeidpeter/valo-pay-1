@@ -82,12 +82,13 @@ export function summariseLoadedClose(close: ValopayRecord): ValopayRecord {
  * Whether a review is current: its close is the latest of its business date, its inputs are unchanged and it is the
  * review's intact snapshot. A read of the whole lender (`summaries`) may hold a close as its summary: that summary
  * must then be the snapshot's. Closes never change once recorded (saveState refuses), so such a read gives the answer
- * of the decision, which loads the close whole and compares all of it.
+ * of the decision, which loads the close whole and compares all of it. The snapshot's own digest is checked first,
+ * and only a snapshot with data is summarised, so a damaged snapshot reads as stale and never fails the read.
  */
 export function reviewIsCurrent(state: DomainState, review: ValopayRecord, basis = closeReviewBasisOnce(state), summaries = false) {
-  const close = ofKind(state, "closes").find(r => r.id === review.data.closeId);
-  const snapshotOf = (record: ValopayRecord) => review.data.snapshotDigest === digest(record) || summaries && sameJson(summariseLoadedClose(review.data.snapshot), record);
-  return Boolean(close && !closeReviewCurrentProblem(state, close, basis) && review.data.inputDigest === close.data.reviewBasis.inputDigest && snapshotOf(close) && review.data.snapshotDigest === digest(review.data.snapshot));
+  const close = ofKind(state, "closes").find(r => r.id === review.data.closeId), snapshot = review.data.snapshot;
+  const snapshotOf = (record: ValopayRecord) => review.data.snapshotDigest === digest(record) || summaries && typeof snapshot?.data === "object" && snapshot.data !== null && sameJson(summariseLoadedClose(snapshot), record);
+  return Boolean(close && !closeReviewCurrentProblem(state, close, basis) && review.data.inputDigest === close.data.reviewBasis.inputDigest && review.data.snapshotDigest === digest(snapshot) && snapshotOf(close));
 }
 export function closeReviewCurrentProblem(state: DomainState, close: ValopayRecord, basis = closeReviewBasisOnce(state)): string | null {
   if (!close.data.reviewBasis?.inputDigest) return "This older close has no recorded input fingerprint. Run a new daily close before preparing a review.";
