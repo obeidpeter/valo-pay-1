@@ -1,8 +1,8 @@
 // A regression guard against accidental effects, not a security sandbox.
 // Production process identities, egress and database privileges remain required.
-import { readFileSync, readdirSync, existsSync } from 'node:fs';
+import { readFileSync, readdirSync, existsSync, realpathSync } from 'node:fs';
 import { resolve, dirname, relative, sep } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 
 const defaultRoot = resolve(import.meta.dirname, '..');
@@ -112,7 +112,10 @@ export function inspectEffectBoundaries(root = defaultRoot) {
   return { checked: checkedFiles.size, issues: [...new Set(issues)] };
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+// Real paths: started through a symlinked path, argv names the link while this
+// module's URL names the file, and the check would silently not run.
+const startedDirectly = () => { try { return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)); } catch { return false; } };
+if (startedDirectly()) {
   const result = inspectEffectBoundaries();
   if (result.issues.length) { console.error(result.issues.join('\n')); process.exitCode = 1; }
   else console.log(`Effect boundaries passed across ${result.checked} domain and helper modules; Core and Credit capability isolation, no circular runtime dependencies, network, credentials, database or provider imports.`);

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync, unlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { inspectEffectBoundaries } from './check-effect-boundaries.mjs';
@@ -93,5 +94,13 @@ try {
   assert.match(inspectEffectBoundaries(fixture).issues.join('\n'), /Circular runtime dependency:/);
   write('domain/reconciliation-records.ts', 'import "./reconciliation-records";');
   assert.match(inspectEffectBoundaries(fixture).issues.join('\n'), /reconciliation-records\.ts:1: Circular runtime dependency: .*reconciliation-records\.ts -> .*reconciliation-records\.ts/);
-  console.log('Effect-boundary mutation fixtures passed: direct/transitive imports, re-exports, ambient keys, dynamic code, network aliases, Core/credit capability isolation and cycle detection with shared acyclic dependencies.');
+  // Through a symlinked path the check still runs: the module's URL is its real path, whatever path started it.
+  const linked = join(fixture, 'linked-scripts');
+  symlinkSync(import.meta.dirname, linked, 'junction');
+  try {
+    const run = spawnSync(process.execPath, [join(linked, 'check-effect-boundaries.mjs')], { encoding: 'utf8' });
+    assert.equal(run.status, 0, run.stderr);
+    assert.match(run.stdout, /^Effect boundaries passed across \d+ domain and helper modules/m, 'Started through a symlinked path, the check must inspect the domain, not exit silently');
+  } finally { unlinkSync(linked); }
+  console.log('Effect-boundary mutation fixtures passed: direct/transitive imports, re-exports, ambient keys, dynamic code, network aliases, Core/credit capability isolation and cycle detection with shared acyclic dependencies; started through a symlinked path, the check still runs.');
 } finally { rmSync(fixture, { recursive: true, force: true }); }
