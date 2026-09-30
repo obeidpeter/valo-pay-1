@@ -87,7 +87,7 @@ it("records and withdraws one purpose without pretending to connect a bank", asy
     screen.getByRole("button", { name: "Grant permission" }),
   );
   const revoke = await screen.findByRole("button", {
-    name: "Withdraw",
+    name: `Withdraw Read applicant accounts for ${api.state().records.find((r) => r.kind === "customers")!.name}`,
   });
   await user.click(revoke);
   const review = screen.getByRole("region", { name: "Permission to withdraw" });

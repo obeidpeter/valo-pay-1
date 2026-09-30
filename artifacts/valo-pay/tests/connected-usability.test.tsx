@@ -66,7 +66,7 @@ it("allows Compliance to review revocation while keeping permission grants unava
   const user = userEvent.setup();
   renderApp("/connections");
   const trigger = await screen.findByRole("button", {
-    name: "Withdraw",
+    name: "Withdraw Read business accounts for Sample business",
   });
   expect((trigger as HTMLButtonElement).disabled).toBe(false);
   expect(

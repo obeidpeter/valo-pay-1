@@ -347,48 +347,52 @@ function ConnectionsContent({ api }: { api: ReturnType<typeof useConnected> }) {
             data.consents
               .slice()
               .reverse()
-              .map((c) => (
-                <article className="connected-record" key={c.id}>
-                  <div className="flex justify-between gap-3">
-                    <h3>{c.name}</h3>
-                    <ConnectedStatus record="permission" status={c.effectiveStatus || c.status} />
-                  </div>
-                  <p className="mt-2">
-                    {c.data.subjectId === "sme"
-                      ? "Sample business"
-                      : data.customers.find((x) => x.id === c.data.subjectId)
-                          ?.name || "Unknown customer"}{" "}
-                    ·{" "}
-                    {c.data.authority === "simulated"
-                      ? "Simulated permission"
-                      : "Sample permission"}
-                  </p>
-                  <p>{expiry(c.data.expiresAt)}</p>
-                  <p>
-                    {c.data.grantedBy
-                      ? `Granted by ${c.data.grantedBy}`
-                      : "Granted by: Not recorded"}
-                  </p>
-                  {c.effectiveStatus === "active" && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="mt-3"
-                      disabled={api.pending || !canRevoke}
-                      onClick={(event) => {
-                        revokeTrigger.current = event.currentTarget;
-                        setRevoke(c.id);
-                        setReason("");
-                        setFailure("");
-                        setSuccess("");
-                        setFieldErrors({});
-                      }}
-                    >
-                      Withdraw
-                    </Button>
-                  )}
-                </article>
-              ))
+              .map((c) => {
+                const who =
+                  c.data.subjectId === "sme"
+                    ? "Sample business"
+                    : data.customers.find((x) => x.id === c.data.subjectId)
+                        ?.name || "Unknown customer";
+                return (
+                  <article className="connected-record" key={c.id}>
+                    <div className="flex justify-between gap-3">
+                      <h3>{c.name}</h3>
+                      <ConnectedStatus record="permission" status={c.effectiveStatus || c.status} />
+                    </div>
+                    <p className="mt-2">
+                      {who} ·{" "}
+                      {c.data.authority === "simulated"
+                        ? "Simulated permission"
+                        : "Sample permission"}
+                    </p>
+                    <p>{expiry(c.data.expiresAt)}</p>
+                    <p>
+                      {c.data.grantedBy
+                        ? `Granted by ${c.data.grantedBy}`
+                        : "Granted by: Not recorded"}
+                    </p>
+                    {c.effectiveStatus === "active" && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="mt-3"
+                        aria-label={`Withdraw ${c.name} for ${who}`}
+                        disabled={api.pending || !canRevoke}
+                        onClick={(event) => {
+                          revokeTrigger.current = event.currentTarget;
+                          setRevoke(c.id);
+                          setReason("");
+                          setFailure("");
+                          setSuccess("");
+                          setFieldErrors({});
+                        }}
+                      >
+                        Withdraw
+                      </Button>
+                    )}
+                  </article>
+                );
+              })
           )}
         </ConnectedPanel>
       </div>

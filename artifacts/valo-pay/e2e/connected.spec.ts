@@ -102,7 +102,12 @@ test("permissions can be granted and withdrawn with an explicit explanation", as
     .getByLabel("Reason for granting permission")
     .fill("Review SME sample account balances");
   await page.getByRole("button", { name: "Grant permission" }).click();
-  await page.getByRole("button", { name: "Withdraw", exact: true }).click();
+  await page
+    .getByRole("button", {
+      name: "Withdraw Read business accounts for Sample business",
+      exact: true,
+    })
+    .click();
   await page
     .getByLabel("Reason for withdrawing permission")
     .fill("The SME withdrew sample account permission");

@@ -75,7 +75,7 @@ describe("connected page drafts", () => {
     const user = userEvent.setup();
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
     renderApp("/connections");
-    await user.click(await screen.findByRole("button", { name: "Withdraw" }));
+    await user.click(await screen.findByRole("button", { name: "Withdraw Read business accounts for Sample business" }));
     await user.type(screen.getByLabelText("Reason for withdrawing permission"), "The SME withdrew this sample permission");
     await user.click(screen.getByRole("button", { name: "Keep permission" }));
     await user.selectOptions(screen.getByLabelText("Purpose"), "erp_draft");
