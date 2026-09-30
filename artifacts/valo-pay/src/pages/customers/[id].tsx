@@ -20,6 +20,9 @@ import { keepRowsWhilePaging } from '@/lib/use-record-pagination';
 import { safeCustomerReturnTo } from '@/lib/record-navigation';
 import { useHashTarget } from '@/lib/use-hash-target';
 
+/** The page a return link goes back to, by its name in the navigation. */
+const backPages: Record<string, string> = { '/collections': 'Collections', '/exceptions': 'Exceptions', '/reconciliation': 'Reconciliation', '/mandates': 'Mandates', '/customers': 'Customers' };
+
 /** The sections' pagers: one history request carries every section's page, so a failed page replaces the whole history. */
 const sectionPagers = ['customer mandates', 'customer instalments', 'customer payments', 'history events'] as const;
 
@@ -104,7 +107,7 @@ export default function CustomerTimelinePage() {
     <div className="space-y-6">
       <div>
         <Link href={returnTo || '/customers'} className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4 print:hidden">
-          <ArrowLeft className="h-4 w-4" /> {returnTo ? 'Back to '+(returnTo.split('?')[0].slice(1)) : 'Back to customers'}
+          <ArrowLeft aria-hidden="true" className="h-4 w-4" /> Back to {returnTo ? backPages[returnTo.split('?')[0]!] || 'the previous page' : 'Customers'}
         </Link>
         <div className="flex flex-col xl:flex-row xl:items-start justify-between gap-6">
           <div className="min-w-0 flex-1">

@@ -47,7 +47,8 @@ type RecordDialogProps = {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   fields: FieldDef[];
-  title: string;
+  /** The dialog's title; one that follows a choice in the form is worked out from its values. */
+  title: string | ((values: Record<string, any>) => string);
   defaultValues?: any;
   actionMutation?: string; // If provided, calls performAction with this action name instead of create/update
   actionRecordId?: string; // An action can target a related record while the dialog keeps the review context.
@@ -64,7 +65,7 @@ type RecordDialogProps = {
    */
   currencyField?: string;
   /** The submit button's words, the same verb and object as the button that opened the dialog and its title. */
-  submitLabel?: string;
+  submitLabel?: string | ((values: Record<string, any>) => string);
 };
 
 export function RecordDialog({ kind, record, isOpen, onOpenChange, fields: sourceFields, title, defaultValues = {}, actionMutation, actionRecordId, context, validate, onDone, answer, currencyField, submitLabel }: RecordDialogProps) {
@@ -275,7 +276,7 @@ export function RecordDialog({ kind, record, isOpen, onOpenChange, fields: sourc
         <Dialog.Overlay className="fixed inset-0 bg-black/50 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 z-50" />
         <Dialog.Content onOpenAutoFocus={event => { if (context) { event.preventDefault(); dialogTitle.current?.focus(); } }} onCloseAutoFocus={restoreOpenerFocus} className="fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] -translate-y-[50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg max-h-[90vh] overflow-y-auto">
           <div className="flex flex-col space-y-1.5 text-center sm:text-left">
-            <Dialog.Title ref={dialogTitle} tabIndex={context ? -1 : undefined} className="text-lg font-semibold leading-none tracking-tight focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">{title}</Dialog.Title>
+            <Dialog.Title ref={dialogTitle} tabIndex={context ? -1 : undefined} className="text-lg font-semibold leading-none tracking-tight focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">{typeof title === 'function' ? title(formData) : title}</Dialog.Title>
             <Dialog.Description className="text-xs text-muted-foreground">Use sample data only. This action cannot collect money or send a customer message. Fields marked * are required.</Dialog.Description>
           </div>
           
@@ -369,7 +370,7 @@ export function RecordDialog({ kind, record, isOpen, onOpenChange, fields: sourc
             </fieldset>
             <div className="flex justify-end gap-2 mt-4 pt-4 border-t">
               <Button type="button" variant="outline" disabled={isPending} onClick={() => changeOpen(false)}>{hasUnconfirmedOutcome ? 'Close' : 'Cancel'}</Button>
-              <Button type="submit" disabled={!!blockedReason || hasUnconfirmedOutcome} busy={isPending} busyLabel={actionMutation ? 'Working…' : 'Saving…'}>{submitLabel ?? (actionMutation ? actionLabels[actionMutation] || 'Confirm action' : 'Save')}</Button>
+              <Button type="submit" disabled={!!blockedReason || hasUnconfirmedOutcome} busy={isPending} busyLabel={actionMutation ? 'Working…' : 'Saving…'}>{(typeof submitLabel === 'function' ? submitLabel(formData) : submitLabel) ?? (actionMutation ? actionLabels[actionMutation] || 'Confirm action' : 'Save')}</Button>
             </div>
           </form>
 

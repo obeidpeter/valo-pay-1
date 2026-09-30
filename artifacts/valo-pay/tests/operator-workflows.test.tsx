@@ -30,11 +30,11 @@ describe('permissions before a workflow starts', () => {
 
   it('lets Operations run reconciliation but explains why confirming a match needs Finance', async () => {
     api.role = 'Operations'; renderApp('/reconciliation');
-    const confirm = await screen.findByRole('button', { name: 'Confirm' });
+    const confirm = await screen.findByRole('button', { name: 'Confirm match' });
     expect(confirm.getAttribute('aria-disabled')).toBe('true');
     expect(document.getElementById(confirm.getAttribute('aria-describedby')!)?.textContent).toBe('Requires Admin or Finance.');
     expect(screen.getByRole('button', { name: 'Run reconciliation' }).getAttribute('aria-disabled')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Add batch' }).getAttribute('aria-disabled')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Add settlement batch' }).getAttribute('aria-disabled')).toBe('true');
   });
 
   it('requires a different reviewer for an authored template', async () => {
@@ -90,7 +90,7 @@ describe('customer consent and return context', () => {
     const history = (await screen.findAllByRole('link', { name: /View history for Search retained/ }))[0]!;
     const rowId = history.closest('tr')!.id;
     await user.click(history);
-    await user.click(await screen.findByRole('link', { name: 'Back to customers' }));
+    await user.click(await screen.findByRole('link', { name: 'Back to Customers' }));
     await waitFor(() => expect(document.activeElement?.id).toBe(rowId));
     expect((screen.getByRole('textbox', { name: 'Search customers' }) as HTMLInputElement).value).toBe('Search retained');
     expect((screen.getByRole('combobox', { name: 'customers per page' }) as HTMLSelectElement).value).toBe('50');

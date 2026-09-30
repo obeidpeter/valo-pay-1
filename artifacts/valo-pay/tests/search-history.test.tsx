@@ -10,18 +10,22 @@ beforeEach(() => {
 });
 afterEach(() => api.uninstall());
 
-it.each(["/exceptions", "/mandates", "/collections"])(
+it.each([
+  ["/exceptions", "No exceptions match your search"],
+  ["/mandates", "No mandates match your search"],
+  ["/collections", "No instalments match your search"],
+])(
   "%s distinguishes a nonmatching search from an empty queue and restores results",
-  async (route) => {
+  async (route, noMatch) => {
     const user = userEvent.setup();
     renderApp(route + "?q=nonexistent-search&page=9");
-    await screen.findByText("No results match your search");
+    await screen.findByText(noMatch);
     expect(screen.queryByText("All clear: no open exceptions")).toBeNull();
     expect(screen.queryByText("No mandates yet")).toBeNull();
     expect(screen.queryByText("No instalments recorded")).toBeNull();
     await user.click(screen.getByRole("button", { name: "Clear search" }));
     await waitFor(() =>
-      expect(screen.queryByText("No results match your search")).toBeNull(),
+      expect(screen.queryByText(noMatch)).toBeNull(),
     );
     await waitFor(() =>
       expect(document.querySelectorAll("tbody tr").length).toBeGreaterThan(1),
@@ -36,7 +40,7 @@ it("clear search preserves exception owner, status and type filters", async () =
   renderApp(
     "/exceptions?q=nonexistent-search&view=resolved&owner=Finance&type=unallocated_payment",
   );
-  await screen.findByText("No results match your search");
+  await screen.findByText("No exceptions match your search");
   await user.click(screen.getByRole("button", { name: "Clear search" }));
   const params = new URLSearchParams(window.location.search);
   expect(params.get("view")).toBe("resolved");
@@ -53,7 +57,7 @@ it("searches reconciliation by a linked payment reference, resets pages and pres
     .records.find((r) => r.id === proposal.data.paymentId)!;
   const user = userEvent.setup();
   renderApp("/reconciliation?view=review&proposals-page=9&payments-page=7");
-  await screen.findByRole("button", { name: "Confirm" });
+  await screen.findByRole("button", { name: "Confirm match" });
   await user.type(
     screen.getByLabelText("Search reconciliation"),
     payment.reference,
@@ -69,17 +73,17 @@ it("searches reconciliation by a linked payment reference, resets pages and pres
       ),
     ).toBe(true),
   );
-  await screen.findByRole("button", { name: "Confirm" });
+  await screen.findByRole("button", { name: "Confirm match" });
   await user.clear(screen.getByLabelText("Search reconciliation"));
   await user.type(
     screen.getByLabelText("Search reconciliation"),
     "nonexistent-search",
   );
   await user.click(screen.getByRole("button", { name: "Search" }));
-  await screen.findByText("No results match your search");
-  expect(screen.queryByText("No proposed matches to review")).toBeNull();
+  await screen.findByText("No matches to review for this search");
+  expect(screen.queryByText("No matches to review")).toBeNull();
   await user.click(screen.getByRole("button", { name: "Clear search" }));
-  await screen.findByRole("button", { name: "Confirm" });
+  await screen.findByRole("button", { name: "Confirm match" });
   expect(new URLSearchParams(window.location.search).get("view")).toBe(
     "review",
   );
@@ -149,7 +153,7 @@ it("requests bounded history pages while keeping full balances and an off-page s
   expect(api.calls.some((c) => c.path.endsWith("/timeline"))).toBe(false);
   expect(
     screen
-      .getByRole("link", { name: "Back to collections" })
+      .getByRole("link", { name: "Back to Collections" })
       .getAttribute("href"),
   ).toBe("/collections?view=overdue&lender=" + api.merchantIds[0]);
 });

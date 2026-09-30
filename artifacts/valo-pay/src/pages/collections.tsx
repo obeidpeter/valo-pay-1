@@ -167,7 +167,7 @@ export default function CollectionsPage() {
                   ) : dueError && !data ? (
                     <tr><td colSpan={7} className="p-6"><div ref={listProblem} role="alert"><p>Collections could not be loaded completely.</p><Button className="mt-3" size="sm" variant="outline" onClick={() => { listAgain(); refetchDue(); refetchAttempts(); }}>Try again</Button></div></td></tr>
                   ) : displayed.length === 0 ? (
-                    <EmptyRow colSpan={7} title={search.get('q')?.trim() ? 'No results match your search' : view === 'all' && !owner ? 'No instalments recorded' : 'No collections match these filters'}>{search.get('q')?.trim() ? 'Try another name or reference, or clear the search. Your status and owner filters will stay selected.' : view === 'all' && !owner ? 'Open Import sample data to add synthetic instalments using a sample CSV.' : 'Choose All instalments and All owners to see the full list.'}</EmptyRow>
+                    <EmptyRow colSpan={7} title={search.get('q')?.trim() ? 'No instalments match your search' : view === 'all' && !owner ? 'No instalments recorded' : 'No instalments match these filters'}>{search.get('q')?.trim() ? 'Try another name or reference, or clear the search. Your status and owner filters will stay selected.' : view === 'all' && !owner ? 'Open Import sample data to add synthetic instalments using a sample CSV.' : 'Choose All instalments and All owners to see the full list.'}</EmptyRow>
                   ) : (
                     pagedRows.map(({ key, item, attempt }) => (
                       <tr key={key} id={`record-${key}`} tabIndex={-1} className="hover:bg-secondary/10 target:bg-primary/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">

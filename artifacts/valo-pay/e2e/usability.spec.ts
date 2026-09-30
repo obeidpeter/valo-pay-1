@@ -116,18 +116,18 @@ test("field correction links retain the draft and return keyboard focus to its o
 
 test("the payment comparison keeps evidence readable and keyboard focus inside its dialog", async ({ page }, info) => {
   await page.goto("/reconciliation?view=review");
-  const opener = page.getByRole("button", { name: "Confirm", exact: true }).first();
+  const opener = page.getByRole("button", { name: "Confirm match", exact: true }).first();
   await opener.click();
-  const dialog = page.getByRole("dialog", { name: "Confirm payment allocation" });
-  const title = dialog.getByRole("heading", { name: "Confirm payment allocation", exact: true });
+  const dialog = page.getByRole("dialog", { name: "Confirm match" });
+  const title = dialog.getByRole("heading", { name: "Confirm match", exact: true });
   await expect(title).toBeFocused();
   await expect(title).toBeInViewport();
   const evidence = dialog.getByRole("region", { name: "Match evidence" });
   await expect(evidence.getByRole("heading", { name: "Recorded payment", exact: true })).toBeVisible();
   await expect(evidence.getByRole("heading", { name: "Instalment", exact: true })).toBeVisible();
-  await expect(evidence.getByText(/Receipt status:/)).toBeVisible();
+  await expect(evidence.getByText(/Collection result:/)).toBeVisible();
   await expect(evidence.getByText(/Settlement:/)).toBeVisible();
-  await expect(evidence.getByText(/Provider fees are reviewed separately/)).toBeVisible();
+  await expect(evidence.getByText(/Provider fees are checked separately/)).toBeVisible();
   expect(await dialog.evaluate(node => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
   await dialog.getByLabel("Reason *", { exact: true }).focus();
   for (let index = 0; index < 8; index += 1) {

@@ -110,11 +110,11 @@ describe('UX-I01 import outcome and correction guidance', () => {
 describe('UX-I02 shared form recovery and UX-I03 review correction', () => {
   it('starts a consequential review at its title before moving to any invalid reason', async () => {
     const user = userEvent.setup(); renderApp('/reconciliation?view=review');
-    const opener = await screen.findByRole('button', { name: 'Confirm' });
+    const opener = await screen.findByRole('button', { name: 'Confirm match' });
     await user.click(opener);
-    const dialog = await screen.findByRole('dialog', { name: 'Confirm payment allocation' });
-    expect(document.activeElement).toBe(within(dialog).getByRole('heading', { name: 'Confirm payment allocation' }));
-    await user.click(within(dialog).getByRole('button', { name: 'Confirm allocation' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Confirm match' });
+    expect(document.activeElement).toBe(within(dialog).getByRole('heading', { name: 'Confirm match' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Confirm match' }));
     expect(document.activeElement).toBe(within(dialog).getByLabelText('Reason *'));
     expect(api.calls.filter(call => call.method === 'POST')).toHaveLength(0);
     await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));

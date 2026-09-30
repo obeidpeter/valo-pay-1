@@ -189,18 +189,18 @@ test("real reconciliation search, recorded rejection, reload persistence and aud
   await page.goto("/reconciliation?view=review");
   await page.getByLabel("Search reconciliation").fill(fixture.paymentReference);
   await page.getByRole("button", { name: "Search", exact: true }).click();
-  await expect(page.getByText("1 pending", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name:"Confirm", exact:true })).toHaveCount(1);
+  await expect(page.getByText("1 to review", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name:"Confirm match", exact:true })).toHaveCount(1);
   await page.getByLabel("Search reconciliation").fill(fixture.customerName);
   await page.getByRole("button", { name: "Search", exact: true }).click();
   await expect(
-    page.getByText("1–25 of 31 proposed matches", { exact: true }),
+    page.getByText("1–25 of 31 matches to review", { exact: true }),
   ).toBeVisible();
   await page
-    .getByRole("button", { name: "Next page of proposed matches" })
+    .getByRole("button", { name: "Next page of matches to review" })
     .click();
   await expect(
-    page.getByText("26–31 of 31 proposed matches", { exact: true }),
+    page.getByText("26–31 of 31 matches to review", { exact: true }),
   ).toBeVisible();
   await page.getByLabel("Search reconciliation").fill("DOES-NOT-EXIST");
   await page.getByRole("button", { name: "Search", exact: true }).click();
@@ -210,14 +210,14 @@ test("real reconciliation search, recorded rejection, reload persistence and aud
   await expect(page).not.toHaveURL(/proposals-page=/);
   await page.getByRole("button", { name: "Clear search" }).click();
   await expect(
-    page.getByText("1–25 of 31 proposed matches", { exact: true }),
+    page.getByText("1–25 of 31 matches to review", { exact: true }),
   ).toBeVisible();
   const rejection = page.waitForResponse(
     (r) =>
       r.url().includes("/api/v1/actions") && r.request().method() === "POST",
   );
   await page
-    .getByRole("button", { name: "Reject", exact: true })
+    .getByRole("button", { name: "Reject match", exact: true })
     .first()
     .click();
   const dialog = page.getByRole("dialog");
@@ -230,7 +230,7 @@ test("real reconciliation search, recorded rejection, reload persistence and aud
       "Synthetic database browser test: source evidence does not support this match.",
     );
   await dialog
-    .getByRole("button", { name: "Reject allocation", exact: true })
+    .getByRole("button", { name: "Reject match", exact: true })
     .click();
   const response = await rejection;
   expect(response.ok()).toBeTruthy();
@@ -238,7 +238,7 @@ test("real reconciliation search, recorded rejection, reload persistence and aud
   await expect(dialog).toBeHidden();
   await page.reload();
   await expect(
-    page.getByText("1–25 of 30 proposed matches", { exact: true }),
+    page.getByText("1–25 of 30 matches to review", { exact: true }),
   ).toBeVisible();
   const record = await context.request.get(
     `/api/v1/records/allocations?merchantId=${fixture.merchantId}&id=${action.record.id}&limit=1`,

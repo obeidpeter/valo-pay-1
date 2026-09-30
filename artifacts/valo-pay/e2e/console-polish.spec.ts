@@ -313,7 +313,7 @@ test("paging either picker by keyboard keeps the focus on the pager control pres
   await page.route(/\/api\/v1\/records\/(customers|due-items)\?/, async (route) => { await pause(700); await route.fallback(); });
   for (const { path, open, dialog: name, label } of [
     { path: "/mandates", open: () => page.getByRole("button", { name: "Create synthetic mandate" }).first().click(), dialog: "Create synthetic mandate", label: "customer choices" },
-    { path: "/reconciliation", open: () => page.getByRole("row").filter({ hasText: "SBX-UNIDENTIFIED-001" }).getByRole("button", { name: "Allocate", exact: true }).click(), dialog: "Allocate payment", label: "instalment choices" },
+    { path: "/reconciliation", open: () => page.getByRole("row").filter({ hasText: "SBX-UNIDENTIFIED-001" }).getByRole("button", { name: "Allocate payment", exact: true }).click(), dialog: "Allocate payment", label: "instalment choices" },
   ]) {
     await page.goto(path);
     await open();
@@ -355,7 +355,7 @@ test("paging either picker with its form complete, or pressing Enter in its sear
     await expect(dialog).toBeVisible();
   }
   await page.goto("/reconciliation");
-  await page.getByRole("row").filter({ hasText: "SBX-UNIDENTIFIED-001" }).getByRole("button", { name: "Allocate", exact: true }).click();
+  await page.getByRole("row").filter({ hasText: "SBX-UNIDENTIFIED-001" }).getByRole("button", { name: "Allocate payment", exact: true }).click();
   const allocation = page.getByRole("dialog", { name: "Allocate payment" });
   await expect(allocation.getByText(/^1–25 of [\d,]+ instalment choices$/)).toBeVisible();
   await allocation.getByLabel(/^Instalment/).selectOption({ index: 1 });
@@ -463,8 +463,8 @@ test("a failed page of the allocation picker moves focus to its own notice, insi
     return answer.failing ? route.fulfill(badGateway) : route.fallback();
   });
   await page.goto("/reconciliation");
-  await expect(page.getByText(/^Proposed matches could not be loaded/)).toBeVisible();
-  await page.getByRole("row").filter({ hasText: "SBX-UNIDENTIFIED-001" }).getByRole("button", { name: "Allocate", exact: true }).click();
+  await expect(page.getByText(/^We could not load matches to review/)).toBeVisible();
+  await page.getByRole("row").filter({ hasText: "SBX-UNIDENTIFIED-001" }).getByRole("button", { name: "Allocate payment", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Allocate payment" });
   await expect(dialog.getByText(/^1–25 of [\d,]+ instalment choices$/)).toBeVisible();
   await tryAgainKeepsFocus(page, dialog, "instalment choices", answer);

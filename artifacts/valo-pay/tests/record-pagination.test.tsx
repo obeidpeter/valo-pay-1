@@ -165,7 +165,7 @@ describe('paging by keyboard', () => {
     renderApp('/reconciliation');
     const payments = (await screen.findByRole('heading', { name: 'Unallocated payments' })).parentElement!.parentElement!;
     const row = (await within(payments).findByText('SBX-UNIDENTIFIED-001')).closest('tr')!;
-    await user.click(within(row).getByRole('button', { name: 'Allocate' }));
+    await user.click(within(row).getByRole('button', { name: 'Allocate payment' }));
     const dialog = await screen.findByRole('dialog', { name: 'Allocate payment' });
     const pager = await within(dialog).findByRole('navigation', { name: 'instalment choices pagination' });
     const total = Number(within(pager).getByText(/^1–25 of \d+ instalment choices$/).textContent!.match(/of (\d+)/)![1]);
@@ -394,7 +394,7 @@ describe('a page that fails to load', () => {
     exceptions.unmount();
     renderApp('/reconciliation');
     // A table's notice has no button of its own (Refresh queue sits above), so the notice itself takes the focus.
-    await failingNext(user, await screen.findByRole('button', { name: 'Next page of unallocated payments' }, { timeout: 10_000 }), /^\/v1\/reconciliation\/payments$/, /^Unallocated payments could not be loaded/);
+    await failingNext(user, await screen.findByRole('button', { name: 'Next page of unallocated payments' }, { timeout: 10_000 }), /^\/v1\/reconciliation\/payments$/, /^We could not load unallocated payments/);
   }, 30_000);
 
   it('moves focus to the notice that replaced the page buttons of a pilot list', async () => {
@@ -410,7 +410,7 @@ describe('a page that fails to load', () => {
     renderApp('/reconciliation');
     const payments = (await screen.findByRole('heading', { name: 'Unallocated payments' })).parentElement!.parentElement!;
     const row = (await within(payments).findByText('SBX-UNIDENTIFIED-001')).closest('tr')!;
-    await user.click(within(row).getByRole('button', { name: 'Allocate' }));
+    await user.click(within(row).getByRole('button', { name: 'Allocate payment' }));
     const dialog = await screen.findByRole('dialog', { name: 'Allocate payment' });
     await within(dialog).findByText(/^1–25 of \d+ instalment choices$/);
     await failingNext(user, within(dialog).getByRole('button', { name: 'Next page of instalment choices' }), /^\/v1\/records\/due-items$/, /^Unable to load instalment choices/);
@@ -458,10 +458,10 @@ describe('the notice of the list whose page failed', () => {
     // The proposed matches cannot be read when the page opens, so their table shows its problem notice.
     api.failNext(/^\/v1\/reconciliation\/proposals$/, unavailable);
     renderApp('/reconciliation');
-    await screen.findByText(/Proposed matches could not be loaded/, undefined, { timeout: 10_000 });
+    await screen.findByText(/We could not load matches to review/, undefined, { timeout: 10_000 });
     const payments = (await screen.findByRole('heading', { name: 'Unallocated payments' })).parentElement!.parentElement!;
     const row = (await within(payments).findByText('SBX-UNIDENTIFIED-001')).closest('tr')!;
-    await user.click(within(row).getByRole('button', { name: 'Allocate' }));
+    await user.click(within(row).getByRole('button', { name: 'Allocate payment' }));
     const dialog = await screen.findByRole('dialog', { name: 'Allocate payment' });
     await within(dialog).findByText(/^1–25 of \d+ instalment choices$/);
     api.failNext(/^\/v1\/records\/due-items$/, unavailable);
@@ -478,10 +478,10 @@ describe('the notice of the list whose page failed', () => {
     });
     api.failNext(/^\/v1\/reconciliation\/proposals$/, unavailable);
     renderApp('/reconciliation');
-    await screen.findByText(/Proposed matches could not be loaded/, undefined, { timeout: 10_000 });
+    await screen.findByText(/We could not load matches to review/, undefined, { timeout: 10_000 });
     api.failNext(/^\/v1\/reconciliation\/observations$/, unavailable);
     await press(user, await screen.findByRole('button', { name: 'Next page of payment evidence' }, { timeout: 10_000 }));
-    const notice = await screen.findByText(/^Payment evidence could not be loaded/);
+    const notice = await screen.findByText(/^We could not load payment evidence/);
     await waitFor(() => expect(document.activeElement).toBe(notice));
   }, 30_000);
 

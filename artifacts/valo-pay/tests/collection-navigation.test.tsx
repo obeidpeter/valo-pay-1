@@ -22,7 +22,7 @@ describe('collection record navigation', () => {
     const selected = (await screen.findByText(mandate.reference)).closest('tr')!;
     expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(2);
     await waitFor(() => expect(document.activeElement).toBe(selected));
-    await user.click(screen.getByRole('link', { name: 'Back to collections' }));
+    await user.click(screen.getByRole('link', { name: 'Back to Collections' }));
     const restored = (await screen.findByText(due.reference)).closest('tr')!;
     expect(new URLSearchParams(window.location.search).get('view')).toBe('overdue');
     expect((screen.getByLabelText('Filter collections by owner') as HTMLSelectElement).value).toBe('merchant_manual');
@@ -69,7 +69,7 @@ describe('collection record navigation', () => {
     expect(within(screen.getByRole('table')).queryByText('PAGE-00')).toBeNull();
     await user.click(within(returned).getByRole('link', { name: 'Follow up on mandate activation' }));
     await screen.findByText(mandate.reference);
-    await user.click(screen.getByRole('link', { name: 'Back to collections' }));
+    await user.click(screen.getByRole('link', { name: 'Back to Collections' }));
     await screen.findByText('PAGE-30');
     expect(screen.getByText('Page 2 of 2')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Previous page of instalments' }));
@@ -83,7 +83,7 @@ describe('collection record navigation', () => {
     const mandate = api.state().records.find(record => record.kind === 'mandates')!;
     renderApp(`/mandates?record=${mandate.id}&lender=another-lender&returnTo=${encodeURIComponent('/collections?lender=another-lender')}`);
     expect(await screen.findByText('This mandate link belongs to another lender')).toBeTruthy();
-    expect(screen.queryByRole('link', { name: 'Back to collections' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Back to Collections' })).toBeNull();
     expect(screen.queryByText(mandate.reference)).toBeNull();
   });
 

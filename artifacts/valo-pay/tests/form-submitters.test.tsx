@@ -98,7 +98,7 @@ describe('a picker in a complete form', () => {
     renderApp('/reconciliation');
     const payments = (await screen.findByRole('heading', { name: 'Unallocated payments' })).parentElement!.parentElement!;
     const row = (await within(payments).findByText('SBX-UNIDENTIFIED-001')).closest('tr')!;
-    await user.click(within(row).getByRole('button', { name: 'Allocate' }));
+    await user.click(within(row).getByRole('button', { name: 'Allocate payment' }));
     const dialog = await screen.findByRole('dialog', { name: 'Allocate payment' });
     await within(dialog).findByText(/^1–25 of \d+ instalment choices$/);
     const instalment = within(dialog).getByLabelText(/^Instalment/) as HTMLSelectElement;
