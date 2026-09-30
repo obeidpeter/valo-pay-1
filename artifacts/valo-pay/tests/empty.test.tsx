@@ -43,7 +43,7 @@ describe("empty states", () => {
     api.mutate((state) => { state.records.splice(0, state.records.length, ...state.records.filter((record) => record.kind !== "mandates")); });
     renderApp("/mandates");
     expect(await screen.findByText("No mandates yet")).toBeTruthy();
-    expect(screen.getAllByRole("button", { name: "Create synthetic mandate" }).length).toBe(2);
+    expect(screen.getAllByRole("button", { name: "Add mandate" }).length).toBe(2);
   });
 
   it("marks a filtered view's emptiness as the result of the filter", async () => {

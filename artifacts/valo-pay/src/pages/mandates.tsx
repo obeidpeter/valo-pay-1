@@ -60,7 +60,7 @@ export default function MandatesPage() {
   const requiredFields: Array<{ name: keyof typeof draft; label: string; type: 'text' | 'number' | 'select' }> = [
     { name: 'name', label: 'Mandate name', type: 'text' }, { name: 'customerId', label: 'Customer', type: 'select' }, { name: 'amountKobo', label: 'Debit limit (₦)', type: 'text' },
     { name: 'reference', label: 'Provider reference', type: 'text' }, { name: 'workflow', label: 'Activation method', type: 'select' }, { name: 'consentEvidence', label: 'Consent evidence reference', type: 'text' },
-    { name: 'policyId', label: 'Policy', type: 'select' }, { name: 'frequency', label: 'Frequency', type: 'select' },
+    { name: 'policyId', label: 'Retry policy', type: 'select' }, { name: 'frequency', label: 'Frequency', type: 'select' },
   ];
   const change = (name: keyof typeof draft, value: string) => {
     setDraft(current => ({ ...current, [name]: value }));
@@ -103,7 +103,7 @@ export default function MandatesPage() {
     { query: { enabled: !!merchantId && (isCreateOpen || isDialogOpen), queryKey: getListRecordsQueryKey('policies', { merchantId: merchantId! }) } }
   );
   const customerById = new Map([...(data?.related || []), ...(customers?.items || [])].filter(row => row.kind === 'customers').map(customer => [customer.id, customer]));
-  const approvedVersionOptions = (policies?.items || []).filter(policy => policy.status === 'approved').map(policy => ({ value: policy.id, label: `${policy.name} · v${String(policy.data?.version || 1)}` }));
+  const approvedVersionOptions = (policies?.items || []).filter(policy => policy.status === 'approved').map(policy => ({ value: policy.id, label: `${policy.name} · version ${String(policy.data?.version || 1)}` }));
   const createMandate = useCreateRecord({
     mutation: {
       onMutate: () => createSession.current,
@@ -195,31 +195,31 @@ export default function MandatesPage() {
       <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Mandates</h1>
-          <p className="text-muted-foreground mt-1">A mandate is a customer's permission to collect by direct debit. Track each mandate and its activation status here.</p>
+          <p className="text-muted-foreground mt-1">A mandate is a customer’s permission for recurring bank debits. Track each mandate and its activation here.</p>
         </div>
-        <Button kind="mandates" onClick={() => setIsCreateOpen(true)}>Create synthetic mandate</Button>
+        <Button kind="mandates" onClick={() => setIsCreateOpen(true)}>Add mandate</Button>
       </header>
 
       <QueueSearch /><SavedQueueViews queue="mandates" views={mandateViews} fallback="all" />
 
       <div className="bg-card border rounded-xl shadow-sm overflow-hidden flex flex-col">
-        {targetId ? <div className="flex flex-wrap items-center justify-between gap-3 border-b p-4"><p className="text-sm font-medium">Selected mandate</p><Button size="sm" variant="outline" onClick={leaveSelectedRecord}>View mandate queue</Button></div> : <div className="border-b p-4">
+        {targetId ? <div className="flex flex-wrap items-center justify-between gap-3 border-b p-4"><p className="text-sm font-medium">Selected mandate</p><Button size="sm" variant="outline" onClick={leaveSelectedRecord}>Show all mandates</Button></div> : <div className="border-b p-4">
           <div className="flex flex-wrap gap-2" role="group" aria-label="Mandate views">
             {views.map(option => <Button key={option.key} size="sm" variant={view === option.key ? 'default' : 'ghost'} aria-pressed={view === option.key} onClick={() => setView(option.key)}>{option.label} ({option.count})</Button>)}
           </div>
-          <p className="mt-3 text-xs text-muted-foreground">Mandates awaiting activation appear first, with the earliest deadlines at the top. Dates use West Africa Time.</p>
+          <p className="mt-3 text-xs text-muted-foreground">Mandates awaiting activation come first, with the earliest deadline at the top.</p>
         </div>}
         {isLoading ? (
           <Loading what="mandates" />
         ) : error ? (
-          <div ref={listProblem} role="alert" className="p-6 text-sm"><p>Mandates could not be loaded.</p><Button className="mt-3" size="sm" variant="outline" onClick={() => { listAgain(); void refetch(); }}>Try again</Button></div>
+          <div ref={listProblem} role="alert" className="p-6 text-sm"><p>We could not load mandates.</p><Button className="mt-3" size="sm" variant="outline" onClick={() => { listAgain(); void refetch(); }}>Try again</Button></div>
         ) : targetId && shown.length === 0 ? (
-          <EmptyState title={wrongLender ? 'This mandate link belongs to another lender' : 'The selected mandate is unavailable'} action={<Button size="sm" variant="outline" onClick={leaveSelectedRecord}>View mandate queue</Button>}>
-            {wrongLender ? 'Switch to the lender you were reviewing to open this record.' : 'The record could not be found for the active lender. Return to collections to check its linked mandate.'}
+          <EmptyState title={wrongLender ? 'This mandate link belongs to another lender' : 'Mandate not found'} action={<Button size="sm" variant="outline" onClick={leaveSelectedRecord}>Show all mandates</Button>}>
+            {wrongLender ? 'To open this mandate, choose its lender in Active lender.' : 'This mandate was not found for the selected lender. Show all mandates, or go back to the page you came from.'}
           </EmptyState>
         ) : shown.length === 0 ? (
-          <EmptyState title={search.get('q')?.trim() ? 'No mandates match your search' : view === 'all' ? 'No mandates yet' : 'No mandates match this view'} action={search.get('q')?.trim() ? undefined : view === 'all' ? <Button kind="mandates" size="sm" variant="outline" onClick={() => setIsCreateOpen(true)}>Create synthetic mandate</Button> : <Button size="sm" variant="outline" onClick={() => setView('all')}>View all mandates</Button>}>
-            {search.get('q')?.trim() ? 'Try another name or reference, or clear the search. Your activation filter will stay selected.' : view === 'all' ? 'Mandates appear after they are created or imported. Create a synthetic mandate to try the activation process.' : 'Choose All mandates to review other activation states.'}
+          <EmptyState title={search.get('q')?.trim() ? 'No mandates match your search' : view === 'all' ? 'No mandates yet' : 'No mandates match these filters'} action={search.get('q')?.trim() ? undefined : view === 'all' ? <Button kind="mandates" size="sm" variant="outline" onClick={() => setIsCreateOpen(true)}>Add mandate</Button> : <Button size="sm" variant="outline" onClick={() => setView('all')}>Show all mandates</Button>}>
+            {search.get('q')?.trim() ? 'Try another name or reference, or clear the search. Your view stays as it is.' : view === 'all' ? 'Mandates appear after they are added or imported. Select Add mandate to try activation.' : 'Select Show all mandates to see every activation status.'}
           </EmptyState>
         ) : (
           <ScrollFrame label="Mandates" className="overflow-x-auto">
@@ -245,12 +245,12 @@ export default function MandatesPage() {
                     <td className="px-6 py-4 text-xs text-muted-foreground" title={readableLabel(mandate.data?.workflow || 'standard')}>{readableLabel(mandate.data?.workflow || 'standard')}</td>
                     <td className="px-6 py-4 text-xs"><p>{formatDate(String(mandate.data?.activationDeadline || ''))}</p>{mandate.status === 'pending_activation' && isOverdue(mandate.data?.activationDeadline, now) && <p className="mt-1 font-semibold text-destructive">Overdue · follow up or reissue</p>}{mandate.status === 'pending_activation' && !isOverdue(mandate.data?.activationDeadline, now) && isDueToday(mandate.data?.activationDeadline, now) && <p className="mt-1 font-semibold text-warning-strong">Activation due today</p>}</td>
                     <td className="px-6 py-4 text-right space-x-2">
-                      {mandate.status === 'active' && <Button size="sm" variant="outline" className="h-7 text-xs" action="mandate_suspend" record={mandate} onClick={() => handleAction(mandate, 'mandate_suspend')}>Suspend</Button>}
-                      {mandate.status === 'suspended' && <Button size="sm" variant="outline" className="h-7 text-xs" action="mandate_reinstate" record={mandate} onClick={() => handleAction(mandate, 'mandate_reinstate')}>Resume</Button>}
-                      {['draft', 'submitted', 'pending_activation', 'active', 'suspended'].includes(mandate.status) && <Button size="sm" variant="outline" className="h-7 text-xs" action="mandate_cancel" record={mandate} onClick={() => handleAction(mandate, 'mandate_cancel')}>Cancel</Button>}
-                      {['pending_activation', 'expired', 'cancelled', 'failed'].includes(mandate.status) && <Button size="sm" variant="outline" className="h-7 text-xs" action="mandate_reissue" record={mandate} onClick={() => handleAction(mandate, 'mandate_reissue')}>Reissue</Button>}
-                      {mandate.status === 'pending_activation' && <Button size="sm" variant="outline" className="h-7 text-xs" action="activation_reminder" record={mandate} onClick={() => handleAction(mandate, 'activation_reminder')}>Record reminder</Button>}
-                      {['active', 'suspended', 'pending_activation'].includes(mandate.status) && <Button size="sm" variant="ghost" className="h-7 text-xs" action="notify_policy_change" record={mandate} onClick={() => handleAction(mandate, 'notify_policy_change')}>Record change notice</Button>}
+                      {mandate.status === 'active' && <Button size="sm" variant="outline" className="h-7 text-xs" action="mandate_suspend" record={mandate} onClick={() => handleAction(mandate, 'mandate_suspend')}>Suspend mandate</Button>}
+                      {mandate.status === 'suspended' && <Button size="sm" variant="outline" className="h-7 text-xs" action="mandate_reinstate" record={mandate} onClick={() => handleAction(mandate, 'mandate_reinstate')}>Resume mandate</Button>}
+                      {['draft', 'submitted', 'pending_activation', 'active', 'suspended'].includes(mandate.status) && <Button size="sm" variant="outline" className="h-7 text-xs" action="mandate_cancel" record={mandate} onClick={() => handleAction(mandate, 'mandate_cancel')}>Cancel mandate</Button>}
+                      {['pending_activation', 'expired', 'cancelled', 'failed'].includes(mandate.status) && <Button size="sm" variant="outline" className="h-7 text-xs" action="mandate_reissue" record={mandate} onClick={() => handleAction(mandate, 'mandate_reissue')}>Reissue mandate</Button>}
+                      {mandate.status === 'pending_activation' && <Button size="sm" variant="outline" className="h-7 text-xs" action="activation_reminder" record={mandate} onClick={() => handleAction(mandate, 'activation_reminder')}>Record activation reminder</Button>}
+                      {['active', 'suspended', 'pending_activation'].includes(mandate.status) && <Button size="sm" variant="ghost" className="h-7 text-xs" action="notify_policy_change" record={mandate} onClick={() => handleAction(mandate, 'notify_policy_change')}>Record policy change notice</Button>}
                       {['active', 'suspended', 'pending_activation'].includes(mandate.status) && <Button size="sm" variant="ghost" className="h-7 text-xs" action="apply_policy_version" record={mandate} onClick={() => handleAction(mandate, 'apply_policy_version')}>Apply policy version</Button>}
                     </td>
                   </tr>
@@ -263,8 +263,8 @@ export default function MandatesPage() {
       </div>
 
       {replacements.length > 0 && <section aria-label="Reissued mandates" className="rounded-xl border bg-card p-5 text-sm">
-        <h2 className="font-semibold">Mandates reissued from this record</h2>
-        <p className="mt-1 text-muted-foreground">Open the new mandate to track its activation. The original history stays on this record.</p>
+        <h2 className="font-semibold">Mandates reissued from this one</h2>
+        <p className="mt-1 text-muted-foreground">Open the new mandate to track its activation. The original history stays with this mandate.</p>
         <ul className="mt-3 space-y-2">{replacements.map(replacement => <li key={replacement.id} className="flex flex-wrap items-center gap-3">
           <Link href={recordDestination('/mandates', replacement.id, returnTo || '', merchantId)} className="font-medium text-primary underline underline-offset-4">{replacement.reference || replacement.name}</Link>
           <StatusBadge status={replacement.status} />
@@ -288,24 +288,24 @@ export default function MandatesPage() {
           policyName={approvedVersionOptions.find(policy => policy.value === values.policyId)?.label}
         />}
         fields={actionKind === 'mandate_reissue' ? [
-            { name: 'consentEvidence', label: 'New consent evidence reference (reissuing creates a new mandate)', type: 'text', isData: true, required: true },
+            { name: 'consentEvidence', label: 'New consent evidence reference', type: 'text', isData: true, required: true, help: 'Reissuing creates a new mandate.' },
             { name: 'amountKobo', label: 'Debit limit the new consent covers', type: 'number', isData: true, required: true },
           ]
-          : actionKind === 'notify_policy_change' ? [{ name: 'policyId', label: 'Approved policy version (the notice is simulated and is not proof of delivery)', type: 'select', isData: true, required: true, options: approvedVersionOptions }]
+          : actionKind === 'notify_policy_change' ? [{ name: 'policyId', label: 'Approved policy version', type: 'select', isData: true, required: true, options: approvedVersionOptions, help: 'The notice is simulated. It is not proof that the customer received it.' }]
           : actionKind === 'apply_policy_version' ? [
             { name: 'policyId', label: 'Approved policy version to apply', type: 'select', isData: true, required: true, options: approvedVersionOptions },
-            { name: 'noticeId', label: 'Accepted policy change notice ID (leave blank to use the latest accepted notice for this version)', type: 'text', isData: true },
-            { name: 'consentEvidence', label: 'New consent evidence (required if the lender requires consent for policy changes)', type: 'text', isData: true },
+            { name: 'noticeId', label: 'Accepted notice ID', type: 'text', isData: true, help: 'Optional. Leave it empty to use the latest accepted notice for this version.' },
+            { name: 'consentEvidence', label: 'New consent evidence reference', type: 'text', isData: true, help: 'Needed only if this lender asks for fresh consent when a retry policy changes.' },
           ] : []}
       />
       <Dialog.Root open={isCreateOpen} onOpenChange={changeCreateOpen}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 z-50 bg-black/50" />
           <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-full max-w-lg max-h-[90vh] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-lg border bg-background p-6 shadow-lg">
-            <Dialog.Title className="text-lg font-semibold">Create synthetic mandate</Dialog.Title>
-            <Dialog.Description className="mt-1 text-sm text-muted-foreground">Use synthetic details only. This records a mandate in the sandbox; it sends no instruction to a bank.</Dialog.Description>
+            <Dialog.Title className="text-lg font-semibold">Add mandate</Dialog.Title>
+            <Dialog.Description className="mt-1 text-sm text-muted-foreground">Use sample details only. This adds a mandate to the sample data and sends no instruction to a bank. Fields marked * are required.</Dialog.Description>
             <form noValidate className="mt-5 space-y-4" onSubmit={submitCreate}>
-              {createMandate.hasUnconfirmedOutcome && <FormAlert title="Mandate creation outcome unconfirmed"><p>The response was lost or unavailable. This mandate may already exist. Keep these details unchanged and retry the original request to recover its result without creating a second mandate. {KEPT_IN_OPERATIONS}</p><div className="mt-2 flex flex-wrap items-center gap-3"><OpenOperations /><DiscardOriginalRequest disabled={createMandate.isPending} onDiscard={() => { createMandate.abandonUnconfirmed(); setFormErrors([]); setFieldErrors({}); }} /></div></FormAlert>}
+              {createMandate.hasUnconfirmedOutcome && <FormAlert title="Request not confirmed"><p>We do not know yet whether Valo Pay saved this mandate. Check the original request before you change anything. Keep these details as they are: checking never adds a second mandate. {KEPT_IN_OPERATIONS}</p><div className="mt-2 flex flex-wrap items-center gap-3"><OpenOperations /><DiscardOriginalRequest disabled={createMandate.isPending} onDiscard={() => { createMandate.abandonUnconfirmed(); setFormErrors([]); setFieldErrors({}); }} /></div></FormAlert>}
               <fieldset disabled={createMandate.isPending || createMandate.hasUnconfirmedOutcome} className="contents">
               {!createMandate.hasUnconfirmedOutcome && (formErrors.length > 0 || Object.keys(fieldErrors).length > 0) && (
                 <FormAlert title={formErrors[0] ?? attentionTitle(Object.keys(fieldErrors).length)}>{formErrors.slice(1).map(message => <p key={message}>{message}</p>)}</FormAlert>
@@ -323,14 +323,17 @@ export default function MandatesPage() {
               <MandateField label="Provider reference" value={draft.reference} id="mandate-reference" error={fieldErrors.reference} onChange={value => change('reference', value)} required />
               <MandateSelect label="Activation method" value={draft.workflow} id="mandate-workflow" error={fieldErrors.workflow} onChange={value => change('workflow', value)} required options={activationWorkflows.map(workflow => ({ value: workflow, label: readableLabel(workflow) }))} />
               <MandateField label="Consent evidence reference" value={draft.consentEvidence} id="mandate-consentEvidence" error={fieldErrors.consentEvidence} onChange={value => change('consentEvidence', value)} required />
-              <label htmlFor="mandate-consent-gaps" className="block text-sm font-medium">Missing consent details (one per line)</label>
-              <textarea id="mandate-consent-gaps" className="mt-1 min-h-[72px] w-full rounded-md border bg-transparent px-3 py-2 text-sm" value={draft.consentGaps} onChange={event => setDraft({ ...draft, consentGaps: event.target.value })} />
-              <MandateSelect label="Policy" value={draft.policyId} id="mandate-policyId" error={fieldErrors.policyId} onChange={value => change('policyId', value)} required options={(policies?.items || []).map(policy => ({ value: policy.id, label: `${policy.name} · ${readableLabel(policy.status)}` }))} />
-              <MandateSelect label="Frequency" value={draft.frequency} id="mandate-frequency" error={fieldErrors.frequency} onChange={value => change('frequency', value)} required options={mandateFrequencies.map(frequency => ({ value: frequency, label: frequency.charAt(0).toUpperCase() + frequency.slice(1) }))} />
+              <div>
+                <label htmlFor="mandate-consent-gaps" className="block text-sm font-medium">Missing consent evidence</label>
+                <textarea id="mandate-consent-gaps" aria-describedby="mandate-consent-gaps-help" className="mt-1 min-h-[72px] w-full rounded-md border bg-transparent px-3 py-2 text-sm" value={draft.consentGaps} onChange={event => setDraft({ ...draft, consentGaps: event.target.value })} />
+                <p id="mandate-consent-gaps-help" className="mt-1 text-xs text-muted-foreground">One item per line.</p>
+              </div>
+              <MandateSelect label="Retry policy" value={draft.policyId} id="mandate-policyId" error={fieldErrors.policyId} onChange={value => change('policyId', value)} required options={(policies?.items || []).map(policy => ({ value: policy.id, label: `${policy.name} · version ${String(policy.data?.version || 1)} · ${readableLabel(policy.status)}` }))} />
+              <MandateSelect label="Frequency" value={draft.frequency} id="mandate-frequency" error={fieldErrors.frequency} onChange={value => change('frequency', value)} required options={mandateFrequencies.map(frequency => ({ value: frequency, label: readableLabel(frequency) }))} />
               </fieldset>
               <div className="flex justify-end gap-2 border-t pt-4">
                 <Button type="button" variant="outline" disabled={createMandate.isPending || createMandate.hasUnconfirmedOutcome} onClick={() => changeCreateOpen(false)}>Cancel</Button>
-                <Button kind="mandates" type="submit" busy={createMandate.isPending} busyLabel={createMandate.hasUnconfirmedOutcome ? 'Recovering result…' : 'Creating mandate…'}>{createMandate.hasUnconfirmedOutcome ? 'Retry original mandate request' : 'Create mandate'}</Button>
+                <Button kind="mandates" type="submit" busy={createMandate.isPending} busyLabel={createMandate.hasUnconfirmedOutcome ? 'Checking original request…' : 'Adding mandate…'}>{createMandate.hasUnconfirmedOutcome ? 'Check original request' : 'Add mandate'}</Button>
               </div>
             </form>
           </Dialog.Content>
@@ -358,7 +361,7 @@ function MandateSelect({ id, label, value, onChange, required, error, options }:
     <div>
       <label htmlFor={id} className="block text-sm font-medium">{label}{required ? ' *' : ''}</label>
       <select id={id} required={required} value={value} onChange={event => onChange(event.target.value)} className={controlClass} {...invalidProps(id, error)}>
-        <option value="">Select…</option>
+        <option value="">Choose an option</option>
         {options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
       </select>
       <FieldError id={id} message={error} />

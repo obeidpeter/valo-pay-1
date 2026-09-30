@@ -136,8 +136,8 @@ describe('a picker in a complete form', () => {
       state.records.push(...Array.from({ length: 60 }, (_, index) => ({ ...structuredClone(sample), id: randomUUID(), name: `Pager customer ${String(index).padStart(2, '0')}`, reference: `PAGER-${index}`, createdAt: new Date(Date.UTC(2026, 0, 1, 0, index)).toISOString() })));
     });
     renderApp('/mandates');
-    await user.click(await screen.findByRole('button', { name: 'Create synthetic mandate' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Create synthetic mandate' });
+    await user.click(await screen.findByRole('button', { name: 'Add mandate' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Add mandate' });
     await within(dialog).findByText(/^1–25 of \d+ customer choices$/);
     const customer = within(dialog).getByLabelText(/Customer/) as HTMLSelectElement;
     await user.selectOptions(customer, customer.options[1]!.value);
@@ -145,14 +145,14 @@ describe('a picker in a complete form', () => {
     await user.type(within(dialog).getByLabelText(/Debit limit/), '500.00');
     await user.type(within(dialog).getByLabelText(/Provider reference/), 'SYN-PAGER-MANDATE');
     await user.type(within(dialog).getByLabelText(/Consent evidence reference/), 'SYN-PAGER-CONSENT');
-    await user.selectOptions(within(dialog).getByLabelText(/^Policy/), api.state().records.find(record => record.kind === 'policies')!.id);
+    await user.selectOptions(within(dialog).getByLabelText(/^Retry policy/), api.state().records.find(record => record.kind === 'policies')!.id);
     await press(user, within(dialog).getByRole('button', { name: 'Next page of customer choices' }));
     await within(dialog).findByText(/^26–50 of \d+ customer choices$/);
     await user.click(within(dialog).getByRole('button', { name: 'Previous page of customer choices' }));
     await within(dialog).findByText(/^1–25 of \d+ customer choices$/);
     expect(writes(/^\/v1\/records\/mandates$/)).toEqual([]);
     expect(dialog.isConnected).toBe(true);
-    await user.click(within(dialog).getByRole('button', { name: 'Create mandate' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Add mandate' }));
     await waitFor(() => expect(writes(/^\/v1\/records\/mandates$/)).toHaveLength(1));
   });
 
@@ -170,8 +170,8 @@ describe('a picker in a complete form', () => {
   it('Enter in the mandate customer picker\'s search looks for customers and sends nothing', async () => {
     const user = userEvent.setup();
     renderApp('/mandates');
-    await user.click(await screen.findByRole('button', { name: 'Create synthetic mandate' }));
-    const create = await screen.findByRole('dialog', { name: 'Create synthetic mandate' });
+    await user.click(await screen.findByRole('button', { name: 'Add mandate' }));
+    const create = await screen.findByRole('dialog', { name: 'Add mandate' });
     const customer = await within(create).findByLabelText(/Customer/) as HTMLSelectElement;
     await waitFor(() => expect(customer.options.length).toBeGreaterThan(1));
     await user.selectOptions(customer, customer.options[1]!.value);
@@ -179,7 +179,7 @@ describe('a picker in a complete form', () => {
     await user.type(within(create).getByLabelText(/Debit limit/), '500.00');
     await user.type(within(create).getByLabelText(/Provider reference/), 'SYN-SEARCH-MANDATE');
     await user.type(within(create).getByLabelText(/Consent evidence reference/), 'SYN-SEARCH-CONSENT');
-    await user.selectOptions(within(create).getByLabelText(/^Policy/), api.state().records.find(record => record.kind === 'policies')!.id);
+    await user.selectOptions(within(create).getByLabelText(/^Retry policy/), api.state().records.find(record => record.kind === 'policies')!.id);
     await user.type(within(create).getByRole('searchbox', { name: 'Search customers' }), 'Ada{Enter}');
     await waitFor(() => expect(api.calls.some(call => call.path === '/v1/records/customers' && call.query.search === 'Ada')).toBe(true));
     expect(writes(/^\/v1\/records\/mandates$/)).toEqual([]);

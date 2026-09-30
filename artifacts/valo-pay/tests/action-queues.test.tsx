@@ -106,23 +106,23 @@ describe('actionable operational queues', () => {
     const table = await screen.findByRole('table');
     expect(within(table).getAllByRole('row')).toHaveLength(2);
     expect(within(table).getByText('Overdue · follow up or reissue')).toBeTruthy();
-    await user.click(screen.getByRole('button', { name: 'Create synthetic mandate' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Create synthetic mandate' });
+    await user.click(screen.getByRole('button', { name: 'Add mandate' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Add mandate' });
     await user.type(within(dialog).getByLabelText(/Mandate name/), 'New synthetic mandate');
     await user.selectOptions(within(dialog).getByLabelText(/Customer/), api.state().records.find(record => record.kind === 'customers')!.id);
     await user.type(within(dialog).getByLabelText(/Debit limit/), '12,345.67');
     await user.type(within(dialog).getByLabelText(/Provider reference/), 'SAMPLE-NEW-MANDATE');
     await user.type(within(dialog).getByLabelText(/Consent evidence reference/), 'SYNTHETIC-CONSENT');
-    await user.selectOptions(within(dialog).getByLabelText(/^Policy/), api.state().records.find(record => record.kind === 'policies')!.id);
-    await user.click(within(dialog).getByRole('button', { name: 'Create mandate' }));
+    await user.selectOptions(within(dialog).getByLabelText(/^Retry policy/), api.state().records.find(record => record.kind === 'policies')!.id);
+    await user.click(within(dialog).getByRole('button', { name: 'Add mandate' }));
     await waitFor(() => expect(api.calls.find(call => call.method === 'POST' && call.path === '/v1/records/mandates')?.body).toMatchObject({ amountKobo: 1234567 }));
   });
 
   it('offers the mandate customers one searched page at a time, keeping the one chosen', async () => {
     const user = userEvent.setup();
     renderApp('/mandates');
-    await user.click(await screen.findByRole('button', { name: 'Create synthetic mandate' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Create synthetic mandate' });
+    await user.click(await screen.findByRole('button', { name: 'Add mandate' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Add mandate' });
     const customers = api.state().records.filter(record => record.kind === 'customers');
     const picker = within(dialog).getByLabelText(/Customer/) as HTMLSelectElement;
     await waitFor(() => expect(picker.options.length).toBe(customers.length + 1));
@@ -140,8 +140,8 @@ describe('actionable operational queues', () => {
     // Second review of the audit fixes, console finding 3.
     const user = userEvent.setup();
     renderApp('/mandates');
-    await user.click(await screen.findByRole('button', { name: 'Create synthetic mandate' }));
-    let dialog = await screen.findByRole('dialog', { name: 'Create synthetic mandate' });
+    await user.click(await screen.findByRole('button', { name: 'Add mandate' }));
+    let dialog = await screen.findByRole('dialog', { name: 'Add mandate' });
     const customers = api.state().records.filter(record => record.kind === 'customers');
     const [chosen] = customers;
     await user.type(within(dialog).getByLabelText('Search customers'), chosen!.reference);
@@ -152,12 +152,12 @@ describe('actionable operational queues', () => {
     await user.type(within(dialog).getByLabelText(/Debit limit/), '500');
     await user.type(within(dialog).getByLabelText(/Provider reference/), 'SAMPLE-SEARCHED-MANDATE');
     await user.type(within(dialog).getByLabelText(/Consent evidence reference/), 'SYNTHETIC-CONSENT');
-    await user.selectOptions(within(dialog).getByLabelText(/^Policy/), api.state().records.find(record => record.kind === 'policies')!.id);
-    await user.click(within(dialog).getByRole('button', { name: 'Create mandate' }));
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Create synthetic mandate' })).toBeNull());
+    await user.selectOptions(within(dialog).getByLabelText(/^Retry policy/), api.state().records.find(record => record.kind === 'policies')!.id);
+    await user.click(within(dialog).getByRole('button', { name: 'Add mandate' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Add mandate' })).toBeNull());
     expect(api.state().records.some(record => record.kind === 'mandates' && record.reference === 'SAMPLE-SEARCHED-MANDATE')).toBe(true);
-    await user.click(screen.getByRole('button', { name: 'Create synthetic mandate' }));
-    dialog = await screen.findByRole('dialog', { name: 'Create synthetic mandate' });
+    await user.click(screen.getByRole('button', { name: 'Add mandate' }));
+    dialog = await screen.findByRole('dialog', { name: 'Add mandate' });
     expect((within(dialog).getByLabelText('Search customers') as HTMLInputElement).value).toBe('');
     // Every customer is offered again, with none chosen.
     await waitFor(() => expect(picker().options.length).toBe(customers.length + 1));

@@ -55,8 +55,8 @@ describe("forms", () => {
     const user = userEvent.setup();
     renderApp("/mandates");
     await screen.findByRole("table");
-    await user.click(screen.getByRole("button", { name: "Create synthetic mandate" }));
-    await user.click(await screen.findByRole("button", { name: "Create mandate" }));
+    await user.click(screen.getByRole("button", { name: "Add mandate" }));
+    await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Add mandate" }));
     expect(screen.getByText("Mandate name is required.")).toBeTruthy();
     expect(screen.getByText("Customer is required. Choose an option.")).toBeTruthy();
     const name = screen.getByLabelText(/Mandate name/);

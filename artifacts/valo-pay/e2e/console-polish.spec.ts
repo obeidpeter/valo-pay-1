@@ -312,7 +312,7 @@ test("paging either picker by keyboard keeps the focus on the pager control pres
   expect((await request.post(`/api/v1/imports?merchantId=${lender}`, { data: { kind: "customers", csv: "name,reference,consentProvenance,bankName,accountMasked\n" + rows.join("\n"), mapping: {}, identityColumn: "reference", syntheticOnly: true, commit: true } })).ok()).toBeTruthy();
   await page.route(/\/api\/v1\/records\/(customers|due-items)\?/, async (route) => { await pause(700); await route.fallback(); });
   for (const { path, open, dialog: name, label } of [
-    { path: "/mandates", open: () => page.getByRole("button", { name: "Create synthetic mandate" }).first().click(), dialog: "Create synthetic mandate", label: "customer choices" },
+    { path: "/mandates", open: () => page.getByRole("button", { name: "Add mandate" }).first().click(), dialog: "Add mandate", label: "customer choices" },
     { path: "/reconciliation", open: () => page.getByRole("row").filter({ hasText: "SBX-UNIDENTIFIED-001" }).getByRole("button", { name: "Allocate payment", exact: true }).click(), dialog: "Allocate payment", label: "instalment choices" },
   ]) {
     await page.goto(path);
@@ -364,8 +364,8 @@ test("paging either picker with its form complete, or pressing Enter in its sear
   await lookFurther(allocation, "instalment choices", "Find an instalment", "BROWSER-DUE-1");
 
   await page.goto("/mandates");
-  await page.getByRole("button", { name: "Create synthetic mandate" }).first().click();
-  const mandate = page.getByRole("dialog", { name: "Create synthetic mandate" });
+  await page.getByRole("button", { name: "Add mandate" }).first().click();
+  const mandate = page.getByRole("dialog", { name: "Add mandate" });
   await expect(mandate.getByText(/^1–25 of [\d,]+ customer choices$/)).toBeVisible();
   await mandate.locator("#mandate-customerId").selectOption({ index: 1 });
   await mandate.getByLabel(/Mandate name/).fill("Mandate made by paging");

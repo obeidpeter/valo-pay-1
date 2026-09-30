@@ -110,10 +110,10 @@ it("locks a mandate draft after a lost create response, then recovers one mandat
   const user = userEvent.setup();
   renderApp("/mandates");
   await user.click(
-    await screen.findByRole("button", { name: "Create synthetic mandate" }),
+    await screen.findByRole("button", { name: "Add mandate" }),
   );
   const dialog = await screen.findByRole("dialog", {
-    name: "Create synthetic mandate",
+    name: "Add mandate",
   });
   await user.type(
     within(dialog).getByLabelText(/Mandate name/),
@@ -134,12 +134,12 @@ it("locks a mandate draft after a lost create response, then recovers one mandat
     within(dialog).getByLabelText(/Consent evidence reference/),
     "SYN-CONSENT-RECOVERY",
   );
-  await user.selectOptions(within(dialog).getByLabelText(/^Policy/), policy.id);
+  await user.selectOptions(within(dialog).getByLabelText(/^Retry policy/), policy.id);
   const requests = loseFirstResponse("/v1/records/mandates", "POST");
   await user.click(
-    within(dialog).getByRole("button", { name: "Create mandate" }),
+    within(dialog).getByRole("button", { name: "Add mandate" }),
   );
-  await screen.findByText("Mandate creation outcome unconfirmed");
+  await screen.findByText("Request not confirmed");
   expect(
     within(dialog)
       .getByLabelText(/Mandate name/)
@@ -156,7 +156,7 @@ it("locks a mandate draft after a lost create response, then recovers one mandat
   expect(screen.getByRole("dialog")).toBeTruthy();
   await user.click(
     within(dialog).getByRole("button", {
-      name: "Retry original mandate request",
+      name: "Check original request",
     }),
   );
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
@@ -270,10 +270,10 @@ it("a lost mandate create can be discarded deliberately, which unlocks the dialo
   const user = userEvent.setup();
   renderApp("/mandates");
   await user.click(
-    await screen.findByRole("button", { name: "Create synthetic mandate" }),
+    await screen.findByRole("button", { name: "Add mandate" }),
   );
   const dialog = await screen.findByRole("dialog", {
-    name: "Create synthetic mandate",
+    name: "Add mandate",
   });
   await user.type(
     within(dialog).getByLabelText(/Mandate name/),
@@ -293,14 +293,14 @@ it("a lost mandate create can be discarded deliberately, which unlocks the dialo
     "SYN-CONSENT-DISCARD",
   );
   await user.selectOptions(
-    within(dialog).getByLabelText(/^Policy/),
+    within(dialog).getByLabelText(/^Retry policy/),
     api.state().records.find((r) => r.kind === "policies")!.id,
   );
   api.failNext(/^\/v1\/records\/mandates$/, "offline", "POST");
   await user.click(
-    within(dialog).getByRole("button", { name: "Create mandate" }),
+    within(dialog).getByRole("button", { name: "Add mandate" }),
   );
-  await screen.findByText("Mandate creation outcome unconfirmed");
+  await screen.findByText("Request not confirmed");
   const cancel = within(dialog).getByRole("button", {
     name: "Cancel",
   }) as HTMLButtonElement;
@@ -311,9 +311,9 @@ it("a lost mandate create can be discarded deliberately, which unlocks the dialo
   );
   expect(confirm).toHaveBeenCalledWith(expect.stringContaining("Check Operations"));
   await waitFor(() => expect(cancel.disabled).toBe(false));
-  expect(screen.queryByText("Mandate creation outcome unconfirmed")).toBeNull();
+  expect(screen.queryByText("Request not confirmed")).toBeNull();
   // The notice went with its button: focus is on the form's own button again, not on the page or the dialog's top.
-  await waitFor(() => expect(document.activeElement).toBe(within(dialog).getByRole("button", { name: "Create mandate" })));
+  await waitFor(() => expect(document.activeElement).toBe(within(dialog).getByRole("button", { name: "Add mandate" })));
   expect(
     within(dialog).getByLabelText(/Mandate name/).closest("fieldset")?.disabled,
   ).toBe(false);

@@ -118,7 +118,7 @@ describe('mandate change confirmations', () => {
     });
     renderApp(`/mandates?record=${mandate.id}`);
     const row = (await screen.findByText(mandate.reference)).closest('tr')!;
-    await user.click(within(row).getByRole('button', { name: 'Suspend' }));
+    await user.click(within(row).getByRole('button', { name: 'Suspend mandate' }));
     let dialog = await screen.findByRole('dialog', { name: 'Suspend mandate' });
     const summary = within(dialog).getByRole('region', { name: 'Mandate change summary' });
     expect(within(summary).getByText(customer.name)).toBeTruthy();
@@ -131,7 +131,7 @@ describe('mandate change confirmations', () => {
     await user.type(within(dialog).getByLabelText(/^Reason/), 'Pause while the customer dispute is checked');
     await user.click(within(dialog).getByRole('button', { name: 'Suspend mandate' }));
     await waitFor(() => expect(api.state().records.find(record => record.id === attemptId)?.status).toBe('cancelled'));
-    await user.click(await screen.findByRole('button', { name: 'Resume' }));
+    await user.click(await screen.findByRole('button', { name: 'Resume mandate' }));
     dialog = await screen.findByRole('dialog', { name: 'Resume mandate' });
     expect(dialog.textContent).toContain('Cancelled attempts stay cancelled');
     await user.type(within(dialog).getByLabelText(/^Reason/), 'Customer review complete');
@@ -144,10 +144,10 @@ describe('mandate change confirmations', () => {
     const user = userEvent.setup();
     const mandate = api.state().records.find(record => record.kind === 'mandates' && record.status === 'pending_activation')!;
     renderApp(`/mandates?record=${mandate.id}`);
-    await user.click(await screen.findByRole('button', { name: 'Reissue' }));
+    await user.click(await screen.findByRole('button', { name: 'Reissue mandate' }));
     const dialog = await screen.findByRole('dialog', { name: 'Reissue mandate' });
     expect(dialog.textContent).toContain('Existing mandate: Expired · New mandate: Awaiting activation');
-    expect(dialog.textContent).toContain('Existing instalments are not relinked automatically');
+    expect(dialog.textContent).toContain('Existing instalments are not moved to the new mandate automatically');
     const consent = within(dialog).getByLabelText(/^New consent evidence/);
     expect((consent as HTMLInputElement).value).toBe('');
     await user.type(within(dialog).getByLabelText(/^Reason/), 'Replace the expired consent link');

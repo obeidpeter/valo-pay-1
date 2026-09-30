@@ -138,8 +138,8 @@ describe('paging by keyboard', () => {
     const user = userEvent.setup();
     sixtyCustomers();
     renderApp('/mandates');
-    await user.click(await screen.findByRole('button', { name: 'Create synthetic mandate' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Create synthetic mandate' });
+    await user.click(await screen.findByRole('button', { name: 'Add mandate' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Add mandate' });
     await within(dialog).findByText('1–25 of 60 customer choices');
     const next = within(dialog).getByRole('button', { name: 'Next page of customer choices' });
     const release = api.hold(/^\/v1\/records\/customers$/);
