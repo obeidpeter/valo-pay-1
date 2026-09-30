@@ -132,7 +132,7 @@ export function useTypedPilotMutation<S extends ZodTypeAny>(schema: S, onSuccess
         INCOMPLETE_CONFIRMATION,
       );
       if (receipt.matches && !receipt.matches(result as Receipt, (v.data ?? {}) as Record<string, unknown>, merchantId, workspace?.actor))
-        throw answerProblem("The confirmation does not match this lender or request. Check Operations before submitting again.");
+        throw answerProblem("Valo Pay’s reply does not match this lender or request. Check Request history before you try again.");
       const answer = readAnswer(schema, result);
       if (answer === undefined) throw answerProblem(INCOMPLETE_CONFIRMATION);
       return answer;
