@@ -72,7 +72,7 @@ export default function AuditPage() {
       <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Audit log</h1>
-          <p className="text-muted-foreground mt-1">A permanent record of every change for this lender. Each entry is linked to the one before it, so Check audit log can find an entry that was changed.</p>
+          <p className="text-muted-foreground mt-1">A permanent record of every change for this lender. Each entry is linked to the one before it. Select Check audit log to find any entry that was changed.</p>
         </div>
         <Button 
           variant="outline"

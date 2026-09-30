@@ -7,6 +7,11 @@ beforeEach(() => { api = installFakeApi(); });
 afterEach(() => api.uninstall());
 
 describe("audit", () => {
+  it("says in its introduction how to find an entry that was changed", async () => {
+    renderApp("/audit");
+    expect(await screen.findByText("A permanent record of every change for this lender. Each entry is linked to the one before it. Select Check audit log to find any entry that was changed.")).toBeTruthy();
+  });
+
   it("verifies the chain and shows the result on the page", async () => {
     const user = userEvent.setup();
     renderApp("/audit");
