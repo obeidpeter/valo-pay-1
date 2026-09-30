@@ -119,6 +119,8 @@ A review of the nine pull requests merged since PR #70 found the defects these f
 
 Every page, the landing page, sign-in, help and the service's messages were rewritten to one standard, `docs/design/writing.md`: one name for each page and product, one word for each idea, short sentences, a next step in every problem message, and the boundary statements kept intact. Six read-only audits of the platform's words came first; each area was then rewritten and reviewed on its own.
 
+- **Language pass: collections.** Overview, My work, Exceptions, Case, Reconciliation, Collections, Customers, Customer history, Mandates, Policies and templates and Close review now follow the standard. Each page is headed by its navigation label, and a case by "Case: {exception type}". Statuses pass through the shared labels, including Resolved and Closed automatically, and counts through the plural formatter. Each row button, dialog title and submit button share one verb and object, such as Confirm match, Allocate payment and Request changes. The resolve and dispute guidance lists every choice on its own line, and the message template help explains `{{lender}}`.
+
 ## Changes included in the PR #70 deployment · 26 and 27 September 2026
 
 These changes followed PR #64 and are included in the verified PR #70 deployment above. The following records retain their original test and migration evidence.
