@@ -418,7 +418,7 @@ test("confirming Revoke access moves focus to what the revocation did once it is
   await page.goto("/team");
   const card = page.locator("article").filter({ has: page.getByRole("heading", { name: "Chidi Ops" }) });
   await card.getByLabel("Access for Chidi Ops").selectOption("revoked");
-  await card.getByLabel("Reason for changing Chidi Ops").fill("Left the pilot team this week");
+  await card.getByLabel("Reason for changing Chidi Ops", { exact: true }).fill("Left the pilot team this week");
   await card.getByRole("button", { name: "Save access change" }).focus();
   await page.keyboard.press("Enter");
   const dialog = page.getByRole("dialog", { name: "Revoke Chidi Ops’s access?" });

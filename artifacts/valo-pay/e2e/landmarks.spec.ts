@@ -38,7 +38,7 @@ const routes: Array<[string, string | RegExp]> = [
   ["/evidence", "Go-live evidence"],
   ["/pilot", "Pilot journey"],
   ["/sources", "Data sources"],
-  ["/operations", "Operations"],
+  ["/operations", "Request history"],
   ["/team", "Team and access"],
   ["/lifecycle", "Data retention"],
   ["/settings", "Settings"],
@@ -141,7 +141,7 @@ test("following a link to a page low in the list brings its entry into view in t
   test.skip(info.project.name.startsWith("mobile"), "The sidebar is the desktop's navigation.");
   await page.goto("/imports");
   await settle(page, "Import batches");
-  await page.getByRole("link", { name: "Open Data sources" }).click();
+  await page.getByRole("link", { name: "Open Data sources", exact: true }).click();
   await settle(page, "Data sources");
   await expectCurrentPageInView(page, "Data sources");
 });

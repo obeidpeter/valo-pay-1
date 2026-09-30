@@ -121,7 +121,7 @@ export function BatchSourceFields({
                 className="text-primary underline"
                 href={`/sources?businessDate=${form.businessDate || ""}`}
               >
-                Open Data sources
+                Open Data sources for this date
               </Link>
             </span>
           </label>
