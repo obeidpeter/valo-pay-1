@@ -39,7 +39,7 @@ const boundaries = [
   {
     icon: Wallet,
     title: "Your money stays outside Valo Pay",
-    text: "Valo Pay never holds money. Payments in the sandbox are simulated. In future, any real payment must go through an approved bank or payment provider.",
+    text: "Valo Pay never holds money. Payments in Valo Pay are simulated. In future, any real payment must go through an approved bank or payment provider.",
   },
   {
     icon: Fingerprint,
@@ -66,7 +66,7 @@ const audiences = [
     icon: UserRoundCheck,
     title: "Credit and risk teams",
     task: "Start with an application",
-    text: "Check income evidence, affordability and policy reasons. See how a different person records the review and the explanation for the applicant.",
+    text: "Check income evidence, affordability and policy reasons. See how a reviewer, not the person who prepared the assessment, records the review and the explanation for the applicant.",
     link: "/credit-desk",
     action: "Explore Credit Desk",
   },
@@ -89,7 +89,7 @@ const questions = [
   {
     question: "Do I need to sign in or connect a bank?",
     answer:
-      "No. Open the sandbox to try sample data without signing in or connecting a bank. Sign in to use your workspace, which is linked to your account and kept for your next visit. Work you do in the sandbox is not copied to your workspace. Do not enter real customer or bank details in the sandbox.",
+      "No. Open the sandbox to try sample data without signing in or connecting a bank. Sign in to use your workspace, which is linked to your account and kept for your next visit. Work you do in the sandbox is not copied to your workspace. Do not enter real customer or bank details in the sandbox or in your workspace.",
   },
   {
     question: "Does a credit score mean a loan is approved?",
@@ -99,7 +99,7 @@ const questions = [
   {
     question: "Are Paystack and Xero already connected?",
     answer:
-      "Paystack is the preferred first payment provider, and Xero the first accounting software Valo Pay aims to connect to. Pay by Bank, Credit Desk and Cash Desk use sample data only. A provider’s name or a working demo is not a live connection. It does not show which banks are covered, and it gives no permission to make payments or post accounting entries.",
+      "No. Paystack is the preferred first payment provider, and Xero the first accounting software Valo Pay aims to connect to. Neither is connected yet. Pay by Bank, Credit Desk and Cash Desk use sample data only. A provider’s name or a working demo is not a live connection. It does not show which banks are covered, and it gives no permission to make payments or post accounting entries.",
   },
   {
     question: "Can I use Cash Desk without being a lender?",
@@ -212,8 +212,8 @@ export function LandingSections({ signedIn }: { signedIn: boolean }) {
               with clear boundaries.
             </h2>
             <p>
-              See what Valo Pay does today, and where its limits are. Every new
-              financial workflow runs on sample data for now.
+              See what Valo Pay does today, and where its limits are. Pay by Bank,
+              Credit Desk and Cash Desk run on sample data only.
             </p>
             <div className="lp-readiness-note">
               <LockKeyhole aria-hidden="true" />

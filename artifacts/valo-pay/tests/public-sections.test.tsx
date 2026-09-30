@@ -88,8 +88,19 @@ describe("public connected-product walkthrough", () => {
     expect(disclosure.textContent).toContain(
       "Work you do in the sandbox is not copied to your workspace.",
     );
+    // Your workspace holds sample data only too, so the warning covers both places.
+    expect(disclosure.textContent).toContain(
+      "Do not enter real customer or bank details in the sandbox or in your workspace.",
+    );
     await user.click(question);
     expect(disclosure.open).toBe(false);
+    // A direct answer first: neither provider is connected, and no demo stands in for a connection.
+    const providers = screen
+      .getByText("Are Paystack and Xero already connected?")
+      .closest("details")!;
+    expect(providers.querySelector("p")!.textContent).toMatch(
+      /^No\. Paystack is the preferred first payment provider, .* Neither is connected yet\. .*A provider’s name or a working demo is not a live connection\./,
+    );
     expect(document.querySelector("iframe")).toBeNull();
     const contact = new URL(pilotContact());
     expect(contact.pathname).toBe("pilots@example.test");
