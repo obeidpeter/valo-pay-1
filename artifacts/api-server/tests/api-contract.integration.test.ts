@@ -332,7 +332,7 @@ try {
   assert.equal(ok(await call(q('/v1/operations/lookup'), 'POST', reloadIdentity)).operation.recordId, record.id);
   const notReceivedIdentity = { ...reloadIdentity, key: randomUUID() };
   assert.equal(ok(await call(q('/v1/operations/lookup'), 'POST', notReceivedIdentity)).operation, null);
-  assert.match(ok(await call(q('/v1/operations/cancel-unreceived'), 'POST', notReceivedIdentity)).message, /cannot run/);
+  assert.match(ok(await call(q('/v1/operations/cancel-unreceived'), 'POST', notReceivedIdentity)).message, /it will not run/);
   assert.equal(ok(await call(q('/v1/operations/lookup'), 'POST', notReceivedIdentity)).operation.status, 'cancelled');
   const sandboxRequest = () => ({ headers: { cookie }, secure: false, auth: Object.assign(() => ({ userId: null }), { [Symbol.for("@clerk/express.auth")]: true }) }) as any;
   const response = { cookie() {} } as any;
