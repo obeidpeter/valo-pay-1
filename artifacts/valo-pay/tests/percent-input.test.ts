@@ -61,9 +61,11 @@ describe('the per cent fields of a record form', () => {
     expect(storedToPercent('fraction', 0.2)).toBe('20');
   });
 
-  it('show a stored value that is not a rate as it is, for the person to correct', () => {
-    expect(storedToPercent('basisPoints', 12.5)).toBe('12.5');
-    expect(storedToPercent('fraction', 'unknown')).toBe('unknown');
-    expect(storedToPercent('fraction', -1)).toBe('-1');
+  it('show a stored value that is not a rate in the field’s unit as an empty field, never as a percentage', () => {
+    // Shown as "12.5", an unchanged save would store 1,250 basis points: 100 times the rate.
+    expect(storedToPercent('basisPoints', 12.5)).toBe('');
+    expect(storedToPercent('basisPoints', -1)).toBe('');
+    expect(storedToPercent('fraction', 'unknown')).toBe('');
+    expect(storedToPercent('fraction', -1)).toBe('');
   });
 });

@@ -64,11 +64,15 @@ export function percentToStored(storage: PercentStorage, value: string): number 
   return storage === 'basisPoints' ? percentToBasisPoints(value) : percentToFraction(value);
 }
 
-/** A stored rate as the percentage its field shows, exactly; a value that is not a stored rate is shown as it is. */
+/**
+ * A stored rate as the percentage its field shows, exactly. A value that is not a stored rate in the field's unit
+ * (12.5 basis points, say) shows as an empty field, for the person to type the rate again in per cent: shown as it is,
+ * it would be read as a percentage and an unchanged save would store it in another unit.
+ */
 export function storedToPercent(storage: PercentStorage, value: unknown): string {
   try {
     return storage === 'basisPoints' ? basisPointsToPercent(Number(value)) : fractionToPercent(Number(value));
   } catch {
-    return String(value ?? '');
+    return '';
   }
 }
