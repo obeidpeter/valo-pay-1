@@ -19,7 +19,7 @@ function keptInOperations(notice: HTMLElement) {
   return notice;
 }
 /** The export control's notice about a request whose outcome is unconfirmed. */
-const exportNotice = () => screen.getByText(/^Other export requests are paused until this result is confirmed/).parentElement as HTMLElement;
+const exportNotice = () => screen.getByText(/^Other export requests wait until this one is confirmed/).parentElement as HTMLElement;
 /** The alert holding `text`, which says the request stays in Operations and links there. */
 const pointsToOperations = (text: string | RegExp) => keptInOperations(screen.getByText(text).closest('[role="alert"]') as HTMLElement);
 
@@ -81,7 +81,7 @@ describe("unconfirmed changes the journal records point to Operations", () => {
     renderApp("/reports?view=billing");
     api.failNext(/^\/v1\/exports$/, "offline", "POST");
     await user.click(await screen.findByRole("button", { name: "Export billing CSV" }));
-    await screen.findByRole("button", { name: "Retry original request" });
+    await screen.findByRole("button", { name: "Check original request" });
     keptInOperations(exportNotice());
   });
 
@@ -97,7 +97,7 @@ describe("unconfirmed changes the journal records point to Operations", () => {
     renderApp(`/exports?job=${id}`);
     api.failNext(new RegExp(`^/v1/exports/${id}/retry$`), "offline", "POST");
     await user.click(await screen.findByRole("button", { name: "Retry export" }));
-    await screen.findByRole("button", { name: "Retry original request" });
+    await screen.findByRole("button", { name: "Check original request" });
     keptInOperations(exportNotice());
   });
 

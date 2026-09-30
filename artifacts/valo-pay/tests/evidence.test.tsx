@@ -350,9 +350,9 @@ describe('evidence register and operational reviews', () => {
     renderApp('/evidence');
     const exportButton = await screen.findByRole('button', { name: 'Export evidence pack' });
     await user.click(exportButton);
-    expect(await screen.findByText('Evidence pack request could not be confirmed')).toBeTruthy();
+    expect(await screen.findByText('Request not confirmed')).toBeTruthy();
     expect(exportButton.hasAttribute('disabled')).toBe(true);
-    await user.click(screen.getByRole('button', { name: 'Retry original request' }));
+    await user.click(screen.getByRole('button', { name: 'Check original request' }));
     const link = await screen.findByRole('link', { name: 'Open evidence pack' });
     expect(link.getAttribute('href')).toMatch(/\/exports\//);
     expect(window.open).toHaveBeenCalledWith(link.getAttribute('href'), '_blank');

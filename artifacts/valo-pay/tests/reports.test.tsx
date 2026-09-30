@@ -310,8 +310,8 @@ describe("reports", () => {
     api.failNext(/^\/v1\/exports$/, 'offline', 'POST');
     renderApp('/reports?view=billing');
     await user.click(await screen.findByRole('button', { name: 'Export billing CSV' }));
-    expect(await screen.findByText('Billing export request could not be confirmed')).toBeTruthy();
-    await user.click(screen.getByRole('button', { name: 'Retry original request' }));
+    expect(await screen.findByText('Request not confirmed')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Check original request' }));
     expect(await screen.findByRole('link', { name: 'Open billing CSV' })).toBeTruthy();
   });
 });

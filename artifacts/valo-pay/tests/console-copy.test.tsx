@@ -31,10 +31,10 @@ it("lists saved exports in plain words", async () => {
   });
   renderApp("/exports");
   const history = await screen.findByRole("region", { name: "Export history" }).catch(() => screen.findByText("Export history").then((heading) => heading.closest("section")!));
-  await within(history as HTMLElement).findByText("Dispute pack · JSON");
+  await within(history as HTMLElement).findByText("Dispute pack (JSON)");
   expect(within(history as HTMLElement).getByText("Billing CSV")).toBeTruthy();
-  expect(history.textContent).toMatch(/· Completed/);
-  expect(history.textContent).toMatch(/· Needs retry/);
+  expect(history.textContent).toMatch(/· Ready to download/);
+  expect(history.textContent).toMatch(/· Failed/);
   expect(history.textContent).not.toMatch(/dispute-pack|· ready|· failed/);
 });
 
