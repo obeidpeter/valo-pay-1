@@ -13,7 +13,8 @@ describe('readable record labels', () => {
     expect(readableLabel('AWAITING_PROVIDER_REVIEW')).toBe('Awaiting provider review');
     expect(readableLabel('next_provider-stage')).toBe('Next provider stage');
     expect(readableLabel('constructor')).toBe('Constructor');
-    expect(readableLabel(undefined)).toBe('Unknown');
+    expect(readableLabel(undefined)).toBe('Not recorded');
+    expect(readableLabel('')).toBe('Not recorded');
   });
 
   it('shows a status in its words, and a missing one as Not recorded, never as a code', () => {

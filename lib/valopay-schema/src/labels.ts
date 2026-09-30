@@ -40,7 +40,8 @@ export const valueLabels: Readonly<Record<string, string>> = {
 
 /** A stored value in words: its label, or the value spelled out ("pending_review" as "Pending review"). */
 export function valueLabel(value: unknown): string {
-  const raw = String(value || "Unknown");
+  // A missing value reads "Not recorded", as the standard words a missing value.
+  const raw = String(value || "Not recorded");
   if (Object.hasOwn(valueLabels, raw)) return valueLabels[raw]!;
   // In sentence case, whatever the code's own capitals: "awaitingProviderReview" and "AWAITING_PROVIDER_REVIEW" both as "Awaiting provider review".
   const spelled = raw.replace(/([a-z\d])([A-Z])/g, (_, before: string, capital: string) => `${before} ${capital.toLowerCase()}`).replace(/[_.-]+/g, " ");
