@@ -31,6 +31,48 @@ const actionRoles: Record<string, string[]> = {
   backtest_policy: [...operators, 'Compliance reviewer'], preregister_experiment: ['Admin'],
 };
 
+/** What an action does, in the words a refusal uses: "Only Admin or Finance can confirm a match." */
+const actionWords: Record<string, string> = {
+  kill_switch: 'turn the emergency stop on or off', approve_kill_switch_off: 'approve turning the emergency stop off',
+  update_settings: 'change collection settings', import_records: 'import records',
+  mandate_suspend: 'suspend a mandate', mandate_cancel: 'cancel a mandate', mandate_reinstate: 'resume a mandate',
+  mandate_reissue: 'reissue a mandate', activation_reminder: 'record an activation reminder',
+  notify_policy_change: 'record a policy change notice', apply_policy_version: 'apply a policy version',
+  create_policy: 'draft a retry policy', edit_policy: 'edit a retry policy', submit_policy: 'submit a retry policy for review',
+  new_policy_version: 'draft a new version of a retry policy', approve_policy: 'approve a retry policy', reject_policy: 'reject a retry policy',
+  create_template: 'draft a message template', edit_template: 'edit a message template', submit_template: 'submit a message template for review',
+  new_template_version: 'draft a new version of a message template', approve_template: 'approve a message template', reject_template: 'reject a message template',
+  run_reconciliation: 'run reconciliation', daily_close: 'run a daily close',
+  confirm_allocation: 'confirm a match', reject_allocation: 'reject a match', manual_allocate: 'allocate a payment',
+  review_allocation: 'review a match', record_refund: 'record a refund', release_dispute: 'release an instalment from dispute',
+  issue_invoice: 'issue an invoice', confirm_discount_terms: 'confirm discount dates',
+  edit_batch: 'edit a settlement batch', resolve_exception: 'resolve an exception',
+  simulate_failure: 'simulate a failed collection attempt', hand_back: 'return collection to the previous owner',
+  backtest_policy: 'test a retry policy', preregister_experiment: 'register an experiment plan',
+};
+/** What adding or editing a record of a kind is called in a refusal. */
+const kindWords: Record<string, string> = {
+  customers: 'add or edit customers', mandates: 'add or edit mandates', 'due-items': 'add or edit instalments',
+  attempts: 'add or edit collection attempts', observations: 'add or edit payment evidence',
+  policies: 'draft or edit retry policies', templates: 'draft or edit message templates', experiments: 'add or edit experiments',
+  evidence: 'add or edit evidence', cutovers: 'record collection transfers', commercial: 'add or edit commercial terms',
+  costs: 'add or edit costs', 'settlement-batches': 'add or edit settlement batches', exceptions: 'edit exceptions',
+  reviews: 'record reviews', calendar: 'add or edit calendar dates',
+};
+/** The roles as a refusal names them: "an Admin" alone, or "Admin, Operations or Finance". */
+function rolesInWords(roles: string[]): string {
+  if (roles.length > 1) return `${roles.slice(0, -1).join(', ')} or ${roles.at(-1)}`;
+  const role = roles[0] ?? '';
+  return role === 'Admin' ? 'an Admin' : role === 'Compliance reviewer' ? 'a Compliance reviewer' : `a ${role} team member`;
+}
+/**
+ * A refusal by role (docs/design/writing.md, Notices): "Only {roles} can {action}.", the specific reason when there
+ * is one, and the reader's own role; in the sandbox, where the role is a demo role, where to change it.
+ */
+function onlyRoles(workspace: NonNullable<ActingWorkspace>, roles: string[], action: string, reason?: string): string {
+  return [`Only ${rolesInWords(roles)} can ${action}.`, reason, `Your role is ${workspace.role}.`, workspace.accessMode === 'staff' ? '' : 'Change your demo role in Settings.'].filter(Boolean).join(' ');
+}
+
 /**
  * Why the service refuses to allocate a payment to any instalment, in its words (assertPaymentAllocatable): it is in
  * another currency than naira, or its money went back to the payer. Null for a payment it would allocate.
@@ -70,22 +112,21 @@ export function permissionReason(workspace: ActingWorkspace, { action, kind, rec
   if (!action && !kind) return null;
   if (!workspace) return 'Wait for your workspace permissions to load.';
   const allowed = action ? actionRoles[action] : recordRoles[kind!];
-  if (!allowed) return 'This action is unavailable for your role.';
-  const roles = allowed.length < 2 ? allowed[0] : `${allowed.slice(0, -1).join(', ')} or ${allowed.at(-1)}`;
-  if (!allowed.includes(workspace.role)) return `Requires ${roles}.`;
+  if (!allowed) return 'Your role cannot do this.';
+  if (!allowed.includes(workspace.role)) return onlyRoles(workspace, allowed, (action ? actionWords[action] : kindWords[kind!]) || 'do this');
   if (!action && kind === 'exceptions' && ['resolved', 'closed'].includes(record?.status || '')) {
-    return 'Resolved and closed exception details are preserved. Review the case history instead.';
+    return 'You cannot edit a resolved or closed exception. Its case keeps what happened.';
   }
   if (['approve_policy', 'reject_policy', 'approve_template', 'reject_template'].includes(action || '') && record?.data?.author === workspace.actor) {
-    return 'Ask a different Compliance reviewer. You cannot review your own submission.';
+    return 'You cannot review your own submission. Ask a different Compliance reviewer.';
   }
   if (action === 'submit_template' && record?.data?.author !== workspace.actor) return 'Only this template’s author can submit it for review.';
   // Design-partner discount dates take two people: a staff account cannot confirm its own proposal, and every demo role is the sandbox's one visitor.
-  if (action === 'confirm_discount_terms' && workspace.accessMode !== 'staff') return 'A different person must confirm these discount dates. Every demo role here is you, so switching roles cannot confirm them. In a staff pilot, a second Admin or Finance user confirms them.';
-  if (action === 'confirm_discount_terms' && (record?.data?.discountReview as { reviewedBy?: unknown } | undefined)?.reviewedBy === workspace.actor) return 'You proposed these discount dates. A different Admin or Finance user must confirm them.';
+  if (action === 'confirm_discount_terms' && workspace.accessMode !== 'staff') return 'A different person must confirm these discount dates. Switching demo roles is not a second person. In a pilot, a second Admin or Finance team member confirms them.';
+  if (action === 'confirm_discount_terms' && (record?.data?.discountReview as { reviewedBy?: unknown } | undefined)?.reviewedBy === workspace.actor) return 'You proposed these discount dates. A different Admin or Finance team member must confirm them.';
   if ((['edit_template', 'edit_policy'].includes(action || '') || (!action && ['templates', 'policies'].includes(kind || ''))) && record?.data?.author && record.data.author !== workspace.actor) return 'Only this draft’s author can edit it.';
   // One refund is recorded per payment, even one that returned only part of it, and reversed money already went back.
-  if (action === 'record_refund' && normaliseReversalStatus(record?.data?.reversalStatus) === 'reversed') return 'The provider reversed this payment, so its money already went back.';
+  if (action === 'record_refund' && normaliseReversalStatus(record?.data?.reversalStatus) === 'reversed') return 'The provider reversed this payment, so its money has already gone back. There is nothing to refund.';
   if (action === 'record_refund' && normaliseRefundStatus(record?.data?.refundStatus) === 'refunded') return 'A refund is already recorded for this payment.';
   // A held payment or instalment takes no allocation, confirmation or release. A proposed match links its payment to its
   // instalment, so the service, which checks the instalment first, finds the instalment held when either is.
@@ -96,13 +137,13 @@ export function permissionReason(workspace: ActingWorkspace, { action, kind, rec
   const refusal = action === 'manual_allocate' ? allocationRefusal(record ?? null) : null;
   if (refusal) return refusal;
   // A settlement batch held for its provider identity, or a renewed review of its hold, is resolved only by confirming whose payout it is (FIN-03).
-  if (action === 'resolve_exception' && providerIdentityOf(record?.data?.condition) && !['Admin', 'Finance'].includes(workspace.role)) return 'Requires Admin or Finance: the exceptions of a settlement batch’s provider identity hold are Finance’s to resolve, by confirming whose payout the batch is.';
+  if (action === 'resolve_exception' && providerIdentityOf(record?.data?.condition) && !['Admin', 'Finance'].includes(workspace.role)) return onlyRoles(workspace, ['Admin', 'Finance'], 'resolve this exception', 'Resolving it confirms whose payout the settlement batch is.');
   // Confirming a pay-by-bank payment whose outcome stayed unknown records a receipt, so Finance records it.
-  if (action === 'resolve_exception' && record?.data?.linkedKind === 'connected-intents' && !['Admin', 'Finance'].includes(workspace.role)) return 'Requires Admin or Finance: the outcome of a pay-by-bank payment is Finance’s to record.';
+  if (action === 'resolve_exception' && record?.data?.linkedKind === 'connected-intents' && !['Admin', 'Finance'].includes(workspace.role)) return onlyRoles(workspace, ['Admin', 'Finance'], 'record the outcome of a Pay by Bank payment');
   // Reconciliation raises a renewed review of an earlier reversal decision for Finance, and only Finance or an administrator resolves it.
-  if (action === 'resolve_exception' && record?.data?.legacyResolutionReview && !['Admin', 'Finance'].includes(workspace.role)) return 'Requires Admin or Finance: a renewed review of an earlier reversal decision is Finance’s to record.';
+  if (action === 'resolve_exception' && record?.data?.legacyResolutionReview && !['Admin', 'Finance'].includes(workspace.role)) return onlyRoles(workspace, ['Admin', 'Finance'], 'record a second review of an earlier reversal decision');
   if (!action && ['templates', 'policies'].includes(kind || '') && record && !['draft', 'rejected'].includes(record.status || '')) {
-    return 'This submitted or approved version cannot be edited. Create a draft version to make changes.';
+    return 'You cannot edit a submitted or approved version. Select Draft next version to change it.';
   }
   return null;
 }

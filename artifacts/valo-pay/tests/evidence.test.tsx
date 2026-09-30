@@ -176,7 +176,7 @@ describe('evidence register and operational reviews', () => {
     const table = await commitmentsTable();
     const confirm = await within(table).findByRole('button', { name: 'Confirm discount dates' });
     expect(confirm.getAttribute('aria-disabled')).toBe('true');
-    expect(document.getElementById(confirm.getAttribute('aria-describedby')!.split(' ').at(-1)!)!.textContent).toBe('A different person must confirm these discount dates. Every demo role here is you, so switching roles cannot confirm them. In a staff pilot, a second Admin or Finance user confirms them.');
+    expect(document.getElementById(confirm.getAttribute('aria-describedby')!.split(' ').at(-1)!)!.textContent).toBe('A different person must confirm these discount dates. Switching demo roles is not a second person. In a pilot, a second Admin or Finance team member confirms them.');
     await user.click(confirm);
     expect(screen.queryByRole('dialog', { name: 'Confirm discount dates' })).toBeNull();
     expect(api.state().records.find(record => record.kind === 'commercial')!.data.discountReview.confirmedBy).toBeUndefined();
@@ -223,7 +223,7 @@ describe('evidence register and operational reviews', () => {
     renderApp('/evidence');
     const confirm = await within(await commitmentsTable()).findByRole('button', { name: 'Confirm discount dates' });
     expect(confirm.getAttribute('aria-disabled')).toBe('true');
-    expect(document.getElementById(confirm.getAttribute('aria-describedby')!.split(' ').at(-1)!)!.textContent).toBe('You proposed these discount dates. A different Admin or Finance user must confirm them.');
+    expect(document.getElementById(confirm.getAttribute('aria-describedby')!.split(' ').at(-1)!)!.textContent).toBe('You proposed these discount dates. A different Admin or Finance team member must confirm them.');
   });
 
   it('preserves a refused partial or mid-month discount draft until the dates and agreement reference are corrected', async () => {

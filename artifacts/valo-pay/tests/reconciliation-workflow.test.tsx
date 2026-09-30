@@ -157,7 +157,7 @@ describe('external refunds', () => {
     // Reversed money went back, so it waits for no one and is not in Finance's queue, even with the status an earlier build left.
     expect(within(payments).queryByText('SBX-REVERSED')).toBeNull();
     const reversed = api.state().records.find(record => record.reference === 'SBX-REVERSED')!;
-    expect(permissionReason({ role: 'Finance', actor: 'Sandbox Finance' }, { action: 'record_refund', record: reversed })).toBe('The provider reversed this payment, so its money already went back.');
+    expect(permissionReason({ role: 'Finance', actor: 'Sandbox Finance' }, { action: 'record_refund', record: reversed })).toBe('The provider reversed this payment, so its money has already gone back. There is nothing to refund.');
     await user.click(refunded);
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(api.calls.some(call => call.method === 'POST')).toBe(false);

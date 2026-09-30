@@ -19,7 +19,9 @@ describe("exceptions", () => {
     expect(screen.queryByRole('button', { name: 'Edit' })).toBeNull();
     expect(screen.getAllByRole('link', { name: 'Case & handover' })).toHaveLength(4);
     expect(screen.getByText(/An Admin, Operations or Finance colleague can edit exception details/)).toBeTruthy();
-    expect(permissionReason({ role: 'Compliance reviewer', actor: 'reviewer' }, { kind: 'exceptions' })).toBe('Requires Admin, Operations or Finance.');
+    expect(permissionReason({ role: 'Compliance reviewer', actor: 'reviewer' }, { kind: 'exceptions' })).toBe('Only Admin, Operations or Finance can edit exceptions. Your role is Compliance reviewer. Change your demo role in Settings.');
+    // A staff pilot's role is not a demo role, so the refusal does not send the reader to Settings.
+    expect(permissionReason({ role: 'Compliance reviewer', actor: 'reviewer', accessMode: 'staff' }, { kind: 'exceptions' })).toBe('Only Admin, Operations or Finance can edit exceptions. Your role is Compliance reviewer.');
     expect(api.calls.some(call => call.method === 'POST')).toBe(false);
   });
 
@@ -35,7 +37,7 @@ describe("exceptions", () => {
     expect(screen.queryByRole('button', { name: 'Resolve' })).toBeNull();
     expect(screen.getAllByRole('link', { name: 'Case & handover' })).toHaveLength(2);
     for (const status of ['resolved', 'closed']) {
-      expect(permissionReason({ role: 'Admin', actor: 'admin' }, { kind: 'exceptions', record: { status } })).toContain('details are preserved');
+      expect(permissionReason({ role: 'Admin', actor: 'admin' }, { kind: 'exceptions', record: { status } })).toContain('You cannot edit a resolved or closed exception');
     }
     expect(permissionReason({ role: 'Finance', actor: 'finance' }, { kind: 'exceptions', record: { status: 'open' } })).toBeNull();
   });
@@ -452,7 +454,7 @@ describe("exceptions", () => {
       renderApp(`/exceptions?record=${exception.id}`);
       const resolve = await screen.findByRole('button', { name: 'Resolve' });
       expect(resolve.getAttribute('aria-disabled')).toBe('true');
-      expect(screen.getByText('Requires Admin or Finance: the exceptions of a settlement batch’s provider identity hold are Finance’s to resolve, by confirming whose payout the batch is.')).toBeTruthy();
+      expect(screen.getByText('Only Admin or Finance can resolve this exception. Resolving it confirms whose payout the settlement batch is. Your role is Operations. Change your demo role in Settings.')).toBeTruthy();
       await userEvent.setup().click(resolve);
       expect(screen.queryByRole('dialog', { name: 'Resolve exception' })).toBeNull();
       expect(api.calls.some(call => call.method === 'GET' && call.path.includes('/v1/records/settlement-batches'))).toBe(false);
