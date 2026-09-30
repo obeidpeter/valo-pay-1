@@ -421,7 +421,7 @@ it("offers a deliberate discard of the form, retaining its request until the ser
   await user.click(
     screen.getByRole("button", { name: "Discard original request" }),
   );
-  expect(confirm).toHaveBeenCalledWith(expect.stringContaining("Check Operations"));
+  expect(confirm).toHaveBeenCalledWith(expect.stringContaining("check Request history"));
   expect(screen.getByText("Previous action outcome unconfirmed")).toBeTruthy();
   expect(
     screen.getByRole("link", { name: "Open Operations" }).getAttribute("href"),

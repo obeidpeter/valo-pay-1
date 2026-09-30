@@ -47,8 +47,8 @@ export function explainWorkspaceError(error: unknown): WorkspaceExplanation {
   return { title: 'Could not load your workspace', lines: [message || 'We could not open your workspace. Try again.'] };
 }
 
-/** Where a person checks a change whose answer they did not see: Operations lists every request that reached the service, with its outcome. */
-const CHECK_OPERATIONS = 'If you had just saved a change, check Operations once your workspace opens, before you send it again.';
+/** Where a person checks a change whose answer they did not see: Request history lists every request that reached Valo Pay, with its outcome. */
+const CHECK_OPERATIONS = 'If you had just saved a change, check Request history once your workspace opens, before you send it again.';
 
 export function WorkspaceUnavailable({ error, retry, busy }: { error: unknown; retry: () => void; busy: boolean }) {
   const [at] = useState(() => new Date().toISOString());
@@ -109,7 +109,7 @@ export function WorkspaceRefreshProblem({ failure, staff = false }: { failure: W
     <div role="status" className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-warning-border bg-warning px-4 py-3 text-xs text-warning-foreground print:hidden">
       <div className="min-w-[min(100%,16rem)] flex-1 space-y-1">
         <p><span className="font-semibold">Your workspace could not be refreshed.</span> {refreshReason(failure.error)} {updated ? <>Showing the workspace loaded <time dateTime={updated}>{formatDate(updated)}</time>.</> : <>Showing the workspace loaded earlier.</>}{next && <> As the service asked, the next automatic refresh is after <time dateTime={next}>{formatDate(next)}</time>.</>}</p>
-        <p>Open pages and forms are kept. If a save was not confirmed, check it in <Link href="/operations" className="font-medium underline underline-offset-2">Operations</Link> before you send it again.</p>
+        <p>Open pages and forms are kept. If a save was not confirmed, check it in <Link href="/operations" className="font-medium underline underline-offset-2">Request history</Link> before you send it again.</p>
         {staff && [401, 403].includes(status) && <StaffSession />}
       </div>
       <Button variant="outline" size="sm" busy={failure.busy} busyLabel="Refreshing…" onClick={failure.retry}>Try again</Button>

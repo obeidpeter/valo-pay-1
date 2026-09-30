@@ -23,12 +23,12 @@ const actionLabels: Record<string, string> = {
   mandate_reissue: 'Reissue mandate', activation_reminder: 'Record activation reminder',
   notify_policy_change: 'Record policy change notice', apply_policy_version: 'Apply policy version',
   submit_policy: 'Submit for review', approve_policy: 'Approve policy', reject_policy: 'Reject policy',
-  new_policy_version: 'Create draft version', submit_template: 'Submit for review', approve_template: 'Approve template',
-  reject_template: 'Reject template', new_template_version: 'Create draft version',
-  confirm_allocation: 'Confirm allocation', reject_allocation: 'Reject allocation', manual_allocate: 'Allocate payment',
-  review_allocation: 'Record review', resolve_exception: 'Resolve exception', record_refund: 'Record external refund', release_dispute: 'Release from dispute',
-  simulate_failure: 'Simulate failure', backtest_policy: 'Run policy simulation',
-  preregister_experiment: 'Register experiment plan', hand_back: 'Return collection ownership', issue_invoice: 'Issue invoice', confirm_discount_terms: 'Confirm discount dates',
+  new_policy_version: 'Draft next version', submit_template: 'Submit for review', approve_template: 'Approve template',
+  reject_template: 'Reject template', new_template_version: 'Draft next version',
+  confirm_allocation: 'Confirm match', reject_allocation: 'Reject match', manual_allocate: 'Allocate payment',
+  review_allocation: 'Save review', resolve_exception: 'Resolve exception', record_refund: 'Record external refund', release_dispute: 'Release from dispute',
+  simulate_failure: 'Simulate failure', backtest_policy: 'Test policy',
+  preregister_experiment: 'Register experiment plan', hand_back: 'Return collection', issue_invoice: 'Issue invoice', confirm_discount_terms: 'Confirm discount dates',
 };
 
 type FieldDef = {
@@ -75,7 +75,7 @@ export function RecordDialog({ kind, record, isOpen, onOpenChange, fields: sourc
   const { merchantId, workspace } = useWorkspace();
   // A batch-imported record changes only through a reviewed correction; a quick import's stays editable (fromImportBatch).
   const importedEdit = !actionMutation && fromImportBatch(record) ? record!.data.importIdentity as { batchId: string } : undefined;
-  const blockedReason = permissionReason(workspace, { action: actionMutation, kind, record }) || (importedEdit ? 'Imported source records cannot be edited directly. Use a reviewed correction for supported fields, or the dedicated workflow action for other changes.' : undefined);
+  const blockedReason = permissionReason(workspace, { action: actionMutation, kind, record }) || (importedEdit ? 'You cannot edit an imported record here. To change a supported field, make a reviewed correction in Import batches. For anything else, use the button for that task.' : undefined);
   const queryClient = useQueryClient();
   const [result,setResult]=useState<any>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -96,7 +96,7 @@ export function RecordDialog({ kind, record, isOpen, onOpenChange, fields: sourc
   const changeOpen = (open: boolean) => {
     if (!open && isPending) return;
     if (!open && hasUnconfirmedOutcome) {
-      if (window.confirm('The outcome is not confirmed. Closing does not cancel the request and discards this draft and its retry information. If the service received the request, it stays in Operations, where you can check it before starting again. Close anyway?')) onOpenChange(false);
+      if (window.confirm('We do not know yet whether Valo Pay saved this. Closing does not cancel the request, and you cannot check it from this form again. If Valo Pay received it, you can check it in Request history. Close anyway?')) onOpenChange(false);
       return;
     }
     if (open || confirmDiscard()) onOpenChange(open);
@@ -181,7 +181,7 @@ export function RecordDialog({ kind, record, isOpen, onOpenChange, fields: sourc
       await queryClient.invalidateQueries(undefined, { throwOnError: true });
       if (submittedSession === session.current && currentScope.current === scope) onOpenChange(false);
     } catch (error) {
-      if (submittedSession === session.current && currentScope.current === scope) setFormErrors(['Latest records could not be loaded. Your draft is still here. Try refreshing again.']);
+      if (submittedSession === session.current && currentScope.current === scope) setFormErrors(['We could not load the latest records. Your draft is still here. Try refreshing again.']);
     } finally {
       if (submittedSession === session.current && currentScope.current === scope) setRefreshingLatest(false);
     }
@@ -196,16 +196,16 @@ export function RecordDialog({ kind, record, isOpen, onOpenChange, fields: sourc
     fields.forEach(f => {
       const value = formData[f.name];
       const empty = value === undefined || value === null || String(value).trim() === '';
-      if (f.required && f.type === 'checkbox' && value !== true) errors[f.name] = `Confirm ${f.label.toLowerCase()} before saving.`;
+      if (f.required && f.type === 'checkbox' && value !== true) errors[f.name] = `Tick “${f.label}” before saving.`;
       else if (f.required && empty) errors[f.name] = missingMessage(f.label, f.type);
-      else if (f.name === currencyField && !empty && currencyMinorUnit(String(value)) === undefined) errors[f.name] = 'Enter an ISO 4217 currency code with a minor unit, such as NGN or USD.';
+      else if (f.name === currencyField && !empty && currencyMinorUnit(String(value)) === undefined) errors[f.name] = 'Enter a three-letter currency code, such as NGN or USD.';
       else if (isMoney(f) && !empty && currencyMinorUnit(moneyCurrency) !== undefined) {
         try { majorToMinor(String(value), moneyCurrency); } catch (error) { errors[f.name] = (error as Error).message; }
       }
       else if (f.type === 'number' && !empty && !Number.isFinite(Number(value))) errors[f.name] = `Enter ${f.label} as a number.`;
     });
     if (!Object.keys(errors).length && validate) Object.assign(errors, validate(formData));
-    if (actionMutation && !String(formData.reason || '').trim()) errors.reason = 'Enter a reason for this action. It will be saved in the audit log.';
+    if (actionMutation && !String(formData.reason || '').trim()) errors.reason = 'Enter a reason. It is saved in the audit log.';
     setFieldErrors(errors); setFormErrors([]);
     const first = firstNamed(errors);
     if (first) { focusField(fieldId(first)); return; }
@@ -279,13 +279,13 @@ export function RecordDialog({ kind, record, isOpen, onOpenChange, fields: sourc
           
           <form noValidate onSubmit={handleSubmit} className="space-y-4 py-4">
             {blockedReason && <p role="status" className="rounded-lg border bg-secondary/30 p-3 text-sm">{blockedReason}</p>}
-            {importedEdit?.batchId && <Link href={`/imports?batch=${encodeURIComponent(importedEdit.batchId)}`} onClick={()=>onOpenChange(false)} className="inline-flex min-h-11 items-center text-sm text-primary underline">Review the committed import and corrections</Link>}
+            {importedEdit?.batchId && <Link href={`/imports?batch=${encodeURIComponent(importedEdit.batchId)}`} onClick={()=>onOpenChange(false)} className="inline-flex min-h-11 items-center text-sm text-primary underline">Open this batch in Import batches</Link>}
             {hasUnconfirmedOutcome && <div role="alert" className="space-y-2 rounded-lg border border-warning-border bg-warning/20 p-3 text-sm">
-              <p className="font-semibold">Outcome not confirmed</p>
-              <p>The request may have finished. Retry the same request to recover its result before changing these values. Keep this dialog open to retry it here. {KEPT_IN_OPERATIONS}</p>
+              <p className="font-semibold">Request not confirmed</p>
+              <p>We do not know yet whether Valo Pay saved this. Check the original request before you change anything. Keep this form open to check it here. {KEPT_IN_OPERATIONS}</p>
               {formErrors.length > 0 && <div><p className="font-medium">Latest response</p>{formErrors.map((message, index) => <p key={index}>{message}</p>)}</div>}
               {supportReference && <p>Support reference: {supportReference}</p>}
-              <div className="flex flex-wrap items-center gap-3"><Button type="button" variant="outline" busy={isPending} busyLabel="Recovering result…" onClick={() => { void retryUnconfirmed(); }}>Retry same request</Button><OpenOperations /></div>
+              <div className="flex flex-wrap items-center gap-3"><Button type="button" variant="outline" busy={isPending} busyLabel="Checking original request…" onClick={() => { void retryUnconfirmed(); }}>Check original request</Button><OpenOperations /></div>
             </div>}
             <fieldset disabled={isPending || hasUnconfirmedOutcome || !!blockedReason} className="contents">
             {typeof context === 'function' ? context(formData) : context}

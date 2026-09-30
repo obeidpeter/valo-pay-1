@@ -49,7 +49,7 @@ it("says in plain words that no answer arrived, never the browser's own error", 
   await user.type(within(dialog).getByLabelText(/^Consent source or reference/), "Synthetic signed form NO-ANSWER-1");
   api.failNext(/^\/v1\/records\/customers$/, "offline", "POST");
   await user.click(within(dialog).getByRole("button", { name: "Save" }));
-  const notice = (await within(dialog).findByText("Outcome not confirmed")).closest('[role="alert"]') as HTMLElement;
+  const notice = (await within(dialog).findByText("Request not confirmed")).closest('[role="alert"]') as HTMLElement;
   expect(notice.textContent).toContain("No answer arrived from the service.");
   expect(notice.textContent).not.toMatch(/Failed to fetch/);
 });

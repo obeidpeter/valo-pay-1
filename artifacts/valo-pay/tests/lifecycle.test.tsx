@@ -80,7 +80,7 @@ it('recovers an execution whose committed response was lost using the identical 
     return response;
   };
   await user.click(screen.getByRole('button', { name: 'Execute approved run' }));
-  await screen.findByText('Outcome not confirmed');
+  await screen.findByText('Request not confirmed');
   expect((screen.getByRole('button', { name: 'Execute approved run' }) as HTMLButtonElement).disabled).toBe(true);
   await user.click(screen.getByRole('button', { name: 'Check original request' }));
   await screen.findByRole('heading', { name: 'Saved deletion receipts' });
@@ -188,11 +188,11 @@ for (const [how, said, removed] of [
   // Stop went with the run: focus is on what happened, never on the page body.
   await waitFor(() => expect(document.activeElement).toBe(outcome));
   expect(csvLeft(ids)).toBe(3 - removed);
-  if (how === 'refused') expect(screen.queryByText('Outcome not confirmed')).toBeNull();
+  if (how === 'refused') expect(screen.queryByText('Request not confirmed')).toBeNull();
   else {
-    expect(screen.getByText('Outcome not confirmed')).toBeTruthy();
+    expect(screen.getByText('Request not confirmed')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Check original request' }));
-    await waitFor(() => expect(screen.queryByText('Outcome not confirmed')).toBeNull());
+    await waitFor(() => expect(screen.queryByText('Request not confirmed')).toBeNull());
   }
 });
 

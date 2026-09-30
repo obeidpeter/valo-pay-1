@@ -128,11 +128,11 @@ it('takes an empty lender from corrected sample imports to a reviewed payment an
   expect(evidence.textContent).toContain('Amount and payer match one instalment within five days of its due date; Finance confirmation required.');
   expect(evidence.textContent).toContain('Rule R5');
   expect(evidence.textContent).toContain('Settlement:');
-  await user.click(within(dialog).getByRole('button', { name: 'Confirm allocation' }));
+  await user.click(within(dialog).getByRole('button', { name: 'Confirm match' }));
   expect(document.activeElement).toBe(within(dialog).getByLabelText('Reason *'));
   expect(writes().some(call => (call.body as { action?: string })?.action === 'confirm_allocation')).toBe(false);
   await user.type(within(dialog).getByLabelText('Reason *'), 'Reviewed the sample statement, payer and due date against the linked instalment.');
-  await user.click(within(dialog).getByRole('button', { name: 'Confirm allocation' }));
+  await user.click(within(dialog).getByRole('button', { name: 'Confirm match' }));
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   expect(records('payments').find(record => record.reference === 'PILOT-O001')).toMatchObject({ status: 'allocated', customerId: records('customers')[0]!.id });
   expect(records('due-items')[0]?.data.outstandingKobo).toBe(0);

@@ -16,8 +16,8 @@ afterEach(() => api.uninstall());
 
 describe('reconciliation decisions', () => {
   it.each([
-    ['Confirm', 'Confirm payment allocation', 'Confirm allocation', 'confirm_allocation', 'confirmed', 'allocated'],
-    ['Reject', 'Reject proposed match', 'Reject allocation', 'reject_allocation', 'superseded', 'unallocated'],
+    ['Confirm', 'Confirm payment allocation', 'Confirm match', 'confirm_allocation', 'confirmed', 'allocated'],
+    ['Reject', 'Reject proposed match', 'Reject match', 'reject_allocation', 'superseded', 'unallocated'],
   ])('%s sends the payment ID and completes against the real domain action', async (rowAction, title, submit, action, allocationStatus, paymentStatus) => {
     const user = userEvent.setup();
     const proposal = api.state().records.find(record => record.kind === 'allocations' && record.status === 'proposed')!;
@@ -67,7 +67,7 @@ describe('reconciliation decisions', () => {
     const reason = within(dialog).getByLabelText(/^Reason/);
     await user.type(reason, 'Reviewed the payment and original proposal.');
     api.mutate(state => { state.records.find(record => record.id === proposal.id)!.updatedAt = '2027-12-01T12:00:00.000Z'; });
-    await user.click(within(dialog).getByRole('button', { name: 'Confirm allocation' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Confirm match' }));
     expect(await within(dialog).findByText(/This proposed match has changed since you opened it/)).toBeTruthy();
     expect((reason as HTMLTextAreaElement).value).toBe('Reviewed the payment and original proposal.');
     expect(api.state().records.find(record => record.id === proposal.id)?.status).toBe('proposed');
@@ -311,7 +311,7 @@ describe('payer confirmation', () => {
     const evidence = within(dialog).getByRole('region', { name: 'Match evidence' });
     expect(evidence.textContent).toContain(`The payment evidence names no payer. Confirming records ${customer.name} as the payer, with your reason, in the same action.`);
     await user.type(within(dialog).getByLabelText(/^Reason/), 'Our debit reference names this instalment.');
-    await user.click(within(dialog).getByRole('button', { name: 'Confirm allocation' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Confirm match' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(api.calls.find(call => (call.body as { action?: string })?.action === 'confirm_allocation')?.status).toBe(200);
     const saved = api.state().records.find(record => record.id === payment.id)!;
@@ -487,7 +487,7 @@ describe('settlement batch edits', () => {
     await user.type(within(dialog).getByLabelText(/^Fee/), '5');
     await user.type(within(dialog).getByLabelText(/^Amount after fees/), '995');
     await user.click(within(dialog).getByRole('button', { name: 'Save' }));
-    expect(await within(dialog).findByText('Enter an ISO 4217 currency code with a minor unit, such as NGN or USD.')).toBeTruthy();
+    expect(await within(dialog).findByText('Enter a three-letter currency code, such as NGN or USD.')).toBeTruthy();
     // In yen the amounts are whole: the field names the currency and refuses a decimal.
     await user.clear(currency);
     await user.type(currency, 'jpy');

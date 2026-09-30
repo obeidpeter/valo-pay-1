@@ -110,7 +110,7 @@ describe('beginner navigation and access recovery', () => {
     const help = screen.getByRole('link', { name: /^Help: Sign in/ });
     expect(help.getAttribute('href')).toContain('topic=access');
     expect(screen.queryByRole('link', { name: 'Reconciliation' })).toBeNull();
-    expect(screen.getByText(/If you had just saved a change, check Operations/)).toBeTruthy();
+    expect(screen.getByText(/If you had just saved a change, check Request history/)).toBeTruthy();
     await waitFor(() => expect(api.calls.filter(call => call.path === '/v1/workspace')).toHaveLength(1));
   });
 });

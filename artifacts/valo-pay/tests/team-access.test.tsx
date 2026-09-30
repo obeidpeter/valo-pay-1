@@ -185,7 +185,7 @@ for (const how of ["refused", "lost"] as const) it(`moves focus to the member's 
   await user.keyboard("{Enter}");
   // The notice itself; a lost answer's holds the service's words in an alert of their own.
   const notice = (await within(card("Chidi Ops")).findAllByRole("alert"))[0]!;
-  expect(notice.textContent).toContain(how === "refused" ? "This membership changed after you opened it." : "Outcome not confirmed");
+  expect(notice.textContent).toContain(how === "refused" ? "This membership changed after you opened it." : "Request not confirmed");
   await waitFor(() => expect(document.activeElement).toBe(notice));
 });
 
@@ -222,7 +222,7 @@ for (const how of ["refused", "lost"] as const) it(`moves focus to the member's 
   expect(document.activeElement).toBe(document.body);
   answer();
   const notice = (await within(card("Chidi Ops")).findAllByRole("alert"))[0]!;
-  expect(notice.textContent).toContain(how === "refused" ? "This membership changed after you opened it." : "Outcome not confirmed");
+  expect(notice.textContent).toContain(how === "refused" ? "This membership changed after you opened it." : "Request not confirmed");
   await waitFor(() => expect(document.activeElement).toBe(notice));
 });
 
@@ -412,7 +412,7 @@ for (const lost of ["an access change", "an invitation"] as const) it(`asks befo
     await user.type(screen.getByLabelText("Verified email"), "new.colleague@example.test");
     await user.click(screen.getByRole("button", { name: "Create invitation" }));
   }
-  await screen.findByText("Outcome not confirmed");
+  await screen.findByText("Request not confirmed");
   expect(leaving()).toBe(true);
   const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
   await user.click(screen.getAllByRole("link", { name: "Overview" })[0]!);
@@ -420,6 +420,6 @@ for (const lost of ["an access change", "an invitation"] as const) it(`asks befo
   expect(window.location.pathname).toBe("/team");
   confirm.mockReturnValue(true);
   await user.click(screen.getByRole("button", { name: "Discard original request" }));
-  await waitFor(() => expect(screen.queryByText("Outcome not confirmed")).toBeNull());
+  await waitFor(() => expect(screen.queryByText("Request not confirmed")).toBeNull());
   expect(leaving()).toBe(false);
 });

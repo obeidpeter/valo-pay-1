@@ -26,8 +26,8 @@ describe("workspace", () => {
     const alert = await screen.findByRole("alert");
     expect(within(alert).getByRole("heading", { level: 1, name: "Please wait before trying again" })).toBeTruthy();
     expect(within(alert).getByText("Too many new sandboxes from this address; please try again in an hour.")).toBeTruthy();
-    // It claims nothing about what changed: a change saved just before is checked in Operations.
-    expect(within(alert).getByText("If you had just saved a change, check Operations once your workspace opens, before you send it again.")).toBeTruthy();
+    // It claims nothing about what changed: a change saved just before is checked in Request history.
+    expect(within(alert).getByText("If you had just saved a change, check Request history once your workspace opens, before you send it again.")).toBeTruthy();
     expect(screen.queryByText(/No lender data has been changed/)).toBeNull();
     // The console is not shown without a workspace; the frame offers the start, twice, and the page says so in its title.
     expect(screen.queryByRole("link", { name: /Audit log/ })).toBeNull();
@@ -65,7 +65,7 @@ async function refreshWorkspace() {
 const refreshNotice = () => (screen.queryByText("Your workspace could not be refreshed.")?.closest('[role="status"]') ?? null) as HTMLElement | null;
 
 describe("a failed background refresh of the workspace", () => {
-  it("keeps the page and an open draft, says the workspace could not be refreshed and points to Operations", async () => {
+  it("keeps the page and an open draft, says the workspace could not be refreshed and points to Request history", async () => {
     const user = userEvent.setup();
     renderApp("/customers");
     await screen.findByText("Ada Okonkwo");
@@ -76,7 +76,7 @@ describe("a failed background refresh of the workspace", () => {
     await refreshWorkspace();
     const notice = await waitFor(() => { const found = refreshNotice(); expect(found).toBeTruthy(); return found!; });
     expect(notice.textContent).toMatch(/The service could not be reached\. Showing the workspace loaded \d{1,2} \w{3,4} \d{4}, \d{2}:\d{2} WAT\./);
-    expect(within(notice).getByRole("link", { name: "Operations" }).getAttribute("href")).toBe("/operations");
+    expect(within(notice).getByRole("link", { name: "Request history" }).getAttribute("href")).toBe("/operations");
     // The dialog and its draft are the same elements as before the refresh.
     expect(screen.getByRole("dialog")).toBe(dialog);
     expect((within(dialog).getByLabelText(/^Full name/) as HTMLInputElement).value).toBe("Draft customer");
@@ -100,14 +100,14 @@ describe("a failed background refresh of the workspace", () => {
     await user.type(within(dialog).getByLabelText(/^Consent source or reference/), "Synthetic signed form LOST-1");
     api.failNext(/^\/v1\/records\/customers$/, "offline", "POST");
     await user.click(within(dialog).getByRole("button", { name: "Save" }));
-    await within(dialog).findByText("Outcome not confirmed");
+    await within(dialog).findByText("Request not confirmed");
     api.failNext(workspace, { status: 502, error: "Bad gateway" });
     await refreshWorkspace();
     await waitFor(() => expect(refreshNotice()).toBeTruthy());
     expect(refreshNotice()!.textContent).toMatch(/The service could not answer\. Support reference: fake-\w+\./);
     expect(screen.getByRole("dialog")).toBe(dialog);
-    expect(within(dialog).getByText("Outcome not confirmed")).toBeTruthy();
-    expect(within(dialog).getByRole("button", { name: "Retry same request" })).toBeTruthy();
+    expect(within(dialog).getByText("Request not confirmed")).toBeTruthy();
+    expect(within(dialog).getByRole("button", { name: "Check original request" })).toBeTruthy();
   });
 
   it("passes on a 429's own words, says when the next automatic refresh is, and tries again on request", async () => {

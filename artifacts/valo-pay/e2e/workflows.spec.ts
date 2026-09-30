@@ -228,7 +228,7 @@ test("reconciliation pages retain evidence and reject a proposed match with a re
     response.url().includes("/api/v1/actions?") && response.request().method() === "POST",
   );
   await dialog
-    .getByRole("button", { name: "Reject allocation", exact: true })
+    .getByRole("button", { name: "Reject match", exact: true })
     .click();
   const response = await rejection;
   const outcome = await response.json();

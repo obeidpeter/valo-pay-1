@@ -509,7 +509,7 @@ for (const how of ["refused", "lost"] as const) test(`a ${how} Save lender acces
   // the disabled button is made to do the same, so every browser checks where it goes from there.
   await expect(save).toBeDisabled();
   await page.evaluate(() => { const active = document.activeElement as HTMLElement | null; if (active?.matches(":disabled")) active.blur(); });
-  const notice = card.getByRole("alert").filter({ hasText: how === "refused" ? "This membership changed after you opened it." : "Outcome not confirmed" }).first();
+  const notice = card.getByRole("alert").filter({ hasText: how === "refused" ? "This membership changed after you opened it." : "Request not confirmed" }).first();
   await expect(notice).toBeVisible();
   await expect(notice).toBeFocused();
 });

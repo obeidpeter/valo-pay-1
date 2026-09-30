@@ -115,11 +115,11 @@ describe("settings", () => {
     expect(api.calls.some((call) => call.method === "POST" && call.path === "/v1/actions")).toBe(false);
 
     // The service still requires a reason.
-    await user.click(within(dialog).getByRole("button", { name: "Return collection ownership" }));
-    expect(await within(dialog).findByText("Enter a reason for this action. It will be saved in the audit log.")).toBeTruthy();
+    await user.click(within(dialog).getByRole("button", { name: "Return collection" }));
+    expect(await within(dialog).findByText("Enter a reason. It is saved in the audit log.")).toBeTruthy();
     expect(api.calls.some((call) => call.method === "POST" && call.path === "/v1/actions")).toBe(false);
     await user.type(within(dialog).getByLabelText(/^Reason/), "Lender asked to take collection back");
-    await user.click(within(dialog).getByRole("button", { name: "Return collection ownership" }));
+    await user.click(within(dialog).getByRole("button", { name: "Return collection" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
 
     // The result is announced with the service's own message and counts (a notice is also announced through a short-lived copy).

@@ -1,6 +1,7 @@
-// Backlog item UX-B02-X2 and decision 2: recovery stays manual, through Operations, and every notice about a change the
-// operations journal records says so. A request the service received stays in Operations after its dialog is closed or
-// the page reloaded, and the notice links there; the demo role switch, which the journal does not record, does not.
+// Backlog item UX-B02-X2 and decision 2: recovery stays manual, through Request history (the Operations page), and every
+// notice about a change the operations journal records says so. A request Valo Pay received stays in Request history
+// after its dialog is closed or the page reloaded, and the notice links there; the demo role switch, which the journal
+// does not record, does not.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { installFakeApi, type FakeApi } from "./fake-api";
 import { renderApp, screen, userEvent, waitFor, within } from "./harness";
@@ -11,19 +12,19 @@ let api: FakeApi;
 beforeEach(() => { api = installFakeApi(); unreceivedRecovery(api); });
 afterEach(() => api.uninstall());
 
-const KEPT = "If the service received the request, it stays in Operations after you close this form or reload the page, where you can check it.";
-/** Whether `notice` says the request stays in Operations and links there. */
+const KEPT = "If Valo Pay received the request, you can check it in Request history, even after you close this form or reload the page.";
+/** Whether `notice` says the request stays in Request history and links there. */
 function keptInOperations(notice: HTMLElement) {
   expect(notice.textContent).toContain(KEPT);
-  expect(within(notice).getByRole("link", { name: "Open Operations" }).getAttribute("href")).toBe("/operations");
+  expect(within(notice).getByRole("link", { name: "Open Request history" }).getAttribute("href")).toBe("/operations");
   return notice;
 }
 /** The export control's notice about a request whose outcome is unconfirmed. */
 const exportNotice = () => screen.getByText(/^Other export requests are paused until this result is confirmed/).parentElement as HTMLElement;
-/** The alert holding `text`, which says the request stays in Operations and links there. */
+/** The alert holding `text`, which says the request stays in Request history and links there. */
 const pointsToOperations = (text: string | RegExp) => keptInOperations(screen.getByText(text).closest('[role="alert"]') as HTMLElement);
 
-describe("unconfirmed changes the journal records point to Operations", () => {
+describe("unconfirmed changes the journal records point to Request history", () => {
   it("in the record dialog, whose close confirmation says so too", async () => {
     const user = userEvent.setup();
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
@@ -36,11 +37,11 @@ describe("unconfirmed changes the journal records point to Operations", () => {
     await user.type(within(dialog).getByLabelText(/^Consent source or reference/), "Synthetic consent");
     api.failNext(/^\/v1\/records\/customers$/, "offline", "POST");
     await user.click(within(dialog).getByRole("button", { name: "Save" }));
-    await within(dialog).findByText("Outcome not confirmed");
-    const notice = pointsToOperations("Outcome not confirmed");
+    await within(dialog).findByText("Request not confirmed");
+    const notice = pointsToOperations("Request not confirmed");
     expect(notice.textContent).not.toMatch(/not saved after closing or reloading/);
     await user.click(within(dialog).getAllByRole("button", { name: "Close" }).find((button) => button.textContent === "Close")!);
-    expect(confirm).toHaveBeenCalledWith(expect.stringContaining("If the service received the request, it stays in Operations, where you can check it before starting again."));
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining("If Valo Pay received it, you can check it in Request history."));
     expect(screen.getByRole("dialog", { name: "Add customer" })).toBe(dialog);
   });
 
@@ -123,7 +124,7 @@ describe("unconfirmed changes the journal records point to Operations", () => {
     await user.click(await screen.findByRole("button", { name: "Run daily close" }));
     const refused = (await screen.findByText("Daily close requires the Operations role.")).closest('[role="alert"]') as HTMLElement;
     expect(refused.textContent).not.toContain(KEPT);
-    expect(within(refused).queryByRole("link", { name: "Open Operations" })).toBeNull();
+    expect(within(refused).queryByRole("link", { name: "Open Request history" })).toBeNull();
     api.failNext(/^\/v1\/actions$/, "offline", "POST");
     await user.click(screen.getByRole("button", { name: "Run daily close" }));
     await screen.findByText(/The service could not confirm the result/);
@@ -183,12 +184,12 @@ describe("unconfirmed changes the journal records point to Operations", () => {
     const stop = pointsToOperations(/The emergency-stop response is unconfirmed/);
     await user.click(within(stop).getByRole("button", { name: "Discard original request" }));
     await waitFor(() => expect(screen.queryByText(/The emergency-stop response is unconfirmed/)).toBeNull());
-    // The role switch is not journaled: its notice keeps the retry and names no Operations.
+    // The role switch is not journaled: its notice keeps the retry and names no Request history.
     await user.selectOptions(screen.getByLabelText("Demo role"), "Finance");
     api.failNext(/^\/v1\/actions$/, "offline", "POST");
     await user.click(screen.getByRole("button", { name: "Switch role" }));
     const role = (await screen.findByText(/The role-change response is unconfirmed/)).closest('[role="alert"]') as HTMLElement;
-    expect(role.textContent).not.toMatch(/Operations/);
-    expect(within(role).queryByRole("link", { name: "Open Operations" })).toBeNull();
+    expect(role.textContent).not.toMatch(/Request history|Operations/);
+    expect(within(role).queryByRole("link", { name: "Open Request history" })).toBeNull();
   });
 });

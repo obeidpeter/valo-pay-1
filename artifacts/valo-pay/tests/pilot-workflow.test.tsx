@@ -236,7 +236,7 @@ it("lets a case claim whose response was lost be discarded deliberately", async 
   await user.click(
     screen.getByRole("button", { name: "Claim and save next step" }),
   );
-  await screen.findByText("Outcome not confirmed");
+  await screen.findByText("Request not confirmed");
   expect(
     (screen.getByLabelText("Next action") as HTMLInputElement).closest("fieldset")
       ?.disabled,
@@ -245,8 +245,10 @@ it("lets a case claim whose response was lost be discarded deliberately", async 
   await user.click(
     screen.getByRole("button", { name: "Discard original request" }),
   );
+  // The form's notice goes with the discard. The request itself stays not confirmed, so the page's own notice about
+  // it (the same title, with Check original request and Cancel if unfinished) takes over, without a discard of its own.
   await waitFor(() =>
-    expect(screen.queryByText("Outcome not confirmed")).toBeNull(),
+    expect(screen.queryByRole("button", { name: "Discard original request" })).toBeNull(),
   );
   expect(
     (screen.getByLabelText("Next action") as HTMLInputElement).closest("fieldset")
@@ -314,13 +316,13 @@ it("offers to check or discard a lost invitation revocation, and discarding it f
   await user.click(
     (await screen.findAllByRole("button", { name: "Revoke invitation" }))[0]!,
   );
-  await screen.findByText("Outcome not confirmed");
+  await screen.findByText("Request not confirmed");
   expect(
     screen.getByRole("button", { name: "Check original request" }),
   ).toBeTruthy();
-  // Team changes are not recorded in Operations, so the notice sends the person to this page, not there.
-  const lost = screen.getByText("Outcome not confirmed").closest('[role="alert"]') as HTMLElement;
-  expect(lost.textContent).toContain("The request could not be completed. Refresh this page to see whether it was saved before you try again.");
+  // Team changes are not recorded in Request history, so the notice sends the person to this page, not there.
+  const lost = screen.getByText("Request not confirmed").closest('[role="alert"]') as HTMLElement;
+  expect(lost.textContent).toContain("The request was not confirmed. Refresh this page to see whether it was saved before you try again.");
   expect(lost.textContent).not.toMatch(/Operations/);
   const second = () =>
     screen.getAllByRole("button", {
@@ -332,7 +334,7 @@ it("offers to check or discard a lost invitation revocation, and discarding it f
     screen.getByRole("button", { name: "Discard original request" }),
   );
   await waitFor(() =>
-    expect(screen.queryByText("Outcome not confirmed")).toBeNull(),
+    expect(screen.queryByText("Request not confirmed")).toBeNull(),
   );
   expect(second().disabled).toBe(false);
   await user.click(second());
@@ -498,7 +500,7 @@ it("does not offer a newer version while the save's own outcome is unconfirmed",
   await user.click(
     screen.getByRole("button", { name: "Save and check batch" }),
   );
-  await screen.findByText("Outcome not confirmed");
+  await screen.findByText("Request not confirmed");
   const reads = api.calls.filter((c) => c.method === "GET" && /^\/v1\/pilot\/batches\/[^/]+$/.test(c.path)).length;
   await queryClient.invalidateQueries();
   await waitFor(() =>
@@ -510,7 +512,7 @@ it("does not offer a newer version while the save's own outcome is unconfirmed",
   expect(screen.queryByText(/A newer version of this batch was saved/)).toBeNull();
   expect(screen.queryByRole("button", { name: "Load latest version" })).toBeNull();
   await user.click(screen.getByRole("button", { name: "Check original request" }));
-  await waitFor(() => expect(screen.queryByText("Outcome not confirmed")).toBeNull());
+  await waitFor(() => expect(screen.queryByText("Request not confirmed")).toBeNull());
   expect(screen.queryByText(/A newer version of this batch was saved/)).toBeNull();
   expect(answers.size).toBe(1);
 });
@@ -527,13 +529,13 @@ it("says a failed read on a pilot page changed nothing, and sends a lost change 
   renderApp("/close-review");
   expect(await screen.findByText(/^This information could not be loaded\. Check your connection and try again\. Support reference: fake-\w+\.$/)).toBeTruthy();
   cleanup();
-  // A batch save is recorded in Operations, so a save whose answer was lost is checked there.
+  // A batch save is recorded in Request history, so a save whose answer was lost is checked there.
   renderApp("/imports");
   await user.click(await screen.findByRole("button", { name: "Use sample" }));
   api.failNext(/^\/v1\/pilot\/batches$/, "offline", "POST");
   await user.click(screen.getByRole("button", { name: "Save and check batch" }));
-  const lost = (await screen.findByText("Outcome not confirmed")).closest('[role="alert"]') as HTMLElement;
-  expect(lost.textContent).toContain("The request could not be completed. If it reached the service, Operations lists it with its outcome.");
+  const lost = (await screen.findByText("Request not confirmed")).closest('[role="alert"]') as HTMLElement;
+  expect(lost.textContent).toContain("The request was not confirmed. If Valo Pay received it, Request history shows what happened.");
 });
 
 
@@ -603,7 +605,7 @@ for (const page of ["/pilot", "/team"] as const) it(`asks before leaving ${page}
     expect(leaving()).toBe(false);
     await user.click(verify);
   }
-  await screen.findByText("Outcome not confirmed");
+  await screen.findByText("Request not confirmed");
   expect(leaving()).toBe(true);
   const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
   await user.click(screen.getAllByRole("link", { name: "Overview" })[0]!);
@@ -611,7 +613,7 @@ for (const page of ["/pilot", "/team"] as const) it(`asks before leaving ${page}
   expect(window.location.pathname).toBe(page);
   confirm.mockReturnValue(true);
   await user.click(screen.getByRole("button", { name: "Discard original request" }));
-  await waitFor(() => expect(screen.queryByText("Outcome not confirmed")).toBeNull());
+  await waitFor(() => expect(screen.queryByText("Request not confirmed")).toBeNull());
   expect(leaving()).toBe(false);
 });
 

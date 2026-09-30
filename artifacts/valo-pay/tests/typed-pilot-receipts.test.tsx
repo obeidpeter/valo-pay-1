@@ -144,7 +144,7 @@ describe("workflow-specific pilot confirmations", () => {
     input.data.expectedUpdatedAt = "2026-09-29T11:00:00.000Z";
     await act(async () => {
       await expect(hook.result.current.mutateAsync(input)).rejects.toThrow(
-        "Retry the original request before changing it",
+        "Check the original request before you change anything",
       );
     });
     expect(requests).toHaveLength(1);

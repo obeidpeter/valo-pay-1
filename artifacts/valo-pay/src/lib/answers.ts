@@ -1,9 +1,12 @@
 import type { z, ZodError, ZodTypeAny } from "zod";
 
 /** Shown instead of a read whose answer the page's schema does not describe. */
-export const UNREADABLE_ANSWER = "The service's answer was incomplete, so this page shows nothing from it. Try again; if it happens again, the service may be changing.";
-/** Shown for a write whose answer is not the confirmation its schema describes: the write may have been saved. */
-export const INCOMPLETE_CONFIRMATION = "The service returned an incomplete confirmation. Check Operations before submitting again.";
+export const UNREADABLE_ANSWER = "Valo Pay’s answer was incomplete, so nothing from it is shown. Try again. If this keeps happening, contact the Valo Pay team.";
+/**
+ * Shown for a write whose answer is not the confirmation its schema describes: the write may have been saved. The
+ * same next step as every request not confirmed (safe-mutations uses these words too).
+ */
+export const INCOMPLETE_CONFIRMATION = "Valo Pay’s answer was incomplete. We do not know yet whether Valo Pay saved this. Check the original request before you change anything.";
 
 type Definition = { typeName?: string; innerType?: ZodTypeAny; schema?: ZodTypeAny; type?: ZodTypeAny; in?: ZodTypeAny; getter?: () => ZodTypeAny };
 const definition = (schema: ZodTypeAny) => schema._def as Definition & Record<string, any>;

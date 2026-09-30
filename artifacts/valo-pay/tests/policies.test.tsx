@@ -35,7 +35,7 @@ describe('policy and template review', () => {
     await user.click(within(row).getByRole('button', { name: 'Test this version' }));
     const dialog = await screen.findByRole('dialog', { name: 'Test this policy version' });
     await user.type(within(dialog).getByLabelText('Reason *'), 'What would version 2 do?');
-    await user.click(within(dialog).getByRole('button', { name: 'Run policy simulation' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Test policy' }));
     expect(await within(dialog).findByText(/^Version 2 is not approved: this shows what it would do if it were approved and applied\./)).toBeTruthy();
     expect(within(dialog).queryByText('No instalments use this policy yet.')).toBeNull();
     expect(api.calls.find(call => (call.body as { action?: string })?.action === 'backtest_policy')?.body).toMatchObject({ recordId: 'policy-next' });
@@ -105,7 +105,7 @@ describe('policy and template review', () => {
     await user.click(await screen.findByRole('button', { name: 'Draft next version' }));
     const dialog = await screen.findByRole('dialog', { name: 'Draft next policy version' });
     await user.type(within(dialog).getByLabelText('Reason *'), 'Prepare the next review.');
-    await user.click(within(dialog).getByRole('button', { name: 'Create draft version' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Draft next version' }));
     await screen.findByText('Version 2');
     expect(api.state().records.find(record => record.kind === 'policies' && record.data.version === 2)?.data.previousVersionId).toBe(previous.id);
   });

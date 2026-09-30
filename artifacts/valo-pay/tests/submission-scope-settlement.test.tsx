@@ -126,7 +126,7 @@ it('refuses a connected write before sending when its recovery marker cannot be 
   const hook = mount('connected');
   await waitFor(() => expect(hook.result.current.ready).toBe(true));
   const denied = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new DOMException('Storage disabled', 'SecurityError'); });
-  await act(async () => { await expect(hook.result.current.submit()).rejects.toThrow('Nothing was submitted'); });
+  await act(async () => { await expect(hook.result.current.submit()).rejects.toThrow('Nothing was sent'); });
   expect(requests).toHaveLength(0);
   denied.mockRestore();
 

@@ -102,7 +102,7 @@ it("shows no count when nothing waits", async () => {
   renderApp("/overview");
   await waitFor(() => expect(api.calls.some((call) => call.path === "/v1/operations/pending")).toBe(true));
   expect(screen.getAllByRole("link", { name: "Request history" }).length).toBeGreaterThan(0);
-  expect(screen.queryAllByRole("link", { name: /not confirmed/ })).toEqual([]);
+  expect(screen.queryAllByRole("link", { name: /^Request history, \d+ requests? not confirmed$/ })).toEqual([]);
 });
 
 // Fix review: a check or cancel from Operations that the service refuses can settle the request for good: a check
@@ -131,7 +131,7 @@ for (const refusal of refusals) it(`reads the list and the count again once ${re
   const [listed, counted] = [listReads, countReads];
   await user.click(await screen.findByRole("button", { name: refusal.button }));
   await screen.findByText(refusal.error);
-  await waitFor(() => expect(screen.queryAllByRole("link", { name: /not confirmed/ })).toEqual([]), { timeout: 2000 });
+  await waitFor(() => expect(screen.queryAllByRole("link", { name: /^Request history, \d+ requests? not confirmed$/ })).toEqual([]), { timeout: 2000 });
   await screen.findByText(refusal.settled);
   expect([listReads > listed, countReads > counted]).toEqual([true, true]);
 });

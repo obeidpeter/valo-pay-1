@@ -144,15 +144,15 @@ test("a save whose answer was lost keeps its recovery through a failed refresh",
     await route.abort("connectionreset");
   });
   await dialog.getByRole("button", { name: "Save", exact: true }).click();
-  await expect(dialog.getByText("Outcome not confirmed", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("Request not confirmed", { exact: true })).toBeVisible();
 
   const outage = await breakWorkspace(page, 502);
   await passRefresh(page);
   const problem = page.getByRole("status").filter({ hasText: "Your workspace could not be refreshed." });
   await expect(problem).toBeVisible();
-  await expect(problem.getByRole("link", { name: "Operations" })).toHaveAttribute("href", "/operations");
-  await expect(dialog.getByText("Outcome not confirmed", { exact: true })).toBeVisible();
-  await expect(dialog.getByRole("button", { name: "Retry same request" })).toBeVisible();
+  await expect(problem.getByRole("link", { name: "Request history" })).toHaveAttribute("href", "/operations");
+  await expect(dialog.getByText("Request not confirmed", { exact: true })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Check original request" })).toBeVisible();
   await expect(page.getByText("No lender data has been changed.")).toHaveCount(0);
   await outage.restore();
 });

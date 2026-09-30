@@ -57,14 +57,14 @@ test("a slow committed customer request recovers its lost response without a sec
     await expect(saving).toHaveAttribute("aria-busy", "true");
     await expect(dialog.getByRole("button", { name: "Cancel", exact: true })).toBeDisabled();
     await expect(fullName).toBeDisabled();
-    await expect(dialog.getByText("Outcome not confirmed", { exact: true })).toHaveCount(0);
+    await expect(dialog.getByText("Request not confirmed", { exact: true })).toHaveCount(0);
     await expect(page.getByRole("row").filter({ hasText: reference })).toHaveCount(0);
     expect(attempts).toHaveLength(1);
   } finally {
     releaseResponse();
   }
 
-  await expect(dialog.getByText("Outcome not confirmed", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("Request not confirmed", { exact: true })).toBeVisible();
   await expect(fullName).toBeDisabled();
   await expect(fullName).toHaveValue(name);
   await expect(loanReference).toBeDisabled();
@@ -87,7 +87,7 @@ test("a slow committed customer request recovers its lost response without a sec
   const replayResponse = page.waitForResponse((response) =>
     response.url().includes("/api/v1/records/customers?") && response.request().method() === "POST",
   );
-  await dialog.getByRole("button", { name: "Retry same request", exact: true }).click();
+  await dialog.getByRole("button", { name: "Check original request", exact: true }).click();
   const replay = await replayResponse;
   expect(replay.ok()).toBeTruthy();
   expect((await replay.json()).id).toBe(committed!.record.id);
@@ -230,7 +230,7 @@ test("real reconciliation search, recorded rejection, reload persistence and aud
       "Synthetic database browser test: source evidence does not support this match.",
     );
   await dialog
-    .getByRole("button", { name: "Reject allocation", exact: true })
+    .getByRole("button", { name: "Reject match", exact: true })
     .click();
   const response = await rejection;
   expect(response.ok()).toBeTruthy();

@@ -55,7 +55,7 @@ describe('template review lifecycle', () => {
     await user.click(await screen.findByRole('button', { name: 'Draft next version' }));
     const dialog = await screen.findByRole('dialog', { name: 'Draft next template version' });
     await user.type(within(dialog).getByLabelText('Reason *'), 'Review the next message.');
-    await user.click(within(dialog).getByRole('button', { name: 'Create draft version' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Draft next version' }));
     await screen.findByText('v2');
     const draft = api.state().records.find(record => record.kind === 'templates' && record.data.version === 2)!;
     expect(draft.data.previousVersionId).toBe(previous.id);

@@ -13,7 +13,7 @@ it('moves focus within the page\'s own content when the page names no control, n
       <button type="button">Sandbox guide</button>
       <div data-page-content="" className="contents">
         <h1>Data retention</h1>
-        {lost && <div role="alert"><p>Outcome not confirmed</p><DiscardOriginalRequest onDiscard={() => setLost(false)} /></div>}
+        {lost && <div role="alert"><p>Request not confirmed</p><DiscardOriginalRequest onDiscard={() => setLost(false)} /></div>}
         <p>The run stopped because its last request was not confirmed.</p>
         <button type="button">Refresh retention</button>
       </div>

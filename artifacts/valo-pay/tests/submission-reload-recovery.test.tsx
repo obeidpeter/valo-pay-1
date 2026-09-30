@@ -68,7 +68,7 @@ describe('interrupted submissions after reloading', () => {
     const denied = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new DOMException('Storage disabled', 'SecurityError'); });
     mount();
     await user.click(screen.getByRole('button', { name: 'Submit new change' }));
-    await screen.findByText(/Allow session storage or use another browser/);
+    await screen.findByText(/Allow site data for Valo Pay, or use another browser/);
     expect(requests).toHaveLength(0);
     denied.mockRestore(); loseAnswer = false;
     await user.click(screen.getByRole('button', { name: 'Submit new change' }));
@@ -84,7 +84,7 @@ describe('interrupted submissions after reloading', () => {
     first.unmount(); mount();
     await screen.findByText('Completion is not confirmed.');
     await user.click(screen.getByRole('button', { name: 'Submit new change' }));
-    await screen.findByText(/earlier request on this page still needs checking/);
+    await screen.findByText(/earlier request on this page is not confirmed/);
     expect(requests.filter(request => request.path === '/api/v1/actions')).toHaveLength(1);
     expect(requests.find(request => request.path.endsWith('/lookup'))?.body).toEqual({ key: originalKey, method: 'POST', path: '/v1/actions' });
     await user.click(screen.getByRole('button', { name: 'Check original request' }));
@@ -92,7 +92,7 @@ describe('interrupted submissions after reloading', () => {
     expect(requests.find(request => request.path.endsWith('/retry'))).toMatchObject({ key: null, body: {} });
     // Recovery does not invent another key or reconstitute private form fields in the browser.
     expect(stored()).toHaveLength(1);
-    await user.click(screen.getByRole('button', { name: 'I have reviewed the outcome' }));
+    await user.click(screen.getByRole('button', { name: 'Mark as checked' }));
     await waitFor(() => expect(stored()).toHaveLength(0));
     loseAnswer = false;
     await user.click(screen.getByRole('button', { name: 'Submit new change' }));
@@ -117,7 +117,7 @@ describe('interrupted submissions after reloading', () => {
     await user.click(screen.getByRole('button', { name: 'Cancel if unfinished' }));
     await screen.findByText('The request was cancelled and saved nothing.');
     expect(requests.filter(request => request.path.endsWith('/cancel-unreceived')).every(request => (request.body as { key: string }).key === originalKey)).toBe(true);
-    await user.click(screen.getByRole('button', { name: 'I have reviewed the outcome' }));
+    await user.click(screen.getByRole('button', { name: 'Mark as checked' }));
     await waitFor(() => expect(stored()).toHaveLength(0));
   });
 
@@ -128,7 +128,7 @@ describe('interrupted submissions after reloading', () => {
     first.unmount(); lookupStatus = code; mount();
     await screen.findByText('Access must be checked again.');
     expect(stored()).toHaveLength(1);
-    expect(screen.queryByRole('button', { name: 'I have reviewed the outcome' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Mark as checked' })).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Submit new change' }));
     expect(requests.filter(request => request.path === '/api/v1/actions')).toHaveLength(1);
   });
@@ -139,7 +139,7 @@ describe('interrupted submissions after reloading', () => {
     await screen.findByText('The connection was interrupted.');
     first.unmount(); const original = identity[field]; identity[field] = 'another-scope';
     const other = mount();
-    expect(screen.queryByRole('region', { name: 'Interrupted requests' })).toBeNull();
+    expect(screen.queryByRole('region', { name: /^Requests? not confirmed$/ })).toBeNull();
     expect(requests.filter(request => request.path.endsWith('/lookup'))).toHaveLength(0);
     other.unmount(); identity[field] = original; mount();
     await screen.findByText('Completion is not confirmed.');
@@ -156,7 +156,7 @@ describe('interrupted submissions after reloading', () => {
     page.refreshIdentity();
     await screen.findByText('Ready to submit');
     expect(screen.getByRole('button', { name: 'Submit new change' })).toBe(submit);
-    expect(screen.queryByRole('region', { name: 'Interrupted requests' })).toBeNull();
+    expect(screen.queryByRole('region', { name: /^Requests? not confirmed$/ })).toBeNull();
     expect(requests.filter(request => request.path.endsWith('/lookup'))).toHaveLength(0);
     expect(sessionStorage.getItem('valopay-submission:v1:' + recoveryScope())).toBeNull();
 
@@ -173,7 +173,7 @@ describe('interrupted submissions after reloading', () => {
     await screen.findByText('Completion is not confirmed.');
     expect(requests.find(request => request.path.endsWith('/lookup'))?.body).toMatchObject({ key: originalKey });
     await user.click(submit);
-    await screen.findByText(/earlier request on this page still needs checking/);
+    await screen.findByText(/earlier request on this page is not confirmed/);
     expect(requests.filter(request => request.path === '/api/v1/actions')).toHaveLength(2);
   });
 
@@ -186,7 +186,7 @@ describe('interrupted submissions after reloading', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Add customer' });
     await user.type(within(dialog).getByLabelText(/^Full name/), 'Interrupted customer');
     await user.click(within(dialog).getByRole('button', { name: 'Save' }));
-    await within(dialog).findByText('Outcome not confirmed');
+    await within(dialog).findByText('Request not confirmed');
     const originalKey = requests.find(request => request.path === '/api/v1/records/customers')!.key;
     await user.click(within(dialog).getAllByRole('button', { name: 'Close' }).find(button => button.textContent === 'Close')!);
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
@@ -197,7 +197,7 @@ describe('interrupted submissions after reloading', () => {
     const reopened = await screen.findByRole('dialog', { name: 'Add customer' });
     await user.type(within(reopened).getByLabelText(/^Full name/), 'Interrupted customer');
     await user.click(within(reopened).getByRole('button', { name: 'Save' }));
-    await within(reopened).findByText(/earlier request on this page still needs checking/);
+    await within(reopened).findByText(/earlier request on this page is not confirmed/);
     expect(requests.filter(request => request.path === '/api/v1/records/customers')).toHaveLength(1);
     expect(stored()[0]!.key).toBe(originalKey);
   });
@@ -207,7 +207,7 @@ describe('interrupted submissions after reloading', () => {
     await user.click(screen.getByRole('button', { name: 'Submit new change' }));
     await screen.findByText('The connection was interrupted.'); first.unmount();
     window.history.replaceState({}, '', '/customers'); const other = mount();
-    expect(screen.queryByRole('region', { name: 'Interrupted requests' })).toBeNull();
+    expect(screen.queryByRole('region', { name: /^Requests? not confirmed$/ })).toBeNull();
     other.unmount(); window.history.replaceState({}, '', '/reconciliation'); mount();
     await screen.findByText('Completion is not confirmed.');
   });
