@@ -36,7 +36,7 @@ export function RefreshProblem({ what, shown = 'figures', query }: { what: strin
   return (
     <div role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-warning-border bg-warning px-4 py-3 text-xs text-warning-foreground">
       <p><span className="font-semibold">{what} could not be refreshed.</span> {updated ? <>Showing {shown} last updated <time dateTime={updated}>{formatDate(updated)}</time>.</> : <>Showing the {shown} loaded earlier.</>}</p>
-      <Button variant="outline" size="sm" busy={Boolean(query.isFetching)} busyLabel="Refreshing…" onClick={() => { void query.refetch?.(); }}>Try again</Button>
+      <Button variant="outline" size="sm" busy={Boolean(query.isFetching)} busyLabel="Trying again…" onClick={() => { void query.refetch?.(); }}>Try again</Button>
     </div>
   );
 }

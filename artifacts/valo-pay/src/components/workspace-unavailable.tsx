@@ -112,7 +112,7 @@ export function WorkspaceRefreshProblem({ failure, staff = false }: { failure: W
         <p>Open pages and forms are kept. If a save was not confirmed, check it in <Link href="/operations" className="font-medium underline underline-offset-2">Request history</Link> before you send it again.</p>
         {staff && [401, 403].includes(status) && <StaffSession />}
       </div>
-      <Button variant="outline" size="sm" busy={failure.busy} busyLabel="Refreshing…" onClick={failure.retry}>Try again</Button>
+      <Button variant="outline" size="sm" busy={failure.busy} busyLabel="Trying again…" onClick={failure.retry}>Try again</Button>
     </div>
   );
 }
