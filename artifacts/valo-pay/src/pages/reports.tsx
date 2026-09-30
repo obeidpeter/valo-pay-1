@@ -1,7 +1,7 @@
 import { CloseHistorySection } from '@/components/close-history-section';
 import { ExportJobControl } from '@/components/export-job-control';
-import { useSafePerformAction as usePerformAction } from '@/lib/safe-mutations';
-import React, { useEffect, useState } from 'react';
+import { outcomeIsUnconfirmed, useSafePerformAction as usePerformAction } from '@/lib/safe-mutations';
+import React, { useEffect, useRef, useState } from 'react';
 import { EvidenceDisclosure as ReportDisclosure } from '@/components/evidence-disclosure';
 import { SectionNavigation } from '@/components/section-navigation';
 import { ScrollFrame } from '@/components/scroll-frame';
@@ -21,6 +21,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { LoadProblem, RefreshProblem } from '@/components/load-problem';
 import { notifyProblem, saidBy } from '@/lib/notify';
 import { useHashTarget } from '@/lib/use-hash-target';
+import { useFocusWhenLost } from '@/lib/focus';
 import { Input } from '@/components/ui/input';
 import { KEPT_IN_OPERATIONS, OpenOperations } from '@/components/pilot-ui';
 
@@ -30,8 +31,8 @@ const scalarEntries = (record: Unknown): Array<[string, unknown]> => Object.entr
 const billingLines = (record: Unknown): Array<Record<string, any>> => Array.isArray(record?.lines) ? (record!.lines as Array<Record<string, any>>) : [];
 const experimentRows = (record: Unknown): Array<Record<string, any>> => Array.isArray(record?.results) ? (record!.results as Array<Record<string, any>>) : [];
 const labelOf = (key: string) => key.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ').trim().toLowerCase().replace(/^./, first => first.toUpperCase());
-const percent = (value: unknown) => typeof value === 'number' ? formatPercent(value, 1) : 'Not available';
-const percentagePoints = (value: unknown) => typeof value === 'number' ? formatPercentagePoints(value) : 'Not available';
+const percent = (value: unknown) => typeof value === 'number' ? formatPercent(value, 1) : 'Not recorded';
+const percentagePoints = (value: unknown) => typeof value === 'number' ? formatPercentagePoints(value) : 'Not recorded';
 /** A count from the report's free-form data, grouped the market's way; one the report leaves out is 0. */
 const count = (value: unknown) => typeof value === 'number' ? formatNumber(value) : String(value ?? 0);
 const invoiceRows = (record: Unknown): Array<Record<string, any>> => Array.isArray(record?.invoices) ? (record!.invoices as Array<Record<string, any>>) : [];
@@ -100,16 +101,25 @@ export default function ReportsPage() {
   const pricingExplanation = (value: unknown) => typeof value === 'string' && value.trim() ? value : 'Review the design-partner discount dates in the signed commercial terms before issuing this invoice.';
   useHashTarget('daily-closes', view === 'operations' && !!merchantId && !!reports && !isLoading && !reportsError);
 
+  // While Check original request asks about a lost close, its notice stays, with the button busy, until the answer comes.
+  const checkingClose = useRef(false), closeNotice = useRef<HTMLDivElement>(null);
+  // The button that checked a lost close goes with the notice it was in: reading continues from the close's outcome.
+  useFocusWhenLost(closeNotice, closeResult);
   const dailyClose = usePerformAction({
     mutation: {
-      onMutate: () => setCloseResult(null),
+      onMutate: () => { if (!checkingClose.current) setCloseResult(null); },
       onSuccess: (data, variables) => {
         setCloseResult({ merchantId: variables.params!.merchantId, message: data.message, failed: false });
         void queryClient.invalidateQueries();
       },
-      onError: (error, variables) => setCloseResult({ merchantId: variables.params!.merchantId, message: saidBy(error, 'We do not know yet whether Valo Pay ran this close. Refresh the close records to check before you run it again.'), failed: true }),
+      onError: (error, variables) => setCloseResult({ merchantId: variables.params!.merchantId, message: saidBy(error, outcomeIsUnconfirmed(error) ? 'We do not know yet whether Valo Pay ran this close. Select Check original request to find out. It does not run a second close.' : 'Valo Pay gave no reason. Try again.'), failed: true }),
     }
   }, merchantId);
+  /** Sends the lost close again with its original details and key: Valo Pay answers what it did, and never runs a second close. */
+  const checkClose = () => {
+    checkingClose.current = true;
+    void dailyClose.retryUnconfirmed().catch(() => undefined).finally(() => { checkingClose.current = false; });
+  };
 
   const { data: experiments, error: experimentsError, isLoading: loadingExperiments, isFetching: fetchingExperiments, refetch: retryExperiments } = useListRecords(
     'experiments',
@@ -160,7 +170,7 @@ export default function ReportsPage() {
       <SectionNavigation label="Report views" value={view} onChange={value => setReportFilter('view', value)} sections={[
         { id: 'operations', label: 'Totals and closes', description: 'Current totals and the saved daily closes. Use the dates below to compare past closes.' },
         { id: 'billing', label: 'Billing', description: 'Charges for this billing month, issued invoices and adjustments. The billing CSV covers this month’s statement.' },
-        { id: 'evidence', label: 'Pilot results', description: 'Measures for judging the pilot. Sample data cannot show how Valo Pay performs live.' },
+        { id: 'evidence', label: 'Pilot results', description: 'Results for judging the pilot. Sample data cannot show how Valo Pay performs live.' },
       ]} />
       {view === 'billing' && (invoiceNeedsReview || statementNeedsReview) && <div id="invoice-pricing-review" role="status" className="rounded-xl border border-warning/40 bg-warning/5 p-4 text-sm">
         <p className="font-semibold">Commercial terms need review</p>
@@ -168,10 +178,10 @@ export default function ReportsPage() {
         {invoiceNeedsReview && <p className="mt-2">Next invoice: {pricingExplanation(reports?.billing?.nextInvoicePricingExplanation)}</p>}
         <Link href="/evidence" className="mt-3 inline-flex min-h-10 items-center font-medium text-primary underline underline-offset-4">Open Go-live evidence</Link>
       </div>}
-      {closeResult?.merchantId === merchantId && <div role={closeResult.failed ? 'alert' : 'status'} className={`rounded-lg border p-5 text-sm ${closeResult.failed ? 'border-destructive/30 bg-destructive/5' : 'bg-card'}`}>
+      {closeResult?.merchantId === merchantId && <div ref={closeNotice} role={closeResult.failed ? 'alert' : 'status'} className={`rounded-lg border p-5 text-sm ${closeResult.failed ? 'border-destructive/30 bg-destructive/5' : 'bg-card'}`}>
         <p className="font-semibold">{closeResult.failed ? (dailyClose.hasUnconfirmedOutcome ? 'Request not confirmed' : 'Daily close not completed') : 'Daily close completed'}</p>
         <p className="mt-2 text-muted-foreground">{closeResult.message}{closeResult.failed && dailyClose.hasUnconfirmedOutcome && <> {KEPT_IN_OPERATIONS}</>}</p>
-        {closeResult.failed ? <div className="mt-3 flex flex-wrap items-center gap-3"><Button variant="outline" size="sm" onClick={() => { void refetch(); void queryClient.invalidateQueries({ queryKey: ['/api/v1/close-history'] }); }} busy={fetchingReports} busyLabel="Refreshing…">Refresh close records</Button>{dailyClose.hasUnconfirmedOutcome && <OpenOperations />}</div> : <Link href="/reports?view=operations#daily-closes" className="mt-3 inline-flex min-h-6 items-center font-medium text-primary underline">View close record</Link>}
+        {closeResult.failed ? <div className="mt-3 flex flex-wrap items-center gap-3">{dailyClose.hasUnconfirmedOutcome && <Button variant="outline" size="sm" action="daily_close" onClick={checkClose} busy={dailyClose.isPending} busyLabel="Checking original request…">Check original request</Button>}<Button variant="outline" size="sm" onClick={() => { void refetch(); void queryClient.invalidateQueries({ queryKey: ['/api/v1/close-history'] }); }} busy={fetchingReports} busyLabel="Refreshing…">Refresh close records</Button>{dailyClose.hasUnconfirmedOutcome && <OpenOperations />}</div> : <Link href="/reports?view=operations#daily-closes" className="mt-3 inline-flex min-h-6 items-center font-medium text-primary underline">View close record</Link>}
       </div>}
 
       {isLoading ? (
@@ -198,7 +208,7 @@ export default function ReportsPage() {
 
           <section hidden={view !== 'evidence'} className="rounded-xl border bg-card" aria-labelledby="measurement-title">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b px-5 py-4">
-              <h2 id="measurement-title" className="text-sm font-semibold">Pilot measures</h2>
+              <h2 id="measurement-title" className="text-sm font-semibold">Pilot results</h2>
               <span className="rounded-md bg-secondary/60 px-2 py-1 text-xs text-muted-foreground">Sample data, not live results</span>
             </div>
             <div className="grid grid-cols-1 gap-5 p-5 sm:grid-cols-2 xl:grid-cols-4">

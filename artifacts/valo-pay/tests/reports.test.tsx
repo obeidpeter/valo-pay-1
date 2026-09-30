@@ -287,6 +287,37 @@ describe("reports", () => {
     expect(screen.getByRole('link', { name: 'View close record' }).getAttribute('href')).toBe('/reports?view=operations#daily-closes');
   });
 
+  it('checks a daily close whose answer was lost with Check original request, which never runs a second close', async () => {
+    const user = userEvent.setup();
+    // The close reaches Valo Pay and runs, but its answer is lost; the same request sent again gets the saved answer.
+    const send = globalThis.fetch, keys: string[] = [], replies = new Map<string, Response>();
+    globalThis.fetch = async (input, options) => {
+      const url = String(input instanceof Request ? input.url : input);
+      if (!url.includes('/api/v1/actions') || options?.method !== 'POST') return send(input, options);
+      const key = new Headers(options.headers).get('Idempotency-Key')!;
+      keys.push(key);
+      if (replies.has(key)) return replies.get(key)!.clone();
+      const response = await send(input, options);
+      replies.set(key, response.clone());
+      throw new TypeError('Failed to fetch');
+    };
+    try {
+      renderApp('/reports');
+      await user.click(await screen.findByRole('button', { name: 'Run daily close' }));
+      const notice = (await screen.findByText(/^We do not know yet whether Valo Pay ran this close\. Select Check original request to find out\. It does not run a second close\./)).closest('[role="alert"]') as HTMLElement;
+      expect(within(notice).getByText('Request not confirmed')).toBeTruthy();
+      expect(within(notice).getByRole('button', { name: 'Refresh close records' })).toBeTruthy();
+      await user.click(within(notice).getByRole('button', { name: 'Check original request' }));
+      const done = await screen.findByText('Daily close completed');
+      // The check sent the original request again, with its key, and Valo Pay ran one close.
+      expect(keys).toHaveLength(2);
+      expect(keys[1]).toBe(keys[0]);
+      expect(api.state().records.filter(record => record.kind === 'closes')).toHaveLength(1);
+      // The button went with the notice it was in; reading continues from the outcome.
+      await waitFor(() => expect(document.activeElement).toBe(done.closest('[role="status"]')));
+    } finally { globalThis.fetch = send; }
+  });
+
   it('invoices every month in order and names the month to issue first', async () => {
     api.setNow('2027-04-03T09:00:00.000Z');
     // This assertion concerns invoice ordering. Use signed full-price terms so it does not depend on discount review.

@@ -100,7 +100,7 @@ describe('console efficiency', () => {
     expect(screen.getByRole('button', { name: 'Issue invoice' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Run daily close' })).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Pilot results' }));
-    expect(await screen.findByRole('heading', { name: 'Pilot measures' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Pilot results' })).toBeTruthy();
     expect(screen.queryByRole('heading', { name: 'Billing statement for this month' })).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Totals and closes' }));
     await user.click(screen.getByRole('button', { name: 'Clear dates' }));
