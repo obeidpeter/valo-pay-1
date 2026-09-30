@@ -41,7 +41,7 @@ it('queues the exact approved review and resumes its download despite newer expo
   expect(screen.queryByText(/Recent exports/)).toBeNull();
   expect(api.calls.filter(call => call.method === 'POST' && call.path === '/v1/exports')).toHaveLength(1);
   await user.click(screen.getByText('Technical details'));
-  expect(screen.getByText(/an Admin can delete this file in Data retention/)).toBeTruthy();
+  expect(screen.getByText(/this file can be deleted by an approved deletion run in Data retention/)).toBeTruthy();
 });
 
 it('keeps a malformed committed receipt uncertain and replays the original review, format and key', async () => {

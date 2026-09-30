@@ -115,6 +115,19 @@ describe('saved background exports',()=>{
   expect(api.state().records.find(record=>record.id===job.id)!.data.objectName).toBe(objectName);
   expect(api.calls.some(call=>call.path===`/v1/exports/${job.id}/retry`&&call.method==='POST')).toBe(true);
  });
+ it('titles a refused retry "Export not restarted", since the export already exists',async()=>{
+  const user=userEvent.setup();renderApp('/evidence');
+  await user.click(await screen.findByRole('button',{name:'Export evidence pack'}));
+  await screen.findByText('Evidence pack: Waiting');
+  const job=api.state().records.find(record=>record.kind==='exports')!;
+  api.mutate(state=>{const record=state.records.find(record=>record.id===job.id)!;record.status='failed';record.data.lastError='Generation could not finish.';});
+  api.failNext(new RegExp(`^/v1/exports/${job.id}/retry$`),{status:409,error:'This export cannot be retried now.'},'POST');
+  await user.click(await screen.findByRole('button',{name:'Retry export'},{timeout:5000}));
+  const alert=(await screen.findByText('This export cannot be retried now.')).closest('[role="alert"]') as HTMLElement;
+  expect(within(alert).getByText('Export not restarted')).toBeTruthy();
+  expect(within(alert).queryByText('Export not started')).toBeNull();
+  expect(api.state().records.filter(record=>record.kind==='exports')).toHaveLength(1);
+ });
  it('retains an uncertain queued request and refreshes saved jobs without creating another one',async()=>{
   const user=userEvent.setup();renderApp('/reports?view=billing');
   await user.click(await screen.findByRole('button',{name:'Export billing CSV'}));
