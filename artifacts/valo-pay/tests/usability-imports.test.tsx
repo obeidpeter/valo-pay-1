@@ -158,8 +158,8 @@ describe('UX-I02 shared form recovery and UX-I03 review correction', () => {
     await user.click(await screen.findByRole('button', { name: 'Edit draft' }));
     const dialog = await screen.findByRole('dialog');
     api.failNext(/^\/v1\/records\/policies\//, { status: 400, error: 'Validation failed', details: [{ field: 'data.partialAllowed', message: 'Review whether partial collections are allowed.' }] }, 'PATCH');
-    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
-    const box = within(dialog).getByRole('checkbox', { name: 'Allow partial collections' });
+    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
+    const box = within(dialog).getByRole('checkbox', { name: 'Allow collecting part of an instalment' });
     await waitFor(() => expect(box.getAttribute('aria-invalid')).toBe('true'));
     expect(box.getAttribute('aria-describedby')).toContain('record-partialAllowed-error');
     expect(document.activeElement).toBe(box);

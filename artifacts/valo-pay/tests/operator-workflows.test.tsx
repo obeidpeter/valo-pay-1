@@ -44,8 +44,8 @@ describe('permissions before a workflow starts', () => {
     const request = await screen.findByRole('button', { name: 'Request changes' });
     expect(request.getAttribute('aria-disabled')).toBe('true');
     expect(document.getElementById(request.getAttribute('aria-describedby')!)?.textContent).toContain('You cannot review your own submission');
-    const section = screen.getByRole('heading', { name: 'Notification templates' }).closest('section')!;
-    expect(within(section).getByRole('button', { name: 'Approve' }).getAttribute('aria-disabled')).toBe('true');
+    const section = screen.getByRole('heading', { name: 'Message templates' }).closest('section')!;
+    expect(within(section).getByRole('button', { name: 'Approve template' }).getAttribute('aria-disabled')).toBe('true');
   });
 
   it('stops a dialog submission if the workspace role changes while it is open', async () => {

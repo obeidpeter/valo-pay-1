@@ -27,7 +27,7 @@ const routes: Array<[string, string | RegExp]> = [
   ["/close-review", "Finance close review"],
   ["/customers", "Customers"],
   ["/mandates", "Mandates"],
-  ["/policies", "Policies & templates"],
+  ["/policies", "Policies and templates"],
   ["/pay-by-bank", "Pay-by-bank"],
   ["/credit-desk", "Credit Desk"],
   ["/cash-desk", "Cash Desk"],

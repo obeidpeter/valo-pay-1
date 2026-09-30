@@ -6,10 +6,29 @@ import { useWorkspace } from '@/lib/workspace-context';
 import { useListRecords, getListRecordsQueryKey } from '@workspace/api-client-react';
 import { Shield, FileText, CheckCircle } from 'lucide-react';
 import { PermissionButton as Button } from '@/components/permission-button';
-import { formatDate } from '@/lib/formatters';
+import { formatCount, formatDate } from '@/lib/formatters';
 import { RecordDialog } from '@/components/record-dialog';
-import { readableLabel } from '@/components/record-label';
+import { StatusBadge, readableLabel } from '@/components/record-label';
 import { PolicyReview, TemplatePreview, TemplateReview } from '@/components/policy-review';
+
+/** Each dialog's title, named by the same verb and object as the button that opens it. */
+const dialogTitles: Readonly<Record<string, string>> = {
+  create_policy: 'Draft a policy', edit_policy: 'Edit policy draft', submit_policy: 'Submit policy for review', approve_policy: 'Approve policy',
+  reject_policy: 'Reject policy', new_policy_version: 'Draft next version', backtest_policy: 'Test this version',
+  create_template: 'Draft a template', edit_template: 'Edit template', submit_template: 'Submit template for review',
+  approve_template: 'Approve template', reject_template: 'Request changes', new_template_version: 'Draft next version',
+};
+
+/** Submit buttons that repeat the opening button's words; the rest keep the dialog's own action names. */
+const submitLabels: Readonly<Record<string, string>> = {
+  create_policy: 'Draft a policy', create_template: 'Draft a template', edit_policy: 'Save changes', edit_template: 'Save changes',
+  new_policy_version: 'Draft next version', new_template_version: 'Draft next version', backtest_policy: 'Test this version', reject_template: 'Request changes',
+};
+
+/** A number of hours, counted ("1 hour", "48 hours"), or "Not set" when the policy has none. */
+function hours(value: unknown): string {
+  return (typeof value === 'number' || (typeof value === 'string' && value.trim() !== '')) && Number.isFinite(Number(value)) ? formatCount(Number(value), 'hour') : 'Not set';
+}
 
 export default function PoliciesPage() {
   const { merchantId } = useWorkspace();
@@ -42,8 +61,8 @@ export default function PoliciesPage() {
   return (
     <div className="space-y-8">
       <header>
-        <h1 className="text-3xl font-bold tracking-tight">Policies & templates</h1>
-        <p className="text-muted-foreground mt-1">Set retry rules and review the messages customers receive.</p>
+        <h1 className="text-3xl font-bold tracking-tight">Policies and templates</h1>
+        <p className="text-muted-foreground mt-1">Set retry policies and review the messages customers receive.</p>
       </header>
 
       {/* Policies */}
@@ -62,14 +81,14 @@ export default function PoliciesPage() {
             <LoadProblem what="retry policies" error={policyError} retry={() => { void retryPolicies(); }} busy={fetchingPolicies} />
           ) : !policies || policies.items.length === 0 ? (
             <EmptyState title="No retry policies yet" action={<Button size="sm" variant="outline" action="create_policy" record={null} onClick={() => handleAction(null, 'create_policy')}>Draft a policy</Button>}>
-              A policy sets retry limits, notice periods and quiet hours. Draft a version and submit it for approval by a compliance reviewer before use.
+              A retry policy sets how many times and how often you can try to collect, and how much notice customers get. Select Draft a policy, then submit it. A Compliance reviewer must approve it before it can be used.
             </EmptyState>
           ) : (
             policies.items.map(policy => (
               <div key={policy.id} className="p-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
                 <div className="space-y-2 flex-1">
                   <div className="flex items-center gap-3">
-                    <span className="text-lg font-bold">Version {String(policy.data?.version || '1')}</span>
+                    <span className="text-lg font-bold">{policy.name} · version {String(policy.data?.version || '1')}</span>
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${
                       policy.status === 'approved' ? 'bg-success/10 text-success border-success/20' : 
                       policy.status === 'submitted' ? 'bg-warning text-warning-foreground border-warning-border' :
@@ -79,13 +98,13 @@ export default function PoliciesPage() {
                     </span>
                   </div>
                   <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-                    <div>Maximum attempts: <span className="font-medium text-foreground">{String(policy.data?.maxAttempts || 0)}</span></div>
-                    <div>Time between attempts: <span className="font-medium text-foreground">{String(policy.data?.spacingHours || 0)} hours</span></div>
-                    <div>Notice before first attempt: <span className="font-medium text-foreground">{String(policy.data?.firstNoticeHours || 0)} hours</span></div>
-                    <div>Partial collections allowed: <span className="font-medium text-foreground">{policy.data?.partialAllowed ? 'Yes' : 'No'}</span></div>
+                    <div>Maximum attempts: <span className="font-medium text-foreground">{String(policy.data?.maxAttempts ?? 'Not set')}</span></div>
+                    <div>Time between attempts: <span className="font-medium text-foreground">{hours(policy.data?.spacingHours)}</span></div>
+                    <div>Notice before first attempt: <span className="font-medium text-foreground">{hours(policy.data?.firstNoticeHours)}</span></div>
+                    <div>Allows collecting part of an instalment: <span className="font-medium text-foreground">{policy.data?.partialAllowed ? 'Yes' : 'No'}</span></div>
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    Author: {String(policy.data?.author || 'Unknown')} • Last updated: {formatDate(policy.updatedAt)}
+                    Author: {String(policy.data?.author || 'Not recorded')} · Last updated: {formatDate(policy.updatedAt)}
                   </div>
                 </div>
                 
@@ -109,14 +128,14 @@ export default function PoliciesPage() {
                         size="sm"
                         action="approve_policy" record={policy} onClick={() => handleAction(policy, 'approve_policy')}
                       >
-                        <CheckCircle className="mr-2 h-4 w-4" /> Approve
+                        <CheckCircle className="mr-2 h-4 w-4" /> Approve policy
                       </Button>
                       <Button 
                         variant="destructive"
                         size="sm"
                         action="reject_policy" record={policy} onClick={() => handleAction(policy, 'reject_policy')}
                       >
-                        Reject
+                        Reject policy
                       </Button>
                     </>
                   )}
@@ -142,39 +161,38 @@ export default function PoliciesPage() {
         <div className="p-4 border-b bg-secondary/20 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <FileText className="h-5 w-5 text-primary" />
-            <h2 className="font-semibold text-lg">Notification templates</h2>
+            <h2 className="font-semibold text-lg">Message templates</h2>
           </div>
-          <Button size="sm" action="create_template" record={null} onClick={() => handleAction(null, 'create_template')}>Create template</Button>
+          <Button size="sm" action="create_template" record={null} onClick={() => handleAction(null, 'create_template')}>Draft a template</Button>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
           {isLoadingTemplates ? (
-            <Loading what="templates" className="col-span-2" />
+            <Loading what="message templates" className="col-span-2" />
           ) : templateError ? (
-            <div className="md:col-span-2"><LoadProblem what="notification templates" error={templateError} retry={() => { void retryTemplates(); }} busy={fetchingTemplates} /></div>
+            <div className="md:col-span-2"><LoadProblem what="message templates" error={templateError} retry={() => { void retryTemplates(); }} busy={fetchingTemplates} /></div>
           ) : !templates || templates.items.length === 0 ? (
-            <EmptyState className="col-span-2" title="No notification templates yet">Templates define customer messages. A compliance reviewer must approve each version before use. Messages in this sandbox are simulated.</EmptyState>
+            <EmptyState className="col-span-2" title="No message templates yet">Templates hold the wording of customer messages. A Compliance reviewer must approve each version before it can be used. Messages here are simulated and never sent. Select Draft a template to write the first one.</EmptyState>
           ) : (
             templates.items.map(template => (
               <div key={template.id} className="border rounded-lg p-4 bg-secondary/5 relative">
                 <div className="flex justify-between items-start mb-3">
                   <h3 className="font-medium">{template.data?.purpose ? readableLabel(template.data.purpose) : template.name}</h3>
-                  <span className="px-2 py-0.5 text-[10px] uppercase tracking-wider font-bold rounded-full bg-secondary border">
-                    {readableLabel(template.status)}
-                  </span>
+                  {/* A reviewer's rejection asks the author for changes, so it reads as that. */}
+                  <StatusBadge status={template.status === 'rejected' ? 'changes_requested' : template.status} />
                 </div>
                 <TemplatePreview text={template.data?.text} />
-                {template.status === 'rejected' && <p className="mt-3 rounded-md border border-warning-border bg-warning/20 p-3 text-sm"><strong>Changes requested:</strong> {String(template.data?.rejectionReason || 'Review the rejection in the audit log.')} Edit this version and submit it again.</p>}
-                <details className="mt-3 text-xs text-muted-foreground"><summary className="cursor-pointer">Template placeholders</summary><p className="mt-2 font-mono whitespace-pre-wrap break-words">{String(template.data?.text || 'No message written yet')}</p></details>
+                {template.status === 'rejected' && <p className="mt-3 rounded-md border border-warning-border bg-warning/20 p-3 text-sm"><strong>Changes requested:</strong> {String(template.data?.rejectionReason || 'Read the reason in the audit log.')} Edit this version and submit it again.</p>}
+                <details className="mt-3 text-xs text-muted-foreground"><summary className="cursor-pointer">Message with placeholders</summary><p className="mt-2 font-mono whitespace-pre-wrap break-words">{String(template.data?.text || 'No message written yet')}</p></details>
                 <div className="mt-3 flex justify-between items-center text-xs text-muted-foreground">
-                  <span>v{String(template.data?.version || '1')}</span>
+                  <span>Version {String(template.data?.version || '1')}</span>
                   {['draft', 'rejected'].includes(template.status) && (
                     <div className="flex gap-2">
-                      <Button variant="link" size="sm" className="h-auto min-h-6 p-0" action="edit_template" record={template} onClick={() => handleAction(template, 'edit_template')}>Edit</Button>
+                      <Button variant="link" size="sm" className="h-auto min-h-6 p-0" action="edit_template" record={template} onClick={() => handleAction(template, 'edit_template')}>Edit template</Button>
                       <Button variant="link" size="sm" className="h-auto min-h-6 p-0" action="submit_template" record={template} onClick={() => handleAction(template, 'submit_template')}>Submit for review</Button>
                     </div>
                   )}
                   {template.status === 'submitted' && (
-                    <div className="flex gap-3"><Button variant="link" size="sm" className="h-auto min-h-6 p-0 text-success" action="approve_template" record={template} onClick={() => handleAction(template, 'approve_template')}>Approve</Button><Button variant="link" size="sm" className="h-auto min-h-6 p-0 text-destructive" action="reject_template" record={template} onClick={() => handleAction(template, 'reject_template')}>Request changes</Button></div>
+                    <div className="flex gap-3"><Button variant="link" size="sm" className="h-auto min-h-6 p-0 text-success" action="approve_template" record={template} onClick={() => handleAction(template, 'approve_template')}>Approve template</Button><Button variant="link" size="sm" className="h-auto min-h-6 p-0 text-destructive" action="reject_template" record={template} onClick={() => handleAction(template, 'reject_template')}>Request changes</Button></div>
                   )}
                   {template.status === 'approved' && <Button variant="link" size="sm" className="h-auto min-h-6 p-0" action="new_template_version" record={template} onClick={() => handleAction(template, 'new_template_version')}>Draft next version</Button>}
                 </div>
@@ -190,22 +208,8 @@ export default function PoliciesPage() {
         record={selectedRecord}
         isOpen={isDialogOpen}
         onOpenChange={setIsDialogOpen}
-        title={
-          actionKind === 'create_policy' ? 'Draft new policy' :
-          actionKind === 'edit_policy' ? 'Edit policy draft' :
-          actionKind === 'submit_policy' ? 'Submit policy for review' :
-          actionKind === 'approve_policy' ? 'Approve policy' :
-          actionKind === 'reject_policy' ? 'Reject policy' :
-          actionKind === 'new_policy_version' ? 'Draft next policy version' :
-          actionKind === 'backtest_policy' ? 'Test this policy version' :
-          actionKind === 'create_template' ? 'Draft new template' :
-          actionKind === 'edit_template' ? 'Edit template' :
-          actionKind === 'submit_template' ? 'Submit template for review' :
-          actionKind === 'approve_template' ? 'Approve template' :
-          actionKind === 'reject_template' ? 'Request template changes' :
-          actionKind === 'new_template_version' ? 'Draft next template version' :
-          'Action'
-        }
+        title={dialogTitles[actionKind] || 'Action'}
+        submitLabel={submitLabels[actionKind]}
         actionMutation={actionKind.includes('create') || actionKind.includes('edit') ? undefined : actionKind}
         context={actionKind === 'create_template' || actionKind === 'edit_template'
           ? values => <TemplatePreview text={values.text} />
@@ -222,13 +226,13 @@ export default function PoliciesPage() {
             { name: 'spacingHours', label: 'Time between attempts (hours)', type: 'number', isData: true, required: true },
             { name: 'firstNoticeHours', label: 'Notice before first attempt (hours)', type: 'number', isData: true, required: true },
             { name: 'retryNoticeHours', label: 'Notice before each retry (hours)', type: 'number', isData: true, required: true },
-             { name: 'partialAllowed', label: 'Allow partial collections', type: 'checkbox', isData: true },
-             { name: 'complianceMapping', label: 'How the policy meets each required rule', type: 'textarea', isData: true, required: true }
+             { name: 'partialAllowed', label: 'Allow collecting part of an instalment', type: 'checkbox', isData: true },
+             { name: 'complianceMapping', label: 'How this policy meets each required rule', type: 'textarea', isData: true, required: true }
           ] :
           actionKind === 'create_template' || actionKind === 'edit_template' ? [
             { name: 'name', label: 'Template name', type: 'text', required: true },
             { name: 'purpose', label: 'Purpose', type: 'text', isData: true, required: true },
-            { name: 'text', label: 'Message (include {{amount}}, {{date}}, {{merchant}} and {{contact}})', type: 'textarea', isData: true, required: true }
+            { name: 'text', label: 'Message', type: 'textarea', isData: true, required: true, help: 'Include {{amount}}, {{date}}, {{lender}} and {{contact}}. {{lender}} inserts the lender’s name. {{merchant}} still works in its place.' }
           ] :
           []
         }

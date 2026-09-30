@@ -29,7 +29,7 @@ describe("accessibility", () => {
     ["/mandates", "Mandates"],
     ["/reconciliation", "Reconciliation"],
     ["/exceptions", "Exceptions"],
-    ["/policies", "Policies & templates"],
+    ["/policies", "Policies and templates"],
     ["/reports", "Reports & analytics"],
     ["/evidence", "Go-live evidence"],
     ["/audit", "Audit log"],
