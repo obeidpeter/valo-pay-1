@@ -641,3 +641,10 @@ for (const recovered of [false, true]) it(`selects a new lender without asking t
   expect(confirm).not.toHaveBeenCalled();
   await waitFor(() => expect(Object.keys(sessionStorage).filter((key) => key.startsWith("valopay-lender:")).map((key) => sessionStorage.getItem(key))).toContain("lender-new"));
 });
+
+it("tells a sandbox member who is not an Admin which role creates a lender and where to change their demo role", async () => {
+  api.role = "Finance";
+  renderApp("/pilot");
+  expect(await screen.findByText("Only Admin can create a lender. Your role is Finance. Change your demo role in Settings.")).toBeTruthy();
+  expect((screen.getByRole("button", { name: "Create lender" }) as HTMLButtonElement).disabled).toBe(true);
+});

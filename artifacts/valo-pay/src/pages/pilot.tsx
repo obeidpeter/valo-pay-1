@@ -141,7 +141,7 @@ export default function PilotPage() {
         </form>
         {workspace?.role !== "Admin" && (
           <p className="text-sm text-muted-foreground">
-            Only an Admin can create a lender. Your role is{" "}
+            Only Admin can create a lender. Your role is{" "}
             {workspace?.role || "not set"}.
             {workspace?.accessMode !== "staff" &&
               " Change your demo role in Settings."}
