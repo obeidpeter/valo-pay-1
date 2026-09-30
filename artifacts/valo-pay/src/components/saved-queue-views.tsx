@@ -36,12 +36,12 @@ function SavedViews({ storageKey, views, fallback }: { storageKey: string; views
   const [name, setName] = useState(''), [message, setMessage] = useState(''), [error, setError] = useState('');
   const persist = (next: SavedView[]) => {
     try { localStorage.setItem(storageKey, JSON.stringify(next)); setSaved(next); setError(''); return true; }
-    catch { setError('This browser could not save the view. You can still bookmark or copy the filtered page URL.'); return false; }
+    catch { setError('This browser could not save the view. You can still bookmark this page or copy its address.'); return false; }
   };
   return <details className="rounded-xl border bg-card print:hidden">
     <summary className="flex min-h-11 cursor-pointer items-center gap-2 px-4 py-3 text-sm font-medium"><Bookmark aria-hidden="true" className="h-4 w-4 text-muted-foreground" />Saved views<span className="text-xs font-normal text-muted-foreground">{saved.length ? `${saved.length} saved` : 'Keep your usual filters'}</span></summary>
     <div className="space-y-3 border-t p-4">
-      <p className="text-xs text-muted-foreground">Saved for your user, lender and queue in this browser. Views keep status, owner and type; search text is not stored. Results update when opened.</p>
+      <p className="text-xs text-muted-foreground">Saved in this browser for you, this lender and this list. A view keeps your filters but not your search text. Results are up to date each time you open a view.</p>
       {saved.length > 0 && <ul className="flex flex-wrap gap-2">{saved.map(item => <li key={item.name} className="flex max-w-full min-w-0 items-center rounded-lg border">
         <Button variant="ghost" size="sm" className="min-w-0 flex-1" title={item.name} onClick={() => {
           setSearch(current => {
@@ -59,7 +59,7 @@ function SavedViews({ storageKey, views, fallback }: { storageKey: string; views
         const trimmed = name.trim();
         if (!trimmed) { setError('Enter a name for this view.'); return; }
         if (saved.some(item => item.name.toLowerCase() === trimmed.toLowerCase())) { setError('That name is already saved. Choose a different name or delete the existing view.'); return; }
-        if (saved.length >= 10) { setError('You can save up to 10 views per queue. Delete a view before adding another.'); return; }
+        if (saved.length >= 10) { setError('You can save up to 10 views for each list. Delete a view before you add another.'); return; }
         const candidate = search.get('view') || fallback;
         if (persist([...saved, { name: trimmed, view: views.includes(candidate) ? candidate : fallback, owner: search.get('owner') || '', type: search.get('type') || '' }])) { setName(''); setMessage(`Saved ${trimmed}.`); }
       }}>

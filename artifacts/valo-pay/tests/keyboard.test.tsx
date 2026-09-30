@@ -10,24 +10,24 @@ describe("keyboard", () => {
   it("offers a skip to the page content as the first tab stop, and marks the current page", async () => {
     const user = userEvent.setup();
     renderApp("/overview");
-    await screen.findByRole("heading", { name: "Operations overview" });
+    await screen.findByRole("heading", { name: "Overview" });
     await user.tab();
     const skip = document.activeElement as HTMLElement;
     expect(skip.textContent).toBe("Skip to page content");
     await user.click(skip);
     expect(document.activeElement?.id).toBe("main");
     expect(screen.getByRole("link", { name: /Overview/ }).getAttribute("aria-current")).toBe("page");
-    expect(screen.getByRole("link", { name: /Audit log/ }).getAttribute("aria-current")).toBeNull();
+    expect(screen.getByRole("link", { name: "Audit log" }).getAttribute("aria-current")).toBeNull();
   });
 
   it("moves focus to the page content after navigating, as a page load would", async () => {
     const user = userEvent.setup();
     renderApp("/overview");
-    await screen.findByRole("heading", { name: "Operations overview" });
-    await user.click(screen.getByRole("link", { name: /Audit log/ }));
+    await screen.findByRole("heading", { name: "Overview" });
+    await user.click(screen.getByRole("link", { name: "Audit log" }));
     await screen.findByRole("heading", { name: "Audit log" });
     await waitFor(() => expect(document.activeElement?.id).toBe("main"));
-    expect(screen.getByRole("link", { name: /Audit log/ }).getAttribute("aria-current")).toBe("page");
+    expect(screen.getByRole("link", { name: "Audit log" }).getAttribute("aria-current")).toBe("page");
   });
 
   it("starts the next console page at the top of its scrolling region", async () => {
@@ -41,7 +41,7 @@ describe("keyboard", () => {
     main.scrollLeft = 80;
 
     await user.click(screen.getByRole("link", { name: "Overview" }));
-    await screen.findByRole("heading", { name: "Operations overview" });
+    await screen.findByRole("heading", { name: "Overview" });
     expect(screen.getByRole("main")).toBe(main);
     await waitFor(() => {
       expect(main.scrollTop).toBe(0);
@@ -77,7 +77,7 @@ describe("keyboard", () => {
     expect(high.getAttribute("aria-selected")).toBe("true");
     await user.keyboard("{End}");
     expect(document.activeElement).toBe(resolved);
-    expect(await screen.findByText("Nothing resolved yet")).toBeTruthy();
+    expect(await screen.findByText("No resolved exceptions yet")).toBeTruthy();
     await user.keyboard("{Home}");
     expect(document.activeElement).toBe(open);
     expect(open.getAttribute("aria-selected")).toBe("true");

@@ -143,12 +143,12 @@ test("loading and error states keep an h1", async ({ page }) => {
   await expect(page.getByRole("status").filter({ hasText: "Loading your workspace…" })).toBeVisible();
   expect(await headingOne(page)).toEqual([]);
   release();
-  await expect(page.getByRole("heading", { level: 1, name: "Operations overview" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
   await page.unroute("**/api/v1/workspace");
 
   // A page whose first load failed, with nothing to show.
   for (const [route, api, problem] of [
-    ["/overview", "**/api/v1/overview?*", "Unable to load the overview"],
+    ["/overview", "**/api/v1/overview?*", "We could not load the overview"],
     ["/pay-by-bank", "**/api/v1/connected?*", "Unable to load Pay by Bank"],
     ["/credit-desk", "**/api/v1/connected?*", "Unable to load Credit Desk"],
     ["/cash-desk", "**/api/v1/connected?*", "Unable to load Cash Desk"],
@@ -187,7 +187,7 @@ test("the anonymous sandbox on a host without sign-in never fetches Clerk's code
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   await page.goto("/overview");
-  await expect(page.getByRole("heading", { level: 1, name: "Operations overview" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
   // The console fetches every page's code while the browser is idle, Team & access among them.
   await expect.poll(() => [...scripts].some((url) => /\/team-[\w-]+\.js$/.test(url)), { timeout: 15_000 }).toBe(true);
   await page.waitForLoadState("networkidle");
@@ -211,7 +211,7 @@ test("the landing page and the anonymous sandbox carry no shared schemas, zod or
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   expect(await entryCarries("/")).toEqual([]);
   await page.goto("/overview");
-  await expect(page.getByRole("heading", { level: 1, name: "Operations overview" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
   expect(await entryCarries("/overview")).toEqual([]);
   // The console fetches every page's code while idle; none of it is the warning, which only a staff administrator loads.
   await expect.poll(() => [...scripts].some((url) => /\/team-[\w-]+\.js$/.test(url)), { timeout: 15_000 }).toBe(true);
@@ -242,7 +242,7 @@ const focusFell = (page: Page) => page.evaluate(() => (window as unknown as { fo
  */
 async function pageToTheEnd(page: Page, path: string, label: string) {
   await page.goto(path);
-  const pager = page.getByRole("navigation", { name: `${label} pagination` });
+  const pager = page.getByRole("navigation", { name: `Pages of ${label}` });
   const next = pager.getByRole("button", { name: `Next page of ${label}` });
   const pages = Number((await pager.getByText(/^Page 1 of [\d,]+$/).innerText()).replace(/^Page 1 of |,/g, ""));
   expect(pages, path).toBeGreaterThan(2);
@@ -312,8 +312,8 @@ test("paging either picker by keyboard keeps the focus on the pager control pres
   expect((await request.post(`/api/v1/imports?merchantId=${lender}`, { data: { kind: "customers", csv: "name,reference,consentProvenance,bankName,accountMasked\n" + rows.join("\n"), mapping: {}, identityColumn: "reference", syntheticOnly: true, commit: true } })).ok()).toBeTruthy();
   await page.route(/\/api\/v1\/records\/(customers|due-items)\?/, async (route) => { await pause(700); await route.fallback(); });
   for (const { path, open, dialog: name, label } of [
-    { path: "/mandates", open: () => page.getByRole("button", { name: "Create synthetic mandate" }).first().click(), dialog: "Create synthetic mandate", label: "customer choices" },
-    { path: "/reconciliation", open: () => page.getByRole("row").filter({ hasText: "SBX-UNIDENTIFIED-001" }).getByRole("button", { name: "Allocate", exact: true }).click(), dialog: "Allocate payment", label: "instalment choices" },
+    { path: "/mandates", open: () => page.getByRole("button", { name: "Add mandate" }).first().click(), dialog: "Add mandate", label: "customer choices" },
+    { path: "/reconciliation", open: () => page.getByRole("row").filter({ hasText: "SBX-UNIDENTIFIED-001" }).getByRole("button", { name: "Allocate payment", exact: true }).click(), dialog: "Allocate payment", label: "instalment choices" },
   ]) {
     await page.goto(path);
     await open();
@@ -355,7 +355,7 @@ test("paging either picker with its form complete, or pressing Enter in its sear
     await expect(dialog).toBeVisible();
   }
   await page.goto("/reconciliation");
-  await page.getByRole("row").filter({ hasText: "SBX-UNIDENTIFIED-001" }).getByRole("button", { name: "Allocate", exact: true }).click();
+  await page.getByRole("row").filter({ hasText: "SBX-UNIDENTIFIED-001" }).getByRole("button", { name: "Allocate payment", exact: true }).click();
   const allocation = page.getByRole("dialog", { name: "Allocate payment" });
   await expect(allocation.getByText(/^1–25 of [\d,]+ instalment choices$/)).toBeVisible();
   await allocation.getByLabel(/^Instalment/).selectOption({ index: 1 });
@@ -364,8 +364,8 @@ test("paging either picker with its form complete, or pressing Enter in its sear
   await lookFurther(allocation, "instalment choices", "Find an instalment", "BROWSER-DUE-1");
 
   await page.goto("/mandates");
-  await page.getByRole("button", { name: "Create synthetic mandate" }).first().click();
-  const mandate = page.getByRole("dialog", { name: "Create synthetic mandate" });
+  await page.getByRole("button", { name: "Add mandate" }).first().click();
+  const mandate = page.getByRole("dialog", { name: "Add mandate" });
   await expect(mandate.getByText(/^1–25 of [\d,]+ customer choices$/)).toBeVisible();
   await mandate.locator("#mandate-customerId").selectOption({ index: 1 });
   await mandate.getByLabel(/Mandate name/).fill("Mandate made by paging");
@@ -463,8 +463,8 @@ test("a failed page of the allocation picker moves focus to its own notice, insi
     return answer.failing ? route.fulfill(badGateway) : route.fallback();
   });
   await page.goto("/reconciliation");
-  await expect(page.getByText(/^Proposed matches could not be loaded/)).toBeVisible();
-  await page.getByRole("row").filter({ hasText: "SBX-UNIDENTIFIED-001" }).getByRole("button", { name: "Allocate", exact: true }).click();
+  await expect(page.getByText(/^We could not load matches to review/)).toBeVisible();
+  await page.getByRole("row").filter({ hasText: "SBX-UNIDENTIFIED-001" }).getByRole("button", { name: "Allocate payment", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Allocate payment" });
   await expect(dialog.getByText(/^1–25 of [\d,]+ instalment choices$/)).toBeVisible();
   await tryAgainKeepsFocus(page, dialog, "instalment choices", answer);

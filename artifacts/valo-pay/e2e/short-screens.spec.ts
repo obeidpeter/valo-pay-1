@@ -21,10 +21,10 @@ test.beforeEach(async ({ request, page }) => {
 test("paging a table keeps its pager in view even where the browser does not anchor the view", async ({ page }) => {
   await page.goto("/reconciliation#precision-audit");
   await expect(page.locator("#precision-audit")).toBeFocused();
-  const pager = page.getByRole("navigation", { name: "proposed matches pagination" });
+  const pager = page.getByRole("navigation", { name: "Pages of matches to review" });
   // The last page is shorter, and going back makes the table taller again: the pager stays in view both ways.
   for (const [direction, shown] of [["Next", "Page 2 of 3"], ["Next", "Page 3 of 3"], ["Previous", "Page 2 of 3"]]) {
-    await pager.getByRole("button", { name: `${direction} page of proposed matches` }).click();
+    await pager.getByRole("button", { name: `${direction} page of matches to review` }).click();
     await expect(pager.getByText(shown, { exact: true })).toBeVisible();
     await expect(pager).toBeInViewport();
   }

@@ -10,7 +10,7 @@ describe('beginner navigation and access recovery', () => {
   it('finds pages by task words without searching records or changing permissions', async () => {
     const user = userEvent.setup();
     renderApp('/overview');
-    await screen.findByRole('heading', { name: 'Operations overview' });
+    await screen.findByRole('heading', { name: 'Overview' });
     const pageSearch = screen.getByRole('searchbox', { name: 'Find a page' });
     await user.type(pageSearch, 'payment match');
     const nav = screen.getByRole('navigation', { name: 'Pages' });
@@ -26,7 +26,7 @@ describe('beginner navigation and access recovery', () => {
   it('keeps the page search live region in place before the first search, so its first count is announced', async () => {
     const user = userEvent.setup();
     renderApp('/overview');
-    await screen.findByRole('heading', { name: 'Operations overview' });
+    await screen.findByRole('heading', { name: 'Overview' });
     const nav = screen.getByRole('navigation', { name: 'Pages' });
     // A screen reader announces a change to a live region, not a region that arrives with its first message.
     const region = nav.querySelector('[role="status"], [aria-live="polite"]');
@@ -39,7 +39,7 @@ describe('beginner navigation and access recovery', () => {
   it('returns focus to the page search when Clear page search removes itself', async () => {
     const user = userEvent.setup();
     renderApp('/overview');
-    await screen.findByRole('heading', { name: 'Operations overview' });
+    await screen.findByRole('heading', { name: 'Overview' });
     const nav = screen.getByRole('navigation', { name: 'Pages' });
     const pageSearch = within(nav).getByRole('searchbox', { name: 'Find a page' });
     await user.type(pageSearch, 'payroll');
@@ -51,7 +51,7 @@ describe('beginner navigation and access recovery', () => {
   it('returns focus to the drawer’s page search, not the drawer, when its search is cleared from the keyboard', async () => {
     const user = userEvent.setup();
     renderApp('/overview');
-    await screen.findByRole('heading', { name: 'Operations overview' });
+    await screen.findByRole('heading', { name: 'Overview' });
     await user.click(screen.getByRole('button', { name: 'Menu' }));
     const drawer = await screen.findByRole('dialog', { name: 'Menu' });
     const search = within(drawer).getByRole('searchbox', { name: 'Find a page' });
@@ -81,7 +81,7 @@ describe('beginner navigation and access recovery', () => {
   it('does not promote administrator-only retention controls to other roles', async () => {
     api.role = 'Finance';
     renderApp('/overview');
-    await screen.findByRole('heading', { name: 'Operations overview' });
+    await screen.findByRole('heading', { name: 'Overview' });
     expect(screen.queryByRole('link', { name: 'Data retention' })).toBeNull();
     expect(screen.getByRole('link', { name: 'Team & access' })).toBeTruthy();
     expect(api.calls.some(call => call.path.includes('lifecycle'))).toBe(false);
@@ -90,7 +90,7 @@ describe('beginner navigation and access recovery', () => {
   it('clears a menu search first and lets Escape close the menu when it is empty', async () => {
     const user = userEvent.setup();
     renderApp('/overview');
-    await screen.findByRole('heading', { name: 'Operations overview' });
+    await screen.findByRole('heading', { name: 'Overview' });
     await user.click(screen.getByRole('button', { name: 'Menu' }));
     const drawer = await screen.findByRole('dialog', { name: 'Menu' });
     const search = within(drawer).getByRole('searchbox', { name: 'Find a page' });

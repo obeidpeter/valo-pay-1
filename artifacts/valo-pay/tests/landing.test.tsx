@@ -183,7 +183,7 @@ describe("landing page", () => {
       screen.getAllByRole("link", { name: /Open the sandbox/ })[0]!,
     );
     expect(
-      await screen.findByRole("heading", { name: "Operations overview" }),
+      await screen.findByRole("heading", { name: "Overview" }),
     ).toBeTruthy();
     expect(api.calls.some((call) => call.path === "/v1/workspace")).toBe(true);
     await waitFor(() => expect(document.title).toBe("Overview · Valo Pay"));

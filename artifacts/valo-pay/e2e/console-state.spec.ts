@@ -29,7 +29,7 @@ function confirms(page: Page) {
 test("browser Back and Forward ask before an unsaved draft is discarded", async ({ page }) => {
   const asked = confirms(page);
   await page.goto("/overview");
-  await expect(page.getByRole("heading", { level: 1, name: "Operations overview" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
   await navigate(page, "Settings");
   await expect(page.getByText("07:00 WAT").first()).toBeVisible();
   await page.getByRole("button", { name: "Edit", exact: true }).click();
@@ -47,7 +47,7 @@ test("browser Back and Forward ask before an unsaved draft is discarded", async 
   // Accepted: Back leaves, and Forward returns to a page without the draft.
   asked.answer.accept = true;
   await page.goBack();
-  await expect(page.getByRole("heading", { level: 1, name: "Operations overview" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
   await expect.poll(() => asked.seen.length).toBe(2);
   await page.goForward();
   await expect(page.getByRole("heading", { level: 1, name: "Settings & administration" })).toBeVisible();
@@ -57,7 +57,7 @@ test("browser Back and Forward ask before an unsaved draft is discarded", async 
 test("browser Back keeps a case note when the person chooses to keep editing", async ({ page }) => {
   const asked = confirms(page);
   await page.goto("/exceptions");
-  await page.getByRole("link", { name: "Case & handover" }).first().click();
+  await page.getByRole("link", { name: "Open case" }).first().click();
   const note = page.getByRole("textbox", { name: "Handover or progress note" });
   await note.fill("Draft note for the next person");
   await page.goBack();
@@ -118,12 +118,12 @@ test("a failed background refresh keeps the open draft and says the workspace co
 test("Try again on a failed refresh's notice refreshes the workspace at once", async ({ page }) => {
   await page.clock.install();
   await page.goto("/overview");
-  await expect(page.getByRole("heading", { level: 1, name: "Operations overview" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
   const outage = await breakWorkspace(page, 502);
   await passRefresh(page);
   const problem = page.getByRole("status").filter({ hasText: "Your workspace could not be refreshed." });
   await expect(problem).toBeVisible();
-  await expect(page.getByRole("heading", { level: 1, name: "Operations overview" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
   await outage.restore();
   await problem.getByRole("button", { name: "Try again" }).click();
   await expect(problem).toHaveCount(0);
@@ -143,7 +143,7 @@ test("a save whose answer was lost keeps its recovery through a failed refresh",
     await route.fetch();
     await route.abort("connectionreset");
   });
-  await dialog.getByRole("button", { name: "Save", exact: true }).click();
+  await dialog.getByRole("button", { name: "Add customer", exact: true }).click();
   await expect(dialog.getByText("Outcome not confirmed", { exact: true })).toBeVisible();
 
   const outage = await breakWorkspace(page, 502);

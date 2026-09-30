@@ -107,7 +107,7 @@ describe('the quick import on Collections', () => {
     renderApp('/collections');
     await user.click(await screen.findByRole('button', { name: 'Import sample data' }));
     await user.selectOptions(screen.getByLabelText('Import as'), 'due-items');
-    await user.selectOptions(screen.getByLabelText('Amounts in your CSV *'), 'naira');
+    await user.selectOptions(screen.getByLabelText('Amounts in the source file *'), 'naira');
     await user.click(screen.getByRole('button', { name: 'Download sample CSV' }));
     const sample = (await downloads[0]!.text()).replace(/^\uFEFF/, '');
     expect(sample).toBe('Source row ID,Name,Reference,Customer reference or ID,Amount,Due date,Mandate reference or ID,Collection owner,Override reason\nsample-instalment-001,Sample instalment,SAMPLE-D001,DEMO-C1001,10000.00,2028-12-01,,lms,');
@@ -137,7 +137,7 @@ describe('the quick import on Collections', () => {
     await user.click(screen.getByLabelText('CSV content'));
     // A header the browser cannot read says what to fix rather than asking for a row ID column it cannot offer.
     await user.paste('"Unclosed,header\nr1,Synthetic consent');
-    expect(screen.getByText('2. Start the CSV with a header row that names each column, with every quote closed.')).toBeTruthy();
+    expect(screen.getByText('2. Make sure the first row of the CSV names each column, and every quotation mark is closed.')).toBeTruthy();
     expect(screen.queryByLabelText('Row ID column *')).toBeNull();
     await user.clear(screen.getByLabelText('CSV content'));
     await user.paste('\n\nrow_id,name,consentProvenance\nr1,After blank lines,Synthetic consent');
@@ -174,7 +174,7 @@ describe('the quick import on Collections', () => {
     const user = userEvent.setup();
     renderApp('/collections');
     await user.click(await screen.findByRole('button', { name: 'Import sample data' }));
-    await user.selectOptions(screen.getByLabelText('Amounts in your CSV *'), 'naira');
+    await user.selectOptions(screen.getByLabelText('Amounts in the source file *'), 'naira');
     await user.click(screen.getByLabelText('CSV content'));
     await user.paste('row_id,name,customer,amount,owner\nr1,Undated,NOPE-C,0,someone');
     await user.selectOptions(screen.getByLabelText('Map customer'), 'customerId');

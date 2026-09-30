@@ -13,7 +13,7 @@ afterEach(() => { api.uninstall(); vi.useRealTimers(); });
 describe("print", () => {
   it("marks the chrome to leave the page and carries the lender and the sandbox notice instead", async () => {
     renderApp("/overview");
-    await screen.findByRole("heading", { name: "Operations overview" });
+    await screen.findByRole("heading", { name: "Overview" });
     const banner = screen.getByText(/^Sandbox · Sample data\. We never hold money\./).parentElement!;
     expect(banner.className).toContain("print:hidden");
     expect(screen.getByRole("complementary").className).toContain("print:hidden");
@@ -27,7 +27,7 @@ describe("print", () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     vi.setSystemTime(new Date("2026-09-18T09:05:00Z"));
     renderApp("/overview");
-    await screen.findByRole("heading", { name: "Operations overview" });
+    await screen.findByRole("heading", { name: "Overview" });
     const footer = screen.getByText(/^Printed /);
     expect(footer.textContent).toMatch(/ from the Valo Pay sandbox · Overview · (Meridian Credit|Cedar Cooperative)\.$/);
     const before = footer.textContent!;

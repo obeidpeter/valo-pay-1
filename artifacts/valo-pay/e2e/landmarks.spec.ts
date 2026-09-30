@@ -17,17 +17,17 @@ const routes: Array<[string, string | RegExp]> = [
   ["/sign-up", "Create an account"],
   ["/team-invite", "Accept your invitation"],
   ["/no-such-page", "Page not found"],
-  ["/overview", "Operations overview"],
+  ["/overview", "Overview"],
   ["/work", "My work"],
   ["/exceptions", "Exceptions"],
   ["/reconciliation", "Reconciliation"],
   ["/reconciliation?view=review", "Reconciliation"],
   ["/collections", "Collections"],
   ["/imports", "Import batches"],
-  ["/close-review", "Finance close review"],
+  ["/close-review", "Close review"],
   ["/customers", "Customers"],
   ["/mandates", "Mandates"],
-  ["/policies", "Policies & templates"],
+  ["/policies", "Policies and templates"],
   ["/pay-by-bank", "Pay by Bank"],
   ["/credit-desk", "Credit Desk"],
   ["/cash-desk", "Cash Desk"],
@@ -114,7 +114,7 @@ test("record pages have unique, top-level landmarks and pass WCAG 2.2 AA as a wh
   await audit(page, "customer history");
   const exception = (await (await request.get(`/api/v1/records/exceptions?merchantId=${lender}&limit=1`)).json()).items[0];
   await page.goto(`/cases/${exception.id}`);
-  await settle(page, "Coordinate a case");
+  await settle(page, /^Case: /);
   await audit(page, "case");
 });
 

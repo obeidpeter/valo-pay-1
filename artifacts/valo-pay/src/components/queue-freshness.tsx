@@ -29,12 +29,12 @@ export function QueueFreshness({ queries }: { queries: QueueQuery[] }) {
     try { await Promise.allSettled(queries.map(query => query.refetch())); }
     finally { setRefreshing(false); setNow(Date.now()); }
   };
-  return <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card px-4 py-3 text-xs print:hidden" aria-label="Queue freshness">
+  return <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card px-4 py-3 text-xs print:hidden">
     <div role="status" className="space-y-1 text-muted-foreground">
       <p>{updatedAt ? <>Last updated <time dateTime={new Date(updatedAt).toISOString()}>{formatDate(new Date(updatedAt).toISOString())}</time></> : 'Queue has not fully loaded yet.'}</p>
-      {!online ? <p className="flex items-center gap-1.5 text-warning"><WifiOff className="h-3.5 w-3.5" aria-hidden="true" />Offline. {hasData ? 'Showing last loaded records. Reconnect and refresh before taking action.' : 'Reconnect to load this queue.'}</p>
+      {!online ? <p className="flex items-center gap-1.5 text-warning-strong"><WifiOff className="h-3.5 w-3.5" aria-hidden="true" />Offline. {hasData ? 'Showing last loaded records. Reconnect and refresh before taking action.' : 'Reconnect to load this queue.'}</p>
         : failed ? <p className="text-destructive">Refresh did not complete. {hasData ? 'Some records may be out of date. ' : ''}Try refreshing again.</p>
-        : stale ? <p className="text-warning">These records were loaded more than 5 minutes ago. Refresh before taking action.</p> : null}
+        : stale ? <p className="text-warning-strong">These records were loaded more than 5 minutes ago. Refresh before taking action.</p> : null}
     </div>
     <Button variant="outline" size="sm" disabled={!online} busy={busy} busyLabel="Refreshing…" onClick={() => { void refresh(); }}><RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />Refresh queue</Button>
   </div>;

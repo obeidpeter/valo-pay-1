@@ -10,23 +10,23 @@ async function navigate(page: Page, name: string) {
 test('unmatched searches explain the result and reconciliation search survives changing views',async({page})=>{
   for(const route of ['/exceptions','/mandates','/collections']) {
     await page.goto(route+'?q=nonexistent-search');
-    await expect(page.getByText('No results match your search',{exact:true})).toBeVisible();
-    await expect(page.getByText(/^(All clear: no open exceptions|No mandates yet|No instalments recorded)$/)).toHaveCount(0);
+    await expect(page.getByText(/^No (exceptions|mandates|instalments) match your search$/)).toBeVisible();
+    await expect(page.getByText(/^(All clear: no open exceptions|No mandates yet|No instalments yet)$/)).toHaveCount(0);
     await page.getByRole('button',{name:'Clear search'}).click();
     await expect(page.locator('tbody tr').first()).toBeVisible();
-    await expect(page.getByText('No results match your search',{exact:true})).toHaveCount(0);
+    await expect(page.getByText(/^No (exceptions|mandates|instalments) match your search$/)).toHaveCount(0);
   }
   await page.goto('/reconciliation?view=review');
   await page.getByLabel('Search reconciliation').fill('BROWSER-MATCH');
   await page.getByRole('button',{name:'Search',exact:true}).click();
-  await expect(page.getByText('1–25 of 55 proposed matches',{exact:true})).toBeVisible();
-  await page.getByRole('link',{name:'All reconciliation',exact:true}).click();
+  await expect(page.getByText('1–25 of 55 matches to review',{exact:true})).toBeVisible();
+  await page.getByRole('link',{name:'All sections',exact:true}).click();
   await expect(page.getByLabel('Search reconciliation')).toHaveValue('BROWSER-MATCH');
-  await expect(page.getByText('1–25 of 55 proposed matches',{exact:true})).toBeVisible();
+  await expect(page.getByText('1–25 of 55 matches to review',{exact:true})).toBeVisible();
 });
 test("the allocation picker counts only the instalments it offers", async ({ page }) => {
   await page.goto("/reconciliation");
-  await page.getByRole("row").filter({ hasText: "SBX-UNIDENTIFIED-001" }).getByRole("button", { name: "Allocate", exact: true }).click();
+  await page.getByRole("row").filter({ hasText: "SBX-UNIDENTIFIED-001" }).getByRole("button", { name: "Allocate payment", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Allocate payment" });
   const pager = dialog.getByText(/^1–\d+ of \d+ instalment choices$/);
   await expect(pager).toBeVisible();
@@ -35,12 +35,12 @@ test("the allocation picker counts only the instalments it offers", async ({ pag
   await expect(offered).toHaveCount(Number(shown));
   // Every page is full of choices, so the count is the number of instalments that can take a payment.
   expect(Number(total)).toBeGreaterThan(Number(shown));
-  await expect(dialog.getByText("Instalments that are paid, cancelled, closed, in dispute or held for a renewed reversal review cannot take a payment and are not listed.")).toBeVisible();
+  await expect(dialog.getByText("Paid, cancelled, closed and disputed instalments are not listed. Instalments on hold while Finance reviews an earlier reversal decision are not listed either.")).toBeVisible();
   // DEMO-LOAN-1001 is paid: searching for it offers nothing and says so, with no pager.
   await dialog.getByRole("searchbox", { name: "Find an instalment" }).fill("DEMO-LOAN-1001");
   await expect(dialog.getByText("No instalment that can take a payment matches this search.")).toBeVisible();
   await expect(offered).toHaveCount(0);
-  await expect(dialog.getByRole("navigation", { name: "instalment choices pagination" })).toHaveCount(0);
+  await expect(dialog.getByRole("navigation", { name: "Pages of instalment choices" })).toHaveCount(0);
 });
 test("paged queue search, saved view, record return and browser history", async ({
   page,
@@ -63,7 +63,7 @@ test("paged queue search, saved view, record return and browser history", async 
     .first()
     .innerText();
   await page.locator("tbody tr").first().getByRole("link").click();
-  await page.getByRole("link", { name: "Back to mandates" }).click();
+  await page.getByRole("link", { name: "Back to Mandates" }).click();
   await expect(page.getByText("Page 2 of 3", { exact: true })).toBeVisible();
   await expect(page.getByText(reference, { exact: true })).toBeVisible();
   await page.locator("summary").filter({ hasText: "Saved views" }).click();
@@ -106,7 +106,7 @@ test("close range uses native date fields, pages summaries and loads evidence on
   await page.getByRole("button", { name: "Apply dates" }).click();
   await expect(
     page.getByText(
-      /Showing 2 recorded closes from 2026-08-02 through 2026-08-03/,
+      /Showing 2 recorded closes from 2 Aug 2026 to 3 Aug 2026/,
     ),
   ).toBeVisible();
   await page
@@ -115,7 +115,7 @@ test("close range uses native date fields, pages summaries and loads evidence on
     .first()
     .click();
   await expect(
-    page.getByText("Unmatched at start", { exact: true }),
+    page.getByText("Unallocated at start", { exact: true }),
   ).toBeVisible();
   expect(detailRequests).toHaveLength(1);
   const width = await page.evaluate(() => ({
@@ -152,7 +152,7 @@ test("a close's money in another currency is listed in that currency beside its 
   // The sample closes are dated around the fixed clock; this close is the one they do not name.
   const latest = page.getByRole("list", { name: "Recorded daily closes" }).locator("li").filter({ hasNotText: "Recorded sample close" }).first();
   await latest.getByText("View close details").click();
-  for (const label of ["Unmatched at start", "Unmatched at close"]) {
+  for (const label of ["Unallocated at start", "Unallocated at close"]) {
     await expect(latest.locator("dt", { hasText: label }).locator("xpath=following-sibling::dd")).toContainText(/and USD\u00a01,000\.00 \(1 payment\)/);
   }
 });
@@ -172,7 +172,7 @@ test("the API and the browser print a close's money in another currency with the
   // The close's own line, which the API wrote, and its details, which the browser writes.
   await expect(latest).toContainText("including COP 1,000.00, HUF 1,234.56 and RSD 50.00 in other currencies");
   await latest.getByText("View close details").click();
-  await expect(latest.locator("dt", { hasText: "Unmatched at close" }).locator("xpath=following-sibling::dd")).toContainText(/COP\u00a01,000\.00 \(1 payment\), HUF\u00a01,234\.56 \(1 payment\) and RSD\u00a050\.00 \(1 payment\)/);
+  await expect(latest.locator("dt", { hasText: "Unallocated at close" }).locator("xpath=following-sibling::dd")).toContainText(/COP\u00a01,000\.00 \(1 payment\), HUF\u00a01,234\.56 \(1 payment\) and RSD\u00a050\.00 \(1 payment\)/);
 });
 test("arriving at the accuracy review scrolls there once; paging a table keeps the view on that table", async ({
   page,
@@ -182,11 +182,11 @@ test("arriving at the accuracy review scrolls there once; paging a table keeps t
   await expect(review).toBeFocused();
   await expect(review).toBeInViewport();
   const pager = page.getByRole("navigation", {
-    name: "proposed matches pagination",
+    name: "Pages of matches to review",
   });
   for (const next of ["Page 2 of 3", "Page 3 of 3"]) {
     await pager
-      .getByRole("button", { name: "Next page of proposed matches" })
+      .getByRole("button", { name: "Next page of matches to review" })
       .click();
     await expect(pager.getByText(next, { exact: true })).toBeVisible();
     await expect(pager).toBeInViewport();
@@ -207,14 +207,14 @@ test("reconciliation pages retain evidence and reject a proposed match with a re
   });
   await page.goto("/reconciliation?view=review");
   await expect(
-    page.getByRole("button", { name: "Next page of proposed matches" }),
+    page.getByRole("button", { name: "Next page of matches to review" }),
   ).toBeVisible();
   await page
-    .getByRole("button", { name: "Next page of proposed matches" })
+    .getByRole("button", { name: "Next page of matches to review" })
     .click();
   await expect(page.getByText("Page 2 of 3", { exact: true })).toBeVisible();
   await page
-    .getByRole("button", { name: "Reject", exact: true })
+    .getByRole("button", { name: "Reject match", exact: true })
     .first()
     .click();
   const dialog = page.getByRole("dialog");
@@ -228,7 +228,7 @@ test("reconciliation pages retain evidence and reject a proposed match with a re
     response.url().includes("/api/v1/actions?") && response.request().method() === "POST",
   );
   await dialog
-    .getByRole("button", { name: "Reject allocation", exact: true })
+    .getByRole("button", { name: "Reject match", exact: true })
     .click();
   const response = await rejection;
   const outcome = await response.json();

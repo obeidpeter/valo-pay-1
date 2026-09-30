@@ -32,7 +32,7 @@ describe('large customer directory', () => {
     await screen.findByText('Scale customer 09999');
     const table = screen.getByRole('table');
     expect(within(table).getAllByRole('row')).toHaveLength(26);
-    const pages = screen.getByRole('navigation', { name: 'customers pagination' });
+    const pages = screen.getByRole('navigation', { name: 'Pages of customers' });
     expect(pages.textContent).toContain('1–25 of 10,000 customers');
     await user.click(within(pages).getByRole('button', { name: 'Next page of customers' }));
     await screen.findByText('Scale customer 09974');
@@ -87,7 +87,7 @@ describe('paging by keyboard', () => {
     sixtyCustomers();
     renderApp('/customers');
     await screen.findByText('Pager customer 59');
-    const pages = screen.getByRole('navigation', { name: 'customers pagination' });
+    const pages = screen.getByRole('navigation', { name: 'Pages of customers' });
     const next = within(pages).getByRole('button', { name: 'Next page of customers' });
     const release = api.hold(/^\/v1\/records\/customers$/);
     await press(user, next);
@@ -138,8 +138,8 @@ describe('paging by keyboard', () => {
     const user = userEvent.setup();
     sixtyCustomers();
     renderApp('/mandates');
-    await user.click(await screen.findByRole('button', { name: 'Create synthetic mandate' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Create synthetic mandate' });
+    await user.click(await screen.findByRole('button', { name: 'Add mandate' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Add mandate' });
     await within(dialog).findByText('1–25 of 60 customer choices');
     const next = within(dialog).getByRole('button', { name: 'Next page of customer choices' });
     const release = api.hold(/^\/v1\/records\/customers$/);
@@ -165,9 +165,9 @@ describe('paging by keyboard', () => {
     renderApp('/reconciliation');
     const payments = (await screen.findByRole('heading', { name: 'Unallocated payments' })).parentElement!.parentElement!;
     const row = (await within(payments).findByText('SBX-UNIDENTIFIED-001')).closest('tr')!;
-    await user.click(within(row).getByRole('button', { name: 'Allocate' }));
+    await user.click(within(row).getByRole('button', { name: 'Allocate payment' }));
     const dialog = await screen.findByRole('dialog', { name: 'Allocate payment' });
-    const pager = await within(dialog).findByRole('navigation', { name: 'instalment choices pagination' });
+    const pager = await within(dialog).findByRole('navigation', { name: 'Pages of instalment choices' });
     const total = Number(within(pager).getByText(/^1–25 of \d+ instalment choices$/).textContent!.match(/of (\d+)/)![1]);
     expect(total).toBeGreaterThan(50);
     const next = within(pager).getByRole('button', { name: 'Next page of instalment choices' });
@@ -188,7 +188,7 @@ describe('paging by keyboard', () => {
    */
   async function pageThrough(user: ReturnType<typeof userEvent.setup>, label: string, request: RegExp, rows: () => number) {
     // A page of several tables (Reconciliation's six) can take a few seconds to render under load.
-    const pager = await screen.findByRole('navigation', { name: `${label} pagination` }, { timeout: 10_000 });
+    const pager = await screen.findByRole('navigation', { name: `Pages of ${label}` }, { timeout: 10_000 });
     const next = within(pager).getByRole('button', { name: `Next page of ${label}` });
     const release = api.hold(request);
     await press(user, next);
@@ -390,11 +390,11 @@ describe('a page that fails to load', () => {
     await failingNext(user, await screen.findByRole('button', { name: 'Next page of customers' }), /^\/v1\/records\/customers$/, /^Unable to load customers/);
     unmount();
     const exceptions = renderApp('/exceptions');
-    await failingNext(user, await screen.findByRole('button', { name: 'Next page of exceptions' }), /^\/v1\/queues\/exceptions$/, /^Exceptions could not be loaded/);
+    await failingNext(user, await screen.findByRole('button', { name: 'Next page of exceptions' }), /^\/v1\/queues\/exceptions$/, /^We could not load exceptions/);
     exceptions.unmount();
     renderApp('/reconciliation');
     // A table's notice has no button of its own (Refresh queue sits above), so the notice itself takes the focus.
-    await failingNext(user, await screen.findByRole('button', { name: 'Next page of unallocated payments' }, { timeout: 10_000 }), /^\/v1\/reconciliation\/payments$/, /^Unallocated payments could not be loaded/);
+    await failingNext(user, await screen.findByRole('button', { name: 'Next page of unallocated payments' }, { timeout: 10_000 }), /^\/v1\/reconciliation\/payments$/, /^We could not load unallocated payments/);
   }, 30_000);
 
   it('moves focus to the notice that replaced the page buttons of a pilot list', async () => {
@@ -410,7 +410,7 @@ describe('a page that fails to load', () => {
     renderApp('/reconciliation');
     const payments = (await screen.findByRole('heading', { name: 'Unallocated payments' })).parentElement!.parentElement!;
     const row = (await within(payments).findByText('SBX-UNIDENTIFIED-001')).closest('tr')!;
-    await user.click(within(row).getByRole('button', { name: 'Allocate' }));
+    await user.click(within(row).getByRole('button', { name: 'Allocate payment' }));
     const dialog = await screen.findByRole('dialog', { name: 'Allocate payment' });
     await within(dialog).findByText(/^1–25 of \d+ instalment choices$/);
     await failingNext(user, within(dialog).getByRole('button', { name: 'Next page of instalment choices' }), /^\/v1\/records\/due-items$/, /^Unable to load instalment choices/);
@@ -458,10 +458,10 @@ describe('the notice of the list whose page failed', () => {
     // The proposed matches cannot be read when the page opens, so their table shows its problem notice.
     api.failNext(/^\/v1\/reconciliation\/proposals$/, unavailable);
     renderApp('/reconciliation');
-    await screen.findByText(/Proposed matches could not be loaded/, undefined, { timeout: 10_000 });
+    await screen.findByText(/We could not load matches to review/, undefined, { timeout: 10_000 });
     const payments = (await screen.findByRole('heading', { name: 'Unallocated payments' })).parentElement!.parentElement!;
     const row = (await within(payments).findByText('SBX-UNIDENTIFIED-001')).closest('tr')!;
-    await user.click(within(row).getByRole('button', { name: 'Allocate' }));
+    await user.click(within(row).getByRole('button', { name: 'Allocate payment' }));
     const dialog = await screen.findByRole('dialog', { name: 'Allocate payment' });
     await within(dialog).findByText(/^1–25 of \d+ instalment choices$/);
     api.failNext(/^\/v1\/records\/due-items$/, unavailable);
@@ -478,10 +478,10 @@ describe('the notice of the list whose page failed', () => {
     });
     api.failNext(/^\/v1\/reconciliation\/proposals$/, unavailable);
     renderApp('/reconciliation');
-    await screen.findByText(/Proposed matches could not be loaded/, undefined, { timeout: 10_000 });
+    await screen.findByText(/We could not load matches to review/, undefined, { timeout: 10_000 });
     api.failNext(/^\/v1\/reconciliation\/observations$/, unavailable);
     await press(user, await screen.findByRole('button', { name: 'Next page of payment evidence' }, { timeout: 10_000 }));
-    const notice = await screen.findByText(/^Payment evidence could not be loaded/);
+    const notice = await screen.findByText(/^We could not load payment evidence/);
     await waitFor(() => expect(document.activeElement).toBe(notice));
   }, 30_000);
 
@@ -534,7 +534,7 @@ describe('the notice of the list whose page failed', () => {
       state.records.push(...Array.from({ length: 60 }, (_, index) => ({ ...structuredClone(sample), id: randomUUID(), reference: `PAGER-exceptions-${index}` })));
     });
     renderApp('/exceptions');
-    await tryAgain(user, await screen.findByRole('button', { name: 'Next page of exceptions' }), /^\/v1\/queues\/exceptions$/, /^Exceptions could not be loaded/, () => screen.findByText(/^26–50 of \d+ exceptions$/));
+    await tryAgain(user, await screen.findByRole('button', { name: 'Next page of exceptions' }), /^\/v1\/queues\/exceptions$/, /^We could not load exceptions/, () => screen.findByText(/^26–50 of \d+ exceptions$/));
   }, 30_000);
 
   it('keeps the focus through Try again on Saved exports', async () => {

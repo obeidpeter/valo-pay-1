@@ -33,7 +33,7 @@ describe("theme", () => {
   it("switches the theme from the sidebar and keeps the saved choice", async () => {
     const user = userEvent.setup();
     renderApp("/overview");
-    await screen.findByRole("heading", { name: "Operations overview" });
+    await screen.findByRole("heading", { name: "Overview" });
     await user.click(screen.getByRole("button", { name: "Switch to dark theme" }));
     expect(html()).toBe(true);
     expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe("dark");

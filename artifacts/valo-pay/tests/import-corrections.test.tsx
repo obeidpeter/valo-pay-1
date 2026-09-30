@@ -66,7 +66,7 @@ async function propose(batchId: string, targetId: string, wait = true) {
     "Sandbox Finance",
   );
   await user.click(screen.getByRole("button", { name: "Propose correction" }));
-  if (wait) await screen.findByRole("heading", { name: "Awaiting review" });
+  if (wait) await screen.findByRole("heading", { name: "Waiting for review" });
   return user;
 }
 it("preserves the original batch, shows before/after, and requires a different person to apply a correction", async () => {
@@ -85,7 +85,7 @@ it("preserves the original batch, shows before/after, and requires a different p
   queryClient.clear();
   api.role = "Finance";
   renderApp(`/imports?batch=${batchId}`);
-  await screen.findByRole("heading", { name: "Awaiting review" });
+  await screen.findByRole("heading", { name: "Waiting for review" });
   expect(
     screen.queryByRole("button", { name: "Approve and apply correction" }),
   ).toBeNull();
@@ -134,7 +134,7 @@ it('opens the exact linked correction and lets an administrator recover its revi
   await user.type(screen.getByLabelText('Reassignment reason'), 'The named reviewer no longer has access to this lender.');
   await user.click(screen.getByRole('button', { name: 'Reassign correction reviewer' }));
   await screen.findByText('Reviewer assignment history');
-  expect(screen.getByRole('heading', { name: 'Awaiting review' })).toBeTruthy();
+  expect(screen.getByRole('heading', { name: 'Waiting for review' })).toBeTruthy();
   expect(api.state().records.find(record => record.id === targetId)!.name).toBe('Original sample customer');
   expect(JSON.stringify(api.state().records.find(record => record.id === proposal.id))).toBe(original);
   expect(api.state().records.filter(record => record.kind === 'import-correction-events').map(record => record.data.action)).toEqual(['reassign']);
@@ -317,7 +317,7 @@ it.each(["lost", "malformed"] as const)(
     await user.click(
       screen.getByRole("button", { name: "Check original request" }),
     );
-    await screen.findByRole("heading", { name: "Awaiting review" });
+    await screen.findByRole("heading", { name: "Waiting for review" });
     expect(requests).toHaveLength(2);
     expect(requests[0]).toEqual(requests[1]);
     expect(requests[0]!.key).toBeTruthy();

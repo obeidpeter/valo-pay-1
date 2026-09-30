@@ -37,7 +37,7 @@ it("protects a follow-up-only edit on navigation and releases the guard when it 
   expect(leaving()).toBe(false);
   fireEvent.change(followUp, { target: { value: "2030-01-02T11:30" } });
   expect(leaving()).toBe(true);
-  await user.click(screen.getByRole("link", { name: "Back to exceptions" }));
+  await user.click(screen.getByRole("link", { name: "Back to Exceptions" }));
   expect(confirm).toHaveBeenCalledTimes(1);
   expect(window.location.pathname).toBe(`/cases/${item.id}`);
   expect(followUp.value).toBe("2030-01-02T11:30");
@@ -45,7 +45,7 @@ it("protects a follow-up-only edit on navigation and releases the guard when it 
   expect(leaving()).toBe(false);
   fireEvent.change(followUp, { target: { value: "2030-01-02T11:30" } });
   confirm.mockReturnValue(true);
-  await user.click(screen.getByRole("link", { name: "Back to exceptions" }));
+  await user.click(screen.getByRole("link", { name: "Back to Exceptions" }));
   await screen.findByRole("heading", { name: "Exceptions" });
   expect(window.location.pathname).toBe("/exceptions");
   expect(confirm).toHaveBeenCalledTimes(2);
@@ -124,7 +124,7 @@ it("uses the saved follow-up as the new baseline, then guards further date-only 
   fireEvent.change(followUp, { target: { value: "2030-01-02T11:30" } });
   await user.type(screen.getByLabelText("Handover or progress note"), "Moved the follow-up after confirming availability.");
   await user.click(screen.getByRole("button", { name: "Save next step" }));
-  await screen.findByText("Case update saved with its handover history.");
+  await screen.findByText("Case saved. Its handover history is updated.");
   expect(writes().filter((call) => call.path === `/v1/pilot/cases/${item.id}`)).toHaveLength(1);
   expect(api.state().records.find((record) => record.id === item.id)?.data.case.nextActionAt).toBe("2030-01-02T10:30:00.000Z");
   expect(followUp.value).toBe("2030-01-02T11:30");
@@ -133,7 +133,7 @@ it("uses the saved follow-up as the new baseline, then guards further date-only 
   expect(leaving()).toBe(true);
   fireEvent.change(followUp, { target: { value: "2030-01-02T11:30" } });
   expect(leaving()).toBe(false);
-  await user.click(screen.getByRole("link", { name: "Back to exceptions" }));
+  await user.click(screen.getByRole("link", { name: "Back to Exceptions" }));
   await screen.findByRole("heading", { name: "Exceptions" });
   expect(confirm).not.toHaveBeenCalled();
 });
@@ -147,7 +147,7 @@ it("explains that only the assignee or an Admin can change a case someone else h
   expect((save as HTMLButtonElement).disabled).toBe(true);
   const reason = document.getElementById(save.getAttribute("aria-describedby")!)!;
   expect(reason.textContent).toBe("This case is assigned to Sandbox Finance. Only Sandbox Finance or an Admin can record its next step or hand it over.");
-  expect((screen.getByLabelText("Next action") as HTMLInputElement).closest("fieldset")?.disabled).toBe(true);
+  expect((screen.getByLabelText("Next step") as HTMLInputElement).closest("fieldset")?.disabled).toBe(true);
   expect(writes()).toEqual([]);
 });
 
@@ -159,11 +159,11 @@ it("lets an Admin hand over a case someone else holds, to a person on the lender
   const select = (await screen.findByLabelText("Assigned to")) as HTMLSelectElement;
   expect(select.disabled).toBe(false);
   expect([...select.options].map((option) => option.value)).toEqual(["Sandbox Admin", "Sandbox Operations", "Sandbox Finance", "Sandbox Compliance reviewer"]);
-  expect(document.getElementById("case-assignee-help")?.textContent).toBe("Only people who can work on cases for this lender are listed. Read-only staff cannot be given a case.");
+  expect(document.getElementById("case-assignee-help")?.textContent).toBe("Only people who can work on cases for this lender are listed. Read-only team members cannot be given a case.");
   await user.selectOptions(select, "Sandbox Operations");
   await user.type(screen.getByLabelText("Handover or progress note"), "Operations should call the payer.");
   await user.click(screen.getByRole("button", { name: "Save handover" }));
-  await screen.findByText("Case update saved with its handover history.");
+  await screen.findByText("Case saved. Its handover history is updated.");
   expect(api.state().records.find((r) => r.id === item.id)?.data.case).toMatchObject({ assignee: "Sandbox Operations", assigneeName: "Sandbox Operations" });
 });
 
@@ -187,16 +187,16 @@ it("names each missing or past value at its field before asking the service", as
   const user = userEvent.setup();
   const item = exception();
   renderApp(`/cases/${item.id}`);
-  const nextAction = await screen.findByLabelText("Next action");
+  const nextAction = await screen.findByLabelText("Next step");
   expect(document.getElementById("case-assignee-help")?.textContent).toBe("Claiming assigns this case to you. Once it is yours, you can hand it over.");
   const followUp = screen.getByLabelText("Follow-up time (WAT)");
   fireEvent.change(followUp, { target: { value: "2020-01-01T09:00" } });
   await user.type(nextAction, "ab");
   await user.click(screen.getByRole("button", { name: "Claim and save next step" }));
   expect(await screen.findByText("Check the 3 highlighted fields before saving.")).toBeTruthy();
-  expect(screen.getByText("Enter the next action, in at least 3 characters.")).toBeTruthy();
+  expect(screen.getByText("Enter the next step (at least 3 characters).")).toBeTruthy();
   expect(screen.getByText("Choose a follow-up time in the future. The exception deadline stays as it is.")).toBeTruthy();
-  expect(screen.getByText("Enter a handover or progress note, in at least 3 characters.")).toBeTruthy();
+  expect(screen.getByText("Enter a handover or progress note (at least 3 characters).")).toBeTruthy();
   expect(nextAction.getAttribute("aria-invalid")).toBe("true");
   expect(followUp.getAttribute("aria-describedby")).toBe("case-follow-up-help case-follow-up-error");
   expect(document.activeElement).toBe(nextAction);
@@ -207,7 +207,7 @@ it("names each missing or past value at its field before asking the service", as
   fireEvent.change(followUp, { target: { value: "2030-01-01T09:00" } });
   await user.type(screen.getByLabelText("Handover or progress note"), "Checked the source reference.");
   await user.click(screen.getByRole("button", { name: "Claim and save next step" }));
-  await screen.findByText("Case update saved with its handover history.");
+  await screen.findByText("Case saved. Its handover history is updated.");
   expect(writes().map((call) => call.path)).toEqual([`/v1/pilot/cases/${item.id}`]);
 });
 
@@ -220,16 +220,16 @@ it("opens this exception in Exceptions from its case, even when it is resolved",
     record.data.resolutionCode = "held_credit";
   });
   renderApp(`/cases/${item.id}`);
-  const link = await screen.findByRole("link", { name: "Resolve this exception in Exceptions" });
+  const link = await screen.findByRole("link", { name: "Open in Exceptions" });
   expect(link.getAttribute("href")).toBe(`/exceptions?record=${item.id}&lender=${api.merchantIds[0]}#record-${item.id}`);
   await user.click(link);
   expect(await screen.findByText("Selected exception")).toBeTruthy();
   const row = await waitFor(() => { const found = document.getElementById(`record-${item.id}`); if (!found) throw new Error("row not shown"); return found; });
   expect(within(screen.getByRole("table")).getAllByRole("row")).toHaveLength(2);
   await waitFor(() => expect(document.activeElement).toBe(row));
-  expect(within(row).getByText(/Resolution:/)).toBeTruthy();
+  expect(within(row).getByText(/Outcome:/)).toBeTruthy();
   // The queue comes back with its filters when asked for.
-  await user.click(screen.getByRole("button", { name: "View exception queue" }));
+  await user.click(screen.getByRole("button", { name: "Show all exceptions" }));
   expect(await screen.findByRole("tablist", { name: "Exception filter" })).toBeTruthy();
   expect(new URLSearchParams(window.location.search).get("record")).toBeNull();
 });

@@ -19,7 +19,7 @@ describe('role-aware starting point', () => {
   ])('gives %s a safe destination without changing authority', async (role, label, href) => {
     api.role = role;
     renderApp('/overview');
-    await screen.findByRole('heading', { name: 'Operations overview' });
+    await screen.findByRole('heading', { name: 'Overview' });
     expect(within(start()).getByRole('link', { name: label }).getAttribute('href')).toBe(href);
     expect(within(start()).getByText(`Your next step · ${role}`)).toBeTruthy();
     expect(api.role).toBe(role);
@@ -30,7 +30,7 @@ describe('role-aware starting point', () => {
   it('loads server-derived progress only on request, resumes it, and never marks a clicked step complete', async () => {
     const user = userEvent.setup();
     renderApp('/overview');
-    await screen.findByRole('heading', { name: 'Operations overview' });
+    await screen.findByRole('heading', { name: 'Overview' });
     await user.click(within(start()).getByRole('button', { name: 'Get started · 3 steps' }));
     expect(await within(start()).findByText('Step 1 · Not started')).toBeTruthy();
     expect(within(start()).getByText('Step 2 · Awaiting review')).toBeTruthy();
@@ -50,7 +50,7 @@ describe('role-aware starting point', () => {
     const user = userEvent.setup();
     api.failNext(/^\/v1\/pilot\/progress$/, 'offline');
     renderApp('/overview');
-    await screen.findByRole('heading', { name: 'Operations overview' });
+    await screen.findByRole('heading', { name: 'Overview' });
     await user.click(within(start()).getByRole('button', { name: 'Get started · 3 steps' }));
     expect(await within(start()).findByRole('alert')).toBeTruthy();
     expect(within(start()).getByText(/No steps are being marked complete/)).toBeTruthy();
@@ -62,7 +62,7 @@ describe('role-aware starting point', () => {
   it('advances import progress only after the saved batch is committed', async () => {
     const user = userEvent.setup();
     renderApp('/overview');
-    await screen.findByRole('heading', { name: 'Operations overview' });
+    await screen.findByRole('heading', { name: 'Overview' });
     await user.click(within(start()).getByRole('button', { name: 'Get started · 3 steps' }));
     await within(start()).findByText('Step 1 · Not started');
     await user.click(within(start()).getAllByRole('link', { name: 'Open this task' })[0]!);
@@ -86,7 +86,7 @@ describe('role-aware starting point', () => {
     api.role = 'Read-only';
     const user = userEvent.setup();
     renderApp('/overview');
-    await screen.findByRole('heading', { name: 'Operations overview' });
+    await screen.findByRole('heading', { name: 'Overview' });
     await user.click(within(start()).getByRole('button', { name: 'Get started · 3 steps' }));
     expect(await within(start()).findByText(/Admin, Operations or Finance must import records/)).toBeTruthy();
     expect(within(start()).getByRole('link', { name: 'Read the import guide' }).getAttribute('href')).toBe('/help?topic=imports&returnTo=%2Foverview');
@@ -98,7 +98,7 @@ describe('role-aware starting point', () => {
     api.role = 'Unrecognised sample role';
     const user = userEvent.setup();
     renderApp('/overview');
-    await screen.findByRole('heading', { name: 'Operations overview' });
+    await screen.findByRole('heading', { name: 'Overview' });
     expect(within(start()).getByRole('link', { name: 'Read the access guide' }).getAttribute('href')).toBe('/help?topic=access&returnTo=%2Foverview');
     await user.click(within(start()).getByRole('button', { name: 'Get started · 3 steps' }));
     const access = within(start()).getByRole('link', { name: 'Understand your access' });
@@ -111,23 +111,23 @@ describe('role-aware starting point', () => {
   it('does not retain previous lender progress after access is removed', async () => {
     const user = userEvent.setup();
     renderApp('/overview');
-    await screen.findByRole('heading', { name: 'Operations overview' });
+    await screen.findByRole('heading', { name: 'Overview' });
     await user.click(within(start()).getByRole('button', { name: 'Get started · 3 steps' }));
     await within(start()).findByText('Step 1 · Not started');
     api.merchantIds = [];
     api.role = 'Read-only';
     await act(async () => { await queryClient.refetchQueries({ queryKey: ['workspace'] }); });
-    expect(await screen.findByText('No lender workspace is available')).toBeTruthy();
+    expect(await screen.findByText('No lender to show yet')).toBeTruthy();
     expect(screen.queryByRole('region', { name: 'Where to start' })).toBeNull();
     expect(screen.queryByText('Step 1 · Not started')).toBeNull();
-    expect(screen.getByRole('link', { name: 'Understand lender access' }).getAttribute('href')).toBe('/help?topic=access');
+    expect(screen.getByRole('link', { name: 'Read about lender access' }).getAttribute('href')).toBe('/help?topic=access');
   });
 
   it.each(['Admin', 'Read-only'])('explains an empty account for %s without fetching another lender', async role => {
     api.role = role;
     api.merchantIds = [];
     renderApp('/overview');
-    expect(await screen.findByText('No lender workspace is available')).toBeTruthy();
+    expect(await screen.findByText('No lender to show yet')).toBeTruthy();
     const access = screen.getByRole('region', { name: 'Lender access' });
     expect(within(access).getByRole('link').getAttribute('href')).toBe(role === 'Admin' ? '/pilot' : '/help?topic=access');
     expect(api.calls.filter(call => ['/v1/overview', '/v1/pilot/progress'].includes(call.path))).toEqual([]);
@@ -136,7 +136,7 @@ describe('role-aware starting point', () => {
   it('keeps the checklist preference separate when changing lender', async () => {
     const user = userEvent.setup();
     renderApp('/overview');
-    await screen.findByRole('heading', { name: 'Operations overview' });
+    await screen.findByRole('heading', { name: 'Overview' });
     await user.click(within(start()).getByRole('button', { name: 'Get started · 3 steps' }));
     await within(start()).findByText('Step 1 · Not started');
     await user.selectOptions(screen.getByLabelText('Active lender', { selector: '#lender-sidebar' }), api.merchantIds[1]!);

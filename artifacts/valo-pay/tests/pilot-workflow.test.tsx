@@ -110,7 +110,7 @@ it("claims a case and hands it to Finance with an immutable note, without alloca
   const user = userEvent.setup();
   renderApp(`/cases/${item.id}`);
   await user.type(
-    await screen.findByLabelText("Next action"),
+    await screen.findByLabelText("Next step"),
     "Review the payment evidence",
   );
   await user.type(
@@ -120,7 +120,7 @@ it("claims a case and hands it to Finance with an immutable note, without alloca
   await user.click(
     screen.getByRole("button", { name: "Claim and save next step" }),
   );
-  await screen.findByText("Case update saved with its handover history.");
+  await screen.findByText("Case saved. Its handover history is updated.");
   await user.selectOptions(
     screen.getByLabelText("Assigned to"),
     "Sandbox Finance",
@@ -225,7 +225,7 @@ it("lets a case claim whose response was lost be discarded deliberately", async 
   const user = userEvent.setup();
   renderApp(`/cases/${item.id}`);
   await user.type(
-    await screen.findByLabelText("Next action"),
+    await screen.findByLabelText("Next step"),
     "Review the payment evidence",
   );
   await user.type(
@@ -238,7 +238,7 @@ it("lets a case claim whose response was lost be discarded deliberately", async 
   );
   await screen.findByText("Outcome not confirmed");
   expect(
-    (screen.getByLabelText("Next action") as HTMLInputElement).closest("fieldset")
+    (screen.getByLabelText("Next step") as HTMLInputElement).closest("fieldset")
       ?.disabled,
   ).toBe(true);
   vi.spyOn(window, "confirm").mockReturnValue(true);
@@ -249,7 +249,7 @@ it("lets a case claim whose response was lost be discarded deliberately", async 
     expect(screen.queryByText("Outcome not confirmed")).toBeNull(),
   );
   expect(
-    (screen.getByLabelText("Next action") as HTMLInputElement).closest("fieldset")
+    (screen.getByLabelText("Next step") as HTMLInputElement).closest("fieldset")
       ?.disabled,
   ).toBe(false);
   expect(

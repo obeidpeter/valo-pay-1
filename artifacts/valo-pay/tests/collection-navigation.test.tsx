@@ -22,10 +22,10 @@ describe('collection record navigation', () => {
     const selected = (await screen.findByText(mandate.reference)).closest('tr')!;
     expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(2);
     await waitFor(() => expect(document.activeElement).toBe(selected));
-    await user.click(screen.getByRole('link', { name: 'Back to collections' }));
+    await user.click(screen.getByRole('link', { name: 'Back to Collections' }));
     const restored = (await screen.findByText(due.reference)).closest('tr')!;
     expect(new URLSearchParams(window.location.search).get('view')).toBe('overdue');
-    expect((screen.getByLabelText('Filter collections by owner') as HTMLSelectElement).value).toBe('merchant_manual');
+    expect((screen.getByLabelText('Filter instalments by who collects them') as HTMLSelectElement).value).toBe('merchant_manual');
     await waitFor(() => expect(document.activeElement).toBe(restored));
   });
 
@@ -39,7 +39,7 @@ describe('collection record navigation', () => {
     });
     renderApp('/collections');
     const failedRow = (await screen.findByText(failedDue.reference)).closest('tr')!;
-    const failedLink = within(failedRow).getByRole('link', { name: 'Review the failed attempt and retry policy' });
+    const failedLink = within(failedRow).getByRole('link', { name: 'Review the failed collection attempt and retry policy' });
     const failedUrl = new URL(failedLink.getAttribute('href')!, window.location.origin);
     expect(failedUrl.pathname).toBe(`/customers/${failedDue.customerId}`);
     expect(failedUrl.searchParams.get('record')).toBe(failed.id);
@@ -69,7 +69,7 @@ describe('collection record navigation', () => {
     expect(within(screen.getByRole('table')).queryByText('PAGE-00')).toBeNull();
     await user.click(within(returned).getByRole('link', { name: 'Follow up on mandate activation' }));
     await screen.findByText(mandate.reference);
-    await user.click(screen.getByRole('link', { name: 'Back to collections' }));
+    await user.click(screen.getByRole('link', { name: 'Back to Collections' }));
     await screen.findByText('PAGE-30');
     expect(screen.getByText('Page 2 of 2')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Previous page of instalments' }));
@@ -83,7 +83,7 @@ describe('collection record navigation', () => {
     const mandate = api.state().records.find(record => record.kind === 'mandates')!;
     renderApp(`/mandates?record=${mandate.id}&lender=another-lender&returnTo=${encodeURIComponent('/collections?lender=another-lender')}`);
     expect(await screen.findByText('This mandate link belongs to another lender')).toBeTruthy();
-    expect(screen.queryByRole('link', { name: 'Back to collections' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Back to Collections' })).toBeNull();
     expect(screen.queryByText(mandate.reference)).toBeNull();
   });
 
@@ -118,7 +118,7 @@ describe('mandate change confirmations', () => {
     });
     renderApp(`/mandates?record=${mandate.id}`);
     const row = (await screen.findByText(mandate.reference)).closest('tr')!;
-    await user.click(within(row).getByRole('button', { name: 'Suspend' }));
+    await user.click(within(row).getByRole('button', { name: 'Suspend mandate' }));
     let dialog = await screen.findByRole('dialog', { name: 'Suspend mandate' });
     const summary = within(dialog).getByRole('region', { name: 'Mandate change summary' });
     expect(within(summary).getByText(customer.name)).toBeTruthy();
@@ -131,7 +131,7 @@ describe('mandate change confirmations', () => {
     await user.type(within(dialog).getByLabelText(/^Reason/), 'Pause while the customer dispute is checked');
     await user.click(within(dialog).getByRole('button', { name: 'Suspend mandate' }));
     await waitFor(() => expect(api.state().records.find(record => record.id === attemptId)?.status).toBe('cancelled'));
-    await user.click(await screen.findByRole('button', { name: 'Resume' }));
+    await user.click(await screen.findByRole('button', { name: 'Resume mandate' }));
     dialog = await screen.findByRole('dialog', { name: 'Resume mandate' });
     expect(dialog.textContent).toContain('Cancelled attempts stay cancelled');
     await user.type(within(dialog).getByLabelText(/^Reason/), 'Customer review complete');
@@ -144,10 +144,10 @@ describe('mandate change confirmations', () => {
     const user = userEvent.setup();
     const mandate = api.state().records.find(record => record.kind === 'mandates' && record.status === 'pending_activation')!;
     renderApp(`/mandates?record=${mandate.id}`);
-    await user.click(await screen.findByRole('button', { name: 'Reissue' }));
+    await user.click(await screen.findByRole('button', { name: 'Reissue mandate' }));
     const dialog = await screen.findByRole('dialog', { name: 'Reissue mandate' });
     expect(dialog.textContent).toContain('Existing mandate: Expired · New mandate: Awaiting activation');
-    expect(dialog.textContent).toContain('Existing instalments are not relinked automatically');
+    expect(dialog.textContent).toContain('Existing instalments are not moved to the new mandate automatically');
     const consent = within(dialog).getByLabelText(/^New consent evidence/);
     expect((consent as HTMLInputElement).value).toBe('');
     await user.type(within(dialog).getByLabelText(/^Reason/), 'Replace the expired consent link');

@@ -40,7 +40,7 @@ test("a slow committed customer request recovers its lost response without a sec
   await fullName.fill(name);
   await loanReference.fill(reference);
   await dialog.getByLabel(/^Consent source or reference/).fill("Synthetic signed form DB-CONSENT-RECOVERY");
-  await dialog.getByRole("button", { name: "Save", exact: true }).click();
+  await dialog.getByRole("button", { name: "Add customer", exact: true }).click();
 
   try {
     await expect.poll(() => committed?.status).toBe(200);
@@ -52,7 +52,7 @@ test("a slow committed customer request recovers its lost response without a sec
     expect(savedBeforeAcknowledgement.ok()).toBeTruthy();
     expect((await savedBeforeAcknowledgement.json()).total).toBe(1);
     await expect(dialog).toBeVisible();
-    const saving = dialog.getByRole("button", { name: "Saving…", exact: true });
+    const saving = dialog.getByRole("button", { name: "Adding customer…", exact: true });
     await expect(saving).toBeDisabled();
     await expect(saving).toHaveAttribute("aria-busy", "true");
     await expect(dialog.getByRole("button", { name: "Cancel", exact: true })).toBeDisabled();
@@ -140,7 +140,7 @@ test("real API bootstrap, database history pages, full balances and lender isola
     .locator("div")
     .filter({
       has: page.getByRole("heading", {
-        name: "Customer position",
+        name: "Balance summary",
         exact: true,
       }),
     })
@@ -189,18 +189,18 @@ test("real reconciliation search, recorded rejection, reload persistence and aud
   await page.goto("/reconciliation?view=review");
   await page.getByLabel("Search reconciliation").fill(fixture.paymentReference);
   await page.getByRole("button", { name: "Search", exact: true }).click();
-  await expect(page.getByText("1 pending", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name:"Confirm", exact:true })).toHaveCount(1);
+  await expect(page.getByText("1 to review", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name:"Confirm match", exact:true })).toHaveCount(1);
   await page.getByLabel("Search reconciliation").fill(fixture.customerName);
   await page.getByRole("button", { name: "Search", exact: true }).click();
   await expect(
-    page.getByText("1–25 of 31 proposed matches", { exact: true }),
+    page.getByText("1–25 of 31 matches to review", { exact: true }),
   ).toBeVisible();
   await page
-    .getByRole("button", { name: "Next page of proposed matches" })
+    .getByRole("button", { name: "Next page of matches to review" })
     .click();
   await expect(
-    page.getByText("26–31 of 31 proposed matches", { exact: true }),
+    page.getByText("26–31 of 31 matches to review", { exact: true }),
   ).toBeVisible();
   await page.getByLabel("Search reconciliation").fill("DOES-NOT-EXIST");
   await page.getByRole("button", { name: "Search", exact: true }).click();
@@ -210,14 +210,14 @@ test("real reconciliation search, recorded rejection, reload persistence and aud
   await expect(page).not.toHaveURL(/proposals-page=/);
   await page.getByRole("button", { name: "Clear search" }).click();
   await expect(
-    page.getByText("1–25 of 31 proposed matches", { exact: true }),
+    page.getByText("1–25 of 31 matches to review", { exact: true }),
   ).toBeVisible();
   const rejection = page.waitForResponse(
     (r) =>
       r.url().includes("/api/v1/actions") && r.request().method() === "POST",
   );
   await page
-    .getByRole("button", { name: "Reject", exact: true })
+    .getByRole("button", { name: "Reject match", exact: true })
     .first()
     .click();
   const dialog = page.getByRole("dialog");
@@ -230,7 +230,7 @@ test("real reconciliation search, recorded rejection, reload persistence and aud
       "Synthetic database browser test: source evidence does not support this match.",
     );
   await dialog
-    .getByRole("button", { name: "Reject allocation", exact: true })
+    .getByRole("button", { name: "Reject match", exact: true })
     .click();
   const response = await rejection;
   expect(response.ok()).toBeTruthy();
@@ -238,7 +238,7 @@ test("real reconciliation search, recorded rejection, reload persistence and aud
   await expect(dialog).toBeHidden();
   await page.reload();
   await expect(
-    page.getByText("1–25 of 30 proposed matches", { exact: true }),
+    page.getByText("1–25 of 30 matches to review", { exact: true }),
   ).toBeVisible();
   const record = await context.request.get(
     `/api/v1/records/allocations?merchantId=${fixture.merchantId}&id=${action.record.id}&limit=1`,

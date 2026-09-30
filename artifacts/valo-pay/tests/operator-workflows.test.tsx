@@ -30,11 +30,11 @@ describe('permissions before a workflow starts', () => {
 
   it('lets Operations run reconciliation but explains why confirming a match needs Finance', async () => {
     api.role = 'Operations'; renderApp('/reconciliation');
-    const confirm = await screen.findByRole('button', { name: 'Confirm' });
+    const confirm = await screen.findByRole('button', { name: 'Confirm match' });
     expect(confirm.getAttribute('aria-disabled')).toBe('true');
     expect(document.getElementById(confirm.getAttribute('aria-describedby')!)?.textContent).toBe('Requires Admin or Finance.');
     expect(screen.getByRole('button', { name: 'Run reconciliation' }).getAttribute('aria-disabled')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Add batch' }).getAttribute('aria-disabled')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Add settlement batch' }).getAttribute('aria-disabled')).toBe('true');
   });
 
   it('requires a different reviewer for an authored template', async () => {
@@ -44,8 +44,8 @@ describe('permissions before a workflow starts', () => {
     const request = await screen.findByRole('button', { name: 'Request changes' });
     expect(request.getAttribute('aria-disabled')).toBe('true');
     expect(document.getElementById(request.getAttribute('aria-describedby')!)?.textContent).toContain('You cannot review your own submission');
-    const section = screen.getByRole('heading', { name: 'Notification templates' }).closest('section')!;
-    expect(within(section).getByRole('button', { name: 'Approve' }).getAttribute('aria-disabled')).toBe('true');
+    const section = screen.getByRole('heading', { name: 'Message templates' }).closest('section')!;
+    expect(within(section).getByRole('button', { name: 'Approve template' }).getAttribute('aria-disabled')).toBe('true');
   });
 
   it('stops a dialog submission if the workspace role changes while it is open', async () => {
@@ -55,7 +55,7 @@ describe('permissions before a workflow starts', () => {
     await user.type(within(dialog).getByLabelText('Full name *'), 'Sample customer');
     api.role = 'Read-only';
     await queryClient.invalidateQueries({ queryKey: ['workspace'] });
-    await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Save' }).hasAttribute('disabled')).toBe(true));
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Add customer' }).hasAttribute('disabled')).toBe(true));
     expect(within(dialog).getByLabelText('Full name *').getAttribute('value')).toBe('Sample customer');
     expect(api.calls.some(call => call.method === 'POST')).toBe(false);
   });
@@ -70,12 +70,12 @@ describe('customer consent and return context', () => {
     await user.type(within(dialog).getByLabelText('Loan software reference *'), 'SAMPLE-NEW');
     const consent = within(dialog).getByLabelText('Consent source or reference *');
     expect(consent.getAttribute('aria-describedby')).toContain('record-consentProvenance-help');
-    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Add customer' }));
     expect(document.activeElement).toBe(consent);
     expect(consent.getAttribute('aria-invalid')).toBe('true');
     expect(api.calls.some(call => call.method === 'POST' && call.path === '/v1/records/customers')).toBe(false);
     await user.type(consent, 'Signed sample form CONSENT-001');
-    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Add customer' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(api.state().records.find(record => record.reference === 'SAMPLE-NEW')?.data.consentProvenance).toBe('Signed sample form CONSENT-001');
   });
@@ -87,14 +87,14 @@ describe('customer consent and return context', () => {
     });
     const user = userEvent.setup();
     renderApp(`/customers?q=Search+retained&page=2&size=50&lender=${api.merchantIds[0]}`);
-    const history = (await screen.findAllByRole('link', { name: /View history for Search retained/ }))[0]!;
+    const history = (await screen.findAllByRole('link', { name: /Open Customer history for Search retained/ }))[0]!;
     const rowId = history.closest('tr')!.id;
     await user.click(history);
-    await user.click(await screen.findByRole('link', { name: 'Back to customers' }));
+    await user.click(await screen.findByRole('link', { name: 'Back to Customers' }));
     await waitFor(() => expect(document.activeElement?.id).toBe(rowId));
     expect((screen.getByRole('textbox', { name: 'Search customers' }) as HTMLInputElement).value).toBe('Search retained');
     expect((screen.getByRole('combobox', { name: 'customers per page' }) as HTMLSelectElement).value).toBe('50');
-    expect(screen.getByRole('navigation', { name: 'customers pagination' }).textContent).toContain('51–80 of 80 customers');
+    expect(screen.getByRole('navigation', { name: 'Pages of customers' }).textContent).toContain('51–80 of 80 customers');
     expect(new URLSearchParams(window.location.search).get('page')).toBe('2');
   });
 

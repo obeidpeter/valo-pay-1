@@ -232,7 +232,7 @@ export function Layout({ children }: { children: ReactNode }) {
 
   // The title names the page, or says the page stopped working while the boundary below shows its notice.
   const [pageError,setPageError]=useState<Error|null>(null);
-  useEffect(()=>{document.title=`${pageError?"Page error":navItems.find(n=>n.href===location)?.label||(location.startsWith("/cases/")?"Case handling":"Customer timeline")} · Valo Pay`;},[location,pageError]);
+  useEffect(()=>{document.title=`${pageError?"Page error":navItems.find(n=>n.href===location)?.label||(location.startsWith("/cases/")?"Case":"Customer history")} · Valo Pay`;},[location,pageError]);
 
   // The phone drawer. It opens with focus on the first page, closes when a page is chosen in it or the
   // address changes (the browser's back), and then focus goes to the page content as it does after the
@@ -270,7 +270,7 @@ export function Layout({ children }: { children: ReactNode }) {
   // Only a staff pilot's administrator can be warned that administrator access ends: never the sandbox, whatever its role.
   const staffAdministrator = workspace?.accessMode === 'staff' && workspace.role === 'Admin';
   const lenderName = lender?.name;
-  const pageTitle = navItems.find(n => n.href === location)?.label || (location.startsWith('/cases/') ? 'Case handling' : 'Customer timeline');
+  const pageTitle = navItems.find(n => n.href === location)?.label || (location.startsWith('/cases/') ? 'Case' : 'Customer history');
   const baseRoute = location.startsWith('/cases/') ? '/exceptions' : location.startsWith('/customers/') ? '/customers' : location;
   const cashView = new URLSearchParams(search).get('view');
   // A Cash Desk section has a guide of its own, and its help returns to that section rather than to the first.

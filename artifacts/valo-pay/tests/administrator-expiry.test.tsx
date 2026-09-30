@@ -80,7 +80,7 @@ it("says nothing to a staff administrator whose access lasts", async () => {
 it("never reads the team for this outside a staff administrator's console", async () => {
   const reads = staffHost("Finance", [member("Clerk:user_me", "Finance", new Date(Date.now() + 2 * DAY).toISOString())]);
   renderApp("/overview");
-  await screen.findByRole("heading", { name: "Operations overview" });
+  await screen.findByRole("heading", { name: "Overview" });
   expect(screen.queryByRole("status", { name: "Administrator access" })).toBeNull();
   expect(reads.team).toBe(0);
 });
@@ -93,7 +93,7 @@ it("never reads the team for this in the sandbox", async () => {
     return send(input, options);
   };
   renderApp("/overview");
-  await screen.findByRole("heading", { name: "Operations overview" });
+  await screen.findByRole("heading", { name: "Overview" });
   expect(screen.queryByRole("status", { name: "Administrator access" })).toBeNull();
   expect(team).toBe(0);
 });

@@ -11,19 +11,19 @@ describe("loading and waiting", () => {
     const release = api.hold(/^\/v1\/overview$/);
     renderApp("/overview");
     await waitFor(() => expect(screen.getByRole("status").textContent).toBe("Loading the overview…"));
-    expect(screen.queryByRole("heading", { name: "Operations overview" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Overview" })).toBeNull();
     release();
-    expect(await screen.findByRole("heading", { name: "Operations overview" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Overview" })).toBeTruthy();
     expect(screen.queryByText(/^Loading /)).toBeNull();
   });
 
   it("names what a table is waiting for, in its own row", async () => {
     const release = api.hold(/^\/v1\/queues\/collections$/);
     renderApp("/collections");
-    const row = await screen.findByText("Loading collections…");
+    const row = await screen.findByText("Loading instalments…");
     expect(row.closest("tr")).toBeTruthy();
     release();
-    await waitFor(() => expect(screen.queryByText("Loading collections…")).toBeNull());
+    await waitFor(() => expect(screen.queryByText("Loading instalments…")).toBeNull());
   });
 
   it("says what a button is doing while its action runs, and cannot be pressed again", async () => {

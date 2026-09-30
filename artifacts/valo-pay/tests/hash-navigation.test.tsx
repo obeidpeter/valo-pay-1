@@ -55,7 +55,7 @@ describe('section deep links', () => {
     // jsdom has no layout, but keeps the offset set on the page area: paging must not reset it.
     const main = screen.getByRole('main');
     main.scrollTop = 1234;
-    for (const table of ['proposed matches', 'sampled matches']) {
+    for (const table of ['matches to review', 'sampled matches']) {
       await user.click(await screen.findByRole('button', { name: `Next page of ${table}` }));
       await screen.findByText(new RegExp(`^26–\\d+ of \\d+ ${table}$`));
       // Any scroll this render scheduled runs in the next frame: none may return to the review.

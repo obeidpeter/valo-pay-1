@@ -16,8 +16,8 @@ afterEach(() => api.uninstall());
 
 describe('reconciliation decisions', () => {
   it.each([
-    ['Confirm', 'Confirm payment allocation', 'Confirm allocation', 'confirm_allocation', 'confirmed', 'allocated'],
-    ['Reject', 'Reject proposed match', 'Reject allocation', 'reject_allocation', 'superseded', 'unallocated'],
+    ['Confirm match', 'Confirm match', 'Confirm match', 'confirm_allocation', 'confirmed', 'allocated'],
+    ['Reject match', 'Reject match', 'Reject match', 'reject_allocation', 'superseded', 'unallocated'],
   ])('%s sends the payment ID and completes against the real domain action', async (rowAction, title, submit, action, allocationStatus, paymentStatus) => {
     const user = userEvent.setup();
     const proposal = api.state().records.find(record => record.kind === 'allocations' && record.status === 'proposed')!;
@@ -30,7 +30,7 @@ describe('reconciliation decisions', () => {
     expect((await within(evidence).findAllByText(payment.reference)).length).toBeGreaterThan(0);
     expect(within(evidence).getByText(due.reference)).toBeTruthy();
     expect(evidence.textContent).toContain(String(proposal.data.explanation));
-    expect(evidence.textContent).toContain('Available to allocate');
+    expect(evidence.textContent).toContain('Unallocated:');
     expect(evidence.textContent).toContain(formatKobo(proposal.amountKobo));
     await user.type(within(dialog).getByLabelText(/^Reason/), 'Reviewed the synthetic payment and instalment evidence.');
     await user.click(within(dialog).getByRole('button', { name: submit }));
@@ -40,7 +40,7 @@ describe('reconciliation decisions', () => {
     expect(call?.status).toBe(200);
     expect(api.state().records.find(record => record.id === proposal.id)?.status).toBe(allocationStatus);
     expect(api.state().records.find(record => record.id === payment.id)?.status).toBe(paymentStatus);
-    await screen.findByText('No proposed matches to review');
+    await screen.findByText('No matches to review');
   });
 
   it('shows a duplicates-only queue with a filtered route to the review work', async () => {
@@ -53,8 +53,8 @@ describe('reconciliation decisions', () => {
     const section = await screen.findByRole('region', { name: 'Possible duplicate payments' });
     await within(section).findByText('SBX-UNIDENTIFIED-001');
     expect(within(section).getByText('The same provider reference appears on another payment.')).toBeTruthy();
-    expect(within(section).getByRole('link', { name: 'Review exceptions' }).getAttribute('href')).toBe('/exceptions?type=suspected_duplicate');
-    expect(screen.queryByRole('heading', { name: 'Proposed matches' })).toBeNull();
+    expect(within(section).getByRole('link', { name: 'Review duplicate exceptions' }).getAttribute('href')).toBe('/exceptions?type=suspected_duplicate');
+    expect(screen.queryByRole('heading', { name: 'Matches to review' })).toBeNull();
     expect(screen.queryByRole('heading', { name: 'Unallocated payments' })).toBeNull();
   });
 
@@ -62,12 +62,12 @@ describe('reconciliation decisions', () => {
     const user = userEvent.setup();
     const proposal = api.state().records.find(record => record.kind === 'allocations' && record.status === 'proposed')!;
     renderApp('/reconciliation?view=review');
-    await user.click(await screen.findByRole('button', { name: 'Confirm' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Confirm payment allocation' });
+    await user.click(await screen.findByRole('button', { name: 'Confirm match' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Confirm match' });
     const reason = within(dialog).getByLabelText(/^Reason/);
     await user.type(reason, 'Reviewed the payment and original proposal.');
     api.mutate(state => { state.records.find(record => record.id === proposal.id)!.updatedAt = '2027-12-01T12:00:00.000Z'; });
-    await user.click(within(dialog).getByRole('button', { name: 'Confirm allocation' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Confirm match' }));
     expect(await within(dialog).findByText(/This proposed match has changed since you opened it/)).toBeTruthy();
     expect((reason as HTMLTextAreaElement).value).toBe('Reviewed the payment and original proposal.');
     expect(api.state().records.find(record => record.id === proposal.id)?.status).toBe('proposed');
@@ -79,17 +79,21 @@ describe('reconciliation decisions', () => {
     api.setNow('2027-02-15T12:00:00.000Z');
     api.mutate(state => { for (const record of state.records.filter(row => row.kind === 'allocations' && row.status === 'confirmed')) record.data.confirmedAt = '2027-01-20T12:00:00.000Z'; });
     renderApp('/reconciliation');
-    await user.click((await screen.findAllByRole('button', { name: 'Mark incorrect' }))[0]!);
-    const dialog = await screen.findByRole('dialog', { name: 'Review payment allocation' });
+    await user.click((await screen.findAllByRole('button', { name: 'Mark match incorrect' }))[0]!);
+    const dialog = await screen.findByRole('dialog', { name: 'Mark match incorrect' });
     const evidence = within(dialog).getByRole('region', { name: 'Match evidence' });
-    expect(evidence.textContent).toContain('This corrects the recorded allocation');
+    expect(evidence.textContent).toContain('This corrects the allocation');
     expect(evidence.textContent).toContain('does not refund or move money');
-    expect(evidence.textContent).toContain('Receipt status:');
+    expect(evidence.textContent).toContain('Collection result:');
     expect(evidence.textContent).toContain('Settlement:');
-    expect(evidence.textContent).toContain('Provider fees are reviewed separately');
+    expect(evidence.textContent).toContain('Provider fees do not reduce the amount allocated');
     expect(evidence.textContent).toContain('After correction:');
+    expect(within(dialog).getByRole('button', { name: 'Mark match incorrect' })).toBeTruthy();
     await user.click(within(dialog).getByRole('checkbox'));
-    expect(evidence.textContent).toContain('keeps the allocation applied');
+    expect(evidence.textContent).toContain('keeps its allocation');
+    // The title and the submit button follow the checkbox.
+    expect(screen.getByRole('dialog', { name: 'Mark match correct' })).toBe(dialog);
+    expect(within(dialog).getByRole('button', { name: 'Mark match correct' })).toBeTruthy();
     expect(evidence.textContent).not.toContain('After correction:');
     expect(api.calls.some(call => call.method === 'POST')).toBe(false);
   });
@@ -128,8 +132,8 @@ describe('reconciliation result visibility', () => {
     renderApp('/reconciliation');
     await user.click(await screen.findByRole('button', { name: 'Run reconciliation' }));
     const alert = await screen.findByRole('alert');
-    expect(alert.textContent).toContain('Reconciliation could not be completed');
-    expect(alert.textContent).toContain('Run reconciliation again to retry.');
+    expect(alert.textContent).toContain('Reconciliation not completed');
+    expect(alert.textContent).toContain('Select Run reconciliation to try again.');
     expect(screen.queryByRole('status', { name: 'Reconciliation result' })).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Run reconciliation' }));
     await screen.findByRole('status', { name: 'Reconciliation result' });
@@ -149,7 +153,7 @@ describe('external refunds', () => {
     renderApp('/reconciliation');
     const payments = (await screen.findByRole('heading', { name: 'Unallocated payments' })).parentElement!.parentElement!;
     await within(payments).findByText('SBX-REFUNDED-EXCESS');
-    const refundFor = (reference: string) => within(payments).getByRole('button', { name: `Record external refund for ${reference}` });
+    const refundFor = (reference: string) => within(payments).getByRole('button', { name: `Record refund for ${reference}` });
     const reasonFor = (button: HTMLElement) => document.getElementById(button.getAttribute('aria-describedby') || '')?.textContent;
     const refunded = refundFor('SBX-REFUNDED-EXCESS');
     expect(refunded.getAttribute('aria-disabled')).toBe('true');
@@ -163,11 +167,11 @@ describe('external refunds', () => {
     expect(api.calls.some(call => call.method === 'POST')).toBe(false);
     // What stayed with the lender can still be allocated, and a payment with no refund recorded can still record one.
     const refundedRow = within(payments).getByText('SBX-REFUNDED-EXCESS').closest('tr')!;
-    expect(within(refundedRow).getByRole('button', { name: 'Allocate' }).getAttribute('aria-disabled')).toBeNull();
+    expect(within(refundedRow).getByRole('button', { name: 'Allocate payment' }).getAttribute('aria-disabled')).toBeNull();
     const open = refundFor('SBX-UNIDENTIFIED-001');
     expect(open.getAttribute('aria-disabled')).toBeNull();
     await user.click(open);
-    expect(await screen.findByRole('dialog', { name: 'Record external refund' })).toBeTruthy();
+    expect(await screen.findByRole('dialog', { name: 'Record refund' })).toBeTruthy();
   });
 });
 
@@ -177,7 +181,7 @@ describe('allocation amounts', () => {
     const payment = api.state().records.find(record => record.kind === 'payments' && record.status === 'unallocated')!;
     const due = api.state().records.find(record => record.kind === 'due-items' && Number(record.data.outstandingKobo) > 0 && Number(record.data.outstandingKobo) < payment.amountKobo)!;
     renderApp('/reconciliation');
-    await user.click(await screen.findByRole('button', { name: 'Allocate' }));
+    await user.click(await screen.findByRole('button', { name: 'Allocate payment' }));
     const dialog = await screen.findByRole('dialog', { name: 'Allocate payment' });
     const amount = within(dialog).getByLabelText(/Amount to allocate \(₦\)/) as HTMLInputElement;
     expect(amount.value).toBe('32000.00');
@@ -194,7 +198,7 @@ describe('allocation amounts', () => {
     await user.clear(amount);
     await user.type(amount, '32000');
     await user.click(within(dialog).getByRole('button', { name: 'Allocate payment' }));
-    expect(within(dialog).getAllByText(/This is the instalment still due/).length).toBeGreaterThan(0);
+    expect(within(dialog).getAllByText(/This is the amount outstanding on the instalment/).length).toBeGreaterThan(0);
     expect(api.calls.some(call => call.method === 'POST')).toBe(false);
     await user.clear(amount);
     await user.type(amount, '1,000.29');
@@ -212,9 +216,9 @@ describe('allocation picker search', () => {
     const user = userEvent.setup();
     const dueItem = api.state().records.find(record => record.kind === 'due-items' && record.status === 'scheduled')!;
     renderApp('/overview');
-    await screen.findByRole('heading', { name: 'Operations overview' });
+    await screen.findByRole('heading', { name: 'Overview' });
     await user.click(screen.getAllByRole('link', { name: 'Reconciliation' })[0]!);
-    await user.click((await screen.findAllByRole('button', { name: 'Allocate' }))[0]!);
+    await user.click((await screen.findAllByRole('button', { name: 'Allocate payment' }))[0]!);
     const dialog = await screen.findByRole('dialog', { name: 'Allocate payment' });
     const choiceRequests = () => api.calls.filter(call => call.path === '/v1/records/due-items').map(call => call.query.search);
     await waitFor(() => expect(choiceRequests()).toEqual(['']));
@@ -228,7 +232,7 @@ describe('allocation picker search', () => {
     expect(choices.every(option => option.textContent!.includes(dueItem.reference))).toBe(true);
     expect(window.history.length).toBe(entries);
     await act(async () => { window.history.back(); });
-    await screen.findByRole('heading', { name: 'Operations overview' });
+    await screen.findByRole('heading', { name: 'Overview' });
     expect(window.location.pathname).toBe('/overview');
   });
 });
@@ -242,7 +246,7 @@ describe('allocation picker counts', () => {
     renderApp('/reconciliation');
     const payments = (await screen.findByRole('heading', { name: 'Unallocated payments' })).parentElement!.parentElement!;
     const row = (await within(payments).findByText('SBX-UNIDENTIFIED-001')).closest('tr')!;
-    await user.click(within(row).getByRole('button', { name: 'Allocate' }));
+    await user.click(within(row).getByRole('button', { name: 'Allocate payment' }));
     const dialog = await screen.findByRole('dialog', { name: 'Allocate payment' });
     await waitFor(() => expect(within(dialog).queryByText('Loading instalment choices…')).toBeNull());
     const offered = () => within(within(dialog).getByLabelText(/^Instalment/)).getAllByRole('option').filter(option => (option as HTMLOptionElement).value);
@@ -254,9 +258,9 @@ describe('allocation picker counts', () => {
     await waitFor(() => expect(api.calls.some(call => call.path === '/v1/records/due-items' && call.query.search === paid.reference)).toBe(true));
     await waitFor(() => expect(within(dialog).queryByText('Loading instalment choices…')).toBeNull());
     expect(offered()).toHaveLength(0);
-    expect(within(dialog).getByText('No instalment that can take a payment matches this search.')).toBeTruthy();
-    expect(within(dialog).getByText('Instalments that are paid, cancelled, closed, in dispute or held for a renewed reversal review cannot take a payment and are not listed.')).toBeTruthy();
-    expect(within(dialog).queryByRole('navigation', { name: 'instalment choices pagination' })).toBeNull();
+    expect(within(dialog).getByText('No instalment that can take a payment matches this search. Try another name or reference.')).toBeTruthy();
+    expect(within(dialog).getByText('Paid, cancelled, closed and disputed instalments are not listed. Instalments on hold while Finance reviews an earlier reversal decision are not listed either.')).toBeTruthy();
+    expect(within(dialog).queryByRole('navigation', { name: 'Pages of instalment choices' })).toBeNull();
   });
 });
 
@@ -270,11 +274,11 @@ describe('payer confirmation', () => {
     renderApp('/reconciliation');
     const payments = (await screen.findByRole('heading', { name: 'Unallocated payments' })).parentElement!.parentElement!;
     const row = (await within(payments).findByText('SBX-UNIDENTIFIED-001')).closest('tr')!;
-    await user.click(within(row).getByRole('button', { name: 'Allocate' }));
+    await user.click(within(row).getByRole('button', { name: 'Allocate payment' }));
     const dialog = await screen.findByRole('dialog', { name: 'Allocate payment' });
     const preview = within(dialog).getByRole('region', { name: 'Allocation preview' });
     expect(preview.textContent).toContain('Recorded payer: Not identified');
-    expect(preview.textContent).toContain('Allocating records that customer as the payer, with your reason, in the same action.');
+    expect(preview.textContent).toContain('Allocating also records that customer as the payer, with your reason.');
     await waitFor(() => expect(within(within(dialog).getByLabelText(/^Instalment/)).getAllByRole('option').some(option => (option as HTMLOptionElement).value === due.id)).toBe(true));
     await user.selectOptions(within(dialog).getByLabelText(/^Instalment/), due.id);
     expect(preview.textContent).toContain('Payer to be recorded:');
@@ -306,12 +310,12 @@ describe('payer confirmation', () => {
     const row = (await screen.findByText('PSK-NO-PAYER')).closest('tr')!;
     expect(row.textContent).toContain('Payer to confirm');
     expect(row.textContent).toContain(customer.name);
-    await user.click(within(row).getByRole('button', { name: 'Confirm' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Confirm payment allocation' });
+    await user.click(within(row).getByRole('button', { name: 'Confirm match' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Confirm match' });
     const evidence = within(dialog).getByRole('region', { name: 'Match evidence' });
-    expect(evidence.textContent).toContain(`The payment evidence names no payer. Confirming records ${customer.name} as the payer, with your reason, in the same action.`);
+    expect(evidence.textContent).toContain(`The payment evidence does not name a payer. If you confirm, ${customer.name} is recorded as the payer, with your reason.`);
     await user.type(within(dialog).getByLabelText(/^Reason/), 'Our debit reference names this instalment.');
-    await user.click(within(dialog).getByRole('button', { name: 'Confirm allocation' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Confirm match' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(api.calls.find(call => (call.body as { action?: string })?.action === 'confirm_allocation')?.status).toBe(200);
     const saved = api.state().records.find(record => record.id === payment.id)!;
@@ -331,10 +335,10 @@ describe('payer confirmation', () => {
     renderApp('/reconciliation');
     const payments = (await screen.findByRole('heading', { name: 'Unallocated payments' })).parentElement!.parentElement!;
     const row = (await within(payments).findByText('TRF-PART-PAID')).closest('tr')!;
-    expect(row.textContent).toContain(`${formatKobo(4_000_000)} left to allocate`);
-    await user.click(within(row).getByRole('button', { name: 'Allocate' }));
+    expect(row.textContent).toContain(`${formatKobo(4_000_000)} unallocated`);
+    await user.click(within(row).getByRole('button', { name: 'Allocate payment' }));
     const dialog = await screen.findByRole('dialog', { name: 'Allocate payment' });
-    expect(within(dialog).getByRole('region', { name: 'Allocation preview' }).textContent).toContain("Only this payer's instalments are offered.");
+    expect(within(dialog).getByRole('region', { name: 'Allocation preview' }).textContent).toContain('Only this payer’s instalments are listed.');
     const payment = api.state().records.find(record => record.kind === 'payments' && record.reference === 'TRF-PART-PAID')!;
     await waitFor(() => expect(api.calls.some(call => call.path === '/v1/records/due-items' && call.query.paymentId === payment.id && call.query.allocatable === 'true')).toBe(true));
     await waitFor(() => expect(within(dialog).queryByText('Loading instalment choices…')).toBeNull());
@@ -353,10 +357,10 @@ describe('payer confirmation', () => {
     renderApp('/reconciliation');
     const payments = (await screen.findByRole('heading', { name: 'Unallocated payments' })).parentElement!.parentElement!;
     const row = (await within(payments).findByText('TRF-NAMED-1')).closest('tr')!;
-    await user.click(within(row).getByRole('button', { name: 'Allocate' }));
+    await user.click(within(row).getByRole('button', { name: 'Allocate payment' }));
     const dialog = await screen.findByRole('dialog', { name: 'Allocate payment' });
     const customer = api.state().records.find(record => record.id === due.customerId)!;
-    expect(within(dialog).getByRole('region', { name: 'Allocation preview' }).textContent).toContain(`Its evidence names instalment DEMO-LOAN-1005 of ${customer.name}, so only that customer's instalments are offered.`);
+    expect(within(dialog).getByRole('region', { name: 'Allocation preview' }).textContent).toContain(`The payment evidence names instalment DEMO-LOAN-1005 of ${customer.name}, so only that customer’s instalments are listed.`);
     await waitFor(() => expect(within(dialog).queryByText('Loading instalment choices…')).toBeNull());
     const options = within(within(dialog).getByLabelText(/^Instalment/)).getAllByRole('option').filter(option => (option as HTMLOptionElement).value);
     const open = api.state().records.filter(record => record.kind === 'due-items' && record.customerId === due.customerId && canTakeAllocation(record as any));
@@ -378,10 +382,10 @@ describe('payer confirmation', () => {
     renderApp('/reconciliation');
     const payments = (await screen.findByRole('heading', { name: 'Unallocated payments' })).parentElement!.parentElement!;
     const row = (await within(payments).findByText('TRF-NAMED-2')).closest('tr')!;
-    await user.click(within(row).getByRole('button', { name: 'Allocate' }));
+    await user.click(within(row).getByRole('button', { name: 'Allocate payment' }));
     const dialog = await screen.findByRole('dialog', { name: 'Allocate payment' });
-    expect(await within(dialog).findByText(`${customer.name}, whose instalment its evidence names, has no instalment that can take a payment.`)).toBeTruthy();
-    expect(within(dialog).queryByText('No instalment can take a payment.')).toBeNull();
+    expect(await within(dialog).findByText(`${customer.name}, named in the payment evidence, has no instalment that can take a payment. Leave the payment unallocated for now, or record a refund if the money went back.`)).toBeTruthy();
+    expect(within(dialog).queryByText(/^No instalment can take a payment\./)).toBeNull();
   });
 });
 
@@ -411,7 +415,7 @@ describe('payments that cannot be allocated', () => {
     const row = (await within(payments).findByText('SBX-USD-CARD')).closest('tr')!;
     expect(row.textContent).toMatch(/USD\s1,000\.00/);
     expect(row.textContent).not.toContain('₦1,000.00');
-    const allocate = within(row).getByRole('button', { name: 'Allocate' });
+    const allocate = within(row).getByRole('button', { name: 'Allocate payment' });
     expect(allocate.getAttribute('aria-disabled')).toBe('true');
     const reason = document.getElementById(allocate.getAttribute('aria-describedby') || '')?.textContent;
     expect(reason).toBe('Payment SBX-USD-CARD is in USD. Instalments are owed in naira, so it cannot be applied to one. Record its refund or resolve it with Finance.');
@@ -419,9 +423,9 @@ describe('payments that cannot be allocated', () => {
     await user.click(allocate);
     expect(screen.queryByRole('dialog')).toBeNull();
     // Its refund is recorded in its own currency too.
-    await user.click(within(row).getByRole('button', { name: 'Record external refund for SBX-USD-CARD' }));
-    const refund = await screen.findByRole('dialog', { name: 'Record external refund' });
-    expect(refund.textContent).toMatch(/This records a refund of USD\s1,000\.00, the money this payment has not applied\./);
+    await user.click(within(row).getByRole('button', { name: 'Record refund for SBX-USD-CARD' }));
+    const refund = await screen.findByRole('dialog', { name: 'Record refund' });
+    expect(refund.textContent).toMatch(/This records that USD\s1,000\.00 was refunded outside Valo Pay\. That is the part of this payment not allocated to any instalment\./);
   });
 
   it('gives the service\'s reason for a payment whose money went back', () => {
@@ -453,7 +457,7 @@ describe('settlement batch edits', () => {
     const name = within(dialog).getByLabelText(/^Name/);
     await user.clear(name);
     await user.type(name, 'Large settlement batch, checked');
-    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Edit settlement batch' })).toBeNull());
     const sent = api.calls.find(call => call.method === 'PATCH' && call.path === `/v1/records/settlement-batches/${batch.id}`)!;
     expect(sent.status).toBe(200);
@@ -473,7 +477,7 @@ describe('settlement batch edits', () => {
   it('adds a batch in its own currency and shows each batch in its currency', async () => {
     const user = userEvent.setup();
     renderApp('/reconciliation');
-    await user.click(await screen.findByRole('button', { name: 'Add batch' }));
+    await user.click(await screen.findByRole('button', { name: 'Add settlement batch' }));
     const dialog = await screen.findByRole('dialog', { name: 'Add settlement batch' });
     const currency = within(dialog).getByLabelText(/^Currency/) as HTMLInputElement;
     expect(currency.value).toBe('NGN');
@@ -486,18 +490,18 @@ describe('settlement batch edits', () => {
     await user.type(within(dialog).getByLabelText(/^Amount before fees/), '1000.5');
     await user.type(within(dialog).getByLabelText(/^Fee/), '5');
     await user.type(within(dialog).getByLabelText(/^Amount after fees/), '995');
-    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Add settlement batch' }));
     expect(await within(dialog).findByText('Enter an ISO 4217 currency code with a minor unit, such as NGN or USD.')).toBeTruthy();
     // In yen the amounts are whole: the field names the currency and refuses a decimal.
     await user.clear(currency);
     await user.type(currency, 'jpy');
     expect(within(dialog).getByText(/^Amount before fees \(JPY\)/)).toBeTruthy();
-    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Add settlement batch' }));
     expect(await within(dialog).findByText('Enter an amount in JPY with no decimal places, for example 1,000.')).toBeTruthy();
     const gross = within(dialog).getByLabelText(/^Amount before fees/);
     await user.clear(gross);
     await user.type(gross, '1,000');
-    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Add settlement batch' }));
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Add settlement batch' })).toBeNull());
     const sent = api.calls.find(call => call.method === 'POST' && call.path === '/v1/records/settlement-batches')!;
     expect(sent.status).toBe(200);

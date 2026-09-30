@@ -6,7 +6,6 @@ import { caseDetailSchema } from "@workspace/valopay-schema";
 import { useUnsavedChanges } from "@/lib/unsaved-changes";
 import {
   PilotError,
-  PilotHeading,
   PilotPanel,
   RecoveryNotice,
   pilotField,
@@ -15,7 +14,9 @@ import { Button } from "@/components/ui/button";
 import { FieldError, FormAlert, attentionTitle, focusField, invalidProps } from "@/components/form-field";
 import { formatDate } from "@/lib/formatters";
 import { formatRecordMoney } from "@/lib/currencies";
-import { readableLabel } from "@/components/record-label";
+import { readableLabel, StatusBadge } from "@/components/record-label";
+import { exceptionStatus } from "@/components/exception-context";
+import { recordKindName } from "@/lib/record-kinds";
 import { LookedFor } from "@/components/notice";
 import { NotFoundNotice } from "@/pages/not-found";
 
@@ -30,15 +31,16 @@ function caseLock(
   actor: string,
   record: any,
   assignees: Assignee[],
+  sandbox: boolean,
 ): string {
   const holder = record.data.case?.assignee as string | undefined;
   const holderName = record.data.case?.assigneeName || holder;
   if (!caseRoles.includes(role || ""))
-    return "Your role can review this case but cannot change it.";
+    return `Only Admin, Operations, Finance and Compliance reviewer team members can change a case. Your role is ${role || "not known yet"}.${sandbox ? " Change your demo role in Settings." : ""}`;
   if (["closed", "resolved"].includes(record.status))
-    return "Resolved cases keep their history and cannot be reassigned.";
+    return `This exception is ${record.status === "closed" ? "closed" : "resolved"}. Its case keeps its history and cannot be handed over.`;
   if (!holder && !assignees.some((person) => person.actor === actor))
-    return "You are not on this lender’s list of people who can work on cases, so you cannot claim this one. Ask an administrator to hand it to you.";
+    return "You cannot claim this case because you are not on the list of people who can work on this lender’s cases. Ask an Admin to give you access to this lender in Team and access.";
   if (holder && holder !== actor && role !== "Admin")
     return `This case is assigned to ${holderName}. Only ${holderName} or an Admin can record its next step or hand it over.`;
   return "";
@@ -51,14 +53,15 @@ function MissingCase({ id }: { id: string }) {
   return (
     <NotFoundNotice
       title="Case not found"
-      primary={{ href: "/exceptions", label: "Back to exceptions" }}
-      secondary={{ href: "/overview", label: "Go to overview" }}
+      primary={{ href: "/exceptions", label: "Back to Exceptions" }}
+      secondary={{ href: "/overview", label: "Open Overview" }}
     >
       <p>
-        No case was found with ID <LookedFor>{id}</LookedFor> for the selected
-        lender. Check the address or choose another lender.
+        No case has the ID <LookedFor>{id}</LookedFor> for this lender. It may
+        have been deleted, or it belongs to another lender. Check the address
+        or choose another lender.
       </p>
-      <p>No records have changed.</p>
+      <p>Nothing has changed.</p>
     </NotFoundNotice>
   );
 }
@@ -68,15 +71,23 @@ export default function CasePage({ params }: { params: { id: string } }) {
   // A confirmed 404 is its own page; any other failure keeps the retry below.
   if ((query.error as { status?: number } | null)?.status === 404)
     return <MissingCase id={params.id} />;
+  // The page is named Case; once the exception loads, its heading also names the exception's type.
+  const type = query.data?.record.data?.type;
   return (
     <div className="space-y-6">
       <Link href="/exceptions" className="text-sm text-primary underline">
-        Back to exceptions
+        Back to Exceptions
       </Link>
-      <PilotHeading title="Coordinate a case">
-        Keep ownership, next steps and evidence together. Recording a handover
-        does not allocate a payment or resolve its exception.
-      </PilotHeading>
+      <header className="space-y-2">
+        <h1 className="text-3xl font-semibold tracking-tight">
+          {type ? `Case: ${readableLabel(type)}` : "Case"}
+        </h1>
+        <p className="max-w-3xl text-sm text-muted-foreground">
+          Record who owns this exception, its next step and its evidence.
+          Recording a handover does not allocate a payment or resolve the
+          exception.
+        </p>
+      </header>
       <PilotError
         error={query.error}
         retry={() => {
@@ -144,7 +155,7 @@ function CaseWork({ data, refresh }: { data: any; refresh(): Promise<any> }) {
   const holder = record.data.case?.assignee as string | undefined;
   const holderName = record.data.case?.assigneeName || holder;
   // The service refuses a change from anyone but the assignee or an Admin, and gives a case only to someone on the lender's list.
-  const locked = caseLock(workspace?.role, workspace?.actor || "", record, assignees);
+  const locked = caseLock(workspace?.role, workspace?.actor || "", record, assignees, workspace?.accessMode !== "staff");
   const denied = Boolean(locked);
   const formerHolder = Boolean(holder) && !assignees.some((person) => person.actor === holder);
   const mustHandOver = formerHolder && assignee === holder;
@@ -154,11 +165,11 @@ function CaseWork({ data, refresh }: { data: any; refresh(): Promise<any> }) {
   const check = () => {
     const found: Record<string, string> = {};
     if (nextAction.trim().length < 3)
-      found["case-next-action"] = "Enter the next action, in at least 3 characters.";
+      found["case-next-action"] = "Enter the next step (at least 3 characters).";
     if (!when || !(Date.parse(`${when}:00+01:00`) > Date.now()))
       found["case-follow-up"] = "Choose a follow-up time in the future. The exception deadline stays as it is.";
     if (note.trim().length < 3)
-      found["case-note"] = "Enter a handover or progress note, in at least 3 characters.";
+      found["case-note"] = "Enter a handover or progress note (at least 3 characters).";
     return found;
   };
   const submit = (action: "claim" | "update" | "handover") => {
@@ -198,24 +209,24 @@ function CaseWork({ data, refresh }: { data: any; refresh(): Promise<any> }) {
   return (
     <>
       <div className="grid gap-5 lg:grid-cols-[1fr_1.4fr]">
-        <PilotPanel title={readableLabel(record.data.type)}>
+        <PilotPanel title="Exception details">
           <p className="text-2xl font-semibold tabular-nums">
             {formatRecordMoney(record, record.amountKobo)}
           </p>
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-3 text-sm">
             <dt className="text-muted-foreground">Status</dt>
-            <dd>{readableLabel(record.status)}</dd>
+            <dd><StatusBadge status={exceptionStatus(record)} /></dd>
             <dt className="text-muted-foreground">Team</dt>
-            <dd>{record.data.owner || "Unassigned"}</dd>
-            <dt className="text-muted-foreground">Case assignee</dt>
-            <dd>{record.data.case?.assigneeName || "Not claimed"}</dd>
+            <dd>{record.data.owner || "No team"}</dd>
+            <dt className="text-muted-foreground">Assigned to</dt>
+            <dd>{record.data.case?.assigneeName || "No one yet"}</dd>
             <dt className="text-muted-foreground">Exception deadline</dt>
             <dd>
               {record.data.dueBy ? formatDate(record.data.dueBy) : "Not set"}
             </dd>
-            <dt className="text-muted-foreground">Next action</dt>
+            <dt className="text-muted-foreground">Next step</dt>
             <dd>{record.data.case?.nextAction || "Not recorded"}</dd>
-            <dt className="text-muted-foreground">Follow-up</dt>
+            <dt className="text-muted-foreground">Follow-up time</dt>
             <dd>
               {record.data.case?.nextActionAt
                 ? formatDate(record.data.case.nextActionAt)
@@ -227,13 +238,13 @@ function CaseWork({ data, refresh }: { data: any; refresh(): Promise<any> }) {
             href={`/exceptions?${new URLSearchParams({ record: record.id, ...(merchantId ? { lender: merchantId } : {}) })}#record-${record.id}`}
             className="inline-block text-sm text-primary underline"
           >
-            Resolve this exception in Exceptions
+            Open in Exceptions
           </Link>
           <Link
             href="/reconciliation"
             className="block text-sm text-primary underline"
           >
-            Open payment reconciliation
+            Open Reconciliation
           </Link>
         </PilotPanel>
         <PilotPanel
@@ -244,8 +255,9 @@ function CaseWork({ data, refresh }: { data: any; refresh(): Promise<any> }) {
               role="status"
               className="rounded-lg border border-warning-border p-3 text-sm"
             >
-              A newer version is available. Your draft is still here. Refresh
-              before submitting.
+              Someone changed this case after you opened it, so you cannot
+              save this draft. Copy anything you need, then select Refresh
+              case.
             </p>
           )}
           <form
@@ -285,7 +297,7 @@ function CaseWork({ data, refresh }: { data: any; refresh(): Promise<any> }) {
                   >
                     {!holder && !assignees.some((person) => person.actor === assignee) && (
                       <option value={assignee} disabled>
-                        You · not on this lender’s case list
+                        You · not on the list of people who can work on cases
                       </option>
                     )}
                     {formerHolder && (
@@ -305,12 +317,12 @@ function CaseWork({ data, refresh }: { data: any; refresh(): Promise<any> }) {
                     ? "Claiming assigns this case to you. Once it is yours, you can hand it over."
                     : formerHolder
                       ? `${holderName} can no longer work on cases for this lender. Choose who takes the case over.`
-                      : "Only people who can work on cases for this lender are listed. Read-only staff cannot be given a case."}
+                      : "Only people who can work on cases for this lender are listed. Read-only team members cannot be given a case."}
                 </p>
               </div>
               <div className="space-y-1">
                 <label className="block space-y-1 text-sm font-medium">
-                  Next action
+                  Next step
                   <input
                     id="case-next-action"
                     className={pilotField}
@@ -375,7 +387,7 @@ function CaseWork({ data, refresh }: { data: any; refresh(): Promise<any> }) {
                 <div className="mt-2 max-h-52 space-y-2 overflow-auto rounded-lg border p-3">
                   {data.evidence
                     .filter((item: any) =>
-                      `${item.name} ${item.reference} ${item.kind}`
+                      `${item.name} ${item.reference} ${item.kind} ${recordKindName(item.kind)}`
                         .toLowerCase()
                         .includes(search.toLowerCase()),
                     )
@@ -400,7 +412,7 @@ function CaseWork({ data, refresh }: { data: any; refresh(): Promise<any> }) {
                         <span>
                           {item.name}
                           <small className="block text-muted-foreground">
-                            {readableLabel(item.kind)} · {item.reference}
+                            {recordKindName(item.kind)} · {item.reference}
                           </small>
                         </span>
                       </label>
@@ -443,7 +455,7 @@ function CaseWork({ data, refresh }: { data: any; refresh(): Promise<any> }) {
             </div>
             {mutation.isSuccess && (
               <p role="status" className="text-sm">
-                Case update saved with its handover history.
+                Case saved. Its handover history is updated.
               </p>
             )}
             {locked && (
@@ -470,7 +482,7 @@ function CaseWork({ data, refresh }: { data: any; refresh(): Promise<any> }) {
                   {event.data.note}
                 </p>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Next: {event.data.after?.nextAction} ·{" "}
+                  Next step: {event.data.after?.nextAction} ·{" "}
                   {formatDate(event.data.after?.nextActionAt)}
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">

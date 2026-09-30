@@ -52,7 +52,7 @@ describe('renewed reversal reviews', () => {
     api.role = 'Operations';
     renderApp('/exceptions?view=open&type=provider_status_mismatch');
     const row = (await screen.findByText('Earlier decision recorded without a rule version.')).closest('tr')!;
-    const button = within(row).getByRole('button', { name: 'Resolve' });
+    const button = within(row).getByRole('button', { name: 'Resolve exception' });
     expect(button.getAttribute('aria-disabled')).toBe('true');
     expect(reasonFor(button)).toBe('Requires Admin or Finance: a renewed review of an earlier reversal decision is Finance’s to record.');
     await userEvent.setup().click(button);
@@ -77,7 +77,7 @@ describe('held payments and instalments', () => {
     renderApp('/reconciliation');
     const payments = (await screen.findByRole('heading', { name: 'Unallocated payments' })).parentElement!.parentElement!;
     const row = (await within(payments).findByText('SBX-HELD-PAY')).closest('tr')!;
-    const button = within(row).getByRole('button', { name: 'Allocate' });
+    const button = within(row).getByRole('button', { name: 'Allocate payment' });
     expect(button.getAttribute('aria-disabled')).toBe('true');
     expect(reasonFor(button)).toBe(allocate(payment.id, open));
     expect(reasonFor(button)).toBe('This payment is held for renewed Finance review of an earlier reversal decision. Resolve that review and run reconciliation before allocating it.');
@@ -86,11 +86,11 @@ describe('held payments and instalments', () => {
     const unidentified = byReference('SBX-UNIDENTIFIED-001', 'payments');
     expect(allocate(unidentified.id, held)).toBe('This instalment is held for renewed Finance review of an earlier reversal decision. Resolve that review and run reconciliation before allocating a payment.');
     const other = within(payments).getByText('SBX-UNIDENTIFIED-001').closest('tr')!;
-    await user.click(within(other).getByRole('button', { name: 'Allocate' }));
+    await user.click(within(other).getByRole('button', { name: 'Allocate payment' }));
     const dialog = await screen.findByRole('dialog', { name: 'Allocate payment' });
     await waitFor(() => expect(within(dialog).getByRole('option', { name: /DEMO-LOAN-1006/ })).toBeTruthy());
     expect(within(dialog).queryByRole('option', { name: /DEMO-LOAN-1005/ })).toBeNull();
-    expect(within(dialog).getByText(/held for a renewed reversal review cannot take a payment and are not listed/)).toBeTruthy();
+    expect(within(dialog).getByText(/Instalments on hold while Finance reviews an earlier reversal decision are not listed either/)).toBeTruthy();
   });
 
   it.each([
@@ -104,13 +104,13 @@ describe('held payments and instalments', () => {
     expect(confirm).toBe('This instalment is held for renewed Finance review of an earlier reversal decision. Resolve that review and run reconciliation before allocating a payment.');
     api.role = 'Finance';
     renderApp('/reconciliation');
-    const matches = (await screen.findByRole('heading', { name: 'Proposed matches' })).parentElement!.parentElement!;
+    const matches = (await screen.findByRole('heading', { name: 'Matches to review' })).parentElement!.parentElement!;
     const row = (await within(matches).findByText('SBX-PAY-1003')).closest('tr')!;
-    const button = within(row).getByRole('button', { name: 'Confirm' });
+    const button = within(row).getByRole('button', { name: 'Confirm match' });
     expect(button.getAttribute('aria-disabled')).toBe('true');
     expect(reasonFor(button)).toBe(confirm);
     // Rejecting a proposal applies no money, so the service allows it and it stays offered.
-    expect(within(row).getByRole('button', { name: 'Reject' }).getAttribute('aria-disabled')).toBeNull();
+    expect(within(row).getByRole('button', { name: 'Reject match' }).getAttribute('aria-disabled')).toBeNull();
   });
 
   it('does not offer Release from dispute for a held instalment, and says why as the service does', async () => {

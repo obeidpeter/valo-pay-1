@@ -21,7 +21,7 @@ describe("not found", () => {
     expect(api.calls).toEqual([]);
 
     await user.click(screen.getByRole("link", { name: "Open Overview" }));
-    expect(await screen.findByRole("heading", { name: "Operations overview" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Overview" })).toBeTruthy();
     expect(api.calls.some((call) => call.path === "/v1/workspace")).toBe(true);
   });
 

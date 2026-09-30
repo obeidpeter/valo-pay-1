@@ -37,7 +37,7 @@ test('presentation preparation, downloads and guide are usable on desktop and ph
   const guide = page.getByRole('region', { name: 'Presentation guide' });
   await expect(guide).toBeVisible();
   await guide.getByRole('link', { name: 'Open Overview' }).click();
-  await expect(page.getByRole('heading', { name: 'Operations overview' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible();
   await guide.getByRole('button', { name: 'Next talking point' }).click();
   await page.reload();
   await expect(guide.getByText('2 of 6 · Bring in payment evidence')).toBeVisible();
@@ -77,7 +77,7 @@ test('step three opens the sample customer, where rule R1 matched the payment au
   await expect(open).toHaveAttribute('href', `/customers/${customer.id}`);
   await open.click();
   await expect(page.getByRole('heading', { level: 1, name: 'Presentation customer' })).toBeVisible();
-  const match = page.getByText(/^Matched automatically and with certainty by rule R1\. Provider reference PRES-O001 resolved to instalment PRES-D001/);
+  const match = page.getByText(/^Matched automatically by rule R1\. Confidence: Certain\. Provider reference PRES-O001 resolved to instalment PRES-D001/);
   await expect(match).toBeVisible();
   await expect(guide.getByRole('button', { name: 'End presentation' })).toBeVisible();
   expect(writes).toEqual([]);

@@ -97,7 +97,7 @@ test("field correction links retain the draft and return keyboard focus to its o
   const dialog = page.getByRole("dialog", { name: "Add customer", exact: true });
   const name = dialog.getByLabel(/^Full name/);
   await name.fill("Retained synthetic customer");
-  await dialog.getByRole("button", { name: "Save", exact: true }).click();
+  await dialog.getByRole("button", { name: "Add customer", exact: true }).click();
   await expect(dialog.getByLabel(/^Loan software reference/)).toBeFocused();
   const correction = dialog.getByRole("button", { name: /Consent source or reference: Consent source or reference is required/ });
   await correction.focus();
@@ -116,18 +116,18 @@ test("field correction links retain the draft and return keyboard focus to its o
 
 test("the payment comparison keeps evidence readable and keyboard focus inside its dialog", async ({ page }, info) => {
   await page.goto("/reconciliation?view=review");
-  const opener = page.getByRole("button", { name: "Confirm", exact: true }).first();
+  const opener = page.getByRole("button", { name: "Confirm match", exact: true }).first();
   await opener.click();
-  const dialog = page.getByRole("dialog", { name: "Confirm payment allocation" });
-  const title = dialog.getByRole("heading", { name: "Confirm payment allocation", exact: true });
+  const dialog = page.getByRole("dialog", { name: "Confirm match" });
+  const title = dialog.getByRole("heading", { name: "Confirm match", exact: true });
   await expect(title).toBeFocused();
   await expect(title).toBeInViewport();
   const evidence = dialog.getByRole("region", { name: "Match evidence" });
   await expect(evidence.getByRole("heading", { name: "Recorded payment", exact: true })).toBeVisible();
   await expect(evidence.getByRole("heading", { name: "Instalment", exact: true })).toBeVisible();
-  await expect(evidence.getByText(/Receipt status:/)).toBeVisible();
+  await expect(evidence.getByText(/Collection result:/)).toBeVisible();
   await expect(evidence.getByText(/Settlement:/)).toBeVisible();
-  await expect(evidence.getByText(/Provider fees are reviewed separately/)).toBeVisible();
+  await expect(evidence.getByText(/Provider fees do not reduce the amount allocated/)).toBeVisible();
   expect(await dialog.evaluate(node => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
   await dialog.getByLabel("Reason *", { exact: true }).focus();
   for (let index = 0; index < 8; index += 1) {
@@ -199,7 +199,7 @@ for (const theme of ["light", "dark"] as const) {
       await expectReflow(page);
       if (route === "/collections") {
         // The card clips overflow, so merely fitting the viewport is not enough.
-        const ownerFitsCard = await page.getByLabel("Filter collections by owner").evaluate(node => {
+        const ownerFitsCard = await page.getByLabel("Filter instalments by who collects them").evaluate(node => {
           const control = node.getBoundingClientRect();
           const card = node.closest("section")!.getBoundingClientRect();
           return control.left >= card.left && control.right <= card.right;

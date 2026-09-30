@@ -27,11 +27,11 @@ describe('collection targets on customer history', () => {
     expect(within(selected).getByText(`${due.name} · ${due.reference}`)).toBeTruthy();
     expect(selected.textContent).toContain('Outstanding:');
     await waitFor(() => expect(document.activeElement).toBe(selected));
-    expect(screen.getByRole('link', { name: 'Back to collections' }).getAttribute('href')).toBe(back);
-    await user.click(screen.getByRole('link', { name: 'Back to collections' }));
+    expect(screen.getByRole('link', { name: 'Back to Collections' }).getAttribute('href')).toBe(back);
+    await user.click(screen.getByRole('link', { name: 'Back to Collections' }));
     const row = (await screen.findByText(due.reference)).closest('tr')!;
     expect(new URLSearchParams(window.location.search).get('view')).toBe('all');
-    expect((screen.getByLabelText('Filter collections by owner') as HTMLSelectElement).value).toBe('merchant_manual');
+    expect((screen.getByLabelText('Filter instalments by who collects them') as HTMLSelectElement).value).toBe('merchant_manual');
     await waitFor(() => expect(document.activeElement).toBe(row));
   });
 
@@ -39,9 +39,9 @@ describe('collection targets on customer history', () => {
     const { customer, due, back } = targetDue();
     renderApp(recordDestination(`/customers/${customer.id}`, 'missing-record', back, api.merchantIds[0]!));
     const selected = await screen.findByRole('region', { name: 'Selected collection record' });
-    expect(within(selected).getByRole('heading', { name: 'Collection record unavailable' })).toBeTruthy();
+    expect(within(selected).getByRole('heading', { name: 'Record not found' })).toBeTruthy();
     expect(within(selected).queryByText(`${due.name} · ${due.reference}`)).toBeNull();
-    expect(screen.getByRole('link', { name: 'Back to collections' }).getAttribute('href')).toBe(back);
+    expect(screen.getByRole('link', { name: 'Back to Collections' }).getAttribute('href')).toBe(back);
   });
 
   it('recovers a failed customer-history request while preserving its selected record and return address', async () => {
@@ -50,11 +50,11 @@ describe('collection targets on customer history', () => {
     api.failNext(/^\/v1\/customers\/[^/]+\/history$/, { status: 503, error: 'History temporarily unavailable.' });
     renderApp(recordDestination(`/customers/${customer.id}`, due.id, back, api.merchantIds[0]!));
     const problem = (await screen.findByText('Unable to load customer history')).closest('[role="alert"]')!;
-    expect(screen.queryByText('Collection record unavailable')).toBeNull();
+    expect(screen.queryByText('Record not found')).toBeNull();
     await user.click(within(problem as HTMLElement).getByRole('button', { name: 'Try again' }));
     const selected = await screen.findByRole('region', { name: 'Selected collection record' });
     expect(within(selected).getByText(`${due.name} · ${due.reference}`)).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Back to collections' }).getAttribute('href')).toBe(back);
+    expect(screen.getByRole('link', { name: 'Back to Collections' }).getAttribute('href')).toBe(back);
   });
 
   it('gives lender guidance before displaying a customer target from another lender', async () => {
@@ -79,11 +79,11 @@ describe('collection targets in reconciliation', () => {
     await within(selected).findByText(due.reference);
     await waitFor(() => expect(document.activeElement).toBe(selected));
     const table = screen.getByRole('columnheader', { name: 'Confidence and reason' }).closest('table')!;
-    await within(table).findByRole('button', { name: 'Confirm' });
+    await within(table).findByRole('button', { name: 'Confirm match' });
     expect(within(table).getAllByRole('row')).toHaveLength(2);
     expect(within(table).getByText(due.reference)).toBeTruthy();
     expect(within(table).queryByText(otherDue.reference)).toBeNull();
-    expect(screen.getByRole('link', { name: '← Back to collections' }).getAttribute('href')).toBe(back);
+    expect(screen.getByRole('link', { name: 'Back to Collections' }).getAttribute('href')).toBe(back);
     expect(selected.textContent).toContain('Running reconciliation still checks all records for the selected lender.');
   });
 
@@ -93,8 +93,8 @@ describe('collection targets in reconciliation', () => {
     renderApp(recordDestination('/reconciliation', otherDue.id, back, api.merchantIds[0]!, 'dueItem'));
     const selected = await screen.findByRole('region', { name: 'Selected instalment' });
     await within(selected).findByText(otherDue.reference);
-    await screen.findByText('No proposed matches to review');
-    expect(screen.queryByRole('button', { name: 'Confirm' })).toBeNull();
+    await screen.findByText('No matches to review');
+    expect(screen.queryByRole('button', { name: 'Confirm match' })).toBeNull();
   });
 
   it('distinguishes a failed target lookup from a missing instalment and retries in place', async () => {
@@ -104,17 +104,17 @@ describe('collection targets in reconciliation', () => {
     renderApp(recordDestination('/reconciliation', due.id, back, api.merchantIds[0]!, 'dueItem'));
     const selected = await screen.findByRole('region', { name: 'Selected instalment' });
     await within(selected).findByText('Unable to load the selected instalment');
-    expect(within(selected).queryByText(/This instalment was not found/)).toBeNull();
+    expect(within(selected).queryByText(/Instalment not found/)).toBeNull();
     await user.click(within(selected).getByRole('button', { name: 'Try again' }));
     await within(selected).findByText(due.reference);
-    expect(screen.getByRole('link', { name: '← Back to collections' }).getAttribute('href')).toBe(back);
+    expect(screen.getByRole('link', { name: 'Back to Collections' }).getAttribute('href')).toBe(back);
   });
 
   it('explains a missing instalment without showing unrelated proposals', async () => {
     const { back } = targetDue();
     renderApp(recordDestination('/reconciliation', 'missing-instalment', back, api.merchantIds[0]!, 'dueItem'));
-    await screen.findByText('This instalment was not found for the selected lender. Return to Collections and refresh the queue.');
-    expect(screen.queryByRole('button', { name: 'Confirm' })).toBeNull();
+    await screen.findByText('Instalment not found. It may have been deleted, or it belongs to another lender. Go back to Collections and select Refresh queue.');
+    expect(screen.queryByRole('button', { name: 'Confirm match' })).toBeNull();
   });
 
   it('rejects a cross-lender return link and gives explicit lender guidance', async () => {
@@ -123,8 +123,8 @@ describe('collection targets in reconciliation', () => {
     const back = collectionReturnTo(new URLSearchParams('view=failed'), other, due.id);
     renderApp(recordDestination('/reconciliation', due.id, back, other, 'dueItem'));
     await screen.findByText('This link belongs to a different lender. Select that lender to review its instalment.');
-    expect(screen.queryByRole('link', { name: /Back to collections/ })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Confirm' })).toBeNull();
+    expect(screen.queryByRole('link', { name: /Back to Collections/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Confirm match' })).toBeNull();
   });
 
   it('ignores a run result that finishes after switching lenders and accepts a fresh run for the new lender', async () => {
@@ -132,7 +132,7 @@ describe('collection targets in reconciliation', () => {
     const release = api.hold(/^\/v1\/actions$/);
     renderApp('/reconciliation');
     await user.click(await screen.findByRole('button', { name: 'Run reconciliation' }));
-    await screen.findByRole('button', { name: 'Reconciling payments…' });
+    await screen.findByRole('button', { name: 'Running reconciliation…' });
     await user.selectOptions(screen.getAllByLabelText('Active lender')[0]!, api.merchantIds[1]!);
     await waitFor(() => expect(queryClient.isFetching()).toBe(0));
     const reportReads = () => api.calls.filter(call => call.path === '/v1/reconciliation/audit' && call.query.merchantId === api.merchantIds[1]).length;

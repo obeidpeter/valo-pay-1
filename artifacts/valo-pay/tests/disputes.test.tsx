@@ -61,8 +61,8 @@ it("lets Finance release an instalment from dispute on Collections, with a reaso
   switchTo("Finance", "/collections");
   row = (await screen.findByText("DEMO-LOAN-1005")).closest("tr")!;
   await user.click(within(row).getByRole("button", { name: "Release from dispute" }));
-  const dialog = await screen.findByRole("dialog", { name: "Release instalment from dispute" });
-  expect(within(dialog).getByRole("region", { name: "Release context" }).textContent).toContain("Its status then follows its balance");
+  const dialog = await screen.findByRole("dialog", { name: "Release from dispute" });
+  expect(within(dialog).getByRole("region", { name: "Release context" }).textContent).toContain("Its status goes back to match its balance");
   await user.type(within(dialog).getByLabelText(/Reason/), "The provider withdrew the chargeback.");
   await user.click(within(dialog).getByRole("button", { name: "Release from dispute" }));
   await waitFor(() => expect(instalment().status).toBe("scheduled"));
@@ -78,9 +78,13 @@ it("explains what a dispute's resolution does to its instalment", async () => {
   disputed();
   renderApp("/exceptions?type=customer_dispute");
   const table = await screen.findByRole("table");
-  await user.click(within(table).getByRole("button", { name: "Resolve" }));
+  await user.click(within(table).getByRole("button", { name: "Resolve exception" }));
   const dialog = await screen.findByRole("dialog", { name: "Resolve exception" });
-  expect(within(dialog).getByRole("region", { name: "Exception context" }).textContent).toContain("Not upheld takes the instalment out of dispute");
+  // Each outcome is on its own line with what it does to the instalment.
+  const context = within(dialog).getByRole("region", { name: "Exception context" }).textContent;
+  expect(context).toContain("Dispute not upheld: Takes the instalment out of dispute. Its status goes back to match its balance, and collection and allocation start again.");
+  expect(context).toContain("Dispute upheld; refund required: Keeps the instalment in dispute until Finance releases it on the Collections page.");
+  expect(context).toContain("Mandate cancelled: Keeps the instalment in dispute until Finance releases it on the Collections page.");
 });
 
 it("has Finance record a pay-by-bank outcome that stayed unknown, with its evidence", async () => {
@@ -88,20 +92,20 @@ it("has Finance record a pay-by-bank outcome that stayed unknown, with its evide
   const { intentId, exceptionId } = unknownCheckout();
   expect(record(exceptionId).data).toMatchObject({ type: "unknown_outcome", owner: "Finance", linkedKind: "connected-intents" });
   switchTo("Operations", "/exceptions?type=unknown_outcome");
-  const refused = within(await screen.findByRole("table")).getByRole("button", { name: "Resolve" });
+  const refused = within(await screen.findByRole("table")).getByRole("button", { name: "Resolve exception" });
   expect(document.getElementById(refused.getAttribute("aria-describedby")!.split(" ").at(-1)!)!.textContent).toBe("Requires Admin or Finance: the outcome of a pay-by-bank payment is Finance’s to record.");
 
   switchTo("Finance", "/exceptions?type=unknown_outcome");
-  await user.click(within(await screen.findByRole("table")).getByRole("button", { name: "Resolve" }));
+  await user.click(within(await screen.findByRole("table")).getByRole("button", { name: "Resolve exception" }));
   const dialog = await screen.findByRole("dialog", { name: "Resolve exception" });
   const context = within(dialog).getByRole("region", { name: "Exception context" });
-  expect(context.textContent).toContain("Confirmed successful records the pay-by-bank payment as received");
-  expect(within(context).getByRole("link", { name: "Review the pay-by-bank checkout" }).getAttribute("href")).toContain("/pay-by-bank");
-  expect(within(dialog).queryByLabelText("Failure code the provider confirmed")).toBeNull();
-  await user.selectOptions(within(dialog).getByLabelText(/How was this resolved/), "resolved_succeeded");
+  expect(context.textContent).toContain("Confirmed successful: Records the payment as received, with your evidence reference, and allocates it to its instalment.");
+  expect(within(context).getByRole("link", { name: "Open Pay by Bank" }).getAttribute("href")).toContain("/pay-by-bank");
+  expect(within(dialog).queryByLabelText("Failure reason the provider confirmed")).toBeNull();
+  await user.selectOptions(within(dialog).getByLabelText(/^Outcome/), "resolved_succeeded");
   await user.type(within(dialog).getByLabelText(/Reason/), "The bank statement shows the payment.");
   await user.click(within(dialog).getByRole("button", { name: "Resolve exception" }));
-  expect(await within(dialog).findByText("Enter the masked reference of the evidence that the payment arrived.")).toBeTruthy();
+  expect(await within(dialog).findByText("Enter the masked reference that proves the payment arrived.")).toBeTruthy();
   expect(record(intentId).status).toBe("unknown");
   await user.type(within(dialog).getByLabelText("Evidence reference"), "STMT-***4411");
   await user.click(within(dialog).getByRole("button", { name: "Resolve exception" }));
@@ -118,5 +122,5 @@ it("points from Pay by Bank and the overview to an outcome that stayed unknown",
   expect(link.closest("p")!.textContent).toContain("the daily close creates an exception for Finance");
   switchTo("Admin", "/overview");
   const alert = (await screen.findByRole("heading", { name: "Pay-by-bank outcomes unknown for over 24 hours" })).closest("li")!;
-  expect(within(alert).getByRole("link", { name: /Review pay-by-bank checkouts/ }).getAttribute("href")).toBe("/pay-by-bank");
+  expect(within(alert).getByRole("link", { name: /Review Pay by Bank checkouts/ }).getAttribute("href")).toBe("/pay-by-bank");
 });

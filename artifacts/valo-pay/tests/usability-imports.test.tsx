@@ -29,7 +29,7 @@ describe('UX-I01 import outcome and correction guidance', () => {
     await screen.findByRole('heading', { name: 'Check results' });
     expect(within(screen.getByRole('region', { name: 'Check results' })).getByText(/Row 2 · Already imported:/)).toBeTruthy();
     expect(screen.getByText('This was a check only. No records were saved.')).toBeTruthy();
-    expect(screen.getByText('All rows already exist. There is nothing new to import; existing records have not been changed.')).toBeTruthy();
+    expect(screen.getByText('All rows already exist, so there is nothing new to import. Existing records have not changed.')).toBeTruthy();
     expect(screen.queryByText('Checked and ready. Review the preview, then select Import data.')).toBeNull();
     expect(screen.getByRole('button', { name: 'Import data' })).toHaveProperty('disabled', true);
     expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Check results' }));
@@ -52,7 +52,7 @@ describe('UX-I01 import outcome and correction guidance', () => {
     expect(screen.getByLabelText('CSV content')).toHaveProperty('value', csv);
     const referenceMap = screen.getByLabelText('Map reference');
     expect(within(referenceMap).getByRole('option', { name: 'Full name' })).toHaveProperty('disabled', true);
-    expect(screen.getByText(/Every row needs a source row ID: a row imported before with the same ID and data is skipped/)).toBeTruthy();
+    expect(screen.getByText(/Every row needs a source row ID\. A row already imported with the same ID and data is skipped\./)).toBeTruthy();
   });
 
   it('recovers a lost committed import response with the same key and blocks a changed batch', async () => {
@@ -70,17 +70,17 @@ describe('UX-I01 import outcome and correction guidance', () => {
       throw new TypeError('Connection interrupted after commit');
     };
     await user.click(screen.getByRole('button', { name: 'Import data' }));
-    await screen.findByText('Import outcome not confirmed');
+    await screen.findByText('Request not confirmed');
     expect(screen.getByLabelText('CSV content')).toHaveProperty('disabled', true);
     expect(screen.getByLabelText('Import as')).toHaveProperty('disabled', true);
     expect(screen.getByRole('button', { name: 'Check data' })).toHaveProperty('disabled', true);
     expect(screen.getByRole('button', { name: 'Clear import' })).toHaveProperty('disabled', true);
-    await user.click(screen.getByRole('button', { name: 'Retry same import' }));
+    await user.click(screen.getByRole('button', { name: 'Check original request' }));
     await screen.findByRole('heading', { name: 'Import results' });
     expect(keys).toHaveLength(2);
     expect(keys[0]).toBe(keys[1]);
     expect(api.state().records.filter(record => record.name === 'Reference-free sample')).toHaveLength(1);
-    expect(screen.queryByText('Import outcome not confirmed')).toBeNull();
+    expect(screen.queryByText('Request not confirmed')).toBeNull();
   });
 
   it('discards a lost import deliberately, which frees the wizard for a new import under a new key', async () => {
@@ -93,10 +93,10 @@ describe('UX-I01 import outcome and correction guidance', () => {
     };
     api.failNext(/^\/v1\/imports$/, 'offline', 'POST');
     await user.click(screen.getByRole('button', { name: 'Import data' }));
-    const notice = (await screen.findByText('Import outcome not confirmed')).closest('[role=alert]') as HTMLElement;
+    const notice = (await screen.findByText('Request not confirmed')).closest('[role=alert]') as HTMLElement;
     expect(screen.getByLabelText('CSV content')).toHaveProperty('disabled', true);
     await user.click(within(notice).getByRole('button', { name: 'Discard original request' }));
-    await waitFor(() => expect(screen.queryByText('Import outcome not confirmed')).toBeNull());
+    await waitFor(() => expect(screen.queryByText('Request not confirmed')).toBeNull());
     expect(screen.getByLabelText('CSV content')).toHaveProperty('disabled', false);
     await cancelInterrupted(user);
     await user.click(screen.getByRole('button', { name: 'Import data' }));
@@ -110,11 +110,11 @@ describe('UX-I01 import outcome and correction guidance', () => {
 describe('UX-I02 shared form recovery and UX-I03 review correction', () => {
   it('starts a consequential review at its title before moving to any invalid reason', async () => {
     const user = userEvent.setup(); renderApp('/reconciliation?view=review');
-    const opener = await screen.findByRole('button', { name: 'Confirm' });
+    const opener = await screen.findByRole('button', { name: 'Confirm match' });
     await user.click(opener);
-    const dialog = await screen.findByRole('dialog', { name: 'Confirm payment allocation' });
-    expect(document.activeElement).toBe(within(dialog).getByRole('heading', { name: 'Confirm payment allocation' }));
-    await user.click(within(dialog).getByRole('button', { name: 'Confirm allocation' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Confirm match' });
+    expect(document.activeElement).toBe(within(dialog).getByRole('heading', { name: 'Confirm match' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Confirm match' }));
     expect(document.activeElement).toBe(within(dialog).getByLabelText('Reason *'));
     expect(api.calls.filter(call => call.method === 'POST')).toHaveLength(0);
     await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
@@ -128,7 +128,7 @@ describe('UX-I02 shared form recovery and UX-I03 review correction', () => {
     await user.click(opener);
     const dialog = await screen.findByRole('dialog');
     await user.type(within(dialog).getByLabelText(/^Full name/), 'Retained sample name');
-    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Add customer' }));
     const correction = within(dialog).getByRole('button', { name: /Consent source or reference: Consent source or reference is required/ });
     await user.click(correction);
     expect(document.activeElement).toBe(within(dialog).getByLabelText(/^Consent source or reference/));
@@ -146,7 +146,7 @@ describe('UX-I02 shared form recovery and UX-I03 review correction', () => {
     await user.type(within(dialog).getByLabelText(/^Loan software reference/), 'UX-CONFLICT');
     await user.type(within(dialog).getByLabelText(/^Consent source or reference/), 'Synthetic consent');
     api.failNext(/^\/v1\/records\/customers$/, { status: 409, error: 'Reference already exists. Use an idempotency key for safe replay.' }, 'POST');
-    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Add customer' }));
     await within(dialog).findByText('Reference already exists. Use an idempotency key for safe replay.');
     expect(within(dialog).queryByRole('button', { name: 'Discard draft and refresh' })).toBeNull();
     expect(within(dialog).getByLabelText(/^Loan software reference/)).toHaveProperty('value', 'UX-CONFLICT');
@@ -158,8 +158,8 @@ describe('UX-I02 shared form recovery and UX-I03 review correction', () => {
     await user.click(await screen.findByRole('button', { name: 'Edit draft' }));
     const dialog = await screen.findByRole('dialog');
     api.failNext(/^\/v1\/records\/policies\//, { status: 400, error: 'Validation failed', details: [{ field: 'data.partialAllowed', message: 'Review whether partial collections are allowed.' }] }, 'PATCH');
-    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
-    const box = within(dialog).getByRole('checkbox', { name: 'Allow partial collections' });
+    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
+    const box = within(dialog).getByRole('checkbox', { name: 'Allow collecting part of an instalment' });
     await waitFor(() => expect(box.getAttribute('aria-invalid')).toBe('true'));
     expect(box.getAttribute('aria-describedby')).toContain('record-partialAllowed-error');
     expect(document.activeElement).toBe(box);
@@ -192,9 +192,9 @@ describe('UX-I02 shared form recovery and UX-I03 review correction', () => {
     await user.type(within(dialog).getByLabelText(/^Loan software reference/), 'UX-RECOVERY');
     await user.type(within(dialog).getByLabelText(/^Consent source or reference/), 'Synthetic consent');
     api.failNext(/^\/v1\/records\/customers$/, 'offline', 'POST');
-    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Add customer' }));
     await within(dialog).findByText('Outcome not confirmed');
-    expect(within(dialog).getByRole('button', { name: 'Save' })).toHaveProperty('disabled', true);
+    expect(within(dialog).getByRole('button', { name: 'Add customer' })).toHaveProperty('disabled', true);
     expect(within(dialog).getByLabelText(/^Full name/).closest('fieldset')).toHaveProperty('disabled', true);
     vi.mocked(window.confirm).mockReturnValue(false);
     await user.keyboard('{Escape}');
@@ -242,14 +242,14 @@ describe('UX-I02 shared form recovery and UX-I03 review correction', () => {
       if (attempts.length === 2) return new Response(JSON.stringify({ error: guidance }), { status: 403, headers: { 'Content-Type': 'application/json' } });
       return committed.clone();
     };
-    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Add customer' }));
     await within(dialog).findByText('Outcome not confirmed');
     expect(api.state().records.filter(record => record.reference === 'UX-REPLAY-FORBIDDEN')).toHaveLength(1);
     await user.click(within(dialog).getByRole('button', { name: 'Retry same request' }));
     await within(dialog).findByText(guidance);
     expect(within(dialog).getByText('Outcome not confirmed')).toBeTruthy();
     expect(within(dialog).getByText('Latest response')).toBeTruthy();
-    expect(within(dialog).getByRole('button', { name: 'Save' })).toHaveProperty('disabled', true);
+    expect(within(dialog).getByRole('button', { name: 'Add customer' })).toHaveProperty('disabled', true);
     const name = within(dialog).getByLabelText(/^Full name/);
     expect(name.closest('fieldset')).toHaveProperty('disabled', true);
     await user.type(name, 'changed');

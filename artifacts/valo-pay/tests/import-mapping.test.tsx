@@ -134,9 +134,9 @@ describe('sample data import on Collections', () => {
     await user.click(screen.getByRole('button', { name: 'Check data' }));
     await waitFor(() => expect(screen.getByRole('button', { name: 'Import data' })).toHaveProperty('disabled', false));
     await user.click(screen.getByRole('button', { name: 'Import data' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Import with fallback values?' });
+    const dialog = await screen.findByRole('dialog', { name: 'Import with default values?' });
     expect(api.calls.some(call => call.path === '/v1/imports' && (call.body as { commit?: boolean }).commit)).toBe(false);
-    await user.click(within(dialog).getByRole('button', { name: 'Import anyway' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Import with default values' }));
     await screen.findByText(/Import complete\./);
     expect(customer()?.name).toBe('UNMAPPED-C1');
   });

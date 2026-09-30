@@ -18,9 +18,9 @@ describe('console efficiency', () => {
     await user.type(screen.getByLabelText('View name'), 'Finance follow-up');
     await user.click(screen.getByRole('button', { name: 'Save current view' }));
     expect(await screen.findByText('Saved Finance follow-up.')).toBeTruthy();
-    await user.selectOptions(screen.getByLabelText('Filter exceptions by owner'), '');
+    await user.selectOptions(screen.getByLabelText('Filter exceptions by team'), '');
     await user.click(screen.getByRole('button', { name: 'Finance follow-up' }));
-    await waitFor(() => expect((screen.getByLabelText('Filter exceptions by owner') as HTMLSelectElement).value).toBe('Finance'));
+    await waitFor(() => expect((screen.getByLabelText('Filter exceptions by team') as HTMLSelectElement).value).toBe('Finance'));
     expect(Object.fromEntries(new URLSearchParams(window.location.search))).toMatchObject({ view: 'overdue', owner: 'Finance', type: 'unallocated_payment' });
     expect(JSON.parse(localStorage.getItem(`valopay-queue-views-v2:Sandbox Admin:${api.merchantIds[0]}:exceptions`) || 'null')).toEqual([
       { name: 'Finance follow-up', view: 'overdue', owner: 'Finance', type: 'unallocated_payment' },
@@ -85,14 +85,14 @@ describe('console efficiency', () => {
     expect(api.calls.filter(call => call.path === '/v1/queues/exceptions').map(call => call.query.offset)).toEqual(['0', '25']);
     expect(api.calls.some(call => /^\/v1\/records\/(exceptions|customers)$/.test(call.path))).toBe(false);
     await user.click(screen.getByRole('tab', { name: 'Resolved (0)' }));
-    await screen.findByText('Nothing resolved yet');
+    await screen.findByText('No resolved exceptions yet');
     expect(api.calls.filter(call => call.path === '/v1/queues/exceptions').at(-1)?.query.offset).toBe('0');
   });
 
   it('shows report actions in their relevant view and validates a bookmarked date range', async () => {
     const user = userEvent.setup();
     renderApp('/reports?from=2026-10-01&to=2026-09-01');
-    await screen.findByText('The start date must be on or before the end date.');
+    await screen.findByText('The From date must be on or before the To date.');
     expect(screen.getByRole('button', { name: 'Run daily close' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Issue invoice' })).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Billing' }));
@@ -104,12 +104,12 @@ describe('console efficiency', () => {
     expect(screen.queryByRole('heading', { name: 'Billing statement · current period' })).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Operations' }));
     await user.click(screen.getByRole('button', { name: 'Clear dates' }));
-    expect(await screen.findByText('No daily close yet')).toBeTruthy();
+    expect(await screen.findByText('No daily closes yet')).toBeTruthy();
     fireEvent.change(screen.getByLabelText('From date (WAT)'), { target: { value: '2026-09-01' } });
     fireEvent.change(screen.getByLabelText('To date (WAT)'), { target: { value: '2026-09-19' } });
     expect(new URLSearchParams(window.location.search).has('from')).toBe(false);
     await user.click(screen.getByRole('button', { name: 'Apply dates' }));
-    expect(await screen.findByText(/Showing 0 recorded closes from 2026-09-01 through 2026-09-19/)).toBeTruthy();
+    expect(await screen.findByText(/Showing 0 recorded closes from 1 Sept 2026 to 19 Sept 2026/)).toBeTruthy();
   });
 });
 
@@ -121,7 +121,7 @@ describe('recorded closing positions', () => {
     expect(result.items.map(row => row.id)).toEqual(['3', '2']);
     expect(result.metrics.map(metric => metric.change)).toEqual([-3000, -2]);
     // The close list carries naira only, and the label says so: money in another currency is in each close's details.
-    expect(result.metrics[0]!.label).toBe('Unmatched value in naira at close');
+    expect(result.metrics[0]!.label).toBe('Unallocated payments at close (naira only)');
   });
   it('does not invent missing measurements or compare a single snapshot', () => {
     const first = close('1', '2026-09-18T12:00:00Z');

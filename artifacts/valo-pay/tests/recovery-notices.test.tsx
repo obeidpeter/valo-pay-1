@@ -35,7 +35,7 @@ describe("unconfirmed changes the journal records point to Operations", () => {
     await user.type(within(dialog).getByLabelText(/^Loan software reference/), "LOST-ANSWER-1");
     await user.type(within(dialog).getByLabelText(/^Consent source or reference/), "Synthetic consent");
     api.failNext(/^\/v1\/records\/customers$/, "offline", "POST");
-    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    await user.click(within(dialog).getByRole("button", { name: "Add customer" }));
     await within(dialog).findByText("Outcome not confirmed");
     const notice = pointsToOperations("Outcome not confirmed");
     expect(notice.textContent).not.toMatch(/not saved after closing or reloading/);
@@ -62,18 +62,18 @@ describe("unconfirmed changes the journal records point to Operations", () => {
   it("in the mandate dialog", async () => {
     const user = userEvent.setup();
     renderApp("/mandates");
-    await user.click(await screen.findByRole("button", { name: "Create synthetic mandate" }));
-    const dialog = await screen.findByRole("dialog", { name: "Create synthetic mandate" });
+    await user.click(await screen.findByRole("button", { name: "Add mandate" }));
+    const dialog = await screen.findByRole("dialog", { name: "Add mandate" });
     await user.type(within(dialog).getByLabelText(/Mandate name/), "Lost answer mandate");
     await user.selectOptions(within(dialog).getByLabelText(/Customer/), api.state().records.find((r) => r.kind === "customers")!.id);
     await user.type(within(dialog).getByLabelText(/Debit limit/), "2000");
     await user.type(within(dialog).getByLabelText(/Provider reference/), "SYN-LOST-MANDATE");
     await user.type(within(dialog).getByLabelText(/Consent evidence reference/), "SYN-CONSENT-LOST");
-    await user.selectOptions(within(dialog).getByLabelText(/^Policy/), api.state().records.find((r) => r.kind === "policies")!.id);
+    await user.selectOptions(within(dialog).getByLabelText(/^Retry policy/), api.state().records.find((r) => r.kind === "policies")!.id);
     api.failNext(/^\/v1\/records\/mandates$/, "offline", "POST");
-    await user.click(within(dialog).getByRole("button", { name: "Create mandate" }));
-    await screen.findByText("Mandate creation outcome unconfirmed");
-    pointsToOperations("Mandate creation outcome unconfirmed");
+    await user.click(within(dialog).getByRole("button", { name: "Add mandate" }));
+    await screen.findByText("Request not confirmed");
+    pointsToOperations("Request not confirmed");
   });
 
   it("in the export control, for a new export", async () => {
@@ -112,8 +112,8 @@ describe("unconfirmed changes the journal records point to Operations", () => {
     await screen.findByRole("heading", { name: "Check results" });
     api.failNext(/^\/v1\/imports$/, "offline", "POST");
     await user.click(screen.getByRole("button", { name: "Import data" }));
-    await screen.findByText("Import outcome not confirmed");
-    pointsToOperations("Import outcome not confirmed");
+    await screen.findByText("Request not confirmed");
+    pointsToOperations("Request not confirmed");
   });
 
   it("on Reports, for a daily close, but not for its refusal", async () => {
@@ -135,8 +135,8 @@ describe("unconfirmed changes the journal records point to Operations", () => {
     renderApp("/reconciliation");
     api.failNext(/^\/v1\/actions$/, "offline", "POST");
     await user.click(await screen.findByRole("button", { name: "Run reconciliation" }));
-    await screen.findByText("Reconciliation could not be completed");
-    pointsToOperations("Reconciliation could not be completed");
+    await screen.findByText("Reconciliation not completed");
+    pointsToOperations("Reconciliation not completed");
   });
 
   it("on the audit log, for a check", async () => {
