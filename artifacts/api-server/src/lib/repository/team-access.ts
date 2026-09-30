@@ -242,7 +242,7 @@ export function createTeamAccessRepository(dependencies: Dependencies) {
         changes: [],
         events: [],
         message:
-          "Team member sign-in is on. Your membership, your lenders and two-step verification are checked on every request. You see the team members who work on your lenders. Sample data only.",
+          "Team member sign-in is on. Your membership, your access to each lender and your two-step verification are checked on every request. You see the team members who work on the same lenders as you. Sample data only.",
       };
     const lenders = await listMerchants(ctx);
     // Timestamps as the ISO text the answer carries, as every other view writes them.
@@ -386,7 +386,7 @@ export function createTeamAccessRepository(dependencies: Dependencies) {
       id,
       token,
       approval,
-      message: `Invitation created. A second Admin must approve it before it can be accepted, because Admin, Finance and Compliance reviewer access needs two Admins.${administrators < 2 ? ` ${ONE_ADMIN}` : ""} No email has been sent, so share the link yourself. It expires in 7 days.`,
+      message: `Invitation created. A different Admin must approve it before it can be accepted, because Admin, Finance and Compliance reviewer access needs 2 Admins.${administrators < 2 ? " Your pilot has only 1 Admin, so ask the Valo Pay team to add a second." : ""} No email has been sent, so share the link yourself. It expires in 7 days.`,
     };
   }
   /** A second administrator's approval of an invitation to Admin, Finance or Compliance reviewer, recorded in the access history; the invitee can accept it afterwards. */
@@ -1349,7 +1349,7 @@ export function createTeamAccessRepository(dependencies: Dependencies) {
       ctx,
       "lender.created",
       id,
-      "Created an empty lender for the pilot.",
+      "Created an empty lender. Sample data only.",
     );
     await saveState(ctx, state);
     return { lender: state.merchant, repeated: false };

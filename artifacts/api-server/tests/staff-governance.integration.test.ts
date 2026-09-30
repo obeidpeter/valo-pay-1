@@ -44,7 +44,7 @@ try {
   // One administrator alone: the invitation is created, waits, and says how to get a second administrator.
   const financeInvite = ok(await call("/v1/team/invitations", "adminA", "POST", { email: "finance@example.test", role: "Finance" }));
   assert.equal(financeInvite.approval, "awaiting"); checks += 1;
-  assert.match(financeInvite.message, /A second Admin must approve it before it can be accepted/); assert.match(financeInvite.message, /If your pilot has only one Admin, ask the Valo Pay team to add a second\./); assert.doesNotMatch(financeInvite.message, /--add-administrator/); checks += 3;
+  assert.match(financeInvite.message, /A different Admin must approve it before it can be accepted/); assert.match(financeInvite.message, /Your pilot has only 1 Admin, so ask the Valo Pay team to add a second\./); assert.doesNotMatch(financeInvite.message, /--add-administrator/); checks += 3;
   verified("finance@example.test");
   refused(await call("/v1/team/accept", "finance", "POST", { token: financeInvite.token }), 403, /waiting for a second Admin’s approval/);
   refused(await call(`/v1/team/invitations/${financeInvite.id}/approve`, "adminA", "POST"), 403, /^A different Admin must approve this invitation\. The Admin who sent it cannot approve it\. If your pilot has only one Admin, ask the Valo Pay team to add a second\.$/);

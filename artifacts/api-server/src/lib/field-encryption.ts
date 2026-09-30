@@ -17,7 +17,7 @@ const MAX_FIELD_BYTES = 16 * 1024;
 const KEY_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const validKeyId = (value: unknown): value is string => typeof value === 'string' && KEY_ID.test(value);
 export class FieldEncryptionError extends Error {
-  constructor() { super('Protected details could not be read. Contact the Valo Pay team.'); this.name = 'FieldEncryptionError'; }
+  constructor() { super('Protected details could not be saved or read. Contact the Valo Pay team.'); this.name = 'FieldEncryptionError'; }
 }
 function fail(): never { throw new FieldEncryptionError(); }
 

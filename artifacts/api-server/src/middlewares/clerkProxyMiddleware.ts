@@ -248,7 +248,7 @@ export function createBoundedClerkProxy(secretKey: string, options: { target?: s
   }) as RequestHandler;
   return (req, res, next) => {
     if (!originFor(req)) {
-      res.status(503).json({ error: 'Sign-in is not available at this address.', requestId: req.id });
+      res.status(503).json({ error: 'Sign-in is not available at this address. Contact the Valo Pay team.', requestId: req.id });
       return;
     }
     // httpxy skips its proxyReq event for Expect requests. That would bypass
