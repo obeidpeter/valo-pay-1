@@ -17,19 +17,19 @@ describe('guided sandbox exploration', () => {
     const guide = await screen.findByRole('region', { name: 'Tips' });
     expect(within(guide).getByRole('button', { name: /^Tips/ }).getAttribute('aria-expanded')).toBe('false');
     await user.click(within(guide).getByRole('button', { name: /^Tips/ }));
-    expect(within(guide).getByText('Tip 1 of 5 · Reading does not complete a task')).toBeTruthy();
+    expect(within(guide).getByText('Tip 1 of 5. Reading a tip does not complete a task.')).toBeTruthy();
     expect(within(guide).queryByRole('button', { name: /completed this step/ })).toBeNull();
     await user.click(within(guide).getByRole('button', { name: 'Next tip' }));
     expect(within(guide).getByRole('link', { name: 'Open Matches to review' }).getAttribute('href')).toBe('/reconciliation?view=review');
     await user.click(within(guide).getByRole('link', { name: 'Open Matches to review' }));
     expect(await screen.findByRole('heading', { level: 1, name: 'Reconciliation' })).toBeTruthy();
-    expect(within(screen.getByRole('region', { name: 'Tips' })).getByText('Tip 2 of 5 · Reading does not complete a task')).toBeTruthy();
+    expect(within(screen.getByRole('region', { name: 'Tips' })).getByText('Tip 2 of 5. Reading a tip does not complete a task.')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Hide for now' }));
     expect(screen.getByRole('button', { name: /^Tips/ }).getAttribute('aria-expanded')).toBe('false');
     expect(document.activeElement).toBe(screen.getByRole('button', { name: /^Tips/ }));
     await user.click(screen.getByRole('link', { name: 'Customers' }));
     await user.click(await screen.findByRole('button', { name: /^Tips/ }));
-    expect(screen.getByText('Tip 2 of 5 · Reading does not complete a task')).toBeTruthy();
+    expect(screen.getByText('Tip 2 of 5. Reading a tip does not complete a task.')).toBeTruthy();
     expect(api.calls.filter(call => call.method === 'POST')).toEqual([]);
   });
 
@@ -44,7 +44,7 @@ describe('guided sandbox exploration', () => {
     await user.selectOptions(screen.getByLabelText('Active lender', { selector: '#lender-sidebar' }), api.merchantIds[1]!);
     await waitFor(() => expect(screen.getByRole('button', { name: /^Tips/ }).getAttribute('aria-expanded')).toBe('false'));
     await user.click(screen.getByRole('button', { name: /^Tips/ }));
-    expect(screen.getByText('Tip 1 of 5 · Reading does not complete a task')).toBeTruthy();
+    expect(screen.getByText('Tip 1 of 5. Reading a tip does not complete a task.')).toBeTruthy();
     expect(api.calls.filter(call => call.method === 'POST')).toEqual([]);
   });
 

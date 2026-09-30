@@ -72,7 +72,7 @@ function LenderGuide({ scope, role }: { scope: string; role: string }) {
             <Button asChild size="sm" className="gap-2"><Link href={step.href}>{step.action}<ArrowRight className="h-4 w-4" aria-hidden="true" /></Link></Button>
             <Button variant="outline" size="sm" onClick={() => { if (progress.step === steps.length - 1) toggle.current?.focus(); save({ ...progress, step: Math.min(progress.step + 1, steps.length - 1), read: progress.step === steps.length - 1 }); }}>{progress.step === steps.length - 1 ? 'Finish reading' : 'Next tip'}</Button>
             {progress.step > 0 && <Button variant="ghost" size="sm" onClick={() => save({ ...progress, step: progress.step - 1 })}>Previous tip</Button>}
-            <span className="text-xs text-muted-foreground">Tip {progress.step + 1} of {steps.length} · Reading does not complete a task</span>
+            <span className="text-xs text-muted-foreground">Tip {progress.step + 1} of {steps.length}. Reading a tip does not complete a task.</span>
           </div>
         </>}
         <Button variant="ghost" size="sm" className="mt-2" onClick={() => { toggle.current?.focus(); save({ ...progress, hidden: true }); }}>Hide for now</Button>

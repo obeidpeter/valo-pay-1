@@ -172,9 +172,9 @@ export const helpGuides: HelpGuide[] = [
     needs:
       "Access to the chosen lender. Every role can read the list. Each button says which roles can use it.",
     steps: [
-      "Open Collections. Choose All instalments, Overdue, Due today or Failed attempts, and filter by owner if you need to.",
+      "Open Collections. Choose All instalments, Overdue, Due today or Failed collection attempts. Use Collected by to filter by who collects them.",
       "Read each row’s amount, what is outstanding, the due date, its status and owner, and its next step.",
-      "To see what the retry policy would do next, select Test policy. To practise a failed collection attempt, select Simulate failure.",
+      "To see what the retry policy would do next, select Test retry policy. To practise a failed collection attempt, select Simulate failed collection.",
       "To add sample instalments, select Import sample data.",
     ],
     result:
@@ -240,8 +240,8 @@ export const helpGuides: HelpGuide[] = [
       "The chosen lender’s mandate, its consent evidence and the Admin or Operations role. Permissions to read accounts or prepare files are separate: you manage them in Permissions and readiness.",
     steps: [
       "Find the customer’s mandate. Check its provider reference, debit limit, status and consent evidence before you choose an action.",
-      "Select Suspend to stop an active mandate being used; its scheduled collection attempts are cancelled. Select Cancel to end the mandate, if its status allows. Read the summary and enter a reason before you confirm.",
-      "Select Resume to use a suspended mandate again; cancelled attempts do not come back. Select Reissue to create a new mandate that waits for activation and needs new consent evidence. Instalments do not move to it automatically.",
+      "Select Suspend mandate to stop an active mandate being used; its scheduled collection attempts are cancelled. Select Cancel mandate to end it, if its status allows. Read the summary and enter a reason before you confirm.",
+      "Select Resume mandate to use a suspended mandate again; cancelled attempts do not come back. Select Reissue mandate to create a new mandate that waits for activation and needs new consent evidence. Instalments do not move to it automatically.",
     ],
     result:
       "These actions change only the mandate record and its history. Nothing is sent to a bank or provider. Attempts already sent keep their results, and changing a mandate is not a refund.",
@@ -284,7 +284,7 @@ export const helpGuides: HelpGuide[] = [
       "The customer, lender, instalment, amount and currency. Pay by Bank practises the payment steps with sample data. It is not a live bank checkout.",
     steps: [
       "Check the lender, customer, purpose, amount, currency and any fees. Then practise the customer’s authorisation at their bank.",
-      "Read the checkout’s progress. Pending, Authorised and Outcome unknown all mean the payment is not confirmed. They do not mean it failed either.",
+      "Read the checkout’s progress. Awaiting authorisation, Authorised, Pending and Outcome unknown all mean the payment is not confirmed. They do not mean it failed either.",
       "Go back to the same checkout to check the result. If its outcome is unknown, open the linked exception and wait for evidence. Do not create a new checkout to replace it.",
     ],
     result:
@@ -307,7 +307,7 @@ export const helpGuides: HelpGuide[] = [
     steps: [
       "Choose the applicant and check their permissions. Run a new assessment, or open the version for the loan request you are reviewing.",
       "Read how much evidence there is, how old it is, and the costs, commitments and explanation. Missing evidence or permission stops the assessment. It does not mean zero risk.",
-      "In the review panel, record your decision, your reasons and the explanation for the applicant. If you change the recommended outcome, explain why.",
+      "In the review panel, enter your decision, your reasons and the explanation for the applicant, then select Record review. If you change the recommended outcome, explain why.",
     ],
     result:
       "Each assessment version and its review are kept, so you can see who decided what. A credit result is not a lending decision: a score is not a chance of default, a loan approval or a payout.",
@@ -329,7 +329,7 @@ export const helpGuides: HelpGuide[] = [
     steps: [
       "Check when each account’s balance was read and whether its source is up to date. An older balance may not show the money available now.",
       "Compare commitments, expected receipts, fees and the planning buffer. Treat unknown or hidden figures as needing review, not as zero.",
-      "Check the assumptions, then select Save forecast version. If the sample data is out of date, refresh it on the page and prepare the forecast again.",
+      "Check the assumptions, then select Save forecast. If the sample data is out of date, refresh it on the page and prepare the forecast again.",
     ],
     result:
       "A forecast is a plan based on its recorded evidence. A planning buffer keeps no money aside, and refreshing sample data does not contact a bank.",
@@ -506,7 +506,7 @@ export const helpGuides: HelpGuide[] = [
       "Open Go-live evidence and read the live readiness checks: what is recorded and what is not yet checked.",
       "Select Add evidence and enter its title, owner and date, with a reference or link to the document.",
       "Select Add terms to record a lender’s commercial terms. When the terms have discount dates, a different person selects Confirm discount dates after checking the signed agreement.",
-      "Every two weeks, record a review of the four tasks in the reviews section.",
+      "Every two weeks, select Record review and tick the tasks you checked.",
     ],
     result:
       "The page shows what is recorded and what is still missing. Sample data is not live evidence, and recording evidence does not switch on live payments.",
@@ -573,7 +573,7 @@ export const helpGuides: HelpGuide[] = [
       "In Retention policy, choose how long each kind of file is kept, enter a reason and select Save retention policy. Saving a policy deletes nothing.",
       "To keep an item from deletion, choose it and select Place a hold.",
       "Select Prepare deletion preview to see exactly which items would be deleted.",
-      "A different Admin checks every item and approves the deletion run. Then start the approved run.",
+      "A different Admin checks every item and approves the deletion run. Then select Start deletion.",
     ],
     result:
       "Only the approved items are deleted, and a deletion record proves each one. Financial records and the audit log are never deleted.",
