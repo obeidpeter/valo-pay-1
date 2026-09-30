@@ -466,7 +466,7 @@ function runAction(state: DomainState, ctx: Context, input: ActionInput, audit?:
         // A match this review had marked wrong is applied again, or refused while the records have moved on.
         reinstateAllocation(state, ctx, allocation, why);
         reinstated = true;
-        message = "Allocation reviewed as correct and applied again.";
+        message = "Allocation reviewed as correct. Its money is allocated to the instalment again.";
       } else {
         message = allocation.status === "superseded" ? "Allocation reviewed as correct. It stays out of use, because it was taken out of use for another reason, such as a reversal." : "Allocation reviewed as correct.";
       }
@@ -598,10 +598,10 @@ function runAction(state: DomainState, ctx: Context, input: ActionInput, audit?:
     // excess: money applied to an instalment stays applied, and nothing is left to allocate or hold as credit.
     // One refund is recorded per payment, including one that returned only part of it.
     if (paymentReversed(payment) || paymentRefunded(payment)) throw Object.assign(new Error(paymentReversed(payment) ? `Payment ${payment.reference} was reversed by the provider, so its money already went back. There is nothing to refund.` : `A refund is already recorded for payment ${payment.reference}. Reload the page to see it.`), { status: 409 });
-    if (paymentUnappliedKobo(payment) <= 0) throw Object.assign(new Error(`Payment ${payment.reference} has all of its money applied to instalments, so there is nothing unapplied to refund. A refund recorded here returns only money the payment has not applied.`), { status: 409 });
+    if (paymentUnappliedKobo(payment) <= 0) throw Object.assign(new Error(`Payment ${payment.reference} has all of its money allocated to instalments, so there is nothing unallocated to refund. A refund recorded here returns only money the payment has not allocated.`), { status: 409 });
     payment.data.refundReference = String(data.reference); payment.data.refundRecordedAt = now; payment.data.refundRecordedExternally = true;
     const refundedKobo = recordPaymentRefund(state, ctx, payment, "No longer applied: the payment was refunded outside Valo Pay.");
-    return result(`External refund of ${moneyText(refundedKobo, currencyOf(payment))} recorded: the money this payment had not allocated. Valo Pay did not move any money.`, payment, { refundedKobo });
+    return result(`External refund of ${moneyText(refundedKobo, currencyOf(payment))} recorded: the money this payment had not allocated. No money moved.`, payment, { refundedKobo });
   }
   if (input.action === "simulate_failure") {
     assertActionRole(ctx, ["Admin", "Operations"], "record a sample failure");

@@ -422,7 +422,7 @@ function assertOnePayment(state: DomainState, due: ValopayRecord, label: string)
     assert.throws(() => executeAction(state, ctx, input), /This payment has no proposed match to review\. Reload the page to see its current status\./);
     assert.deepEqual(state, committed, 'A repeated decision cannot apply the payment twice.');
     if (action === 'confirm_allocation') {
-      assert.throws(() => applyConfirmedAllocation(state, ctx, proposal), /already applied/);
+      assert.throws(() => applyConfirmedAllocation(state, ctx, proposal), /already confirmed/);
       assert.deepEqual(state, committed);
       checks += 2;
     }

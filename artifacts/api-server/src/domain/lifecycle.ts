@@ -246,7 +246,7 @@ export function eraseLifecycleRawCsv(state: DomainState, ctx: Context, runId: st
 export function recordLifecycleReceipt(state: DomainState, ctx: Context, runId: string, candidate: LifecycleCandidate, result: 'deleted' | 'already_absent' | 'blocked' | 'failed', detail: string) {
   admin(ctx); contractAnswer(lifecycleReceiptStatusSchema, result); const run = runOf(state, runId);
   if (!run.data.approvedBy || !['approved', 'running', 'attention', 'completed'].includes(run.status)) refuse('Approve this deletion run first.');
-  if (!run.data.candidates.some((saved: LifecycleCandidate) => sameJson(saved, candidate))) refuse('This result does not match a file in the approved run.');
+  if (!run.data.candidates.some((saved: LifecycleCandidate) => sameJson(saved, candidate))) refuse('This deletion record does not match a file in the approved run.');
   const prior = latestReceipts(state, runId).get(candidateKey(candidate));
   if (prior && ['deleted', 'already_absent'].includes(prior.data.result)) return lifecycleRunView(state, run);
   makeRecord(state, 'retention-receipts', { name: 'Deletion record', status: 'recorded', createdAt: ctx.now, updatedAt: ctx.now, data: { runId, kind: candidate.kind, sourceId: candidate.sourceId, sourceDigest: candidate.digest, version: candidate.version, result, detail: detail.slice(0, 500), actor: ctx.actor, sequence: nextSequence(state, 'retention-receipts'), synthetic: true } });

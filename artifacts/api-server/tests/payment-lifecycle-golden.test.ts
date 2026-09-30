@@ -99,7 +99,7 @@ function secondInstalment(state: DomainState, due: TypedRecord<"due-items">, amo
   executeAction(state, finance(wat("2027-07-03T10:00:00")), { action: "manual_allocate", recordId: over.id, reason: "Customer paid instalment 5 with extra", data: { dueItemId: due.id, amountKobo: GROSS } });
   equal([over.status, due.status, positionFor(state, due.customerId).unallocatedKobo], ["overpaid", "paid", 500_000], "the excess is the customer's credit until it is refunded");
   const refundedExcess = executeAction(state, finance(wat("2027-07-03T11:00:00")), { action: "record_refund", recordId: over.id, reason: "Excess returned to the payer", data: { reference: "RF-OVER" } });
-  equal(refundedExcess.message, "External refund of ₦5,000.00 recorded: the money this payment had not allocated. Valo Pay did not move any money.", "the amount reads like the other money in the API");
+  equal(refundedExcess.message, "External refund of ₦5,000.00 recorded: the money this payment had not allocated. No money moved.", "the amount reads like the other money in the API");
   equal([over.status, over.data.refundStatus, over.data.allocatedKobo], ["allocated", "refunded", GROSS], "the refund returns the excess; what was applied stays applied");
   equal(over.data.refundedKobo, 500_000, "only the excess is recorded as refunded");
   equal([due.status, allocationsFor(state, over).map((item) => item.status)], ["paid", ["confirmed"]], "the instalment stays paid by the money that stayed");
@@ -155,7 +155,7 @@ function secondInstalment(state: DomainState, due: TypedRecord<"due-items">, amo
   executeAction(state, finance(wat("2027-07-01T11:00:00")), { action: "manual_allocate", recordId: payment.id, reason: "Customer asked for instalment 6", data: { dueItemId: second.id, amountKobo: GROSS } });
   equal([payment.status, payment.data.allocatedKobo], ["allocated", GROSS], "the payment is fully applied to the instalment Finance chose");
   equal([proposal.status, payment.data.proposedDueItemId], ["superseded", undefined], "the proposal that no longer fits is withdrawn");
-  refused(() => executeAction(state, finance(wat("2027-07-01T11:02:00")), { action: "record_refund", recordId: payment.id, reason: "Returned", data: { reference: "RF-STALE" } }), /nothing unapplied to refund/, 409, "a payment whose money is all applied has nothing a refund recorded here can return");
+  refused(() => executeAction(state, finance(wat("2027-07-01T11:02:00")), { action: "record_refund", recordId: payment.id, reason: "Returned", data: { reference: "RF-STALE" } }), /nothing unallocated to refund/, 409, "a payment whose money is all applied has nothing a refund recorded here can return");
   equal([payment.status, payment.data.refundStatus, payment.data.refundedKobo], ["allocated", "none", undefined], "and the refused refund records nothing");
   assert.throws(() => executeAction(state, finance(wat("2027-07-01T11:05:00")), { action: "reject_allocation", recordId: payment.id, reason: "Old screen", data: seen }), /This payment has no proposed match to review\. Reload the page to see its current status\./); checks += 1;
   for (const day of ["2027-07-02", "2027-07-03"]) reconcile(state, finance(wat(`${day}T07:00:00`)));
@@ -237,7 +237,7 @@ function secondInstalment(state: DomainState, due: TypedRecord<"due-items">, amo
   equal(precisionAudit(state, wat("2027-07-08T10:00:00")).wrong, 1, "June's audit counts one wrong match");
   // Finance changes its verdict: the same allocation is applied again.
   const reinstated = executeAction(state, finance(wat("2027-07-08T11:00:00")), { action: "review_allocation", recordId: allocation.id, reason: "Checked the loan agreement again", data: { correct: true } });
-  equal(reinstated.message, "Allocation reviewed as correct and applied again.", "the result says the match is applied");
+  equal(reinstated.message, "Allocation reviewed as correct. Its money is allocated to the instalment again.", "the result says the match is applied");
   equal([allocation.status, allocation.data.reviewed, allocation.data.supersededByReview, allocation.data.supersededReason], ["confirmed", true, undefined, undefined], "the same allocation is confirmed again");
   equal(allocation.data.reinstatedAt, wat("2027-07-08T11:00:00"), "with the time it was applied again");
   equal([payment.status, payment.data.allocatedKobo, payment.data.rejectedDueItemIds], ["allocated", GROSS, undefined], "the payment is applied and the pair forgiven");
@@ -258,7 +258,7 @@ function secondInstalment(state: DomainState, due: TypedRecord<"due-items">, amo
   executeAction(state, finance(wat("2027-07-05T09:00:00")), { action: "review_allocation", recordId: allocation.id, reason: "Wrong loan", data: { correct: false } });
   executeAction(state, finance(wat("2027-07-05T10:00:00")), { action: "manual_allocate", recordId: payment.id, reason: "Belongs to instalment 6", data: { dueItemId: second.id, amountKobo: GROSS } });
   const before = structuredClone(state);
-  refused(() => executeAction(state, finance(wat("2027-07-05T11:00:00")), { action: "review_allocation", recordId: allocation.id, reason: "Changed my mind", data: { correct: true } }), /cannot be applied again because payment PSK-8 no longer has that much left/, 409, "the verdict is refused while the payment is applied elsewhere");
+  refused(() => executeAction(state, finance(wat("2027-07-05T11:00:00")), { action: "review_allocation", recordId: allocation.id, reason: "Changed my mind", data: { correct: true } }), /cannot be restored because payment PSK-8 no longer has that much left/, 409, "the verdict is refused while the payment is applied elsewhere");
   equal(state, before, "and nothing changed");
   // A proposal is decided by confirming or rejecting it, not by an accuracy review.
   const proposalState = liveFixture({ withFailure: false, merchantId: "review-proposal" });

@@ -24,7 +24,7 @@ export function buildOverview(state: DomainState, now: string, alerts: Alert[] =
   return {
     metrics: [
       metric("settled", "Reconciled collections", sumMoney(settled.map(paymentAppliedKobo)), "kobo", "Settled payments matched to instalments, counted once. Sample data only."),
-      metric("outstanding", "Outstanding amount", outstanding, "kobo", "Amount still due on instalments. Valo Pay never holds money."),
+      metric("outstanding", "Outstanding amount", outstanding, "kobo", "Amount still owed on instalments. Valo Pay never holds money."),
       metric("match_rate", "Certain match rate", settled.length ? Math.round((settled.filter((item) => certainPayments.has(item.id)).length / settled.length) * 100) : 0, "percent", "Share of settled payments with a confirmed, certain match. Sample data only."),
       metric("exceptions", "Open exceptions", open.length, "count", "Exceptions that still need someone to follow up."),
     ],
@@ -264,7 +264,7 @@ export function buildReports(state: DomainState, now: string): Report {
     metric("allocation_rate", "Allocation rate", allocationRate, "ratio", `${numberText(allocated.length)} of ${counted(payments.length, "payment")} ${allocated.length === 1 ? "is" : "are"} allocated in full or in part, including overpayments.`),
     metric("allocation_precision", "Accuracy of reviewed allocations", precision, "ratio", reviewedAll.length ? `${counted(reviewedAll.length, "allocation")} reviewed. Unreviewed allocations are excluded from this accuracy measure.` : "No payment matches have been reviewed yet."),
     metric("open_exceptions", "Open exceptions", openExceptions.length, "count", "Exceptions that still need someone to follow up."),
-    metric("outstanding_kobo", "Outstanding amount", sumMoney(dueItems.map((item) => Number(item.data.outstandingKobo ?? item.amountKobo))), "kobo", "Amount still due on instalments. Valo Pay never holds money."),
+    metric("outstanding_kobo", "Outstanding amount", sumMoney(dueItems.map((item) => Number(item.data.outstandingKobo ?? item.amountKobo))), "kobo", "Amount still owed on instalments. Valo Pay never holds money."),
   ];
 
   const billing = buildBillingStatement(state, now);

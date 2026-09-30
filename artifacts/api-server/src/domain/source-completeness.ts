@@ -31,8 +31,8 @@ export function saveSourceManifest(state: DomainState, ctx: Context, raw: Source
 }
 /** Optional slot selection is checked against the lender's current declaration. */
 export function assertSourceExpectation(state: DomainState, input: { businessDate?: string; sourceExpectationId?: string; source: string; sourceBatchId: string; kind: string }) {
-  if (input.sourceExpectationId && (!input.businessDate || !latestSourceManifest(state, input.businessDate)?.data.files?.some((file: any) => file.id === input.sourceExpectationId && file.id === sourceFileId(input.businessDate!, input)))) refuse("The chosen expected file no longer matches this lender, business date or source batch. Reload the page and choose it again.", 409);
-  for (const manifest of state.records.filter(r => r.kind === "source-manifests")) if (manifest.data.businessDate !== input.businessDate && manifest.data.files?.some((file: any) => sameJson(identity(file), identity(input)))) refuse("This source batch is declared for another business date. Choose that date before you save.", 409);
+  if (input.sourceExpectationId && (!input.businessDate || !latestSourceManifest(state, input.businessDate)?.data.files?.some((file: any) => file.id === input.sourceExpectationId && file.id === sourceFileId(input.businessDate!, input)))) refuse("The chosen expected file no longer matches this lender, business date or source batch ID. Reload the page and choose it again.", 409);
+  for (const manifest of state.records.filter(r => r.kind === "source-manifests")) if (manifest.data.businessDate !== input.businessDate && manifest.data.files?.some((file: any) => sameJson(identity(file), identity(input)))) refuse("This source batch ID is declared for another business date. Choose that date before you save.", 409);
 }
 export interface SourceCompletenessIssue { id: string; label: string; detail: string; }
 /** Original committed totals remain authoritative after raw-file retention or an approved correction. */
@@ -53,7 +53,7 @@ export function sourceCompleteness(state: DomainState, rawDate: string) {
         if (batch.data.businessDate) problem(`This file is assigned to ${batch.data.businessDate}, not this business date.`, `This file is for ${dayText(batch.data.businessDate)}, not this business date.`);
         else problem("This older batch has no declared business date. Its upload time cannot establish the covered date.", "This older batch has no business date, and its upload time does not show which day it covers. Declare its business date.");
       }
-      if (batch.data.sourceExpectationId && batch.data.sourceExpectationId !== file.id) problem("The saved expectation link does not match this file declaration.", "This file is linked to a different expected file. Check the declaration.");
+      if (batch.data.sourceExpectationId && batch.data.sourceExpectationId !== file.id) problem("The saved expectation link does not match this file declaration.", "This file is linked to a different expected file. Check the list of expected files.");
       if (batch.status !== "committed") problem("The source file has not been committed.", "The file has not been imported.");
       else if (!quality?.success) problem("The original committed source totals are unavailable.", "The totals the file was imported with are not available.");
       else {
@@ -71,9 +71,9 @@ export function sourceCompleteness(state: DomainState, rawDate: string) {
   });
   // A profile whose first delivery is expected after this business date has nothing to declare for it yet.
   const activeProfiles = state.records.filter(r => r.kind === "source-profiles" && r.status === "active" && (!r.data.firstExpectedAt || watBusinessDate(r.data.firstExpectedAt) <= businessDate)).map(r => ({id:r.id,source:r.data.source,kind:r.data.kind}));
-  for (const profile of activeProfiles) if (!files.some((file:any) => file.source === profile.source && file.kind === profile.kind)) add(`profile:${profile.id}`, `No expected file for ${profile.source}`, "This active source profile expects a file by this business date, but the declaration has none. Declare the file, or have Finance accept that it is not expected, with evidence.");
+  for (const profile of activeProfiles) if (!files.some((file:any) => file.source === profile.source && file.kind === profile.kind)) add(`profile:${profile.id}`, `No expected file for ${profile.source}`, "This active source profile expects a file by this business date, but the expected files do not include one. Add it, or have Finance accept, with evidence, that it is not expected.");
   const undeclared = state.records.filter(r => r.kind === "import-batches" && r.data.businessDate === businessDate && !files.some((file:any) => sameJson(identity(file), identity(r.data as any)))).map(r => ({id:r.id,name:r.name,status:r.status,source:r.data.source,sourceBatchId:r.data.sourceBatchId,kind:r.data.kind}));
-  for (const batch of undeclared) add(`batch:${batch.id}`, `Undeclared file · ${batch.sourceBatchId}`, "This batch is dated for this business date, but it is not in the declaration. Add it to the declaration, or check its date.");
+  for (const batch of undeclared) add(`batch:${batch.id}`, `Unexpected file · ${batch.sourceBatchId}`, "This batch is dated for this business date, but it is not one of the expected files. Add it to the expected files, or check its date.");
   const basis = { businessDate, manifest: manifest ? {id:manifest.id,updatedAt:manifest.updatedAt,data:manifest.data} : null, files, activeProfiles:activeProfiles.sort((a,b)=>legacyCollatedCompare(a.id,b.id)), undeclared:undeclared.sort((a,b)=>legacyCollatedCompare(a.id,b.id)) };
   return { ...basis, status: issues.length ? "incomplete" : "complete", issues, basisDigest: hash(basis), expectedFiles: files.length, completeFiles: files.filter((file:any)=>file.status === "complete").length };
 }

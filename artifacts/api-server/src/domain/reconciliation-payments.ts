@@ -189,7 +189,7 @@ export function applyConfirmedAllocation(state: DomainState, ctx: Context, alloc
   assertPaymentAllocatable(state, payment, allocation.amountKobo);
   assertSamePayer(state, payment, due, { automatic: allocation.data.automatic === true, reason: payerReason });
   if (allocation.status === "superseded") throw new Error("This allocation is no longer applied and cannot be confirmed. Review the payment to create a new match.");
-  if (allocation.status === "confirmed") throw Object.assign(new Error("This allocation is already applied. Refresh the payment to see its current position."), { status: 409 });
+  if (allocation.status === "confirmed") throw Object.assign(new Error("This allocation is already confirmed. Reload the page to see the payment’s current position."), { status: 409 });
   const amount = allocation.amountKobo;
   if (!Number.isSafeInteger(amount) || amount <= 0 || amount > paymentUnappliedKobo(payment)) {
     throw new Error("This allocation is more than the payment has left to allocate. Refresh the payment and review the proposed amount.");
@@ -317,7 +317,7 @@ export function reinstateAllocation(state: DomainState, ctx: Context, allocation
     : allocation.amountKobo > left ? `payment ${payment.reference} no longer has that much left to allocate`
     : allocation.amountKobo > outstanding(due) ? `instalment ${due.reference} no longer has that much outstanding`
     : null;
-  if (blocker) throw Object.assign(new Error(`This match cannot be applied again because ${blocker}. Allocate the payment manually if it belongs to an instalment.`), { status: 409 });
+  if (blocker) throw Object.assign(new Error(`This match cannot be restored because ${blocker}. Allocate the payment manually if it belongs to an instalment.`), { status: 409 });
   forgetRejectedMatch(payment, due.id);
   delete allocation.data.supersededReason; delete allocation.data.supersededByReview;
   allocation.data.reinstatedAt = ctx.now;

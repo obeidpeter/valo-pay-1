@@ -22,7 +22,7 @@ export const failureCodes = {
   PROVIDER_ERROR: { meaning: "The provider reported an internal error.", retry: "yes", handling: "Check the connection first. Retry the debit under the retry policy only if the provider confirms that no debit took place." },
   TIMEOUT_UNKNOWN: { meaning: "The provider has not confirmed whether the debit succeeded.", retry: "unresolved", handling: "Check the status with the provider. Raise an exception if the outcome is still unknown after 24 hours." },
   DUPLICATE: { meaning: "The provider reports a duplicate instruction.", retry: "no", handling: "Match the result to the original instruction." },
-  CUSTOMER_DISPUTED: { meaning: "The customer has disputed the debit.", retry: "never", handling: "Pause collection for the instalment and raise an exception with a one-business-day deadline." },
+  CUSTOMER_DISPUTED: { meaning: "The customer has disputed the debit.", retry: "never", handling: "Stop collection for the instalment while the dispute is open, and raise an exception with a one-business-day deadline." },
   UNKNOWN: { meaning: "The provider returned a failure code that has not been classified.", retry: "no", handling: "Raise an exception and classify the code, so that Valo Pay knows whether to retry." },
 } as const satisfies Record<string, FailureCodeDefinition>;
 
