@@ -180,7 +180,7 @@ describe("public task help", () => {
     ).toBe("page");
     await user.click(screen.getByRole("link", { name: "Clear search" }));
     expect(screen.getByText("Imported")).toBeTruthy();
-    expect(screen.getByText(/Exporting the file pays no one/)).toBeTruthy();
+    expect(screen.getByText(/Exporting the file moves no money, and no one has been paid/)).toBeTruthy();
     expect(api.calls).toEqual([]);
   });
 

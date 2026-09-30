@@ -848,7 +848,7 @@ export const helpTerms: readonly HelpTerm[] = [
     id: "payroll-file",
     term: "Payroll funding",
     meaning:
-      "The Cash Desk section that checks there is money for an approved net-pay run and prepares a reviewed file for payroll. Exporting the file pays no one.",
+      "The Cash Desk section that checks there is money for an approved net-pay run and prepares a reviewed file for payroll. Exporting the file moves no money, and no one has been paid.",
     also: ["Payroll preparation file", "Reviewed payroll export", "payroll file", "Prepare payroll funding"],
   },
   {

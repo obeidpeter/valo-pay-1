@@ -13,10 +13,10 @@ type NextAction = { title: string; description: string; label: string; href: str
 function nextAction(role: string, overview?: Overview): NextAction {
   const waiting = (key: string) => overview?.queues.some(queue => queue.key === key && queue.value > 0);
   if (role === 'Read-only') return { title: 'Start with a customer’s history', description: 'You can look at records and reports. A team member with the right role must make changes or record financial decisions.', label: 'Open Customers', href: '/customers' };
-  if (role === 'Compliance reviewer') return { title: 'Find work waiting for compliance review', description: 'Check policy and message wording where it is used. A different reviewer must decide on anything you prepared.', label: 'Open Policies and templates', href: '/policies' };
+  if (role === 'Compliance reviewer') return { title: 'Find work waiting for compliance review', description: 'Check policy and message wording where it is used. A different person must review anything you prepared.', label: 'Open Policies and templates', href: '/policies' };
   if (role === 'Finance') return waiting('review')
     ? { title: 'A payment match needs review', description: 'Compare the payment, instalment and explanation before you decide. A match waiting for review has not allocated the payment yet.', label: 'Review matches', href: '/reconciliation?view=review' }
-    : { title: 'Check the evidence behind the daily close', description: 'Look at the latest close and its review status. Preparing a close does not approve it: a different Finance reviewer must decide.', label: 'Open Close review', href: '/close-review' };
+    : { title: 'Check the evidence behind the daily close', description: 'Look at the latest close and its review status. Preparing a close does not approve it. A different person, a Finance team member, must review it.', label: 'Open Close review', href: '/close-review' };
   if (role === 'Operations') return waiting('overdue')
     ? { title: 'An overdue exception needs an owner and a next step', description: 'Open the exception, check its evidence and agree the next step. Admin or Finance must decide matches and financial holds.', label: 'Open overdue exceptions', href: '/exceptions?view=overdue' }
     : { title: 'Start with your assigned work', description: 'Find cases, handovers and deadlines for this lender. If records have not arrived yet, use Import batches to check a sample file first.', label: 'Open My work', href: '/work' };
@@ -48,7 +48,7 @@ function Checklist({ role }: { role: string }) {
         const step = progress.data.steps.find(candidate => candidate.id === item.id);
         const recorded = step?.state === 'completed';
         const restricted = item.id === 'ingest' && !mayImport;
-        const boundary = item.id === 'ingest' ? (mayImport ? 'A saved batch is not imported until you select Import checked batch.' : 'Admin, Operations or Finance must import records. You can read the guide and look at customer records.') : item.id === 'reconcile' ? (['Admin', 'Finance'].includes(role) ? 'Confirm a match only after checking the payment and instalment.' : 'Admin or Finance must decide matches. You can read the evidence.') : 'Running a close is not approval: a different Finance reviewer must review it.';
+        const boundary = item.id === 'ingest' ? (mayImport ? 'A saved batch is not imported until you select Import checked batch.' : 'Admin, Operations or Finance must import records. You can read the guide and look at customer records.') : item.id === 'reconcile' ? (['Admin', 'Finance'].includes(role) ? 'Confirm a match only after checking the payment and instalment.' : 'Admin or Finance must decide matches. You can read the evidence.') : 'Running a close is not approval. A different person, a Finance team member, must review it.';
         return <li key={item.id} className="min-w-0 rounded-lg border bg-background/70 p-4">
           <p className="flex items-center gap-2 text-xs font-medium text-muted-foreground">{recorded ? <CheckCircle2 aria-hidden="true" className="h-4 w-4 text-success" /> : <Circle aria-hidden="true" className="h-4 w-4" />}Step {index + 1} · {recorded ? item.completedLabel : step ? stateLabels[step.state] : 'Not recorded'}</p>
           <h3 className="mt-2 text-sm font-semibold">{item.title}</h3>
