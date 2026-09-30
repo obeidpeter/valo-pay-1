@@ -33,6 +33,13 @@ import { LoadProblem } from '@/components/load-problem';
 const mandateViews = ['all', 'awaiting-activation', 'overdue', 'due-today'] as const;
 const emptyMandate = { name: '', customerId: '', amountKobo: '', reference: '', workflow: 'hosted_consent', consentEvidence: '', consentGaps: '', policyId: '', frequency: 'monthly' };
 
+/** Each mandate action's submit button while it runs, repeating the action's verb. */
+const mandateActionBusy: Record<string, string> = {
+  mandate_suspend: 'Suspending mandate…', mandate_reinstate: 'Resuming mandate…', mandate_cancel: 'Cancelling mandate…',
+  mandate_reissue: 'Reissuing mandate…', activation_reminder: 'Recording activation reminder…',
+  notify_policy_change: 'Recording policy change notice…', apply_policy_version: 'Applying policy version…',
+};
+
 const mandateActionTitles: Record<string, string> = {
   mandate_suspend: 'Suspend mandate', mandate_reinstate: 'Resume mandate', mandate_cancel: 'Cancel mandate',
   mandate_reissue: 'Reissue mandate', activation_reminder: 'Record activation reminder',
@@ -279,6 +286,7 @@ export default function MandatesPage() {
         isOpen={isDialogOpen}
         onOpenChange={setIsDialogOpen}
         title={mandateActionTitles[actionKind] || 'Update mandate'}
+        busyLabel={mandateActionBusy[actionKind]}
         actionMutation={actionKind}
         context={values => selectedMandate && <MandateActionContext
           mandate={selectedMandate}

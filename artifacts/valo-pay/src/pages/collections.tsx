@@ -200,6 +200,7 @@ export default function CollectionsPage() {
         onOpenChange={setIsDialogOpen}
         title={actionKind === 'simulate_failure' ? 'Simulate failed collection attempt' : actionKind === 'release_dispute' ? 'Release from dispute' : 'Test retry policy'}
         submitLabel={actionKind === 'simulate_failure' ? 'Simulate failed collection attempt' : actionKind === 'release_dispute' ? 'Release from dispute' : 'Test retry policy'}
+        busyLabel={actionKind === 'simulate_failure' ? 'Simulating failed collection attempt…' : actionKind === 'release_dispute' ? 'Releasing from dispute…' : 'Testing retry policy…'}
         actionMutation={actionKind}
         onDone={response => { if (actionKind === 'release_dispute' && response?.message) notifyDone('Released from dispute', String(response.message)); }}
         context={actionKind === 'release_dispute' && selectedItem ? <section aria-label="Release context" className="space-y-2 rounded-lg border bg-secondary/10 p-4 text-sm">

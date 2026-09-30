@@ -68,6 +68,7 @@ export default function CustomersPage() {
         onOpenChange={setIsDialogOpen}
         title="Add customer"
         submitLabel="Add customer"
+        busyLabel="Adding customer…"
         fields={[
           // The same words as the import screens' columns and row errors (importFieldLabel).
           { name: 'name', label: importFieldLabel('customers', 'name'), type: 'text', required: true },

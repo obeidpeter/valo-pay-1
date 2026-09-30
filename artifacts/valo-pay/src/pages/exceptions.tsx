@@ -233,6 +233,7 @@ export default function ExceptionsPage() {
         onOpenChange={setIsDialogOpen}
         title={actionKind === 'resolve' ? 'Resolve exception' : 'Edit exception'}
         submitLabel={actionKind === 'resolve' ? 'Resolve exception' : 'Save changes'}
+        busyLabel={actionKind === 'resolve' ? 'Resolving exception…' : 'Saving changes…'}
         actionMutation={actionKind === 'resolve' ? 'resolve_exception' : undefined}
         answer={() => resolvedRef.current}
         onDone={response => { if (actionKind === 'resolve' && selectedEx) setResolved({ what: `${readableLabel(selectedEx.data?.type || 'exception')}${selectedEx.reference ? ` ${selectedEx.reference}` : ''}`, message: String(response?.message || 'Exception resolution recorded.') }); }}

@@ -25,6 +25,14 @@ const submitLabels: Readonly<Record<string, string>> = {
   new_policy_version: 'Draft next version', new_template_version: 'Draft next version', backtest_policy: 'Test this version', reject_template: 'Request changes',
 };
 
+/** Each submit button while its request runs, repeating its verb. */
+const busyLabels: Readonly<Record<string, string>> = {
+  create_policy: 'Drafting a policy…', edit_policy: 'Saving changes…', submit_policy: 'Submitting for review…', approve_policy: 'Approving policy…',
+  reject_policy: 'Rejecting policy…', new_policy_version: 'Drafting next version…', backtest_policy: 'Testing this version…',
+  create_template: 'Drafting a template…', edit_template: 'Saving changes…', submit_template: 'Submitting for review…',
+  approve_template: 'Approving template…', reject_template: 'Requesting changes…', new_template_version: 'Drafting next version…',
+};
+
 /** A number of hours, counted ("1 hour", "48 hours"), or "Not set" when the policy has none. */
 function hours(value: unknown): string {
   return (typeof value === 'number' || (typeof value === 'string' && value.trim() !== '')) && Number.isFinite(Number(value)) ? formatCount(Number(value), 'hour') : 'Not set';
@@ -210,6 +218,7 @@ export default function PoliciesPage() {
         onOpenChange={setIsDialogOpen}
         title={dialogTitles[actionKind] || 'Action'}
         submitLabel={submitLabels[actionKind]}
+        busyLabel={busyLabels[actionKind]}
         actionMutation={actionKind.includes('create') || actionKind.includes('edit') ? undefined : actionKind}
         context={actionKind === 'create_template' || actionKind === 'edit_template'
           ? values => <TemplatePreview text={values.text} />

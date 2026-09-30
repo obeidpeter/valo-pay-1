@@ -41,7 +41,7 @@ describe('record dialog request sessions', () => {
     const release = api.hold(/^\/v1\/records\/customers$/);
     if (outcome === 'error') api.failNext(/^\/v1\/records\/customers$/, { status: 400, error: 'First request rejected.', details: [{ field: 'reference', message: 'The first request reference was rejected.' }] }, 'POST');
     await user.click(within(firstDialog).getByRole('button', { name: 'Add customer' }));
-    await within(firstDialog).findByRole('button', { name: 'Saving…' });
+    await within(firstDialog).findByRole('button', { name: 'Adding customer…' });
     await act(async () => { controlledDialog.setOpen!(false); });
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     if (switchLender) await user.selectOptions(screen.getAllByLabelText('Active lender')[0]!, api.merchantIds[1]!);
@@ -81,7 +81,7 @@ describe('record dialog request sessions', () => {
     await user.type(within(dialog).getByLabelText(/^Consent source or reference/), 'Synthetic consent');
     const release = api.hold(/^\/v1\/records\/customers$/);
     await user.click(within(dialog).getByRole('button', { name: 'Add customer' }));
-    const saving = await within(dialog).findByRole('button', { name: 'Saving…' });
+    const saving = await within(dialog).findByRole('button', { name: 'Adding customer…' });
     const cancel = within(dialog).getByRole('button', { name: 'Cancel' });
     const close = within(dialog).getByRole('button', { name: 'Close' });
     expect(cancel).toHaveProperty('disabled', true);

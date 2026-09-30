@@ -66,9 +66,11 @@ type RecordDialogProps = {
   currencyField?: string;
   /** The submit button's words, the same verb and object as the button that opened the dialog and its title. */
   submitLabel?: string | ((values: Record<string, any>) => string);
+  /** The submit button's words while its request runs, repeating the verb ("Confirming match…"); without them, "Working…" or "Saving…". */
+  busyLabel?: string | ((values: Record<string, any>) => string);
 };
 
-export function RecordDialog({ kind, record, isOpen, onOpenChange, fields: sourceFields, title, defaultValues = {}, actionMutation, actionRecordId, context, validate, onDone, answer, currencyField, submitLabel }: RecordDialogProps) {
+export function RecordDialog({ kind, record, isOpen, onOpenChange, fields: sourceFields, title, defaultValues = {}, actionMutation, actionRecordId, context, validate, onDone, answer, currencyField, submitLabel, busyLabel: busyWords }: RecordDialogProps) {
   const isMoney = (field: FieldDef) => field.type === 'number' && /Kobo$/.test(field.name);
   const [formData, setFormData] = useState<any>({});
   // The currency the money fields are in: the form's currency field, else the record's, else naira.
@@ -370,7 +372,7 @@ export function RecordDialog({ kind, record, isOpen, onOpenChange, fields: sourc
             </fieldset>
             <div className="flex justify-end gap-2 mt-4 pt-4 border-t">
               <Button type="button" variant="outline" disabled={isPending} onClick={() => changeOpen(false)}>{hasUnconfirmedOutcome ? 'Close' : 'Cancel'}</Button>
-              <Button type="submit" disabled={!!blockedReason || hasUnconfirmedOutcome} busy={isPending} busyLabel={actionMutation ? 'Working…' : 'Saving…'}>{(typeof submitLabel === 'function' ? submitLabel(formData) : submitLabel) ?? (actionMutation ? actionLabels[actionMutation] || 'Confirm action' : 'Save')}</Button>
+              <Button type="submit" disabled={!!blockedReason || hasUnconfirmedOutcome} busy={isPending} busyLabel={(typeof busyWords === 'function' ? busyWords(formData) : busyWords) ?? (actionMutation ? 'Working…' : 'Saving…')}>{(typeof submitLabel === 'function' ? submitLabel(formData) : submitLabel) ?? (actionMutation ? actionLabels[actionMutation] || 'Confirm action' : 'Save')}</Button>
             </div>
           </form>
 

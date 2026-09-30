@@ -52,7 +52,7 @@ test("a slow committed customer request recovers its lost response without a sec
     expect(savedBeforeAcknowledgement.ok()).toBeTruthy();
     expect((await savedBeforeAcknowledgement.json()).total).toBe(1);
     await expect(dialog).toBeVisible();
-    const saving = dialog.getByRole("button", { name: "Saving…", exact: true });
+    const saving = dialog.getByRole("button", { name: "Adding customer…", exact: true });
     await expect(saving).toBeDisabled();
     await expect(saving).toHaveAttribute("aria-busy", "true");
     await expect(dialog.getByRole("button", { name: "Cancel", exact: true })).toBeDisabled();

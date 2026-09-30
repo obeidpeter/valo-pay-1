@@ -519,6 +519,15 @@ export default function ReconciliationPage() {
           actionKind === 'edit_batch' ? 'Save changes' :
           (values: Record<string, any>) => values.correct ? 'Mark match correct' : 'Mark match incorrect'
         }
+        busyLabel={
+          actionKind === 'confirm_allocation' ? 'Confirming match…' :
+          actionKind === 'reject_allocation' ? 'Rejecting match…' :
+          actionKind === 'manual_allocate' ? 'Allocating payment…' :
+          actionKind === 'record_refund' ? 'Recording refund…' :
+          actionKind === 'create_batch' ? 'Adding settlement batch…' :
+          actionKind === 'edit_batch' ? 'Saving changes…' :
+          (values: Record<string, any>) => values.correct ? 'Marking match correct…' : 'Marking match incorrect…'
+        }
         actionMutation={actionKind === 'create_batch' || actionKind === 'edit_batch' ? undefined : actionKind}
         actionRecordId={isProposalDecision ? selectedRecord?.data?.paymentId : undefined}
         onDone={response => { if (response?.data?.payerCustomerId) notifyDone('Payer recorded', String(response.message)); }}
