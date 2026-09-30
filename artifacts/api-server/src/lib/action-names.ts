@@ -66,7 +66,7 @@ const connectedActions: Readonly<Record<string, Words>> = {
   "payment.reverse": words("Record reversal", "Reversal recorded"),
   "credit.assess": words("Run assessment", "Assessment run"),
   "credit.review": words("Record assessment review", "Assessment review recorded"),
-  "cash.initialize": words("Set up Cash Desk", "Cash Desk set up"),
+  "cash.initialize": words("Set up with sample data", "Cash Desk set up"),
   "cash.refresh_sample": words("Refresh sample balances", "Sample balances refreshed"),
   "cash.forecast": words("Save forecast", "Forecast saved"),
   "cash.erp.prepare": words("Prepare accounting draft", "Accounting draft prepared"),

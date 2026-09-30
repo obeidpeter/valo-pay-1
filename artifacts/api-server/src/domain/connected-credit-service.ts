@@ -241,7 +241,7 @@ export function runCreditAction(
     state.settings.environment !== "sandbox" ||
     !ctx.actor.startsWith("Sandbox ")
   )
-    reject("Credit Desk is not available in a pilot yet. It works only with sample data for now.", 403);
+    reject("Credit Desk is not available in a pilot yet.", 403);
   if (
     typeof input.reason !== "string" ||
     input.reason.trim().length < 8 ||

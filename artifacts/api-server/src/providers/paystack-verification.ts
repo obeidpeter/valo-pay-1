@@ -86,7 +86,7 @@ function eligible(state: DomainState) {
     !state.merchant.killSwitch
   )
     refuse(
-      "Test payments can be checked only for a sample lender that is watching only, with its emergency stop on.",
+      "Test payments can be checked only for a sample lender that records payments only, with its emergency stop on.",
       403,
       "lender_not_eligible",
     );

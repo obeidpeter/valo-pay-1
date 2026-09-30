@@ -259,7 +259,7 @@ export function paymentAction(
       )
     )
       reject(
-        "Another payment for this instalment is scheduled or in progress. It can be authorised once that payment is cancelled or its outcome is known, so the instalment is not collected twice.",
+        "Another payment for this instalment is scheduled or in progress. This checkout can be authorised once that payment is cancelled or its outcome is known, so the instalment is not collected twice.",
         409,
       );
     for (const r of state.records.filter(

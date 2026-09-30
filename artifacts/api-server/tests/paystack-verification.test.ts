@@ -253,7 +253,7 @@ for (const change of ["attempt", "signed", "authority"] as const)
     });
     await assert.rejects(
       f.run,
-      /changed during the check|only for a sample lender that is watching only/,
+      /changed during the check|only for a sample lender that records payments only/,
     );
     assert.equal(
       f

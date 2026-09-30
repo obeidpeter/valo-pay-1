@@ -267,7 +267,7 @@ export function installFakeApi(options: { now?: string; role?: string; queuedExp
         if (kind === "due-items") input.data.outstandingKobo = body.amountKobo;
         if (kind === "attempts") { input.data.source = "external"; input.data.simulated = true; }
         validateRecord(state, ctx, kind, input);
-        if (body.reference && state.records.some((record) => record.kind === kind && record.reference === body.reference && kind !== "observations")) fail(`Another ${recordTypeName(kind).toLowerCase()} already uses this reference. Enter a different reference.`, 409);
+        if (body.reference && state.records.some((record) => record.kind === kind && record.reference === body.reference && kind !== "observations")) fail("This reference is already used. Enter a different reference.", 409);
         return makeRecord(state, kind, input);
       }, { action: `post.records.${kind}`, objectId: "workspace", summary: "Change to sample data." }));
     }],
@@ -315,7 +315,7 @@ export function installFakeApi(options: { now?: string; role?: string; queuedExp
         if (start < executionWindow.earliestHour || end > executionWindow.latestHour || start >= end) fail(`Set the collection window between ${String(executionWindow.earliestHour).padStart(2, "0")}:00 and ${String(executionWindow.latestHour).padStart(2, "0")}:00 WAT, with the start before the end.`);
         if (body.minimumTicketKobo !== undefined && body.minimumTicketKobo < ABSOLUTE_TICKET_FLOOR_KOBO) fail("The minimum debit is ₦5,000.00. This limit cannot be overridden.");
         if (body.defaultOwner && !(handBackOwners as readonly string[]).includes(body.defaultOwner)) fail("Choose the loan management system, the lender team or the provider. Valo Pay can own collection only after a collection transfer for live use.");
-        if (body.authorisationMode && !(authorisationModes as readonly string[]).includes(body.authorisationMode)) fail("Choose Batch approval or Standing authorisation for instruction approval.");
+        if (body.authorisationMode && !(authorisationModes as readonly string[]).includes(body.authorisationMode)) fail("Choose Daily approval or Standing approval.");
         for (const key of ["unallocatedAlertThreshold", "notificationCostAlertKobo"] as const) if (body[key] !== undefined && (!Number.isInteger(body[key]) || Number(body[key]) < 0)) fail(`${key} must be a whole number of zero or more.`);
         if (body.closeTime !== undefined && !isCloseTime(body.closeTime)) fail("closeTime must use HH:MM in West Africa Time, for example 07:00.");
         const previous = { time: closeTimeOf(state.settings), enabled: state.settings.scheduledCloseEnabled !== false };

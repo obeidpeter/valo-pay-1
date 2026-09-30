@@ -655,7 +655,7 @@ test("service cannot run outside sandbox or with actual actor", () => {
   state.settings.environment = "live";
   assert.throws(
     () => runCreditAction(state, operator, assessAction),
-    /works only with sample data/,
+    /not available in a pilot yet/,
   );
   state.settings.environment = "sandbox";
   assert.throws(
@@ -665,7 +665,7 @@ test("service cannot run outside sandbox or with actual actor", () => {
         { ...operator, actor: "actual-user" },
         assessAction,
       ),
-    /works only with sample data/,
+    /not available in a pilot yet/,
   );
 });
 test("service binds customer to tenant and rejects unexpected request fields", () => {

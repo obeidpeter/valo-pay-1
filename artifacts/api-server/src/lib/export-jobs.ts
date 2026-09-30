@@ -80,7 +80,7 @@ export function exportJobView(record: ValopayRecord, now = new Date().toISOStrin
 export function queueExport(state: DomainState, ctx: Context, input: ExportInput, privateDirectory: string): ExportJobView {
   // A sensitive kind is refused first, so a Read-only person is not told they may download it.
   assertExportPermitted(ctx.role, input.kind);
-  if (ctx.role === 'Read-only') fail(onlyRoles(EXPORT_MAKER_ROLES, 'create exports', ctx.accessMode, 'Read-only can still download exports already made.'), 403);
+  if (ctx.role === 'Read-only') fail(onlyRoles(EXPORT_MAKER_ROLES, 'create exports', ctx.accessMode, 'You can still download exports already made.'), 403);
   const review = input.kind === 'reviewed-close' ? reviewedCloseEvidence(state, input.closeReviewId || '', true) : undefined;
   if (!privateDirectory || !/^\/?[^/]+\/.+/.test(privateDirectory)) fail('Exports are not set up yet. Contact the Valo Pay team.', 503);
   if (input.customerId && !state.records.some(record => record.kind === 'customers' && record.id === input.customerId)) fail(notFound('Customer'), 404);
@@ -97,7 +97,7 @@ export function exportIsClaimable(record: ValopayRecord, now: string): boolean {
 export function retryExport(state: DomainState, ctx: Context, id: string): ExportJobView {
   const record = findExportJob(state, id);
   assertExportPermitted(ctx.role, record.data.kind);
-  if (ctx.role === 'Read-only') fail(onlyRoles(EXPORT_MAKER_ROLES, 'retry exports', ctx.accessMode, 'Read-only can still download exports already made.'), 403);
+  if (ctx.role === 'Read-only') fail(onlyRoles(EXPORT_MAKER_ROLES, 'retry exports', ctx.accessMode, 'You can still download exports already made.'), 403);
   if(record.data.fileDeletedAt)fail('This export file was deleted under the lender’s retention policy. Create a new export if you need the file.',410);
   if (record.status === 'ready' || record.status === 'queued') return exportJobView(record, ctx.now);
   if (record.status === 'running' && !exportIsClaimable(record, ctx.now)) return exportJobView(record, ctx.now);

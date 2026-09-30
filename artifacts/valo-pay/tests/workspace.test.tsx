@@ -114,10 +114,10 @@ describe("a failed background refresh of the workspace", () => {
     const user = userEvent.setup();
     renderApp("/overview");
     await screen.findByRole("heading", { name: "Operations overview" });
-    api.failNext(workspace, { status: 429, error: "Too many requests. Try again in one minute.", headers: { "Retry-After": "120" } });
+    api.failNext(workspace, { status: 429, error: "Too many requests. Try again in 1 minute.", headers: { "Retry-After": "120" } });
     await refreshWorkspace();
     await waitFor(() => expect(refreshNotice()).toBeTruthy());
-    expect(refreshNotice()!.textContent).toContain("Too many requests. Try again in one minute.");
+    expect(refreshNotice()!.textContent).toContain("Too many requests. Try again in 1 minute.");
     expect(refreshNotice()!.textContent).toMatch(/As the service asked, the next automatic refresh is after \d{1,2} \w{3,4} \d{4}, \d{2}:\d{2} WAT\./);
     expect(screen.getByRole("heading", { name: "Operations overview" })).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Please wait before trying again" })).toBeNull();

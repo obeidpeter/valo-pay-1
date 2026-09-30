@@ -737,7 +737,7 @@ export function assessCredit(
     if (prior && prior.monthlyKobo !== commitment.monthlyKobo)
       issue(
         "CONFLICTING_COMMITMENT",
-        "Two different amounts were given for the same loan. Agree the amount before the assessment.",
+        "Two different amounts were given for the same loan. Confirm which amount is right before the assessment.",
       );
     if (!prior || commitment.evidence === "verified")
       commitments.set(commitment.facilityRef, commitment);
@@ -1133,7 +1133,7 @@ export function assessCredit(
         label: "Regular income",
         maximum: 25,
         points: mulDiv(features.activeIncomePeriods, 25, periodCount),
-        reason: `Regular income was confirmed in ${features.activeIncomePeriods} of ${counted(periodCount, "30-day period")}.`,
+        reason: `Regular income was confirmed in ${features.activeIncomePeriods} of the last ${counted(periodCount, "period")} of 30 days.`,
       },
       {
         code: "residual_capacity",
