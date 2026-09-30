@@ -61,8 +61,8 @@ it("lets Finance release an instalment from dispute on Collections, with a reaso
   switchTo("Finance", "/collections");
   row = (await screen.findByText("DEMO-LOAN-1005")).closest("tr")!;
   await user.click(within(row).getByRole("button", { name: "Release from dispute" }));
-  const dialog = await screen.findByRole("dialog", { name: "Release instalment from dispute" });
-  expect(within(dialog).getByRole("region", { name: "Release context" }).textContent).toContain("Its status then follows its balance");
+  const dialog = await screen.findByRole("dialog", { name: "Release from dispute" });
+  expect(within(dialog).getByRole("region", { name: "Release context" }).textContent).toContain("Its status goes back to match its balance");
   await user.type(within(dialog).getByLabelText(/Reason/), "The provider withdrew the chargeback.");
   await user.click(within(dialog).getByRole("button", { name: "Release from dispute" }));
   await waitFor(() => expect(instalment().status).toBe("scheduled"));

@@ -199,7 +199,7 @@ for (const theme of ["light", "dark"] as const) {
       await expectReflow(page);
       if (route === "/collections") {
         // The card clips overflow, so merely fitting the viewport is not enough.
-        const ownerFitsCard = await page.getByLabel("Filter collections by owner").evaluate(node => {
+        const ownerFitsCard = await page.getByLabel("Filter instalments by who collects them").evaluate(node => {
           const control = node.getBoundingClientRect();
           const card = node.closest("section")!.getBoundingClientRect();
           return control.left >= card.left && control.right <= card.right;

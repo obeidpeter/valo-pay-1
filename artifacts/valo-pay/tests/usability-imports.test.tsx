@@ -29,7 +29,7 @@ describe('UX-I01 import outcome and correction guidance', () => {
     await screen.findByRole('heading', { name: 'Check results' });
     expect(within(screen.getByRole('region', { name: 'Check results' })).getByText(/Row 2 · Already imported:/)).toBeTruthy();
     expect(screen.getByText('This was a check only. No records were saved.')).toBeTruthy();
-    expect(screen.getByText('All rows already exist. There is nothing new to import; existing records have not been changed.')).toBeTruthy();
+    expect(screen.getByText('All rows already exist, so there is nothing new to import. Existing records have not changed.')).toBeTruthy();
     expect(screen.queryByText('Checked and ready. Review the preview, then select Import data.')).toBeNull();
     expect(screen.getByRole('button', { name: 'Import data' })).toHaveProperty('disabled', true);
     expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Check results' }));
@@ -52,7 +52,7 @@ describe('UX-I01 import outcome and correction guidance', () => {
     expect(screen.getByLabelText('CSV content')).toHaveProperty('value', csv);
     const referenceMap = screen.getByLabelText('Map reference');
     expect(within(referenceMap).getByRole('option', { name: 'Full name' })).toHaveProperty('disabled', true);
-    expect(screen.getByText(/Every row needs a source row ID: a row imported before with the same ID and data is skipped/)).toBeTruthy();
+    expect(screen.getByText(/Every row needs a source row ID\. A row already imported with the same ID and data is skipped\./)).toBeTruthy();
   });
 
   it('recovers a lost committed import response with the same key and blocks a changed batch', async () => {
@@ -70,17 +70,17 @@ describe('UX-I01 import outcome and correction guidance', () => {
       throw new TypeError('Connection interrupted after commit');
     };
     await user.click(screen.getByRole('button', { name: 'Import data' }));
-    await screen.findByText('Import outcome not confirmed');
+    await screen.findByText('Request not confirmed');
     expect(screen.getByLabelText('CSV content')).toHaveProperty('disabled', true);
     expect(screen.getByLabelText('Import as')).toHaveProperty('disabled', true);
     expect(screen.getByRole('button', { name: 'Check data' })).toHaveProperty('disabled', true);
     expect(screen.getByRole('button', { name: 'Clear import' })).toHaveProperty('disabled', true);
-    await user.click(screen.getByRole('button', { name: 'Retry same import' }));
+    await user.click(screen.getByRole('button', { name: 'Check original request' }));
     await screen.findByRole('heading', { name: 'Import results' });
     expect(keys).toHaveLength(2);
     expect(keys[0]).toBe(keys[1]);
     expect(api.state().records.filter(record => record.name === 'Reference-free sample')).toHaveLength(1);
-    expect(screen.queryByText('Import outcome not confirmed')).toBeNull();
+    expect(screen.queryByText('Request not confirmed')).toBeNull();
   });
 
   it('discards a lost import deliberately, which frees the wizard for a new import under a new key', async () => {
@@ -93,10 +93,10 @@ describe('UX-I01 import outcome and correction guidance', () => {
     };
     api.failNext(/^\/v1\/imports$/, 'offline', 'POST');
     await user.click(screen.getByRole('button', { name: 'Import data' }));
-    const notice = (await screen.findByText('Import outcome not confirmed')).closest('[role=alert]') as HTMLElement;
+    const notice = (await screen.findByText('Request not confirmed')).closest('[role=alert]') as HTMLElement;
     expect(screen.getByLabelText('CSV content')).toHaveProperty('disabled', true);
     await user.click(within(notice).getByRole('button', { name: 'Discard original request' }));
-    await waitFor(() => expect(screen.queryByText('Import outcome not confirmed')).toBeNull());
+    await waitFor(() => expect(screen.queryByText('Request not confirmed')).toBeNull());
     expect(screen.getByLabelText('CSV content')).toHaveProperty('disabled', false);
     await cancelInterrupted(user);
     await user.click(screen.getByRole('button', { name: 'Import data' }));

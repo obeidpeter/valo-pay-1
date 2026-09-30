@@ -11,7 +11,7 @@ test('unmatched searches explain the result and reconciliation search survives c
   for(const route of ['/exceptions','/mandates','/collections']) {
     await page.goto(route+'?q=nonexistent-search');
     await expect(page.getByText(/^No (exceptions|mandates|instalments) match your search$/)).toBeVisible();
-    await expect(page.getByText(/^(All clear: no open exceptions|No mandates yet|No instalments recorded)$/)).toHaveCount(0);
+    await expect(page.getByText(/^(All clear: no open exceptions|No mandates yet|No instalments yet)$/)).toHaveCount(0);
     await page.getByRole('button',{name:'Clear search'}).click();
     await expect(page.locator('tbody tr').first()).toBeVisible();
     await expect(page.getByText(/^No (exceptions|mandates|instalments) match your search$/)).toHaveCount(0);

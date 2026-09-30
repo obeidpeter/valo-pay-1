@@ -112,8 +112,8 @@ describe("unconfirmed changes the journal records point to Operations", () => {
     await screen.findByRole("heading", { name: "Check results" });
     api.failNext(/^\/v1\/imports$/, "offline", "POST");
     await user.click(screen.getByRole("button", { name: "Import data" }));
-    await screen.findByText("Import outcome not confirmed");
-    pointsToOperations("Import outcome not confirmed");
+    await screen.findByText("Request not confirmed");
+    pointsToOperations("Request not confirmed");
   });
 
   it("on Reports, for a daily close, but not for its refusal", async () => {
@@ -135,8 +135,8 @@ describe("unconfirmed changes the journal records point to Operations", () => {
     renderApp("/reconciliation");
     api.failNext(/^\/v1\/actions$/, "offline", "POST");
     await user.click(await screen.findByRole("button", { name: "Run reconciliation" }));
-    await screen.findByText("Reconciliation could not be completed");
-    pointsToOperations("Reconciliation could not be completed");
+    await screen.findByText("Reconciliation not completed");
+    pointsToOperations("Reconciliation not completed");
   });
 
   it("on the audit log, for a check", async () => {

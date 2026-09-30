@@ -137,7 +137,7 @@ describe('the quick import on Collections', () => {
     await user.click(screen.getByLabelText('CSV content'));
     // A header the browser cannot read says what to fix rather than asking for a row ID column it cannot offer.
     await user.paste('"Unclosed,header\nr1,Synthetic consent');
-    expect(screen.getByText('2. Start the CSV with a header row that names each column, with every quote closed.')).toBeTruthy();
+    expect(screen.getByText('2. Make sure the first row of the CSV names each column, and every quotation mark is closed.')).toBeTruthy();
     expect(screen.queryByLabelText('Row ID column *')).toBeNull();
     await user.clear(screen.getByLabelText('CSV content'));
     await user.paste('\n\nrow_id,name,consentProvenance\nr1,After blank lines,Synthetic consent');

@@ -46,13 +46,13 @@ describe('actionable operational queues', () => {
     const due = api.state().records.find(record => record.id === failed.data.dueItemId)!;
     renderApp('/collections?view=failed');
     const row = (await screen.findByText(due.reference)).closest('tr')!;
-    expect((screen.getByRole('button', { name: 'Failed attempts (1)' })).getAttribute('aria-pressed')).toBe('true');
+    expect((screen.getByRole('button', { name: 'Failed collection attempts (1)' })).getAttribute('aria-pressed')).toBe('true');
     expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(2);
     expect(row.textContent).toContain(formatKobo(due.amountKobo));
     expect(row.textContent).toContain('outstanding');
     expect(within(row).getByText('Loan management system')).toBeTruthy();
     expect(within(row).getByText('Insufficient funds')).toBeTruthy();
-    expect(within(row).getByText('Review the failed attempt and retry policy')).toBeTruthy();
+    expect(within(row).getByText('Review the failed collection attempt and retry policy')).toBeTruthy();
     expect(screen.queryByRole('textbox', { name: 'CSV content' })).toBeNull();
     await userEvent.setup().click(screen.getByRole('button', { name: 'Import sample data' }));
     expect(screen.getByRole('textbox', { name: 'CSV content' })).toBeTruthy();

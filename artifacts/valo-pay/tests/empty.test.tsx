@@ -34,9 +34,9 @@ describe("empty states", () => {
   it("says what would be in an empty table and where it comes from", async () => {
     api.mutate((state) => { state.records.splice(0, state.records.length, ...state.records.filter((record) => record.kind !== "due-items")); });
     renderApp("/collections");
-    const title = await screen.findByText("No instalments recorded");
+    const title = await screen.findByText("No instalments yet");
     expect(title.closest("tr")).toBeTruthy();
-    expect(screen.getByText(/Open Import sample data to add synthetic instalments using a sample CSV/)).toBeTruthy();
+    expect(screen.getByText(/Select Import sample data to add sample instalments from a CSV file/)).toBeTruthy();
   });
 
   it("offers the next step when a lender has none of something", async () => {

@@ -31,7 +31,7 @@ describe('collection targets on customer history', () => {
     await user.click(screen.getByRole('link', { name: 'Back to Collections' }));
     const row = (await screen.findByText(due.reference)).closest('tr')!;
     expect(new URLSearchParams(window.location.search).get('view')).toBe('all');
-    expect((screen.getByLabelText('Filter collections by owner') as HTMLSelectElement).value).toBe('merchant_manual');
+    expect((screen.getByLabelText('Filter instalments by who collects them') as HTMLSelectElement).value).toBe('merchant_manual');
     await waitFor(() => expect(document.activeElement).toBe(row));
   });
 

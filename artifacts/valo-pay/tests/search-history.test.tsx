@@ -22,7 +22,7 @@ it.each([
     await screen.findByText(noMatch);
     expect(screen.queryByText("All clear: no open exceptions")).toBeNull();
     expect(screen.queryByText("No mandates yet")).toBeNull();
-    expect(screen.queryByText("No instalments recorded")).toBeNull();
+    expect(screen.queryByText("No instalments yet")).toBeNull();
     await user.click(screen.getByRole("button", { name: "Clear search" }));
     await waitFor(() =>
       expect(screen.queryByText(noMatch)).toBeNull(),

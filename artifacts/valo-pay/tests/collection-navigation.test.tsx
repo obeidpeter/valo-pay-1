@@ -25,7 +25,7 @@ describe('collection record navigation', () => {
     await user.click(screen.getByRole('link', { name: 'Back to Collections' }));
     const restored = (await screen.findByText(due.reference)).closest('tr')!;
     expect(new URLSearchParams(window.location.search).get('view')).toBe('overdue');
-    expect((screen.getByLabelText('Filter collections by owner') as HTMLSelectElement).value).toBe('merchant_manual');
+    expect((screen.getByLabelText('Filter instalments by who collects them') as HTMLSelectElement).value).toBe('merchant_manual');
     await waitFor(() => expect(document.activeElement).toBe(restored));
   });
 
@@ -39,7 +39,7 @@ describe('collection record navigation', () => {
     });
     renderApp('/collections');
     const failedRow = (await screen.findByText(failedDue.reference)).closest('tr')!;
-    const failedLink = within(failedRow).getByRole('link', { name: 'Review the failed attempt and retry policy' });
+    const failedLink = within(failedRow).getByRole('link', { name: 'Review the failed collection attempt and retry policy' });
     const failedUrl = new URL(failedLink.getAttribute('href')!, window.location.origin);
     expect(failedUrl.pathname).toBe(`/customers/${failedDue.customerId}`);
     expect(failedUrl.searchParams.get('record')).toBe(failed.id);
