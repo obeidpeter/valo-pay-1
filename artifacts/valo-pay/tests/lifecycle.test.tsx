@@ -229,9 +229,26 @@ it('moves focus from a discarded run request back to the run, never to the Sandb
 
 it('keeps retention details and controls unavailable to non-administrators', async () => {
   api.role = 'Finance'; renderApp('/lifecycle?run=retention-run-1');
-  await screen.findByText(/Only an Admin can view or change data retention/);
+  await screen.findByText('Only Admin can view or change data retention. Your role is Finance. Change your demo role in Settings.');
   expect(screen.queryByRole('button', { name: 'Save retention policy' })).toBeNull();
   expect(api.calls.filter(call => call.path.startsWith('/v1/lifecycle'))).toHaveLength(0);
+});
+
+it('tells a pilot member who is not an Admin to ask an Admin about holds and deletion runs', async () => {
+  api.role = 'Finance';
+  // A staff pilot has no demo roles, so the refusal names the person to ask instead.
+  const send = globalThis.fetch;
+  globalThis.fetch = async (input, options) => {
+    const response = await send(input, options);
+    if (new URL(String(input instanceof Request ? input.url : input), 'http://localhost').pathname !== '/api/v1/workspace') return response;
+    return new Response(JSON.stringify({ ...(await response.json()), accessMode: 'staff', actor: 'Clerk:user_a' }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  };
+  try {
+    renderApp('/lifecycle');
+    expect(await screen.findByText('Only Admin can view or change data retention. Your role is Finance. Ask an Admin about holds and deletion runs.')).toBeTruthy();
+    expect(screen.queryByText(/Change your demo role/)).toBeNull();
+    expect(api.calls.filter(call => call.path.startsWith('/v1/lifecycle'))).toHaveLength(0);
+  } finally { globalThis.fetch = send; }
 });
 
 it('says when the retention run the address names is not in this lender, and keeps the page usable', async () => {
