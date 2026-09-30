@@ -80,37 +80,6 @@
   margin-top: 6px;
   max-width: 60ch;
 }
-.connected-status {
-  display: inline-flex;
-  align-items: center;
-  padding: 4px 9px;
-  border: 1px solid hsl(var(--border));
-  border-radius: 6px;
-  background: hsl(var(--secondary));
-  font-size: 11px;
-  font-weight: 550;
-  white-space: nowrap;
-}
-.connected-status.good {
-  color: #12633b;
-  background: #ecf8f0;
-  border-color: #c6e6d0;
-}
-.connected-status.attention {
-  color: #92400e;
-  background: #fff7e7;
-  border-color: #eed8ad;
-}
-.dark .connected-status.good {
-  color: #9ce3b5;
-  background: #122b20;
-  border-color: #294d39;
-}
-.dark .connected-status.attention {
-  color: #f5d09a;
-  background: #302310;
-  border-color: #644620;
-}
 .connected-page label {
   display: block;
   font-size: 12px;
