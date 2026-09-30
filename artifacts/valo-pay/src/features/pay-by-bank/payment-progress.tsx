@@ -7,7 +7,7 @@ export function paymentProgress(status: string, { expired = false, held = false,
     { label: "Bank authorisation", state: "waiting" },
     { label: "Payment confirmed", state: "waiting" },
   ];
-  let title = "Check this checkout", detail = "Check the checkout and its timeline before you take another step.";
+  let title = "Checkout saved", detail = "Read its timeline before you take another step.";
   if (status === "created") {
     steps[1].state = expired || held ? "attention" : "current";
     title = held ? "Finish the reversal review first" : expired ? "Checkout expired" : "Check the details before authorisation";

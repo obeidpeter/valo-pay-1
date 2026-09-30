@@ -48,7 +48,7 @@ export function ReviewPanel({
   return (
     <ConnectedPanel
       title="Record your review"
-      description="Read the evidence and calculations first. The outcome is a sandbox exercise; it cannot issue a loan."
+      description="Read the evidence and calculations first. Your review is sample practice. It cannot issue a loan."
     >
       {assessment.reviews.length ? (
         <p className="text-sm text-muted-foreground">

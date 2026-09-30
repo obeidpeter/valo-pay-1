@@ -30,7 +30,7 @@ export function CashAccountingSection({
       )}
       <Section
         title="Accounting"
-        detail="Before you export a draft, check that the bank receipt, the amount still owed, the fee and the credit note agree. Xero is the first accounting software we plan to connect. Posting to it is switched off."
+        detail="Before you export a draft, check that the bank receipt, the amount still owed, the fee and the credit note agree. Xero is the first accounting software Valo Pay plans to connect. Posting to it is switched off."
         action={
           <Button
             aria-describedby="accounting-prepare-help"

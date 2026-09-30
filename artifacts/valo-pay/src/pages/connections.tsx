@@ -403,8 +403,8 @@ function ConnectionsContent({ api }: { api: ReturnType<typeof useConnected> }) {
               Paystack
             </h3>
             <p>
-              Our planned first payment provider. It is not connected yet: a
-              test key and a successful connection check are still needed.
+              Valo Pay’s planned first payment provider. It is not connected
+              yet: a test key and a successful connection check are still needed.
               Starting bank payments and paying out to businesses would each
               need separate approval.
             </p>
@@ -412,7 +412,7 @@ function ConnectionsContent({ api }: { api: ReturnType<typeof useConnected> }) {
           <div className="connected-record">
             <h3>Xero</h3>
             <p>
-              The first accounting software we plan to connect. Cash Desk
+              The first accounting software Valo Pay plans to connect. Cash Desk
               prepares sample drafts and export files only. Nothing is sent to
               Xero.
             </p>
