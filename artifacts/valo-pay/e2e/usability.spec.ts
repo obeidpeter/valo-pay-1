@@ -127,7 +127,7 @@ test("the payment comparison keeps evidence readable and keyboard focus inside i
   await expect(evidence.getByRole("heading", { name: "Instalment", exact: true })).toBeVisible();
   await expect(evidence.getByText(/Collection result:/)).toBeVisible();
   await expect(evidence.getByText(/Settlement:/)).toBeVisible();
-  await expect(evidence.getByText(/Provider fees are checked separately/)).toBeVisible();
+  await expect(evidence.getByText(/Provider fees do not reduce the amount allocated/)).toBeVisible();
   expect(await dialog.evaluate(node => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
   await dialog.getByLabel("Reason *", { exact: true }).focus();
   for (let index = 0; index < 8; index += 1) {

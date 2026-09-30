@@ -6,6 +6,7 @@ import { customerTimeline } from "../../api-server/src/domain/timeline";
 import { makeRecord } from "../../api-server/src/domain/records";
 import { reconcile } from "../../api-server/src/domain/reconciliation";
 import { importCsv } from "../../api-server/src/lib/valopay-import";
+import { executeAction } from "../../api-server/src/domain/actions";
 
 let api: FakeApi;
 beforeEach(() => { api = installFakeApi(); });
@@ -107,6 +108,21 @@ describe("customer timeline", () => {
     const panel = (await screen.findByRole("heading", { name: "Exception details" })).closest("section")!;
     expect(panel.textContent!.replace(/ /g, " ")).toContain("USD 1,000.00");
     expect(panel.textContent).not.toContain("₦1,000.00");
+  });
+
+  // Review of the language pass, F3: Finance's decision changes only a proposal's status, so its history line must say why
+  // it was proposed, never that Finance still has to confirm a match it has confirmed.
+  it("says a confirmed match was proposed for Finance to confirm, and no longer asks Finance to confirm it", async () => {
+    const proposal = api.state().records.find((record) => record.kind === "allocations" && record.status === "proposed")!;
+    expect([proposal.data.automatic, proposal.data.confidence]).toEqual([false, "probable"]);
+    api.mutate((state, ctx) => executeAction(state, { ...ctx, actor: "Sandbox Finance", role: "Finance" }, { action: "confirm_allocation", recordId: String(proposal.data.paymentId), reason: "Checked the sample payment and instalment.", data: { proposalId: proposal.id, proposalUpdatedAt: proposal.updatedAt } }));
+    expect(api.state().records.find((record) => record.id === proposal.id)?.status).toBe("confirmed");
+    renderApp(`/customers/${proposal.customerId}`);
+    await screen.findByRole("heading", { name: "Customer history" });
+    const event = [...document.querySelectorAll("main ol > li")].find((item) => item.querySelector(`[title="${proposal.id}"]`)) as HTMLElement;
+    expect(event.textContent).toContain(`Proposed by rule ${proposal.data.rule} for Finance to confirm. Confidence: Probable.`);
+    expect(event.textContent).not.toContain("Finance needs to confirm");
+    expect(within(event).getByText("Confirmed")).toBeTruthy();
   });
 
   it("says when the lender has no customer with the reference, inside the console", async () => {

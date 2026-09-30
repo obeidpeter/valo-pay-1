@@ -40,13 +40,14 @@ function decisionDetail(data: Record<string, any>): string {
   ].filter(Boolean).join(' ');
 }
 
-/** How an allocation was made, then the reason recorded with it: an automatic match names its rule and how sure it was. */
+/** How an allocation was made, then the reason recorded with it: an automatic match names its rule and how sure it was. A proposal
+ * says why it was made, not what is still to do: Finance's decision changes only its status, which the badge beside it shows. */
 function allocationDetail(data: Record<string, any>): string {
   const rule = String(data.rule || 'not recorded');
   const confidence = data.confidence && data.confidence !== 'manual' ? ` Confidence: ${readableLabel(data.confidence)}.` : '';
   const how = data.automatic === true ? `Matched automatically by rule ${rule}.${confidence}`
     : data.confidence === 'manual' ? ''
-    : `Proposed by rule ${rule}.${confidence} Finance needs to confirm it.`;
+    : `Proposed by rule ${rule} for Finance to confirm.${confidence}`;
   return [how, String(data.explanation || '')].filter(Boolean).join(' ');
 }
 

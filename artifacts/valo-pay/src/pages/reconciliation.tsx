@@ -63,7 +63,7 @@ function MatchEvidence({ allocation, payment, instalment, customer, decision }: 
       </div>
       <p><strong>Matching evidence:</strong> {String(allocation.data?.explanation || 'No explanation was recorded. Check the payment and instalment before you decide.')}</p>
       <p className="text-xs text-muted-foreground">Rule: {String(allocation.data?.rule || 'Not recorded')} · Confidence: {allocation.data?.confidence ? readableLabel(allocation.data.confidence) : 'Not recorded'}</p>
-      <p className="text-xs text-muted-foreground">Allocating puts the full payment amount against the instalment. Provider fees are checked separately in settlement batches and do not reduce this amount.</p>
+      <p className="text-xs text-muted-foreground">Provider fees do not reduce the amount allocated. They are checked separately in settlement batches.</p>
       {decision === 'confirm_allocation' ? <>
         <p>Confirming allocates <strong>{formatKobo(allocation.amountKobo)}</strong> to this instalment.</p>
         {payment && instalment && allocation.amountKobo <= available && allocation.amountKobo <= outstanding && <p className="text-xs text-muted-foreground">After confirmation: {formatKobo(available - allocation.amountKobo)} of the payment unallocated; {formatKobo(outstanding - allocation.amountKobo)} outstanding on the instalment.</p>}

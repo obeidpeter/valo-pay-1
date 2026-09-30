@@ -86,7 +86,7 @@ describe('reconciliation decisions', () => {
     expect(evidence.textContent).toContain('does not refund or move money');
     expect(evidence.textContent).toContain('Collection result:');
     expect(evidence.textContent).toContain('Settlement:');
-    expect(evidence.textContent).toContain('Provider fees are checked separately');
+    expect(evidence.textContent).toContain('Provider fees do not reduce the amount allocated');
     expect(evidence.textContent).toContain('After correction:');
     expect(within(dialog).getByRole('button', { name: 'Mark match incorrect' })).toBeTruthy();
     await user.click(within(dialog).getByRole('checkbox'));
