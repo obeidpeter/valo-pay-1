@@ -93,7 +93,7 @@ export default function ExceptionsPage() {
       <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Exceptions</h1>
-          <p className="text-muted-foreground mt-1">Each exception shows its team, the person it is assigned to and its deadline.</p>
+          <p className="text-muted-foreground mt-1">An exception is something that needs a person to review and resolve it. Each one shows its team, who it is assigned to and its deadline.</p>
         </div>
       </header>
 
@@ -129,7 +129,7 @@ export default function ExceptionsPage() {
               {types.map(value => <option key={value} value={value}>{readableLabel(value)}</option>)}
             </select>
           </label>
-          <p className="w-full text-xs text-muted-foreground">Overdue exceptions come first, then by severity and deadline.</p>
+          <p className="w-full text-xs text-muted-foreground">Overdue exceptions come first, then the rest by severity and deadline.</p>
         </div>}
 
         <div id="exception-results" {...(targetId ? {} : { role: 'tabpanel', 'aria-labelledby': `exception-tab-${filter}`, tabIndex: 0 })}>
@@ -143,7 +143,7 @@ export default function ExceptionsPage() {
           </EmptyState>
         ) : items.length === 0 ? (
           <EmptyState filtered title={q ? 'No exceptions match your search' : owner || type ? 'No exceptions match these filters' : filter === 'resolved' ? 'No resolved exceptions yet' : filter === 'high' ? 'No open high-severity exceptions' : filter === 'overdue' ? 'No overdue exceptions' : filter === 'due-today' ? 'No exceptions due today' : 'All clear: no open exceptions'}>
-            {q ? 'Try another name or reference, or select Clear search. Your tab, team and type filters stay as they are.' : filter === 'resolved'
+            {q ? 'Try another name or reference, or select Clear search. Your view, team and type filters stay as they are.' : filter === 'resolved'
               ? 'Exceptions appear here when someone resolves them, or when Valo Pay closes them automatically because the problem went away.'
               : filter !== 'open' || owner || type
                 ? 'Choose All open, All teams and All types to see every exception.'
@@ -246,7 +246,7 @@ export default function ExceptionsPage() {
             { name: 'resolutionCode', label: 'Outcome', type: 'select', isData: true, required: true, options: resolutionChoices(selectedEx, workspace?.role, heldBatch.held, heldBatch.blocked).map(code => ({ label: resolutionLabel(selectedEx, code), value: code })) },
             ...(heldIdentities.length ? [{
               name: 'confirmedProviderIdentity', label: 'Connection that paid out this batch', type: 'select' as const, isData: true, options: heldIdentities,
-              help: `Only for the outcome ${readableLabel(providerIdentityConfirmedCode)}. Its evidence stays with this batch. Evidence for other connections moves to their own batches.`,
+              help: `Only for the outcome ${readableLabel(providerIdentityConfirmedCode)}. The chosen connection’s evidence stays with this batch. Evidence for other connections moves to their own batches.`,
             }] : []),
             ...(checkoutOutcome ? [{
               name: 'evidenceReference', label: 'Evidence reference', type: 'text' as const, isData: true,

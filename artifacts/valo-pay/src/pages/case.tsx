@@ -38,9 +38,9 @@ function caseLock(
   if (!caseRoles.includes(role || ""))
     return `Only Admin, Operations, Finance and Compliance reviewer team members can change a case. Your role is ${role || "not known yet"}.${sandbox ? " Change your demo role in Settings." : ""}`;
   if (["closed", "resolved"].includes(record.status))
-    return "This exception is resolved. Its case keeps its history and cannot be handed over.";
+    return `This exception is ${record.status === "closed" ? "closed" : "resolved"}. Its case keeps its history and cannot be handed over.`;
   if (!holder && !assignees.some((person) => person.actor === actor))
-    return "You cannot claim this case because you are not on this lender’s case list. Ask an Admin to give you access to this lender in Team and access.";
+    return "You cannot claim this case because you are not on the list of people who can work on this lender’s cases. Ask an Admin to give you access to this lender in Team and access.";
   if (holder && holder !== actor && role !== "Admin")
     return `This case is assigned to ${holderName}. Only ${holderName} or an Admin can record its next step or hand it over.`;
   return "";
@@ -238,7 +238,7 @@ function CaseWork({ data, refresh }: { data: any; refresh(): Promise<any> }) {
             href={`/exceptions?${new URLSearchParams({ record: record.id, ...(merchantId ? { lender: merchantId } : {}) })}#record-${record.id}`}
             className="inline-block text-sm text-primary underline"
           >
-            Open Exceptions to resolve it
+            Open in Exceptions
           </Link>
           <Link
             href="/reconciliation"
@@ -297,7 +297,7 @@ function CaseWork({ data, refresh }: { data: any; refresh(): Promise<any> }) {
                   >
                     {!holder && !assignees.some((person) => person.actor === assignee) && (
                       <option value={assignee} disabled>
-                        You · not on this lender’s case list
+                        You · not on the list of people who can work on cases
                       </option>
                     )}
                     {formerHolder && (

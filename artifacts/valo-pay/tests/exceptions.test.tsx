@@ -23,6 +23,27 @@ describe("exceptions", () => {
     expect(api.calls.some(call => call.method === 'POST')).toBe(false);
   });
 
+  // Review of the language pass, F15: an exception Valo Pay closed because its cause went away says so in its status and
+  // names no outcome, while one a person resolved shows Resolved and the outcome they recorded.
+  it('shows an exception Valo Pay closed as Closed automatically, and a resolved one with its outcome', async () => {
+    const [cleared, resolved] = api.mutate(state => {
+      const exceptions = state.records.filter(record => record.kind === 'exceptions');
+      const gap = exceptions.find(record => record.data.type === 'imported_consent_gap')!;
+      const other = exceptions.find(record => record.id !== gap.id)!;
+      other.status = 'closed'; other.data.resolutionCode = 'condition_cleared';
+      gap.status = 'resolved'; gap.data.resolutionCode = 'gap_accepted_in_writing';
+      return [other, gap];
+    });
+    renderApp('/exceptions?view=resolved');
+    await screen.findByRole('tab', { name: 'Resolved (2)' });
+    const row = (record: { id: string }) => document.getElementById(`record-${record.id}`)!;
+    await waitFor(() => expect(row(cleared)).toBeTruthy());
+    expect(within(row(cleared)).getByText('Closed automatically')).toBeTruthy();
+    expect(row(cleared).textContent).not.toContain('Outcome:');
+    expect(within(row(resolved)).getByText('Resolved')).toBeTruthy();
+    expect(row(resolved).textContent).toContain('Outcome: Gap accepted in writing');
+  });
+
   it('preserves terminal exception details and offers case history instead of generic edits', async () => {
     api.mutate(state => {
       const exceptions = state.records.filter(record => record.kind === 'exceptions');
@@ -344,7 +365,7 @@ describe("exceptions", () => {
     const outcome = () => within(dialog).getByText(/^Record outcome:|^Record an outcome/).parentElement!.textContent!;
     expect(outcome()).toContain('This settlement batch is on hold. Its evidence is not counted until Finance or an Admin confirms which connection paid it out.');
     expect(outcome()).toContain('Connection confirmed: Choose this with the connection the providers confirmed. The next reconciliation then releases the batch.');
-    expect(outcome()).toContain('Leave this exception open: Do this if the providers cannot say which connection it was. When the data has been corrected, the next reconciliation releases the batch and closes this exception.');
+    expect(outcome()).toContain('Leave this exception open: Do this if the providers cannot say which connection it was. When the person who manages this data has corrected it, the next reconciliation releases the batch and closes this exception.');
     await user.selectOptions(code, 'provider_identity_confirmed');
     expect(outcome()).toContain('The next reconciliation releases this settlement batch as a payout of the connection you choose.');
     expect(outcome()).toContain('Settlement lines for other connections move to their own batches, and bank statement lines for them are left to link to their own.');
@@ -371,7 +392,7 @@ describe("exceptions", () => {
     expect(within(code).getAllByRole('option').map(option => option.textContent)).toEqual(['Choose an option', 'Connection confirmed']);
     const outcome = () => within(dialog).getByText(/^Record outcome:|^Record an outcome/).parentElement!.textContent!;
     expect(outcome()).toContain('An earlier resolution of this batch’s hold still stands, but the batch stays on hold. Its evidence is not counted until Finance or an Admin confirms which connection paid it out.');
-    expect(outcome()).toContain('Leave this review open: Do this if the providers cannot say which connection it was. When the data has been corrected, the next reconciliation releases the batch and closes this review.');
+    expect(outcome()).toContain('Leave this review open: Do this if the providers cannot say which connection it was. When the person who manages this data has corrected it, the next reconciliation releases the batch and closes this review.');
     const identity = await within(dialog).findByLabelText(/Connection that paid out this batch/);
     await waitFor(() => expect(within(identity).getAllByRole('option')).toHaveLength(3));
     await user.selectOptions(code, 'provider_identity_confirmed');

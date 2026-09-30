@@ -117,7 +117,7 @@ export function resolutionEffect(exception: ValopayRecord, code: unknown, held?:
       happened: `${review ? 'An earlier resolution of this batch’s hold still stands, but the batch stays on hold. ' : 'This settlement batch is on hold. '}Its evidence is not counted until Finance or an Admin confirms which connection paid it out.`,
       choices: [
         [readableLabel(providerIdentityConfirmedCode), 'Choose this with the connection the providers confirmed. The next reconciliation then releases the batch.'],
-        [`Leave ${it} open`, `Do this if the providers cannot say which connection it was. When the data has been corrected, the next reconciliation releases the batch and closes ${it}.`],
+        [`Leave ${it} open`, `Do this if the providers cannot say which connection it was. When the person who manages this data has corrected it, the next reconciliation releases the batch and closes ${it}.`],
       ],
       next: 'Check with the providers before you choose. No money moves.',
     };
@@ -210,7 +210,7 @@ export function ExceptionContext({ exception, customer, resolutionCode, resolvin
   // and so do held evidence, a held payment, a waiting reversal and a batch held for its provider identity (resolutionEffect).
   const guidance: Guidance = checkout
     ? {
-        happened: 'The outcome of this pay-by-bank payment is unknown.',
+        happened: 'The outcome of this Pay by Bank payment is unknown.',
         choices: [
           [readableLabel('resolved_succeeded'), 'Records the payment as received, with your evidence reference, and allocates it to its instalment.'],
           [readableLabel('resolved_failed'), 'Records the checkout as failed.'],

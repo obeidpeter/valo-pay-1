@@ -220,7 +220,7 @@ it("opens this exception in Exceptions from its case, even when it is resolved",
     record.data.resolutionCode = "held_credit";
   });
   renderApp(`/cases/${item.id}`);
-  const link = await screen.findByRole("link", { name: "Open Exceptions to resolve it" });
+  const link = await screen.findByRole("link", { name: "Open in Exceptions" });
   expect(link.getAttribute("href")).toBe(`/exceptions?record=${item.id}&lender=${api.merchantIds[0]}#record-${item.id}`);
   await user.click(link);
   expect(await screen.findByText("Selected exception")).toBeTruthy();
