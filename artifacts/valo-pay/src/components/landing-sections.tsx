@@ -438,7 +438,6 @@ export function LandingFooter({ signedIn }: { signedIn: boolean }) {
         <div className="lp-footer-main">
           <div className="lp-footer-brand">
             <BrandLockup href="#main" />
-            <p>Collections, credit and cash operations.</p>
             <span>
               Sample data only. Live payments and bank connections are switched
               off.
