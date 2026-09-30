@@ -234,13 +234,13 @@ export function ConnectedPanel({
   );
 }
 /**
- * The help under a written field such as a reason: its minimum length and,
- * for a reason the action records, where it is kept.
+ * The help under a written field such as a reason: its minimum length and
+ * where what is written is kept (a reason goes to the audit log).
  */
-export function FieldHint({ id, minLength, audited = true }: { id: string; minLength: number; audited?: boolean }) {
+export function FieldHint({ id, minLength, note = "Saved in the audit log." }: { id: string; minLength: number; note?: string }) {
   return (
     <p id={id} className="mt-1 text-xs text-muted-foreground">
-      At least {minLength} characters.{audited ? " Saved in the audit log." : ""}
+      At least {minLength} characters. {note}
     </p>
   );
 }

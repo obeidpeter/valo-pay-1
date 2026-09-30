@@ -87,7 +87,7 @@ describe("Credit Desk synthetic journeys", () => {
     mocks.api.data.credit.assessments = [saved];
     render(<CreditDeskPage />);
     await userEvent.click(screen.getByRole("tab", { name: "Evidence" }));
-    const amount = screen.getByText("Median observed liquidity").parentElement!;
+    const amount = screen.getByText("Typical account balance").parentElement!;
     expect(amount.querySelector("dd")!.textContent).toBe(value === null ? "Unavailable" : "₦0.00");
     expect(mocks.api.run).not.toHaveBeenCalled();
   });
@@ -99,11 +99,11 @@ describe("Credit Desk synthetic journeys", () => {
     ).toBeTruthy();
     expect(
       screen
-        .getByRole("link", { name: /Set up sample permissions/ })
+        .getByRole("link", { name: /Open Permissions and readiness/ })
         .getAttribute("href"),
     ).toBe("/connections");
-    expect(screen.getByText(/Credit assessment: Required/)).toBeTruthy();
-    expect(screen.getByText(/No real borrower is assessed/)).toBeTruthy();
+    expect(screen.getByText(/Assess an application: Not active/)).toBeTruthy();
+    expect(screen.getByText(/No real applicant is assessed/)).toBeTruthy();
     expect(mocks.api.run).not.toHaveBeenCalled();
   });
   it("submits explicit terms in integer kobo only after the operator gives a reason", async () => {
@@ -114,7 +114,7 @@ describe("Credit Desk synthetic journeys", () => {
       "Check affordability for the sample application",
     );
     await user.click(
-      screen.getByRole("button", { name: /Run sample assessment/ }),
+      screen.getByRole("button", { name: /Run assessment/ }),
     );
     await waitFor(() =>
       expect(mocks.api.run).toHaveBeenCalledWith(
@@ -131,21 +131,21 @@ describe("Credit Desk synthetic journeys", () => {
       ),
     );
     expect(screen.getByRole("status").textContent).toContain(
-      "new immutable sample assessment",
+      "Sample assessment saved as a new version",
     );
   });
   it("explains score and separates source provenance from the lending recommendation", async () => {
     mocks.api.data.credit.assessments = [assessment()];
     const user = userEvent.setup();
     render(<CreditDeskPage />);
-    expect(screen.getByText(/Not a probability of default\./)).toBeTruthy();
+    expect(screen.getByText(/Not a prediction of whether the applicant will repay\./)).toBeTruthy();
     expect(screen.getByText("Why the score looks this way")).toBeTruthy();
-    expect(screen.getByText("Ready for lender review")).toBeTruthy();
+    expect(screen.getByText("Policy checks met")).toBeTruthy();
     await user.click(screen.getByRole("tab", { name: "Evidence" }));
     expect(screen.getByRole("tabpanel").getAttribute("aria-labelledby")).toBe(
       screen.getByRole("tab", { name: "Evidence" }).id,
     );
-    expect(screen.getByText("Immutable evidence fingerprint")).toBeTruthy();
+    expect(screen.getByText("Evidence reference (for audit)")).toBeTruthy();
     expect(screen.getByText("90 days")).toBeTruthy();
   });
   it("does not translate thin history into a zero score or an enabled approval", () => {
@@ -188,7 +188,7 @@ describe("Credit Desk synthetic journeys", () => {
       ).disabled,
     ).toBe(true);
     expect(
-      screen.getByText(/A different reviewer must complete this step/),
+      screen.getByText(/A different person must review this assessment/),
     ).toBeTruthy();
   });
   it("requires meaningful override evidence and keeps server rejection visible", async () => {
@@ -217,7 +217,7 @@ describe("Credit Desk synthetic journeys", () => {
       "Additional synthetic evidence was independently examined and documented.",
     );
     await user.click(
-      screen.getByRole("button", { name: "Record sample review" }),
+      screen.getByRole("button", { name: "Record review" }),
     );
     await waitFor(() =>
       expect(screen.getByRole("alert").textContent).toContain(
@@ -251,7 +251,7 @@ describe("Credit Desk synthetic journeys", () => {
   it("rejects excess decimal places beside the amount, preserves the form and submits exact kobo after correction", async () => {
     const user = userEvent.setup();
     render(<CreditDeskPage />);
-    const principal = screen.getByLabelText("Requested principal (₦)");
+    const principal = screen.getByLabelText("Loan amount (₦)");
     await user.clear(principal);
     await user.type(principal, "240000.005");
     await user.type(
@@ -259,7 +259,7 @@ describe("Credit Desk synthetic journeys", () => {
       "Review this exact sample application amount",
     );
     await user.click(
-      screen.getByRole("button", { name: /Run sample assessment/ }),
+      screen.getByRole("button", { name: /Run assessment/ }),
     );
     expect(mocks.api.run).not.toHaveBeenCalled();
     expect(principal.getAttribute("aria-invalid")).toBe("true");
@@ -271,7 +271,7 @@ describe("Credit Desk synthetic journeys", () => {
     await user.clear(principal);
     await user.type(principal, "240,000.29");
     await user.click(
-      screen.getByRole("button", { name: /Run sample assessment/ }),
+      screen.getByRole("button", { name: /Run assessment/ }),
     );
     expect(mocks.api.run.mock.calls[0][1].principalKobo).toBe(24_000_029);
   });
@@ -290,7 +290,7 @@ describe("Credit Desk synthetic journeys", () => {
       ).toBe("true"),
     );
     expect(screen.getByRole("tabpanel").textContent).toContain(
-      "Immutable evidence fingerprint",
+      "Evidence reference (for audit)",
     );
     await user.keyboard("{End}");
     await waitFor(() =>
@@ -304,5 +304,32 @@ describe("Credit Desk synthetic journeys", () => {
       screen.getAllByRole("tab").filter((element) => element.tabIndex === 0),
     ).toHaveLength(1);
     expect(mocks.api.run).not.toHaveBeenCalled();
+  });
+  it("says a reason's minimum under the field and refuses a short one in its own words", async () => {
+    const user = userEvent.setup();
+    render(<CreditDeskPage />);
+    expect(screen.getByText("At least 8 characters. Saved in the audit log.")).toBeTruthy();
+    const reason = screen.getByLabelText("Reason for this assessment");
+    await user.type(reason, "Short");
+    await user.click(screen.getByRole("button", { name: /Run assessment/ }));
+    expect(mocks.api.run).not.toHaveBeenCalled();
+    expect(reason.getAttribute("aria-invalid")).toBe("true");
+    expect(document.activeElement).toBe(reason);
+    expect(screen.getByRole("alert").textContent).toBe("Enter a reason (at least 8 characters).");
+  });
+  it("refuses a review shorter than its minimum in the page's own words", async () => {
+    mocks.api.data.credit.assessments = [assessment()];
+    mocks.api.data.credit.actor = "Sandbox Finance";
+    mocks.api.data.credit.canReview = true;
+    const user = userEvent.setup();
+    render(<CreditDeskPage />);
+    expect(screen.getAllByText("At least 20 characters. Shown in Review history.")).toHaveLength(2);
+    await user.selectOptions(screen.getByLabelText("Reviewer outcome"), "request_information");
+    await user.type(screen.getByLabelText("What did you review?"), "Too short");
+    await user.type(screen.getByLabelText("Explanation for the applicant"), "We need three months of bank records.");
+    await user.click(screen.getByRole("button", { name: "Record review" }));
+    expect(mocks.api.run).not.toHaveBeenCalled();
+    expect(screen.getByText("Enter what you reviewed (at least 20 characters).")).toBeTruthy();
+    expect(document.activeElement).toBe(screen.getByLabelText("What did you review?"));
   });
 });

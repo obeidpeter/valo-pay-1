@@ -1,7 +1,9 @@
 import { TabsContent } from "@/components/ui/tabs";
 import { EvidenceDisclosure } from "@/components/evidence-disclosure";
 import { formatCount, formatDate, formatNumber } from "@/lib/formatters";
+import { valueLabel } from "@workspace/valopay-schema";
 import { Amount } from "./amount";
+import { exclusionLabels } from "./labels";
 import type { Assessment } from "./types";
 
 export function AssessmentEvidence({
@@ -15,7 +17,7 @@ export function AssessmentEvidence({
     <TabsContent value="evidence" className="space-y-5">
       <dl className="text-sm space-y-3">
         <div className="flex justify-between gap-3">
-          <dt>Source accounts</dt>
+          <dt>Bank accounts</dt>
           <dd>{formatNumber(result.evidence.sourceCount)}</dd>
         </div>
         <div className="flex justify-between gap-3">
@@ -23,7 +25,7 @@ export function AssessmentEvidence({
           <dd>{formatCount(result.evidence.coverageDays, "day")}</dd>
         </div>
         <div>
-          <dt className="text-muted-foreground">Oldest source update</dt>
+          <dt className="text-muted-foreground">Oldest bank data from</dt>
           <dd>
             {result.evidence.earliestSourceAsOf
               ? formatDate(result.evidence.earliestSourceAsOf)
@@ -35,7 +37,7 @@ export function AssessmentEvidence({
         <>
           <dl className="text-sm space-y-3">
             <Amount
-              label="Sustainable income per 30 days"
+              label="Regular income per 30 days"
               value={result.features.sustainableMonthlyIncomeKobo}
             />
             <Amount
@@ -43,42 +45,40 @@ export function AssessmentEvidence({
               value={result.features.essentialMonthlyKobo}
             />
             <Amount
-              label="Verified existing repayments"
+              label="Existing repayments found in bank data"
               value={result.features.verifiedCommitmentsMonthlyKobo}
             />
             <Amount
-              label="Declared existing repayments"
+              label="Existing repayments stated by the applicant"
               value={result.features.declaredCommitmentsMonthlyKobo}
             />
             <Amount
-              label="Median observed liquidity"
+              label="Typical account balance"
               value={result.features.liquidityBufferKobo}
             />
           </dl>
           <p className="text-sm">
             {formatCount(
               result.features.includedTransactionRefs.length,
-              "included observation",
+              "transaction",
             )}{" "}
-            · {formatNumber(result.features.excludedTransactions.length)}{" "}
-            excluded ·{" "}
-            {formatCount(
-              result.features.duplicatesIgnored,
-              "duplicate observation",
-            )}{" "}
+            included · {formatNumber(result.features.excludedTransactions.length)}{" "}
+            left out ·{" "}
+            {formatCount(result.features.duplicatesIgnored, "duplicate")}{" "}
             ignored.
           </p>
           <p className="text-xs text-muted-foreground">
-            Matched own-account transfers, loan proceeds, refunds and asset
-            sales do not count as recurring income. Unclear classifications need
-            review.
+            Transfers between the applicant’s own accounts, loan money, refunds
+            and sales of assets do not count as regular income. Transactions
+            that cannot be sorted need review.
           </p>
           {result.features.excludedTransactions.length > 0 && (
-            <EvidenceDisclosure title="Excluded observations">
+            <EvidenceDisclosure title="Transactions left out">
               <ul className="mt-3 space-y-2 text-xs">
                 {result.features.excludedTransactions.map((item) => (
                   <li key={item.reference} className="break-all">
-                    {item.reference} — {item.reason.replaceAll("_", " ")}
+                    {item.reference}:{" "}
+                    {exclusionLabels[item.reason] ?? valueLabel(item.reason)}
                   </li>
                 ))}
               </ul>
@@ -86,12 +86,16 @@ export function AssessmentEvidence({
           )}
         </>
       )}
-      <EvidenceDisclosure title="Immutable evidence fingerprint">
+      <EvidenceDisclosure title="Evidence reference (for audit)">
+        <p className="mt-2 text-xs text-muted-foreground">
+          This reference identifies the exact evidence this assessment used. It
+          cannot be changed.
+        </p>
         <p className="break-all text-xs text-muted-foreground mt-2 font-mono">
           {result.snapshotHash}
         </p>
         <p className="mt-2 text-xs text-muted-foreground">
-          Rulecard {result.score?.rulecardVersion ?? modelVersion} · Policy
+          Scoring rules {result.score?.rulecardVersion ?? modelVersion} · Policy
           version {result.policy.version}
         </p>
       </EvidenceDisclosure>

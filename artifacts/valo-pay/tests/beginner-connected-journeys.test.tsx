@@ -72,10 +72,10 @@ describe("complete synthetic connected journeys through the real app", () => {
     const applicantId = (
       screen.getByLabelText("Applicant") as HTMLSelectElement
     ).value;
-    expect(screen.getByText("Account reading: Required")).toBeTruthy();
-    expect(screen.getByText("Credit assessment: Required")).toBeTruthy();
+    expect(screen.getByText("Read applicant accounts: Not active")).toBeTruthy();
+    expect(screen.getByText("Assess an application: Not active")).toBeTruthy();
     await user.click(
-      screen.getByRole("link", { name: /Set up sample permissions/ }),
+      screen.getByRole("link", { name: /Open Permissions and readiness/ }),
     );
     await screen.findByRole("heading", {
       name: "Permissions and readiness",
@@ -85,17 +85,17 @@ describe("complete synthetic connected journeys through the real app", () => {
     await grant(user, "credit_assessment", applicantId);
     await go(user, "Credit Desk");
     await user.selectOptions(screen.getByLabelText("Applicant"), applicantId);
-    expect(screen.getByText("Account reading: Active")).toBeTruthy();
-    expect(screen.getByText("Credit assessment: Active")).toBeTruthy();
+    expect(screen.getByText("Read applicant accounts: Active")).toBeTruthy();
+    expect(screen.getByText("Assess an application: Active")).toBeTruthy();
     await user.type(
       screen.getByLabelText("Reason for this assessment"),
       "Review permitted sample income and the proposed repayment schedule",
     );
     await user.click(
-      screen.getByRole("button", { name: /Run sample assessment/ }),
+      screen.getByRole("button", { name: /Run assessment/ }),
     );
     await screen.findByText(
-      "A new immutable sample assessment has been recorded. Review its evidence and explanations below.",
+      "Sample assessment saved as a new version. It cannot be changed. Check its evidence and explanations below.",
     );
     const assessment = api
       .state()
@@ -104,12 +104,12 @@ describe("complete synthetic connected journeys through the real app", () => {
       )!;
     const original = JSON.stringify(assessment.data.result);
     expect(assessment.data.result.createdBy).toBe("Sandbox Operations");
-    expect(screen.getByText(/Not a probability of default\./)).toBeTruthy();
+    expect(screen.getByText(/Not a prediction of whether the applicant will repay\./)).toBeTruthy();
     expect(screen.getByText(/Not a lending decision\./)).toBeTruthy();
     expect(
       (
         screen.getByRole("button", {
-          name: "Record sample review",
+          name: "Record review",
         }) as HTMLButtonElement
       ).disabled,
     ).toBe(true);
@@ -130,17 +130,17 @@ describe("complete synthetic connected journeys through the real app", () => {
       "The sample evidence supports the proposed repayments. This rehearsal does not approve a real loan.",
     );
     await user.click(
-      screen.getByRole("button", { name: "Record sample review" }),
+      screen.getByRole("button", { name: "Record review" }),
     );
     await screen.findByText(
-      "The separate sample review is recorded. The assessment and its score are unchanged.",
+      "Sample review recorded. The assessment and its score have not changed.",
     );
     expect(
       screen.getByRole("heading", { name: "Sample approval recorded" }),
     ).toBeTruthy();
     expect(
       screen.getByText(
-        /Simulated reviewer authentication. This is not an actual lending decision/,
+        /Reviewer sign-in is simulated in the sandbox\. This is not a real lending decision/,
       ),
     ).toBeTruthy();
     expect(
@@ -163,7 +163,7 @@ describe("complete synthetic connected journeys through the real app", () => {
       await screen.findByRole("heading", { name: "Sample approval recorded" }),
     ).toBeTruthy();
     expect(
-      screen.queryByRole("button", { name: "Record sample review" }),
+      screen.queryByRole("button", { name: "Record review" }),
     ).toBeNull();
     const writes = api.calls.filter(
       (call) => call.method === "POST" && call.path === "/v1/connected/actions",

@@ -2,6 +2,8 @@ import {
   ConnectedFrame,
   ConnectedRecovery,
   ConnectedState,
+  roleRefusal,
+  tooShort,
 } from "@/components/connected-frame";
 import { LoadProblem } from "@/components/load-problem";
 import { Loading } from "@/components/loading";
@@ -19,13 +21,14 @@ import { useState } from "react";
 
 const TITLE = "Credit Desk",
   DESCRIPTION =
-    "Turn authorised evidence into a clear assessment. Keep the lender’s decision separate.";
+    "Applicants are your customers. A different person reviews each assessment. A credit result is not a lending decision.";
 export default function CreditDeskPage() {
   const api = useConnected(),
     { merchantId } = useWorkspace();
   return <CreditDeskContent key={merchantId} api={api} />;
 }
 function CreditDeskContent({ api }: { api: ReturnType<typeof useConnected> }) {
+  const { workspace } = useWorkspace();
   const [customerId, setCustomerId] = useState(""),
     [scenario, setScenario] = useState("ready"),
     [selectedId, setSelectedId] = useState("");
@@ -38,7 +41,7 @@ function CreditDeskContent({ api }: { api: ReturnType<typeof useConnected> }) {
   const [tab, setTab] = useState<"assessment" | "evidence" | "history">(
     "assessment",
   );
-  const [amountErrors, setAmountErrors] = useState<Record<string, string>>({});
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   // An assessment typed but not run is a draft: leaving asks first.
   const draft = useFormDraft({
     customerId,
@@ -91,7 +94,9 @@ function CreditDeskContent({ api }: { api: ReturnType<typeof useConnected> }) {
     };
     const principalKobo = parse("credit-principal", principal),
       repaymentKobo = parse("credit-repayment", repayment);
-    setAmountErrors(errors);
+    const short = tooShort(reason, "a reason", 8);
+    if (short) errors["credit-reason"] = short;
+    setFieldErrors(errors);
     if (Object.keys(errors).length) {
       document.getElementById(Object.keys(errors)[0])?.focus();
       return;
@@ -124,7 +129,7 @@ function CreditDeskContent({ api }: { api: ReturnType<typeof useConnected> }) {
       setSelectedId("");
       setTab("assessment");
       setSuccess(
-        "A new immutable sample assessment has been recorded. Review its evidence and explanations below.",
+        "Sample assessment saved as a new version. It cannot be changed. Check its evidence and explanations below.",
       );
       setReason("");
       draft.saved();
@@ -152,19 +157,19 @@ function CreditDeskContent({ api }: { api: ReturnType<typeof useConnected> }) {
           <strong>{formatNumber(data.assessments.length)}</strong>
         </div>
         <div className="connected-metric">
-          <span>Awaiting a reviewer</span>
+          <span>Waiting for review</span>
           <strong>{formatNumber(completeCount)}</strong>
         </div>
         <div className="connected-metric">
-          <span>Decision model</span>
-          <strong className="!text-xl">Human review</strong>
+          <span>Reviewed by</span>
+          <strong className="!text-xl">A different person</strong>
         </div>
       </div>
       <p className="connected-note">
         <ShieldCheck className="inline mr-2" size={16} aria-hidden="true" />
-        Explore automatic rule scoring and capacity calculations using sample
-        evidence. The rules are unvalidated. No real borrower is assessed, no
-        credit is issued and no money moves.
+        Try the sample rule score and affordability check with sample bank
+        data. The rules have not been validated for real lending. No real
+        applicant is assessed, no loan is made and no money moves.
       </p>
       {error && !api.hasUnconfirmedOutcome && (
         <p className="connected-error" role="alert">
@@ -182,17 +187,28 @@ function CreditDeskContent({ api }: { api: ReturnType<typeof useConnected> }) {
           customer={customer}
           permissions={permissions}
           values={{ scenario, principal, repayment, months, reason }}
-          onChange={(field, value) =>
+          onChange={(field, value) => {
             ({
               scenario: setScenario,
               principal: setPrincipal,
               repayment: setRepayment,
               months: setMonths,
               reason: setReason,
-            })[field](value)
-          }
+            })[field](value);
+            if (field === "reason")
+              setFieldErrors((current) => {
+                const next = { ...current };
+                delete next["credit-reason"];
+                return next;
+              });
+          }}
           onCustomerChange={setCustomerId}
-          amountErrors={amountErrors}
+          fieldErrors={fieldErrors}
+          refusal={
+            data.canAssess
+              ? ""
+              : roleRefusal(["Admin", "Operations"], "run an assessment", api.data.role, workspace?.accessMode)
+          }
           canAssess={data.canAssess}
           canWrite={api.canWrite}
           pending={api.pending}
@@ -214,6 +230,7 @@ function CreditDeskContent({ api }: { api: ReturnType<typeof useConnected> }) {
           canReview={
             data.canReview && api.canWrite && selected.createdBy !== data.actor
           }
+          staff={workspace?.accessMode === "staff"}
           pending={api.pending}
           onReview={async (reviewData) => {
             draft.sending(null);
@@ -221,11 +238,11 @@ function CreditDeskContent({ api }: { api: ReturnType<typeof useConnected> }) {
               "credit.review",
               reviewData,
               selected.id,
-              "Record a reasoned synthetic lender review",
+              "Record a sample credit review",
             );
             setTab("history");
             setSuccess(
-              "The separate sample review is recorded. The assessment and its score are unchanged.",
+              "Sample review recorded. The assessment and its score have not changed.",
             );
           }}
         />

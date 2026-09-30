@@ -45,13 +45,13 @@ describe("connected page drafts", () => {
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
     renderApp("/credit-desk");
     await screen.findByRole("heading", { name: "Credit Desk", level: 1 });
-    await user.clear(screen.getByLabelText("Requested principal (₦)"));
-    await user.type(screen.getByLabelText("Requested principal (₦)"), "250000");
+    await user.clear(screen.getByLabelText("Loan amount (₦)"));
+    await user.type(screen.getByLabelText("Loan amount (₦)"), "250000");
     await user.type(screen.getByLabelText("Reason for this assessment"), "Check the capacity for a larger sample loan");
-    await user.click(screen.getByRole("button", { name: /Run sample assessment/ }));
-    await screen.findByText(/A new immutable sample assessment has been recorded/);
+    await user.click(screen.getByRole("button", { name: /Run assessment/ }));
+    await screen.findByText(/Sample assessment saved as a new version/);
     // The inputs stay for the next run, and they are no longer a draft.
-    expect((screen.getByLabelText("Requested principal (₦)") as HTMLInputElement).value).toBe("250000");
+    expect((screen.getByLabelText("Loan amount (₦)") as HTMLInputElement).value).toBe("250000");
     await leave(user);
     await screen.findByRole("heading", { name: "Audit log", level: 1 });
     expect(confirm).not.toHaveBeenCalled();

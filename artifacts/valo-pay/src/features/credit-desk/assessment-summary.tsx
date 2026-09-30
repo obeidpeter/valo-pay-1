@@ -1,10 +1,16 @@
 import { TabsContent } from "@/components/ui/tabs";
+import { formatPercent } from "@/lib/formatters";
+import { valueLabel } from "@workspace/valopay-schema";
 import { Amount } from "./amount";
 import { recommendationLabels } from "./labels";
 import type { Assessment } from "./types";
 
 export function AssessmentSummary({ assessment }: { assessment: Assessment }) {
   const result = assessment.result;
+  // The income cut is the assessment's own; the safety margin and the 40% limit are not in its data, so they are named as the sample policy sets them.
+  const incomeCut = result.affordability
+    ? formatPercent(result.affordability.incomeStressBps / 10_000)
+    : "";
   return (
     <TabsContent value="assessment">
       {result.score ? (
@@ -14,9 +20,9 @@ export function AssessmentSummary({ assessment }: { assessment: Assessment }) {
             <span className="text-base text-muted-foreground"> /100</span>
           </div>
           <div>
-            <p className="font-semibold">Illustrative rule score</p>
+            <p className="font-semibold">Sample rule score (not validated)</p>
             <p className="text-xs text-muted-foreground mt-1">
-              Not a probability of default.
+              Not a prediction of whether the applicant will repay.
               <br />
               Not a lending decision.
             </p>
@@ -27,14 +33,15 @@ export function AssessmentSummary({ assessment }: { assessment: Assessment }) {
           <h3 className="font-semibold">Score unavailable</h3>
           <p className="mt-2 text-sm">
             {assessment.permissionRestricted
-              ? "Permission changed or ended. Create a new assessment with valid authority."
-              : "Resolve the evidence issues below. Missing data or refusing an optional connection does not mean a score of zero."}
+              ? "A permission has changed or ended. Grant it again, then run a new assessment."
+              : "Fix the evidence issues below. Missing data, or a refused permission, does not mean a score of zero."}
           </p>
         </div>
       )}
       <div className="mb-5">
         <h3 className="font-semibold">
-          {recommendationLabels[result.policy.recommendation]}
+          {recommendationLabels[result.policy.recommendation] ??
+            valueLabel(result.policy.recommendation)}
         </h3>
         {result.policy.reasons.map((message) => (
           <p key={message} className="text-sm text-muted-foreground mt-2">
@@ -56,16 +63,14 @@ export function AssessmentSummary({ assessment }: { assessment: Assessment }) {
       )}
       {result.affordability && (
         <>
-          <h3 className="font-semibold mb-3">
-            Capacity for the proposed schedule
-          </h3>
+          <h3 className="font-semibold mb-3">Affordability check</h3>
           <dl className="space-y-3 text-sm mb-5">
             <Amount
-              label="Stressed monthly income"
+              label={`Monthly income after a ${incomeCut} cut`}
               value={result.affordability.stressedMonthlyIncomeKobo}
             />
             <Amount
-              label="Monthly repayment capacity"
+              label="Largest monthly repayment the applicant can afford"
               value={result.affordability.monthlyCapacityKobo}
               strong
             />
@@ -74,7 +79,7 @@ export function AssessmentSummary({ assessment }: { assessment: Assessment }) {
               value={result.affordability.peakScheduledMonthlyKobo}
             />
             <Amount
-              label="Principal supported by this schedule"
+              label="Loan amount this schedule supports"
               value={result.affordability.indicativePrincipalCapacityKobo}
             />
             <Amount
@@ -83,10 +88,11 @@ export function AssessmentSummary({ assessment }: { assessment: Assessment }) {
             />
           </dl>
           <p className="text-xs text-muted-foreground mb-5">
-            Income is reduced by 20% in this illustrative policy. Essential
-            costs, existing repayments, a ₦50,000 buffer and a 40% debt-service
-            limit constrain capacity. The principal estimate proportionally
-            scales this schedule; it is not a loan offer.
+            This sample policy cuts income by {incomeCut} to allow for a bad
+            month. It then takes away essential costs, existing repayments and
+            a ₦50,000.00 safety margin. All repayments together may not be more
+            than 40% of the reduced income. The loan amount above is scaled
+            from this schedule. It is not a loan offer.
           </p>
         </>
       )}

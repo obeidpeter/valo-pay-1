@@ -59,7 +59,7 @@ it.each(["malformed JSON", "unexpected shape", "timeout"])(
       "Review a synthetic application for response recovery",
     );
     await user.click(
-      screen.getByRole("button", { name: /Run sample assessment/ }),
+      screen.getByRole("button", { name: /Run assessment/ }),
     );
     await screen.findByText("Request not confirmed");
     await user.click(
@@ -140,7 +140,7 @@ it.each(["Meridian Credit", "Cedar Cooperative"])(
       "Check the synthetic evidence before reviewer handoff",
     );
     await user.click(
-      screen.getByRole("button", { name: /Run sample assessment/ }),
+      screen.getByRole("button", { name: /Run assessment/ }),
     );
     await screen.findByText("Request not confirmed");
     // Synchronize on the regression's actual precondition: React Query has
@@ -236,23 +236,23 @@ it("a definite stale-version rejection releases the old revision for an explicit
     "Check the current synthetic application evidence",
   );
   await user.click(
-    screen.getByRole("button", { name: /Run sample assessment/ }),
+    screen.getByRole("button", { name: /Run assessment/ }),
   );
   await screen.findByRole("alert");
   await waitFor(() =>
     expect(
       (
         screen.getByRole("button", {
-          name: /Run sample assessment/,
+          name: /Run assessment/,
         }) as HTMLButtonElement
       ).disabled,
     ).toBe(false),
   );
   await user.click(
-    screen.getByRole("button", { name: /Run sample assessment/ }),
+    screen.getByRole("button", { name: /Run assessment/ }),
   );
   await screen.findByText(
-    /A new immutable sample assessment has been recorded/,
+    /Sample assessment saved as a new version/,
   );
   expect(submissions).toHaveLength(2);
   expect(submissions[1]!.key).not.toBe(submissions[0]!.key);
@@ -301,7 +301,7 @@ async function startAssessment(user: ReturnType<typeof userEvent.setup>) {
     "Check the synthetic evidence before reviewer handoff",
   );
   await user.click(
-    screen.getByRole("button", { name: /Run sample assessment/ }),
+    screen.getByRole("button", { name: /Run assessment/ }),
   );
   await screen.findByText("Request not confirmed");
 }
@@ -357,9 +357,9 @@ it("a retry refused because the saved answer is withheld ends the held action an
   expect(submissions[1]).toEqual(submissions[0]);
   // The request is over: the next action is a new one, with a new key.
   await user.click(
-    screen.getByRole("button", { name: /Run sample assessment/ }),
+    screen.getByRole("button", { name: /Run assessment/ }),
   );
-  await screen.findByText(/A new immutable sample assessment has been recorded/);
+  await screen.findByText(/Sample assessment saved as a new version/);
   expect(submissions).toHaveLength(3);
   expect(submissions[2]!.key).not.toBe(submissions[0]!.key);
   expect(
@@ -398,9 +398,9 @@ it("a refusal the service marks as cancelled releases the held action", async ()
   expect(submissions.map((s) => s.status)).toEqual(["lost", 409]);
   expect(submissions[1]!.key).toBe(submissions[0]!.key);
   await user.click(
-    screen.getByRole("button", { name: /Run sample assessment/ }),
+    screen.getByRole("button", { name: /Run assessment/ }),
   );
-  await screen.findByText(/A new immutable sample assessment has been recorded/);
+  await screen.findByText(/Sample assessment saved as a new version/);
   expect(submissions).toHaveLength(3);
   expect(submissions[2]!.key).not.toBe(submissions[0]!.key);
   expect(JSON.parse(submissions[2]!.body).expectedRevision).not.toBe(
@@ -439,9 +439,9 @@ it("offers a deliberate discard of the form, retaining its request until the ser
   ).toBe(false);
   await cancelInterrupted(user);
   await user.click(
-    screen.getByRole("button", { name: /Run sample assessment/ }),
+    screen.getByRole("button", { name: /Run assessment/ }),
   );
-  await screen.findByText(/A new immutable sample assessment has been recorded/);
+  await screen.findByText(/Sample assessment saved as a new version/);
   expect(submissions).toHaveLength(2);
   expect(submissions[1]!.key).not.toBe(submissions[0]!.key);
 });
@@ -483,15 +483,15 @@ it.each([
       "Check the synthetic evidence after a refusal to wait",
     );
     await user.click(
-      screen.getByRole("button", { name: /Run sample assessment/ }),
+      screen.getByRole("button", { name: /Run assessment/ }),
     );
     await screen.findByText(error);
     expect(screen.queryByText("Request not confirmed")).toBeNull();
     await user.click(
-      screen.getByRole("button", { name: /Run sample assessment/ }),
+      screen.getByRole("button", { name: /Run assessment/ }),
     );
     await screen.findByText(
-      /A new immutable sample assessment has been recorded/,
+      /Sample assessment saved as a new version/,
     );
     expect(submissions).toHaveLength(2);
     expect(submissions[1]).toEqual(submissions[0]);
