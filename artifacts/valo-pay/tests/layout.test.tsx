@@ -32,7 +32,7 @@ describe("layout", () => {
     expect(await screen.findByRole("button", { name: /Check audit log/ })).toBeTruthy();
     await waitFor(() => expect(document.title).toBe("Audit log · Valo Pay"));
     // The brand in the sidebar and in the phone bar leads back to the landing page, the same lockup as on it.
-    const brands = screen.getAllByRole("link", { name: /Go to home page/ });
+    const brands = screen.getAllByRole("link", { name: "Valo Pay, collections, credit and cash operations. Back to home" });
     expect(brands).toHaveLength(2);
     expect(brands.every((link) => link.getAttribute("href") === "/")).toBe(true);
   });

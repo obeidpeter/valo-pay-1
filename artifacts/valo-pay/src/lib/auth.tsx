@@ -103,9 +103,9 @@ export function ClerkSlot({ children }: { children: ReactNode }) {
     <div ref={setNode} className="contents" />
     {loading?.state === 'loading' && <p role="status" className="p-4 text-sm text-muted-foreground">Loading sign-in…</p>}
     {loading?.state === 'failed' && <div role="alert" className="space-y-3 rounded-lg border bg-card p-4 text-sm">
-      <p className="font-medium">Sign-in could not be loaded.</p>
-      <p>Check your connection and try again. Your open pages and drafts are still here. This does not sign you into an account.</p>
-      <button type="button" className="min-h-10 rounded-md border border-input px-3 py-2 font-medium text-primary" onClick={loading.retry}>Try loading sign-in again</button>
+      <p className="font-medium">We could not load sign-in.</p>
+      <p>Check your connection and try again. Nothing has changed.</p>
+      <button type="button" className="min-h-10 rounded-md border border-input px-3 py-2 font-medium text-primary" onClick={loading.retry}>Try again</button>
     </div>}
   </>;
 }

@@ -4,17 +4,17 @@ import { useMutation } from "@tanstack/react-query";
 import { pilotRequest } from "@/lib/pilot";
 import { invitationAcceptedSchema } from "@workspace/valopay-schema";
 import { StaffSession } from "@/components/staff-session";
-import { PilotError, PilotHeading, PilotPanel } from "@/components/pilot-ui";
+import { PilotError, PilotPanel } from "@/components/pilot-ui";
 import { Button } from "@/components/ui/button";
 import { useSessionUser } from "@/lib/auth";
 import { ContextualHelp } from "@/components/contextual-help";
 
-/** Shown when the acceptance got no answer: team changes are not in Operations, so the pilot workspace shows whether it took effect. */
+/** Shown when the acceptance got no answer: team changes are not in Request history, so Pilot journey shows whether it took effect. */
 const ACCEPTANCE_PROBLEM =
-  "We did not receive confirmation that your invitation was accepted. Open the pilot workspace to check whether your membership is active before accepting again.";
+  "We do not know yet whether Valo Pay accepted your invitation. Open Pilot journey to check whether you are a team member before you accept it again.";
 /** Shown when the acceptance's answer is not the confirmation its schema describes: the membership may already be active. */
 const UNCONFIRMED_ACCEPTANCE =
-  "The service returned an incomplete confirmation. Open the pilot workspace to check whether your membership is active before accepting again.";
+  "Valo Pay’s confirmation was incomplete, so your invitation may already be accepted. Open Pilot journey to check whether you are a team member before you accept it again.";
 
 export default function TeamInvitePage() {
   const [token] = useState(() => window.location.hash.slice(1)),
@@ -22,7 +22,7 @@ export default function TeamInvitePage() {
   const completeLink = /^[a-f0-9]{64}$/.test(token);
   // Outside the console's layout, which names each page, so the page names itself.
   useEffect(() => {
-    document.title = "Join your pilot workspace · Valo Pay";
+    document.title = "Accept your invitation · Valo Pay";
   }, []);
   const accept = useMutation({
     mutationFn: () =>
@@ -39,15 +39,21 @@ export default function TeamInvitePage() {
       <Link href="/" className="text-sm text-primary underline">
         Valo Pay
       </Link>
-      <PilotHeading title="Join your pilot workspace">
-        Accept an invitation using its intended email address. Organisation
-        membership and Valo Pay permissions are checked separately.
-      </PilotHeading>
+      {/* The page's name, with nothing above it (docs/design/writing.md). */}
+      <header className="space-y-2">
+        <h1 className="text-3xl font-semibold tracking-tight">
+          Accept your invitation
+        </h1>
+        <p className="max-w-3xl text-sm text-muted-foreground">
+          Sign in with the email address the invitation is for. Valo Pay checks
+          your organisation membership and your role separately.
+        </p>
+      </header>
       <PilotPanel title="Confirm your access">
         {!completeLink ? (
           <div id="invitation-link-problem" role="alert" className="space-y-2 rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm">
             <p className="font-medium">This invitation link is incomplete or invalid.</p>
-            <p>Reopen the complete link your administrator sent you. If it still does not work, ask them for a new invitation.</p>
+            <p>Open the full link again, exactly as the Admin sent it. If it still does not work, ask them for a new invitation.</p>
           </div>
         ) : (
           <>
@@ -55,16 +61,17 @@ export default function TeamInvitePage() {
               <StaffSession />
             ) : (
               <p className="text-sm">
-                Sign in, then reopen your invitation link.{" "}
+                Sign in first, then open your invitation link again.{" "}
                 <Link href="/sign-in" className="text-primary underline">
                   Sign in
                 </Link>
               </p>
             )}
             <p className="text-sm text-muted-foreground">
-              Choose the organisation your administrator invited you to and verify
-              both authentication factors. Joining does not enable real payments or
-              customer data.
+              Choose the organisation the Admin invited you to. Then confirm your
+              identity with two-step verification. Joining gives no access to
+              real customer data. Live payments and bank connections are
+              switched off.
             </p>
           </>
         )}
@@ -83,7 +90,7 @@ export default function TeamInvitePage() {
           <p role="status" className="text-sm">
             {accept.data.message}{" "}
             <Link href="/pilot" className="text-primary underline">
-              Open pilot workspace
+              Open Pilot journey
             </Link>
           </p>
         )}

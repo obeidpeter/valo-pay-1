@@ -42,12 +42,12 @@ for (const theme of ["light", "dark"]) {
     await expect(
       page.getByRole("heading", {
         level: 1,
-        name: "Collections, credit and cash. One clear workspace.",
+        name: "Collections, credit and cash. One clear view.",
       }),
     ).toBeVisible();
     for (const name of [
       "Collections",
-      "Pay-by-bank",
+      "Pay by Bank",
       "Credit Desk",
       "Cash Desk",
     ]) {
@@ -65,8 +65,8 @@ for (const theme of ["light", "dark"]) {
     });
     await page.screenshot({ path: info.outputPath(`hero-${theme}.png`), scale: "css" });
     for (const [route, heading] of [
-      ["/sign-in", "Sign in to your workspace"],
-      ["/sign-up", "Create your workspace"],
+      ["/sign-in", "Sign in"],
+      ["/sign-up", "Create an account"],
     ]) {
       await page.goto(route!);
       await expect(
@@ -74,7 +74,9 @@ for (const theme of ["light", "dark"]) {
       ).toBeVisible();
       await page.getByText("How long is my workspace kept?").click();
       await expect(
-        page.getByText(/Anonymous sandboxes may be cleared after 30 days/),
+        page.getByText(
+          /The sandbox is kept in this browser and may be deleted after 30 days/,
+        ),
       ).toBeVisible();
       await audit(page);
       await page.screenshot({
@@ -110,7 +112,7 @@ test("navigation, keyboard previews and opt-in tour preserve visitor control", a
   await expect(
     page.getByRole("tab", { name: "Collections", exact: true }),
   ).toBeFocused();
-  const menu = page.getByRole("button", { name: "Open navigation" });
+  const menu = page.getByRole("button", { name: "Open menu" });
   if (await menu.isVisible()) {
     await menu.click();
     await page.keyboard.press("Escape");
@@ -133,7 +135,7 @@ test("navigation, keyboard previews and opt-in tour preserve visitor control", a
   ).toBeVisible();
   expect(workspaceRequests).toEqual([]);
   await expect(page.locator("iframe")).toHaveCount(0);
-  await page.getByRole("button", { name: /02 · Pay-by-bank/ }).click();
+  await page.getByRole("button", { name: /02 · Pay by Bank/ }).click();
   await expect(page.locator("iframe")).toHaveCount(0);
   await page.getByRole("button", { name: "Load interactive preview" }).click();
   await expect(

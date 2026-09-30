@@ -87,8 +87,8 @@ export function PresentationGuide() {
         {presentationSteps.map((s, i) => <option key={s.href} value={i}>{i + 1}. {s.title}</option>)}
       </select>
       <Button size="sm" variant="outline" disabled={state.step === presentationSteps.length - 1} onClick={() => save({ ...state, step: state.step + 1 })}>Next talking point</Button>
-      <Link href="/presentation" className="ml-auto inline-flex min-h-9 items-center text-sm text-primary underline underline-offset-4">Presentation preparation</Link>
+      <Link href="/presentation" className="ml-auto inline-flex min-h-9 items-center text-sm text-primary underline underline-offset-4">Back to Presentation</Link>
     </div>
-    <details key={state.step} className="mt-1 text-sm sm:mt-3"><summary className="min-h-9 cursor-pointer py-2 font-medium">Show presenter notes (visible on this screen)</summary><p className="mt-2">{step.show}</p><p className="mt-2 text-muted-foreground">Say: {step.say}</p><p className="mt-2 text-muted-foreground">If needed: {step.fallback}</p></details>
+    <details key={state.step} className="mt-1 text-sm sm:mt-3"><summary className="min-h-9 cursor-pointer py-2 font-medium">Show presenter notes (visible on this screen)</summary><p className="mt-2">{step.show}</p><p className="mt-2 text-muted-foreground">Say: {step.say}</p><p className="mt-2 text-muted-foreground">If something goes wrong: {step.fallback}</p></details>
   </section>;
 }

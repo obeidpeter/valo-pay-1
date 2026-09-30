@@ -9,7 +9,7 @@ test('presentation preparation, downloads and guide are usable on desktop and ph
   const writes: string[] = [];
   page.on('request', req => { if (req.url().includes('/api/') && req.method() !== 'GET') writes.push(req.method()); });
   await page.goto('/presentation');
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText(/Show how a lender/);
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Presentation');
   await page.getByRole('checkbox', { name: /I chose one sample lender/ }).check();
   const briefEvent = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Download presenter brief' }).click();
@@ -17,7 +17,7 @@ test('presentation preparation, downloads and guide are usable on desktop and ph
   expect(brief.suggestedFilename()).toBe('valo-pay-presenter-brief.md');
   expect(await readFile((await brief.path())!, 'utf8')).toContain('external connection has not been verified');
   const csvEvent = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Download payment evidence CSV' }).click();
+  await page.getByRole('button', { name: 'Download CSV of payment evidence' }).click();
   const csv = await csvEvent;
   expect(await readFile((await csv.path())!, 'utf8')).toContain('18000.50,statement,PRES-D001');
   await page.addScriptTag({ path: path.resolve('node_modules/axe-core/axe.min.js') });
@@ -36,12 +36,12 @@ test('presentation preparation, downloads and guide are usable on desktop and ph
   await page.keyboard.press('Enter');
   const guide = page.getByRole('region', { name: 'Presentation guide' });
   await expect(guide).toBeVisible();
-  await guide.getByRole('link', { name: 'Open overview' }).click();
+  await guide.getByRole('link', { name: 'Open Overview' }).click();
   await expect(page.getByRole('heading', { name: 'Operations overview' })).toBeVisible();
   await guide.getByRole('button', { name: 'Next talking point' }).click();
   await page.reload();
   await expect(guide.getByText('2 of 6 · Bring in payment evidence')).toBeVisible();
-  await guide.getByRole('link', { name: 'Open import batches' }).click();
+  await guide.getByRole('link', { name: 'Open Import batches' }).click();
   await expect(page.getByRole('heading', { name: 'Import batches' })).toBeVisible();
   await guide.getByRole('button', { name: 'End presentation' }).click();
   await expect(guide).toHaveCount(0);

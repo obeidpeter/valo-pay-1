@@ -12,10 +12,10 @@ const landmarkRules = [
 ];
 
 const routes: Array<[string, string | RegExp]> = [
-  ["/", "Collections, credit and cash. One clear workspace."],
-  ["/sign-in", "Sign in to your workspace"],
-  ["/sign-up", "Create your workspace"],
-  ["/team-invite", "Join your pilot workspace"],
+  ["/", "Collections, credit and cash. One clear view."],
+  ["/sign-in", "Sign in"],
+  ["/sign-up", "Create an account"],
+  ["/team-invite", "Accept your invitation"],
   ["/no-such-page", "Page not found"],
   ["/overview", "Operations overview"],
   ["/work", "My work"],
@@ -42,7 +42,7 @@ const routes: Array<[string, string | RegExp]> = [
   ["/team", "Team & access"],
   ["/lifecycle", "Data retention"],
   ["/settings", "Settings & administration"],
-  ["/presentation", /^Show how a lender/],
+  ["/presentation", /^Presentation$/],
 ];
 
 test.beforeEach(async ({ request, page }) => {
@@ -120,7 +120,7 @@ test("record pages have unique, top-level landmarks and pass WCAG 2.2 AA as a wh
 
 test("the presentation guide keeps landmarks unique", async ({ page }) => {
   await page.goto("/presentation");
-  await settle(page, /^Show how a lender/);
+  await settle(page, /^Presentation$/);
   await page.getByRole("button", { name: "Start presentation guide" }).click();
   await expect(page.getByRole("region", { name: "Presentation guide" })).toBeVisible();
   await audit(page, "presentation guide");
@@ -129,7 +129,7 @@ test("the presentation guide keeps landmarks unique", async ({ page }) => {
 test("the phone drawer opens on the current page, in the sidebar's groups, and keeps landmarks unique", async ({ page }, info) => {
   test.skip(!info.project.name.startsWith("mobile"), "The drawer is the phone's navigation.");
   await page.goto("/presentation");
-  await settle(page, /^Show how a lender/);
+  await settle(page, /^Presentation$/);
   await page.getByRole("button", { name: "Menu", exact: true }).click();
   const drawer = page.getByRole("dialog", { name: "Menu" });
   await expect(drawer.getByRole("link", { name: "Presentation", exact: true })).toBeFocused();
