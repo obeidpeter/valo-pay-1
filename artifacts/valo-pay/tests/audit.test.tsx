@@ -13,7 +13,15 @@ describe("audit", () => {
     await user.click(await screen.findByRole("button", { name: /Check audit log/ }));
     // The toast is a live region too, so the result box is found by its text.
     const status = (await screen.findByText("Audit log verified: all entries are intact")).closest('[role="status"]')!;
-    expect(status.textContent).toMatch(/1 verified entry · Latest verified hash: [0-9a-f]{64}/);
+    expect(status.textContent).toMatch(/Checked .+ · 1 entry checked/);
+    // The hash of the latest entry is kept in closed Technical details, with what it is for.
+    const head = within(status as HTMLElement).getByText(/^Hash of the latest entry: [0-9a-f]{64}$/).closest('details')!;
+    expect(head.open).toBe(false);
+    expect(head.textContent).toContain('A hash is a code worked out from an entry and the one before it.');
+    // So is each entry's own hash in the table.
+    const hashes = within(await screen.findByRole('table')).getAllByText(/^Hash: [0-9a-f]{64}$/);
+    expect(hashes.length).toBeGreaterThan(0);
+    for (const hash of hashes) expect(hash.closest('details')!.open).toBe(false);
     expect(status.textContent).toContain(`${api.state().merchant.name} · Checked`);
     expect(status.textContent).toContain('Check again after new actions are recorded.');
     expect(api.calls.find((call) => call.path === "/v1/actions")?.body).toMatchObject({ action: "verify_audit" });
@@ -48,7 +56,7 @@ describe("audit", () => {
     const user = userEvent.setup();
     renderApp('/audit');
     const failure = (await screen.findByText('Unable to load the audit log')).closest('[role="alert"]')!;
-    expect(screen.queryByText('No actions recorded yet')).toBeNull();
+    expect(screen.queryByText('No entries yet')).toBeNull();
     await user.click(within(failure as HTMLElement).getByRole('button', { name: 'Try again' }));
     await screen.findByRole('table');
     expect(screen.queryByText('Unable to load the audit log')).toBeNull();
