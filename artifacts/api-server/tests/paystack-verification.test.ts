@@ -188,7 +188,7 @@ await check(async () => {
         event.updatedAt,
         "Review verified sample evidence",
       ),
-    /already has an independently verified/,
+    /already checked and recorded as payment evidence/,
   );
   assert.equal((await f.run()).observationCreated, false);
   assert.equal(
@@ -218,7 +218,7 @@ await check(async () => {
 });
 await check(async () => {
   const f = fixture("fixture");
-  await assert.rejects(f.run, /fixtures cannot be promoted/);
+  await assert.rejects(f.run, /Practice messages cannot be checked/);
   assert.equal(f.calls(), 0);
 });
 for (const change of [
@@ -253,7 +253,7 @@ for (const change of ["attempt", "signed", "authority"] as const)
     });
     await assert.rejects(
       f.run,
-      /changed during verification|synthetic workspace/,
+      /changed during the check|only for a sample lender that is watching only/,
     );
     assert.equal(
       f
@@ -271,7 +271,7 @@ await check(async () => {
     const event = f.state().records.find((record) => record.id === f.eventId)!;
     event.data.replayHistory = Array.from({ length: 100 }, () => ({ at: ctx.now, actor: ctx.actor, reason: "Concurrent synthetic check", result: "awaiting_verification" }));
   });
-  await assert.rejects(f.run, /check limit/);
+  await assert.rejects(f.run, /checked the maximum number of times/);
   assert.equal(f.state().records.filter((r) => r.kind === "observations" && r.data.providerEventId === f.eventId).length, 0);
 });
 await check(async () => {
@@ -344,7 +344,7 @@ await check(async () => {
       (r) =>
         !(r.kind === "observations" && r.data.providerEventId === f.eventId),
     );
-  await assert.rejects(f.run, /missing its retained observation/);
+  await assert.rejects(f.run, /lost its payment evidence/);
   assert.equal(
     f.calls(),
     1,
@@ -459,7 +459,7 @@ for (const [reason, answer] of [
       assertProviderEventChange(before, event);
       assert.equal(event.data.replayHistory.at(-1).check, outcome);
       assert.equal(quarantinedWithoutDisagreement(event), true, "and it can still be checked again");
-      assert.throws(() => replayProviderEvent(structuredClone(f.state()), { ...ctx, role: "Finance" }, event.id, event.updatedAt, "Recheck the held receipt"), /cannot be replayed/);
+      assert.throws(() => replayProviderEvent(structuredClone(f.state()), { ...ctx, role: "Finance" }, event.id, event.updatedAt, "Recheck the held receipt"), /cannot be rechecked/);
     }
     const payment = answer === "another currency" ? { ...f.payment, currency: "USD" } : answer === "pending" ? { ...f.payment, status: "ongoing" } : f.payment;
     const result = await verifyQueuedPaystackEvent({ connectionId, eventId: f.eventId, transact: f.transact, adapter: answering(() => json({ status: true, data: payment })) });

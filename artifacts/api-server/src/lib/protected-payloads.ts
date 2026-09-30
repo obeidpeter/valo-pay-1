@@ -20,7 +20,7 @@ export const isProtectedPayload = (value: unknown): boolean => !!value && typeof
 export async function sealPayload(value: unknown, scope: PayloadScope, key: string, provider: WrappingKeyProvider) {
   if (!keyName.test(key)) return unavailable();
   const plaintext = Buffer.from(JSON.stringify(value)), aad = aadFor(scope);
-  if (plaintext.length > 8 * 1024 * 1024) throw new Error('Protected payload exceeds the supported size.');
+  if (plaintext.length > 8 * 1024 * 1024) throw new Error('This file is too large to store securely. Use a smaller file.');
   const dataKey = randomBytes(32), iv = randomBytes(12);
   try {
     const cipher = createCipheriv('aes-256-gcm', dataKey, iv, { authTagLength: 16 }); cipher.setAAD(aad);

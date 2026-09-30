@@ -7,7 +7,7 @@ const record = state.records.find(record => record.kind === "customers")!;
 assert.doesNotThrow(() => assertRecordVersion(record, record.updatedAt));
 assert.doesNotThrow(() => assertRecordVersion(record, undefined));
 assert.throws(() => assertRecordVersion(record, "not-a-time"), (error: any) => error.status === 400);
-assert.throws(() => assertRecordVersion(record, "2000-01-01T00:00:00Z"), (error: any) => error.status === 409 && /Refresh the record/.test(error.message));
+assert.throws(() => assertRecordVersion(record, "2000-01-01T00:00:00Z"), (error: any) => error.status === 409 && /record changed after you opened it, so your changes were not saved\. Reload the page/.test(error.message));
 const revision = settingsRevision(state.settings);
 assert.doesNotThrow(() => assertSettingsVersion(state.settings, revision));
 assert.doesNotThrow(() => assertSettingsVersion(state.settings, undefined));

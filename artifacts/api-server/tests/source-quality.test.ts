@@ -105,7 +105,7 @@ assert.equal(runPaystackFixture(inbox, ctx, "amount_mismatch").event.status, "qu
 assert.equal(runPaystackFixture(inbox, ctx, "out_of_order").event.status, "ignored_stale");
 assert.equal(runPaystackFixture(inbox, ctx, "tampered").accepted, false);
 assert.equal(inbox.records.some(r=>["payments", "allocations", "observations", "mandates"].includes(r.kind)), false);
-assert.throws(()=>replayProviderEvent(inbox,ctx,inbox.records.find(r=>r.status === "quarantined")!.id,ctx.now,"Review conflict"),/quarantine/);
+assert.throws(()=>replayProviderEvent(inbox,ctx,inbox.records.find(r=>r.status === "quarantined")!.id,ctx.now,"Review conflict"),/cannot be rechecked/);
 assert.throws(()=>replayProviderEvent(fresh("other"),ctx,first.event.id,first.event.updatedAt,"Wrong lender"),/not found/);
 assert.throws(()=>replayProviderEvent(inbox,ctx,first.event.id,"2000-01-01T00:00:00.000Z","Stale replay"),/changed|Refresh|newer/i);
 assert.equal(replayProviderEvent(inbox,ctx,first.event.id,first.event.updatedAt,"Recheck saved evidence").data.replayHistory.length,1);

@@ -188,7 +188,7 @@ it("offers Recheck saved receipt only for receipts the service can replay, and c
   });
   // The service refuses to replay verified evidence and replays a receipt still awaiting verification.
   const finance={actor:"Sandbox Finance",role:"Finance",now:api.now};
-  expect(()=>replayProviderEvent(structuredClone(api.state()),finance,verified.id,verified.updatedAt,"Recheck the saved receipt")).toThrow(/already has an independently verified observation/);
+  expect(()=>replayProviderEvent(structuredClone(api.state()),finance,verified.id,verified.updatedAt,"Recheck the saved receipt")).toThrow(/already checked and recorded as payment evidence/);
   expect(replayProviderEvent(structuredClone(api.state()),finance,awaiting.id,awaiting.updatedAt,"Recheck the saved receipt").status).toBe("awaiting_verification");
   api.role="Finance";renderApp("/sources");
   const card=(message:string)=>screen.getByText(message).closest("article")!;

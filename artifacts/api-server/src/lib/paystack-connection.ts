@@ -65,7 +65,7 @@ export function createPaystackConnectionTransaction(store: PaystackConnectionSto
       const seen=recorder.before(state);
       const receipt=await apply({state,context});
       const write=recorder.after(state,seen,connection.merchantId,context.now);
-      if(write==='receipt')appendAudit(state,context,'paystack.test_event','provider-inbox','Authenticated test evidence received. No financial instruction was created.');
+      if(write==='receipt')appendAudit(state,context,'paystack.test_event','provider-inbox','Signed Paystack test event received. No money moved.');
       if(write!=='none')await saveState(context,state);
       return receipt;
     });
