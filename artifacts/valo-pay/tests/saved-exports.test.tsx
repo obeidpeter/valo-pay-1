@@ -82,7 +82,7 @@ it('retains export history and selected details when both refreshes fail',async(
   expect(screen.getByText(`Export ID: ${id}`)).toBeTruthy();
   expect(screen.getAllByRole('alert')).toHaveLength(2);
   expect(screen.queryByText(/Export not found/)).toBeNull();
-  expect(screen.queryByText(/No exports on this page/)).toBeNull();
+  expect(screen.queryByText(/No exports (yet|match|on this page)/)).toBeNull();
 });
 it('shows saved file confirmation progress and recovers an expired lease using the same job',async()=>{
   const id=running('confirming',true),user=userEvent.setup();renderApp(`/exports?job=${id}`);
