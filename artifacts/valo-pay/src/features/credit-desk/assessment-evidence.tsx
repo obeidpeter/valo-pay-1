@@ -25,7 +25,7 @@ export function AssessmentEvidence({
           <dd>{formatCount(result.evidence.coverageDays, "day")}</dd>
         </div>
         <div>
-          <dt className="text-muted-foreground">Oldest bank data from</dt>
+          <dt className="text-muted-foreground">Oldest bank update</dt>
           <dd>
             {result.evidence.earliestSourceAsOf
               ? formatDate(result.evidence.earliestSourceAsOf)
@@ -45,7 +45,7 @@ export function AssessmentEvidence({
               value={result.features.essentialMonthlyKobo}
             />
             <Amount
-              label="Existing repayments found in bank data"
+              label="Existing repayments checked independently"
               value={result.features.verifiedCommitmentsMonthlyKobo}
             />
             <Amount

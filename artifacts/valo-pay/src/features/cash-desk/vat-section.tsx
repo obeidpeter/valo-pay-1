@@ -74,12 +74,12 @@ export function CashVatSection({
               <Metric
                 title="Input VAT you can reclaim"
                 value={amount(cash.vat.eligibleInputVatMinor)}
-                detail="Needs an approved decision before you reclaim it"
+                detail="Counts only VAT with an approved decision to reclaim it"
               />
               <Metric
                 title="Input VAT needing review"
                 value={amount(cash.vat.blockedInputVatMinor)}
-                detail="Left out until its evidence is approved"
+                detail="Left out until a decision to reclaim it is approved"
               />
               <Metric
                 title="Difference from your ledger"

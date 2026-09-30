@@ -35,7 +35,7 @@ import { reversalReviewRefusals } from "@/lib/permissions";
 import { PaymentProgress } from "@/features/pay-by-bank/payment-progress";
 const TITLE = "Pay by Bank",
   DESCRIPTION =
-    "The customer approves each payment at their bank. A payment counts only when the bank or provider confirms it.";
+    "The customer authorises each payment at their bank. A payment counts only when the bank or provider confirms it.";
 /**
  * The steps taken in a dialog: its question, what will happen, and the button
  * that does it. The button that opens the dialog says the same.
@@ -47,7 +47,7 @@ const reviewedSteps: Record<
   "payment.authorise": {
     title: "Simulate the customer’s authorisation?",
     detail:
-      "This stands in for the customer approving the payment at their bank. Sample data only. No money will move.",
+      "This stands in for the customer authorising the payment at their bank. Sample data only. No money will move.",
     confirm: "Simulate authorisation",
     busy: "Simulating…",
   },
