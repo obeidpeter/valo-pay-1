@@ -8,7 +8,7 @@
 export const valueLabels: Readonly<Record<string, string>> = {
   valopay: "Valo Pay", valo: "Valo Pay", lms: "Loan management system",
   merchant_manual: "Lender team", provider_auto: "Provider automatic collection",
-  pending_activation: "Awaiting activation", unpaid_final: "Unpaid after final attempt", superseded: "No longer allocated",
+  pending_activation: "Awaiting activation", unpaid_final: "Unpaid after final attempt", superseded: "No longer in use",
   returned: "Returned to the payer", partial: "Partly allocated", unsettled: "Not settled", variance: "Difference found",
   webhook: "Provider notification", statement: "Bank statement", settlement: "Settlement report", transfer: "Bank transfer", card: "Card payment",
   resolved: "Resolved", condition_cleared: "Closed automatically", suspected_duplicate: "Possible duplicate", unknown_outcome: "Outcome unknown",
@@ -20,7 +20,7 @@ export const valueLabels: Readonly<Record<string, string>> = {
   would_schedule: "Would schedule a retry", observation_only: "Watch only",
   give_up: "No further retries", defer: "Retry postponed", holdout: "Comparison group",
   engine: "Automated retry group", preregistered: "Plan registered",
-  handed_back: "Returned to the fallback collection owner",
+  handed_back: "Collection returned",
   transfer_to_activate: "Activate with a bank transfer", hosted_consent: "Consent through the provider",
   paper_mandate: "Paper mandate", not_ours: "Payment belongs elsewhere",
   allocated_manual: "Allocated manually", held_credit: "Kept unallocated",
