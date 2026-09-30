@@ -13,7 +13,7 @@ const digest = (input: unknown) => createHash("sha256").update(JSON.stringify(in
 export type PaystackEventContext = { connectionId: string; mode: "fixture" | "test" };
 const decisionFor = (state: DomainState, event: PaystackWebhook, connection: PaystackEventContext, excluding?: string) => {
   const previous = state.records.filter(r => r.kind === "provider-events" && r.id !== excluding && r.data.connectionId === connection.connectionId && r.data.mode === connection.mode && !["quarantined", "rejected_fixture"].includes(r.status));
-  if (event.kind === "ignored") return { status: "ignored", message: "Valo Pay does not use this type of Paystack message. Nothing was recorded." };
+  if (event.kind === "ignored") return { status: "ignored", message: "Valo Pay does not use this type of Paystack message. No payment or other financial record was created." };
   if (event.kind === "mandate") {
     const old = previous.filter(r => r.data.event?.kind === "mandate" && r.data.event.authorizationFingerprint === event.authorizationFingerprint).sort((a,b) => Number(b.data.event.state === "active") - Number(a.data.event.state === "active"))[0];
     const decision = reconcilePaystackMandateEvidence(old?.data.event, event).decision;
@@ -47,12 +47,12 @@ export function receivePaystackEvent(state: DomainState, ctx: Context, event: Pa
 }
 
 export function replayProviderEvent(state: DomainState, ctx: Context, id: string, version: string, reason: string) {
-  if (!["Admin", "Finance"].includes(ctx.role)) refuse(onlyRoles(["Admin", "Finance"], "recheck a saved receipt", ctx.accessMode), 403);
+  if (!["Admin", "Finance"].includes(ctx.role)) refuse(onlyRoles(["Admin", "Finance"], "recheck a Paystack message", ctx.accessMode), 403);
   const record = state.records.find(r => r.id === id && r.kind === "provider-events");
-  if (!record) refuse(notFound("Saved receipt"), 404);
+  if (!record) refuse(notFound("Paystack message"), 404);
   assertRecordVersion(record, version);
-  if (record.status === "quarantined" || record.status === "rejected_fixture") refuse("This receipt cannot be rechecked. It is on hold because of a conflict or a bad signature, which a recheck cannot fix. Review the original conflict.", 409);
-  if (record.status === "verified") refuse("This receipt is already checked and recorded as payment evidence. Continue in Reconciliation.", 409);
+  if (record.status === "quarantined" || record.status === "rejected_fixture") refuse("This message cannot be rechecked. It is on hold because of a conflict or a bad signature, which a recheck cannot fix. Review the original conflict.", 409);
+  if (record.status === "verified") refuse("This message is already checked and recorded as payment evidence. Continue in Reconciliation.", 409);
   const decision = decisionFor(state, record.data.event, { connectionId: record.data.connectionId, mode: record.data.mode }, record.id);
   record.status = decision.status; record.data.message = decision.message;
   record.data.replayHistory = [...record.data.replayHistory, { at: ctx.now, actor: ctx.actor, reason, result: decision.status }];
@@ -61,7 +61,7 @@ export function replayProviderEvent(state: DomainState, ctx: Context, id: string
 
 /** Fixed local evidence never calls Paystack and is permanently labelled fixture mode. */
 export function runPaystackFixture(state: DomainState, ctx: Context, scenario: "payment" | "duplicate" | "amount_mismatch" | "out_of_order" | "tampered") {
-  if (!["Admin", "Operations", "Finance"].includes(ctx.role)) refuse(onlyRoles(["Admin", "Operations", "Finance"], "run sample Paystack events", ctx.accessMode), 403);
+  if (!["Admin", "Operations", "Finance"].includes(ctx.role)) refuse(onlyRoles(["Admin", "Operations", "Finance"], "simulate Paystack messages", ctx.accessMode), 403);
   const connection = { connectionId: `fixture:${state.merchant.id}`, mode: "fixture" as const };
   const key = ["sk", "test", "local", "fixture", "only", "0".repeat(20)].join("_");
   const payment = (amount: number) => ({ event: "charge.success", data: { domain: "test", id: "990000000001", status: "success", reference: "VALO-SYNTHETIC-ONLY-001", amount, currency: "NGN", channel: "direct_debit" } });
@@ -70,7 +70,7 @@ export function runPaystackFixture(state: DomainState, ctx: Context, scenario: "
     try { signed(payment(2500000), true); refuse("The fixture unexpectedly accepted tampered bytes.", 500); }
     catch (error) {
       if (!(error instanceof Error) || !("code" in error) || error.code !== "invalid_signature") throw error;
-      const record = makeRecord(state, "provider-events", { name: "Paystack message with a bad signature", status: "rejected_fixture", createdAt: ctx.now, data: { provider: "paystack", mode: "fixture", connectionId: connection.connectionId, synthetic: true, message: "A message with a bad signature was turned away before it was read. Nothing was recorded.", deliveryCount: 0, financialRecordsCreated: 0, replayHistory: [] } });
+      const record = makeRecord(state, "provider-events", { name: "Paystack message with a bad signature", status: "rejected_fixture", createdAt: ctx.now, data: { provider: "paystack", mode: "fixture", connectionId: connection.connectionId, synthetic: true, message: "A message with a bad signature was turned away before it was processed. No payment or other financial record was created.", deliveryCount: 0, financialRecordsCreated: 0, replayHistory: [] } });
       return { accepted: false, duplicate: false, event: record };
     }
   }
