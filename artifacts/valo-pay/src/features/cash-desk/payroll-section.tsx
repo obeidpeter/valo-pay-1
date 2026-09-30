@@ -213,6 +213,14 @@ export function CashPayrollSection({
                     </Button>
                   )}
                 </div>
+                {!finance && (
+                  <p className="text-xs text-muted-foreground">
+                    {refuse(
+                      ["Finance"],
+                      "approve the funding plan, prepare its bank export file or record payment results",
+                    )}
+                  </p>
+                )}
                 <p className="text-xs text-muted-foreground">
                   Prepared by {r.plan.maker}.{" "}
                   {r.plan.checker
@@ -312,6 +320,11 @@ export function CashPayrollSection({
           title="Record results for payroll items already exported"
           detail="The Prepare payroll funding permission is not active. Finance can still record sample results for items already exported. Funding details and new exports stay hidden until the permission is granted again."
         >
+          {!finance && (
+            <p className="mb-4 text-xs text-muted-foreground">
+              {refuse(["Finance"], "record payment results")}
+            </p>
+          )}
           {cash.payrollReconciliation.map((run) => (
             <div key={run.id} className="space-y-3">
               <h3 className="text-sm font-semibold">

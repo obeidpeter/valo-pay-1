@@ -84,6 +84,16 @@ export function CashAccountingSection({
                   Not posted to accounting software
                 </p>
               </div>
+              {r.status === "blocked" && r.draft.reasons.length > 0 && (
+                <div className="rounded-xl border p-4 text-sm">
+                  <p className="font-medium">Why it is blocked:</p>
+                  <ul className="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
+                    {r.draft.reasons.map((reason) => (
+                      <li key={reason}>{reason}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               <div className="grid gap-3 sm:grid-cols-3">
                 <Metric
                   title="Received before fees"
@@ -211,7 +221,7 @@ export function CashAccountingSection({
                   <Button
                     variant="outline"
                     onClick={() =>
-                      saveJson("valo-sample-erp-review.json", r.manifest)
+                      saveJson("valo-sample-accounting-review.json", r.manifest)
                     }
                   >
                     <Download />

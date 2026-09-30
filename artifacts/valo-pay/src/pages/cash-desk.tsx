@@ -2,9 +2,12 @@ import {
   ConnectedFrame,
   ConnectedRecovery,
   ConnectedState,
+  describedBy,
   FieldHint,
   roleRefusal,
+  tooShort,
 } from "@/components/connected-frame";
+import { FieldError } from "@/components/form-field";
 import { LoadProblem } from "@/components/load-problem";
 import { Loading } from "@/components/loading";
 import { Button } from "@/components/ui/button";
@@ -64,6 +67,7 @@ export default function CashDeskPage() {
   });
   const [action, setAction] = useState<PendingAction | null>(null);
   const [reason, setReason] = useState("");
+  const [reasonError, setReasonError] = useState("");
   const [problem, setProblem] = useState("");
   const [success, setSuccess] = useState("");
   const [forecastErrors, setForecastErrors] = useState<Record<string, string>>(
@@ -85,6 +89,7 @@ export default function CashDeskPage() {
   useEffect(() => {
     setAction(null);
     setReason("");
+    setReasonError("");
     setProblem("");
     setSuccess("");
     setForecastErrors({});
@@ -100,6 +105,7 @@ export default function CashDeskPage() {
   const ask = (next: PendingAction) => {
     setAction(next);
     setReason("");
+    setReasonError("");
     setProblem("");
     setSuccess("");
   };
@@ -377,13 +383,18 @@ export default function CashDeskPage() {
                 disabled={pending || api.hasUnconfirmedOutcome}
                 className="mt-2 min-h-24 w-full rounded-lg border bg-background p-3 text-sm"
                 value={reason}
-                onChange={(e) => setReason(e.target.value)}
+                onChange={(e) => {
+                  setReason(e.target.value);
+                  setReasonError("");
+                }}
                 maxLength={500}
-                aria-describedby="cash-action-reason-help"
+                aria-invalid={reasonError ? true : undefined}
+                aria-describedby={describedBy("cash-action-reason", reasonError)}
                 placeholder="Why are you taking this action?"
               />
             </label>
             <FieldHint id="cash-action-reason-help" minLength={8} />
+            <FieldError id="cash-action-reason" message={reasonError} />
           </div>
           {problem && !api.hasUnconfirmedOutcome && (
             <p role="alert" className="text-sm text-destructive">
@@ -401,8 +412,14 @@ export default function CashDeskPage() {
             <Button
               busy={pending}
               busyLabel={action?.busy}
-              disabled={reason.trim().length < 8 || api.hasUnconfirmedOutcome}
+              disabled={api.hasUnconfirmedOutcome}
               onClick={() => {
+                const short = tooShort(reason, "a reason", 8);
+                setReasonError(short);
+                if (short) {
+                  document.getElementById("cash-action-reason")?.focus();
+                  return;
+                }
                 void act();
               }}
             >

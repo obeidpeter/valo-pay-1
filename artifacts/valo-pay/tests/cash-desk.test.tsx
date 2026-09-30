@@ -288,13 +288,25 @@ describe("Cash Desk", () => {
     await user.clear(delay);
     await user.type(delay, "9");
     await user.click(screen.getByRole("button", { name: /Save forecast/ }));
+    const dialog = await screen.findByRole("dialog");
+    const reason = within(dialog).getByRole("textbox", { name: "Reason" });
+    await user.type(reason, "Too few");
+    await user.click(
+      within(dialog).getByRole("button", { name: "Save forecast" }),
+    );
     expect(
-      (
-        within(await screen.findByRole("dialog")).getByRole("button", {
-          name: "Save forecast",
-        }) as HTMLButtonElement
-      ).disabled,
-    ).toBe(true);
+      within(dialog).getByText("Enter a reason (at least 8 characters)."),
+    ).toBeTruthy();
+    expect(reason.getAttribute("aria-invalid")).toBe("true");
+    expect(document.activeElement).toBe(reason);
+    expect(
+      api.calls.some(
+        (c) =>
+          c.method === "POST" &&
+          (c.body as { action?: string }).action === "cash.forecast",
+      ),
+    ).toBe(false);
+    await user.clear(reason);
     await confirm(user, "Save forecast", "Stress test a slower customer payment week");
     const request = api.calls.find(
       (c) =>
@@ -345,6 +357,21 @@ describe("Cash Desk", () => {
       await screen.findByRole("button", { name: "Download saved VAT schedule" }),
     ).toBeTruthy();
     expect(screen.getAllByText(/Saved by Sandbox Finance/)).toHaveLength(2);
+  });
+
+  it("says why an accounting draft is blocked, in the words the service gives", async () => {
+    setUp();
+    api.mutate((state) => {
+      const record = action(state, "cash.erp.prepare").record!;
+      record.status = "blocked";
+      record.data.draft.status = "blocked";
+      record.data.draft.reasons = ["The accounting period is closed."];
+    });
+    const user = userEvent.setup();
+    renderApp("/cash-desk");
+    await user.click(await screen.findByRole("button", { name: "Accounting" }));
+    expect(await screen.findByText("Why it is blocked:")).toBeTruthy();
+    expect(screen.getByText("The accounting period is closed.")).toBeTruthy();
   });
 
   it("lets a different Finance reviewer approve and export an accounting draft without claiming ERP posting", async () => {
@@ -496,5 +523,11 @@ describe("Cash Desk", () => {
         }) as HTMLButtonElement
       ).disabled,
     ).toBe(true);
+    // The maker is told why the Finance steps are closed to them.
+    expect(
+      screen.getByText(
+        "Only Finance can approve the funding plan, prepare its bank export file or record payment results. Your role is Operations. Change your demo role in Settings.",
+      ),
+    ).toBeTruthy();
   });
 });
