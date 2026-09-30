@@ -75,7 +75,7 @@ describe('collection record navigation', () => {
     await user.click(screen.getByRole('button', { name: 'Previous page of instalments' }));
     expect(await screen.findByText('PAGE-00')).toBeTruthy();
     expect(screen.queryByText('PAGE-30')).toBeNull();
-    await user.selectOptions(screen.getByLabelText('instalments per page'), '50');
+    await user.selectOptions(screen.getByLabelText('Rows per page of instalments'), '50');
     expect(await screen.findByText('PAGE-30')).toBeTruthy();
   });
 
@@ -100,7 +100,7 @@ describe('collection record navigation', () => {
     expect(screen.getByRole('button', { name: `Awaiting activation (${total})` })).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Next page of mandates' }));
     await waitFor(() => expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(total - 25 + 1));
-    await user.selectOptions(screen.getByLabelText('mandates per page'), '50');
+    await user.selectOptions(screen.getByLabelText('Rows per page of mandates'), '50');
     await waitFor(() => expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(total + 1));
   });
 });

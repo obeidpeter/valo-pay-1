@@ -51,7 +51,7 @@ describe('large customer directory', () => {
     expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(2);
     await user.clear(screen.getByRole('textbox', { name: 'Search customers' }));
     await screen.findByText('Scale customer 09999');
-    await user.selectOptions(screen.getByRole('combobox', { name: 'customers per page' }), '100');
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Rows per page of customers' }), '100');
     await waitFor(() => expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(101));
     expect(calls().at(-1)?.query).toMatchObject({ limit: '100', offset: '0' });
   });
@@ -101,7 +101,7 @@ describe('paging by keyboard', () => {
     await press(user, next);
     await screen.findByText('Pager customer 00');
     expect(document.activeElement).toBe(within(pages).getByRole('button', { name: 'Previous page of customers' }));
-    const size = within(pages).getByRole('combobox', { name: 'customers per page' });
+    const size = within(pages).getByRole('combobox', { name: 'Rows per page of customers' });
     size.focus();
     await user.selectOptions(size, '50');
     await screen.findByText('Pager customer 59');

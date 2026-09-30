@@ -101,6 +101,6 @@ describe("keyboard", () => {
   it("lists the shortcuts on the settings page", async () => {
     renderApp("/settings");
     expect(await screen.findByRole("heading", { name: "Keyboard" })).toBeTruthy();
-    expect(screen.getByText("Put the caret in the search box on a page that has one (Customers, Audit log).")).toBeTruthy();
+    expect(screen.getByText("Move to the search box, on pages that have one, such as Customers and Audit log.")).toBeTruthy();
   });
 });

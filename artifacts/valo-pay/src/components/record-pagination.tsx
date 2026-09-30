@@ -150,7 +150,7 @@ export function RecordPagination({ pagination, total, busy = false, label = 'rec
       <div className="flex flex-wrap items-center gap-2 print:hidden">
         <label className="flex items-center gap-2">Rows per page
           {/* While a page loads the controls wait, focusable, so the one pressed keeps the focus. */}
-          <select ref={controls.size} aria-label={`${label} per page`} value={pageSize} onChange={event => { const size = Number(event.target.value); go('size', () => setPageSize(size)); }} aria-disabled={busy || undefined} className="rounded-md border bg-background px-2 py-2 text-foreground aria-disabled:opacity-50">
+          <select ref={controls.size} aria-label={`Rows per page of ${label}`} value={pageSize} onChange={event => { const size = Number(event.target.value); go('size', () => setPageSize(size)); }} aria-disabled={busy || undefined} className="rounded-md border bg-background px-2 py-2 text-foreground aria-disabled:opacity-50">
             {RECORD_PAGE_SIZES.map(size => <option key={size} value={size}>{size}</option>)}
           </select>
         </label>

@@ -16,9 +16,6 @@ export function PilotHeading({
 }) {
   return (
     <header className="space-y-2">
-      <p className="text-xs font-semibold uppercase tracking-wider text-primary">
-        Pilot workspace
-      </p>
       <h1 className="text-3xl font-semibold tracking-tight">{title}</h1>
       <p className="max-w-3xl text-sm text-muted-foreground">{children}</p>
     </header>

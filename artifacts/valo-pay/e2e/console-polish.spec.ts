@@ -82,7 +82,7 @@ test("a decision on Team & access moves focus to what it did, and a staff admini
   });
   await page.goto("/team");
   // Administrator A's access ends within 14 days: the warning's code loads for a staff administrator.
-  await expect(page.getByRole("status", { name: "Administrator access" })).toContainText("Your administrator access ends on");
+  await expect(page.getByRole("status", { name: "Administrator access" })).toContainText("Your Admin access ends on");
   const panel = page.locator("section").filter({ has: page.getByRole("heading", { name: "Waiting for a second administrator" }) });
   for (const [name, said] of [["Approve invitation", /^Invitation approved/], ["Approve change", /^Change approved: Chidi Ops/], ["Decline change", /^Change request declined/]] as const) {
     const count = await panel.getByRole("button", { name }).count();
@@ -201,7 +201,7 @@ test("the landing page and the anonymous sandbox carry no shared schemas, zod or
   const scripts = new Set<string>();
   page.on("request", (sent) => { if (sent.resourceType() === "script" || sent.url().endsWith(".js")) scripts.add(sent.url()); });
   // Text the minifier keeps: zod's type names, a message of the shared record schemas and the warning's heading.
-  const signatures = { zod: /ZodObject/, "shared schemas": /Use YYYY-MM-DD or a UTC timestamp/, "administrator warning": /Administrator access is ending/ };
+  const signatures = { zod: /ZodObject/, "shared schemas": /Use YYYY-MM-DD or a UTC timestamp/, "administrator warning": /Admin access is ending/ };
   const entryCarries = async (route: string) => {
     const entry = await page.locator('script[type="module"][src]').getAttribute("src");
     const code = await (await request.get(entry!)).text();

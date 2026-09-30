@@ -13,8 +13,9 @@ export function CustomerAvatar({ name, large = false }: { name: string; large?: 
   return <span aria-hidden="true" className={`inline-flex shrink-0 items-center justify-center rounded-full border border-border bg-secondary text-foreground font-semibold ${large ? 'h-14 w-14 text-lg' : 'h-9 w-9 text-xs'}`}>{initials || '?'}</span>;
 }
 
+/** A status in the shared words (valueLabel), in sentence case; a missing status reads "Not recorded", never a code. */
 export function StatusBadge({ status }: { status: unknown }) {
-  const value = String(status || 'unknown');
+  const value = String(status || '');
   const tone = ['active', 'paid', 'allocated', 'confirmed', 'resolved', 'reconciled', 'succeeded'].includes(value)
     ? 'bg-success/10 text-success border-success/20'
     : ['failed', 'expired', 'unpaid_final', 'variance'].includes(value)
@@ -22,7 +23,8 @@ export function StatusBadge({ status }: { status: unknown }) {
       : ['pending_activation', 'proposed', 'unallocated', 'possible_duplicate', 'in_progress'].includes(value)
         ? 'bg-warning text-warning-foreground border-warning-border'
         : 'bg-secondary text-secondary-foreground border-border';
-  return <span title={readableLabel(value)} className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-medium ${tone}`}><span aria-hidden="true" className="h-1 w-1 rounded-full bg-current" />{readableLabel(value)}</span>;
+  const label = value ? readableLabel(value) : 'Not recorded';
+  return <span title={label} className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-medium ${tone}`}><span aria-hidden="true" className="h-1 w-1 rounded-full bg-current" />{label}</span>;
 }
 
 type RecordIdentity = { id: string; name?: string | null; reference?: string | null };
