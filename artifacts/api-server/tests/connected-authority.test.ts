@@ -233,7 +233,7 @@ check(() => {
   assert.equal(cashView(f.state, future).payrollPlans[0]!.manifest, undefined);
   assert.throws(
     () => f.act("cash.payroll.export", future, record.id),
-    /stale/i,
+    /out of date or have changed/i,
   );
 });
 check(() => {

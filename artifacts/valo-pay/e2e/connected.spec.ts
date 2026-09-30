@@ -76,7 +76,7 @@ test("a bank return stays pending until the sample provider confirms payment", a
   await page.getByRole("button", { name: "Simulate browser return" }).click();
   await expect(
     page.getByText(
-      "Browser returned. Payment is not confirmed; awaiting provider evidence.",
+      "The customer returned from their bank. The payment is not confirmed yet; Valo Pay is waiting for the provider.",
     ),
   ).toBeVisible();
   await page.getByRole("button", { name: "Simulate unknown outcome" }).click();

@@ -305,11 +305,11 @@ function stamp(value: string): number {
     !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(value) ||
     !Number.isFinite(Date.parse(value))
   )
-    return fail("INVALID_DATE", "Use a valid UTC timestamp.");
+    return fail("INVALID_DATE", "Enter a valid date and time.");
   if (new Date(value).toISOString().slice(0, 19) !== value.slice(0, 19))
     return fail(
       "INVALID_DATE",
-      "The timestamp contains an invalid calendar date.",
+      "That date does not exist in the calendar. Enter a valid date.",
     );
   return Date.parse(value);
 }
@@ -341,7 +341,7 @@ function integer(value: number, label: string, minimum = 0): number {
   if (!Number.isSafeInteger(value) || value < minimum)
     return fail(
       "INVALID_AMOUNT",
-      `${label} must be a safe whole number${minimum >= 0 ? " of at least " + minimum : ""}.`,
+      `${label} must be a whole number${minimum >= 0 ? " of at least " + minimum : ""}.`,
     );
   return value;
 }
@@ -396,7 +396,7 @@ function permission(
   )
     fail(
       "CREDIT_FORBIDDEN",
-      "You do not have permission for this Credit Desk action in this workspace.",
+      "Your role cannot do this in Credit Desk.",
       403,
     );
   stamp(ctx.now);
@@ -410,7 +410,7 @@ function validateGrantBindings(
     if (grant.tenantId !== tenantId || grant.applicantId !== applicantId)
       fail(
         "GRANT_SCOPE_MISMATCH",
-        "The permission belongs to a different workspace or applicant.",
+        "This permission is for another lender or applicant.",
         403,
       );
     integer(grant.version, "Permission version", 1);
@@ -427,11 +427,11 @@ function validateGrantBindings(
     )
       fail(
         "INVALID_GRANT",
-        "Credit permissions must have an explicit supported purpose and state.",
+        "Each permission must say what it is for and whether it is active.",
       );
   }
   if (new Set(grants.map((grant) => grant.id)).size !== grants.length)
-    fail("AMBIGUOUS_GRANT", "Supply each current permission once.");
+    fail("AMBIGUOUS_GRANT", "Give each current permission only once.");
 }
 function grantIssues(
   grants: CreditGrant[],
@@ -467,10 +467,17 @@ function grantIssues(
             : candidates.length
               ? "EXPIRED"
               : "MISSING";
+        // The permission by its name; only a refusal adds that a refusal does not count against the applicant.
+        const name = purpose === "credit_assessment" ? "Assess an application" : "Read applicant accounts";
         issues.push({
           code: `AUTHORITY_${state}`,
           severity: "blocking",
-          message: `${purpose === "credit_assessment" ? "Credit assessment" : "Account reading"} permission is ${state.toLowerCase()} for a required account. Refusal is not a credit-risk penalty.`,
+          message:
+            state === "REFUSED"
+              ? `The applicant refused the ‘${name}’ permission, so there is no score. Refusal is not a credit-risk penalty.`
+              : state === "MISSING"
+                ? `The ‘${name}’ permission has not been granted for this applicant’s account. Grant it in Permissions and readiness.`
+                : `The ‘${name}’ permission ${state === "EXPIRED" ? "has expired" : "was withdrawn"}. Grant it again in Permissions and readiness.`,
         });
       }
     }
@@ -487,19 +494,19 @@ export function assessCredit(
   if (input.mode !== "synthetic" || input.policy.status !== "synthetic_only")
     fail(
       "LIVE_CREDIT_DISABLED",
-      "Credit Desk currently supports synthetic assessment exercises only.",
+      "Credit Desk works only with sample data for now.",
       403,
     );
   if (!input.applicantId?.trim() || !input.applicationRef?.trim())
     fail(
       "APPLICATION_REQUIRED",
-      "An applicant and lender application reference are required.",
+      "Choose an applicant and enter the lender’s application reference.",
     );
   integer(input.version, "Assessment version", 1);
   if (input.version > 1 !== Boolean(input.previousResultId))
     fail(
       "VERSION_LINEAGE_REQUIRED",
-      "A reassessment must link its previous immutable result; a first assessment cannot replace one.",
+      "A new version of an assessment must link to the version it replaces. A first assessment cannot replace one.",
     );
   const asOf = stamp(input.asOf),
     now = stamp(context.now),
@@ -507,14 +514,14 @@ export function assessCredit(
   if (asOf > now)
     fail(
       "FUTURE_ASSESSMENT",
-      "An assessment cannot use a future decision cutoff.",
+      "The assessment date cannot be in the future.",
     );
-  integer(input.requestedPrincipalKobo, "Requested principal", 1);
-  integer(input.declaredEssentialMonthlyKobo, "Declared essential costs");
+  integer(input.requestedPrincipalKobo, "Loan amount", 1);
+  integer(input.declaredEssentialMonthlyKobo, "Essential costs stated by the applicant");
   integer(policy.version, "Policy version", 1);
-  integer(policy.minHistoryDays, "History window", 30);
+  integer(policy.minHistoryDays, "History period", 30);
   integer(policy.maxSourceAgeDays, "Maximum data age", 1);
-  integer(policy.minimumResidualKobo, "Residual buffer");
+  integer(policy.minimumResidualKobo, "Safety margin");
   for (const value of [
     policy.incomeStressBps,
     policy.maxUnknownInflowBps,
@@ -523,7 +530,7 @@ export function assessCredit(
     if (!Number.isInteger(value) || value < 0 || value > 10_000)
       fail(
         "INVALID_POLICY",
-        "Policy ratios must be from 0 to 10,000 basis points.",
+        "Policy percentages must be from 0% to 100%.",
       );
   if (
     !Number.isInteger(policy.minScore) ||
@@ -531,13 +538,13 @@ export function assessCredit(
     policy.minScore > 100 ||
     policy.minHistoryDays > 720
   )
-    fail("INVALID_POLICY", "The illustrative policy limits are invalid.");
+    fail("INVALID_POLICY", "The sample policy limits are not valid.");
   if (
     !policy.id?.trim() ||
     !policy.rulecardVersion?.trim() ||
     !["salaried", "self_employed", "microbusiness"].includes(policy.segment)
   )
-    fail("INVALID_POLICY", "A named, versioned segment policy is required.");
+    fail("INVALID_POLICY", "Choose a named policy version for this type of applicant.");
   if (
     !input.requiredAccountIds.length ||
     new Set(input.requiredAccountIds).size !==
@@ -546,7 +553,7 @@ export function assessCredit(
   )
     fail(
       "REQUIRED_ACCOUNTS",
-      "Select distinct required accounts for the evidence scope.",
+      "Choose each required account only once.",
     );
   if (
     input.transactions.length > 50_000 ||
@@ -557,7 +564,7 @@ export function assessCredit(
   )
     fail(
       "INPUT_TOO_LARGE",
-      "This assessment exceeds the bounded synthetic assessment limits.",
+      "This assessment has more data than the sample limits allow. Use fewer accounts or transactions.",
     );
   const issues = grantIssues(
     input.grants,
@@ -576,12 +583,12 @@ export function assessCredit(
   if (input.segment !== policy.segment)
     issue(
       "SEGMENT_NOT_VALIDATED",
-      "This policy is not defined for the applicant's segment. Thin history must not inherit another segment's score.",
+      "This policy does not cover this type of applicant, so no score is given. A short history cannot borrow another type’s score.",
     );
   if (!input.commitmentsReviewed)
     issue(
       "COMMITMENTS_INCOMPLETE",
-      "Existing commitments have not been reviewed. Unknown debt is not zero debt.",
+      "Existing loan repayments have not been reviewed. Unknown debt does not mean no debt.",
     );
   if (!input.essentialCostsReviewed)
     issue(
@@ -591,7 +598,7 @@ export function assessCredit(
   if (!input.repaymentHistory.known)
     issue(
       "REPAYMENT_HISTORY_UNKNOWN",
-      "Verified commitment behaviour is missing; the rulecard cannot award or silently redistribute these points.",
+      "There is no checked repayment history, so these points cannot be given. They are not moved to other factors.",
     );
   integer(input.repaymentHistory.missedPayments, "Missed repayments");
   if (
@@ -602,7 +609,7 @@ export function assessCredit(
   )
     issue(
       "REPAYMENT_HISTORY_STALE",
-      "Refresh repayment history before producing a score.",
+      "Refresh the repayment history before a score can be given.",
     );
   const windowStart = asOf - policy.minHistoryDays * DAY,
     sources = new Map<string, CreditSource>();
@@ -614,13 +621,13 @@ export function assessCredit(
     )
       fail(
         "SOURCE_SCOPE_MISMATCH",
-        "Account evidence belongs to another workspace or applicant.",
+        "This account data is for another lender or applicant.",
         403,
       );
     if (!input.requiredAccountIds.includes(source.accountId))
       fail(
         "SOURCE_OUTSIDE_PURPOSE",
-        "The source account is outside this assessment's authorised scope.",
+        "The applicant has not given permission to use this account for this assessment.",
         403,
       );
     if (
@@ -631,7 +638,7 @@ export function assessCredit(
     )
       fail(
         "AMBIGUOUS_SOURCE",
-        "Supply one canonical evidence snapshot per account.",
+        "Give one set of account data for each account.",
       );
     sources.set(source.id, source);
     const acquired = stamp(source.acquiredAt),
@@ -642,19 +649,19 @@ export function assessCredit(
     if (source.synthetic !== true || source.accessMethod !== "bank_authorised")
       issue(
         "SOURCE_NOT_AUTHORISED",
-        "This source is not a synthetic bank-authorised route. Credential aggregation is unsupported.",
+        "This account data did not come through an approved sample bank connection. Data collected with a bank password is not accepted.",
         source.id,
       );
     if (!source.identityVerified)
       issue(
         "IDENTITY_UNCONFIRMED",
-        "The account-to-applicant identity link is unconfirmed.",
+        "It is not confirmed that this account belongs to the applicant.",
         source.id,
       );
     if (source.currency !== "NGN")
       issue(
         "UNSUPPORTED_CURRENCY",
-        "This illustrative rulecard supports NGN evidence only.",
+        "These sample scoring rules accept naira records only.",
         source.id,
       );
     if (
@@ -666,7 +673,7 @@ export function assessCredit(
     )
       issue(
         "EVIDENCE_AFTER_CUTOFF",
-        "The source vintage or coverage is inconsistent with the decision cutoff. Future evidence is not used.",
+        "The account data’s dates do not fit the assessment date. Data from after that date is not used.",
         source.id,
       );
     if (now - sourceAsOf > policy.maxSourceAgeDays * DAY)
@@ -678,13 +685,13 @@ export function assessCredit(
     if (!source.pagesComplete || source.missingDays)
       issue(
         "HISTORY_GAPS",
-        "History has missing days or incomplete pages. Missing records are not zero activity.",
+        "Some days or pages of history are missing. Missing records do not mean the account was unused.",
         source.id,
       );
     if (!source.contentHash?.trim())
       issue(
         "PROVENANCE_MISSING",
-        "The source content digest is missing.",
+        "The account data is missing its check value, so it cannot be used.",
         source.id,
       );
     const covered = Math.max(
@@ -696,7 +703,7 @@ export function assessCredit(
     if (start > windowStart || end < asOf)
       issue(
         "SHORT_HISTORY",
-        `This policy needs ${policy.minHistoryDays} complete days through the assessment cutoff.`,
+        `This policy needs ${policy.minHistoryDays} complete days of history up to the assessment date.`,
         source.id,
       );
     for (const balance of source.dailyBalances) {
@@ -706,7 +713,7 @@ export function assessCredit(
   }
   for (const account of input.requiredAccountIds)
     if (![...sources.values()].some((source) => source.accountId === account)) {
-      issue("MISSING_SOURCE", "A required account has no source evidence.");
+      issue("MISSING_SOURCE", "A required account has no account data.");
       coverageDays = 0;
     }
   const commitments = new Map<string, CreditCommitment>();
@@ -717,20 +724,20 @@ export function assessCredit(
     )
       fail(
         "INVALID_COMMITMENT",
-        "Each commitment needs its facility reference and evidence type.",
+        "Each existing loan needs its reference and the type of evidence for it.",
       );
-    integer(commitment.monthlyKobo, "Monthly commitment");
+    integer(commitment.monthlyKobo, "Monthly loan repayment");
     const date = stamp(commitment.sourceAsOf);
     if (date > asOf || now - date > policy.maxSourceAgeDays * DAY)
       issue(
         "STALE_COMMITMENT",
-        "A commitment is stale or was observed after the assessment cutoff.",
+        "An existing loan’s details are out of date, or dated after the assessment date.",
       );
     const prior = commitments.get(commitment.facilityRef);
     if (prior && prior.monthlyKobo !== commitment.monthlyKobo)
       issue(
         "CONFLICTING_COMMITMENT",
-        "Different amounts were supplied for the same facility. Reconcile them before assessment.",
+        "Two different amounts were given for the same loan. Agree the amount before the assessment.",
       );
     if (!prior || commitment.evidence === "verified")
       commitments.set(commitment.facilityRef, commitment);
@@ -738,7 +745,7 @@ export function assessCredit(
   if (!input.repaymentSchedule.length)
     fail(
       "SCHEDULE_REQUIRED",
-      "Supply the lender's proposed repayment schedule including all charges.",
+      "Enter the lender’s proposed repayment schedule, including all charges.",
     );
   const scheduleByMonth = new Map<string, number>();
   // Two calendar years, so a 24-month schedule fits even when it spans 29 February.
@@ -749,7 +756,7 @@ export function assessCredit(
     if (due <= asOf || due > horizon)
       fail(
         "INVALID_REPAYMENT_DATE",
-        "Repayments must follow the assessment and fit within the two-year synthetic horizon.",
+        "Repayment dates must be after the assessment date and within 2 years.",
       );
     const month = new Date(due + 3_600_000).toISOString().slice(0, 7);
     scheduleByMonth.set(
@@ -763,7 +770,7 @@ export function assessCredit(
   if (scheduledTotal < input.requestedPrincipalKobo)
     fail(
       "INCOMPLETE_REPAYMENT_SCHEDULE",
-      "The schedule cannot omit part of the requested principal.",
+      "The repayment schedule must repay the whole loan amount.",
     );
   const unique = new Map<string, CreditTransaction>(),
     excluded: CreditFeatures["excludedTransactions"] = [];
@@ -778,7 +785,7 @@ export function assessCredit(
     if (!source || source.accountId !== tx.accountId)
       fail(
         "TRANSACTION_SCOPE_MISMATCH",
-        "A transaction does not match its authorised account source.",
+        "A transaction comes from an account the applicant has not given permission for.",
         403,
       );
     integer(tx.amountKobo, "Transaction amount", 1);
@@ -792,7 +799,7 @@ export function assessCredit(
     )
       fail(
         "INVALID_TRANSACTION",
-        "A transaction has an unsupported identity, category or state.",
+        "A transaction has a type, category or status that is not supported.",
       );
     const key = `${tx.sourceId}:${tx.id}`,
       prior = unique.get(key);
@@ -800,7 +807,7 @@ export function assessCredit(
       if (!sameJson(prior, tx))
         issue(
           "CONFLICTING_DUPLICATE",
-          "The same transaction reference has conflicting evidence.",
+          "Two transactions with the same reference disagree.",
           tx.sourceId,
         );
       else duplicatesIgnored++;
@@ -810,13 +817,13 @@ export function assessCredit(
     if (tx.currency !== "NGN")
       issue(
         "UNSUPPORTED_CURRENCY",
-        "Mixed currency transactions cannot be scored as NGN.",
+        "Transactions in other currencies cannot be scored in naira.",
         tx.sourceId,
       );
     if (booked > asOf)
       issue(
         "FUTURE_TRANSACTION_EXCLUDED",
-        "A post-cutoff transaction was excluded; no future outcome may influence the score.",
+        "A transaction dated after the assessment date was left out, so later events cannot affect the score.",
         tx.sourceId,
         "warning",
       );
@@ -892,7 +899,7 @@ export function assessCredit(
           unknownInflows = sum([unknownInflows, tx.amountKobo]);
         issue(
           "UNLINKED_TRANSFER",
-          "An own-account transfer lacks both matched, authorised legs. It is excluded from income and needs review.",
+          "A transfer between the applicant’s own accounts could not be matched at both ends. It is left out of income and needs review.",
           tx.sourceId,
           "warning",
         );
@@ -928,7 +935,7 @@ export function assessCredit(
       if (!tx.facilityRef || !commitments.has(tx.facilityRef))
         issue(
           "UNRECONCILED_DEBT_SERVICE",
-          "A bank repayment has no reviewed facility match. Reconcile it so existing debt is neither omitted nor counted twice.",
+          "A loan repayment in the bank data is not matched to a known loan. Match it, so the debt is counted once.",
           tx.sourceId,
         );
       exclude("counted_in_commitment_register");
@@ -942,7 +949,7 @@ export function assessCredit(
   if (unknownBps > policy.maxUnknownInflowBps)
     issue(
       "UNCLEAR_INCOME",
-      "Too much incoming value is unclassified. Obtain evidence before scoring.",
+      "Too much of the money coming in has no known source. Get evidence of it before scoring.",
     );
   // Monthly averages are kobo: divided exactly, down for income and up for spending, which must not be understated.
   const totalIncome = sum(income),
@@ -953,7 +960,7 @@ export function assessCredit(
   if (sustainable === 0)
     issue(
       "NO_CONFIRMED_RECURRING_INCOME",
-      "Enough recurring income could not be confirmed. This is an evidence gap, not an automatic decline.",
+      "Not enough regular income could be confirmed. This is missing evidence, not an automatic decline.",
     );
   const verified = sum(
     [...commitments.values()]
@@ -968,7 +975,7 @@ export function assessCredit(
   if (declared)
     issue(
       "DECLARED_COMMITMENTS",
-      "Some existing commitments are applicant-declared, not independently verified; the calculations include them conservatively.",
+      "Some existing loans were stated by the applicant and not checked. The calculations include them in full, to be safe.",
       undefined,
       "warning",
     );
@@ -982,7 +989,7 @@ export function assessCredit(
       if (accountDates.has(key)) {
         issue(
           "AMBIGUOUS_BALANCE",
-          "Supply one booked closing balance per account and date.",
+          "Give one closing balance for each account and date.",
           source.id,
         );
         continue;
@@ -1005,7 +1012,7 @@ export function assessCredit(
   if (liquidityBuffer === null)
     issue(
       "LIQUIDITY_HISTORY_MISSING",
-      "At least 30 aligned closing-balance observations are required; a current balance cannot establish a liquidity buffer.",
+      "At least 30 daily closing balances are needed. Today’s balance alone cannot show a typical balance.",
     );
   const observedEssential = Math.max(
     median(expenses),
@@ -1123,14 +1130,14 @@ export function assessCredit(
     const factors: CreditScoreFactor[] = [
       {
         code: "income_regularity",
-        label: "Income regularity",
+        label: "Regular income",
         maximum: 25,
         points: mulDiv(features.activeIncomePeriods, 25, periodCount),
-        reason: `Confirmed recurring income appears in ${features.activeIncomePeriods} of ${counted(periodCount, "observed 30-day period")}.`,
+        reason: `Regular income was confirmed in ${features.activeIncomePeriods} of ${counted(periodCount, "30-day period")}.`,
       },
       {
         code: "residual_capacity",
-        label: "Stressed repayment capacity",
+        label: "Room to repay if income falls",
         maximum: 30,
         points:
           capacityRatio >= 15_000
@@ -1140,11 +1147,11 @@ export function assessCredit(
               : capacityRatio >= 5_000
                 ? 10
                 : 0,
-        reason: `Capacity covers ${Math.floor(capacityRatio / 100)}% of the largest proposed monthly payment after the income stress and buffer.`,
+        reason: `After an income cut and the safety margin, the applicant can afford ${Math.floor(capacityRatio / 100)}% of the largest monthly repayment.`,
       },
       {
         code: "liquidity_buffer",
-        label: "Observed liquidity buffer",
+        label: "Typical account balance",
         maximum: 15,
         points:
           liquidityRatio >= 20_000
@@ -1154,11 +1161,11 @@ export function assessCredit(
               : liquidityRatio >= 5_000
                 ? 5
                 : 0,
-        reason: `${counted(consolidatedBalances.length, "aligned booked closing balance supports", "aligned booked closing balances support")} the observed buffer.`,
+        reason: `Based on ${counted(consolidatedBalances.length, "daily closing balance")}.`,
       },
       {
         code: "commitment_behaviour",
-        label: "Verified commitment behaviour",
+        label: "Repayment history",
         maximum: 20,
         points:
           input.repaymentHistory.missedPayments === 0
@@ -1166,11 +1173,11 @@ export function assessCredit(
             : input.repaymentHistory.missedPayments === 1
               ? 10
               : 0,
-        reason: `${counted(input.repaymentHistory.missedPayments, "missed repayment")} in the supplied verified history. This does not establish complete bureau coverage.`,
+        reason: `${counted(input.repaymentHistory.missedPayments, "missed repayment")} in the checked repayment history. This history may not include every lender’s records.`,
       },
       {
         code: "income_variability",
-        label: "Income variability",
+        label: "How much income changes",
         maximum: 10,
         points:
           features.incomeVolatilityBps! <= 1000
@@ -1178,7 +1185,7 @@ export function assessCredit(
             : features.incomeVolatilityBps! <= 3000
               ? 5
               : 0,
-        reason: `Mean absolute income variation is ${Math.floor(features.incomeVolatilityBps! / 100)}% of the sustainable-income estimate; no seasonality claim is made.`,
+        reason: `Income changes by ${Math.floor(features.incomeVolatilityBps! / 100)}% on average from its usual level. Seasonal patterns are not assessed.`,
       },
     ];
     const value = sum(factors.map((factor) => factor.points));
@@ -1190,26 +1197,26 @@ export function assessCredit(
       rulecardVersion: policy.rulecardVersion,
       factors,
       disclaimer:
-        "Illustrative synthetic rule score. Not a probability of default or a lending decision.",
+        "Sample rule score (not validated). It does not predict whether the applicant will repay. A credit result is not a lending decision.",
     };
     if (value < policy.minScore)
       policyReasons.push(
-        `Rule score is below this illustrative policy's ${policy.minScore}-point threshold.`,
+        `The score is below this sample policy’s minimum of ${policy.minScore} points.`,
       );
     if (!affordability.scheduleAffordable)
       policyReasons.push(
-        "The requested schedule exceeds stressed monthly capacity or the policy's debt-service limit.",
+        "The repayments are more than the applicant could afford if income falls, or more than the policy’s limit on repayments.",
       );
     recommendation = policyReasons.length
       ? "policy_not_met"
       : "review_recommended";
     if (!policyReasons.length)
       policyReasons.push(
-        "The illustrative checks support a lender review. No loan has been approved, amended or disbursed.",
+        "The sample checks support a review by the lender. No loan has been approved, changed or paid out.",
       );
   } else
     policyReasons.push(
-      "Resolve the evidence or authority issues before scoring or making a lending recommendation.",
+      "Fix the evidence or permission issues first. Until then there is no score or recommendation.",
     );
   const sourceDates = [...sources.values()]
     .map((source) => source.sourceAsOf)
@@ -1275,11 +1282,11 @@ export function assessCredit(
     requiredReview: true,
     billable: false,
     restrictions: [
-      "Synthetic data only; rulecard and policy are unvalidated.",
-      "No probability of default or automated lending decision.",
-      "An account connection or assessment never authorises a payment.",
-      "Current permissions and evidence freshness must be rechecked before review.",
-      "Indicative capacity scales the supplied schedule; it is not an offer or a substitute for a lender's cost and liability review.",
+      "Sample data only. The scoring rules and policy are not validated.",
+      "It does not predict repayment. A credit result is not a lending decision.",
+      "Permission to read an account is not permission to take money from it.",
+      "Check that the permissions are current and the evidence is recent before review.",
+      "The affordable loan amount is scaled from the repayment schedule entered. It is not a loan offer, and it does not replace the lender’s own checks.",
     ],
   };
   return freeze(result);
@@ -1295,13 +1302,13 @@ export function reviewCreditAssessment(
   if (!context.mfaVerified)
     fail(
       "REVIEW_MFA_REQUIRED",
-      "A fresh authenticated reviewer session is required.",
+      "Confirm your identity with two-step verification, then record the review.",
       403,
     );
   if (result.mode !== "synthetic")
     fail(
       "LIVE_CREDIT_DISABLED",
-      "Real lending decisions are not available from this module.",
+      "Credit Desk cannot record real lending decisions.",
       403,
     );
   if (input.expectedAssessmentVersion !== result.version)
@@ -1326,7 +1333,7 @@ export function reviewCreditAssessment(
   )
     fail(
       "REVIEW_REASON_REQUIRED",
-      "Record a meaningful review rationale, applicant explanation and reason code.",
+      "Explain what you reviewed and give the applicant an explanation, each in at least 20 characters, and choose a reason.",
     );
   if (
     input.rationale.length > 4000 ||
@@ -1335,13 +1342,13 @@ export function reviewCreditAssessment(
   )
     fail(
       "REVIEW_TOO_LARGE",
-      "Keep the review within the supported text and reason limits.",
+      "Shorten the review text, or choose fewer reasons.",
     );
   const now = stamp(context.now);
   if (now < stamp(result.createdAt))
     fail(
       "REVIEW_BEFORE_ASSESSMENT",
-      "The review cannot predate its assessment.",
+      "The review date cannot be earlier than the assessment date.",
     );
   const currentIssues = grantIssues(
     input.currentGrants,
@@ -1353,7 +1360,7 @@ export function reviewCreditAssessment(
   if (currentIssues.length)
     fail(
       "REVIEW_AUTHORITY_UNAVAILABLE",
-      "Current account and assessment permissions must be active before recording a review.",
+      "Both permissions must be active before you record a review. Grant them in Permissions and readiness.",
       409,
     );
   for (const old of result.evidence.grantVersions) {
@@ -1361,7 +1368,7 @@ export function reviewCreditAssessment(
     if (!current || current.version !== old.version)
       fail(
         "ASSESSMENT_AUTHORITY_CHANGED",
-        "Permission scope or version changed. Create a new assessment before using its result.",
+        "A permission has changed since this assessment. Run a new assessment before you use its result.",
         409,
       );
   }
@@ -1372,7 +1379,7 @@ export function reviewCreditAssessment(
   )
     fail(
       "REVIEW_EVIDENCE_STALE",
-      "Refresh the evidence and create a new assessment before review.",
+      "Refresh the evidence and run a new assessment before review.",
       409,
     );
   if (
@@ -1383,7 +1390,7 @@ export function reviewCreditAssessment(
   )
     fail(
       "ASSESSMENT_UNUSABLE",
-      "Insufficient or blocked evidence cannot be turned into a lending outcome.",
+      "You cannot approve or decline while evidence is missing or blocked. Request more information instead.",
       409,
     );
   const override =
@@ -1392,12 +1399,12 @@ export function reviewCreditAssessment(
   if (override && (input.overrideRationale?.trim().length ?? 0) < 30)
     fail(
       "OVERRIDE_RATIONALE_REQUIRED",
-      "Explain the policy override and the additional evidence considered in at least 30 characters.",
+      "Explain the policy override and the extra evidence you considered, in at least 30 characters.",
     );
   if (input.outcome === "amend_terms")
     fail(
       "REASSESS_CHANGED_TERMS",
-      "Create a new assessment with the amended repayment schedule before recording a review of those terms.",
+      "Run a new assessment with the changed repayment schedule before you review those terms.",
       409,
     );
   const record: CreditReviewRecord = {

@@ -255,7 +255,7 @@ assert.deepEqual(overdue.includedCommitmentIds, ["late-bill"]);
 assert.deepEqual(overdue.excludedCommitmentIds, ["late-invoice"]);
 assert.ok(
   overdue.warnings.includes(
-    "An approved outflow past its due date is included as due now.",
+    "An approved outgoing payment is past its due date, so it is counted as due now.",
   ),
 );
 checks += 5;

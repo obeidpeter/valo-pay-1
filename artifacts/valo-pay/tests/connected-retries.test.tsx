@@ -311,7 +311,7 @@ it("a retry refused because the saved answer is withheld ends the held action an
   // service refuses to give the saved answer and says the request completed (operation completed): retrying again
   // cannot recover it, so the page is released, shows the service's words and loads the workspace again.
   const withheld =
-    "This request already completed, but its saved response is no longer available under the current permissions or review. Permission was revoked, expired or replaced. Obtain current authority and prepare a new assessment. The action has not been run again.";
+    "This request was already completed, but its saved result can no longer be shown with the current permissions or review. A permission was withdrawn, expired or replaced. Grant it again, then run a new assessment. The action has not been run again.";
   const send = globalThis.fetch;
   const submissions: Array<{ key: string; body: string }> = [];
   let reads = 0;
@@ -387,7 +387,7 @@ it("a refusal the service marks as cancelled releases the held action", async ()
     screen.getByRole("button", { name: "Retry original sample request" }),
   );
   await screen.findByText(
-    /^The original request was not saved\. The workspace changed/,
+    /^The original request was not saved\. Connected banking changed after you opened it/,
   );
   expect(screen.queryByText("Previous action outcome unconfirmed")).toBeNull();
   // The page's own error from the lost attempt does not come back once the request is released.

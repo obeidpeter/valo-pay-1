@@ -233,7 +233,7 @@ try {
   await mine.replay(lost, 200);
   // The colleague sends the same key and body: their own request, under their own journal entry, refused as stale.
   const other = await call(mine.q("/v1/connected/actions"), lost.body, lost.key, "second");
-  assert.deepEqual([other.status, other.data.error, other.data.operation, "record" in other.data], [409, "The workspace changed. Refresh and review before trying again.", "cancelled", false]);
+  assert.deepEqual([other.status, other.data.error, other.data.operation, "record" in other.data], [409, "Connected banking changed after you opened it. Reload the page and try again.", "cancelled", false]);
   assert.notEqual(other.operation, lost.answer.operation, "a key is its sender's: the colleague's request has an entry of its own");
   assert.deepEqual((await pool.query("SELECT id,actor,status FROM valopay_operations WHERE id=ANY($1::text[]) ORDER BY actor", [[lost.answer.operation, other.operation]])).rows.map((row) => [row.id, row.actor, row.status]).sort(),
     [[lost.answer.operation, `Clerk:${first}`, "completed"], [other.operation, `Clerk:${second}`, "cancelled"]].sort());
@@ -244,7 +244,7 @@ try {
   await pool.query("INSERT INTO valopay_idempotency(id,merchant_id,request_hash,response) VALUES($1,$2,$3,$4)", [store.digest(`connected:${staffLender}:${legacyKey}`), staffLender,
     requestFingerprint({ input: connectedActionSchema.parse(lost.body), actor: `Clerk:${first}` }), lost.answer.data]);
   const refusedColleague = await call(mine.q("/v1/connected/actions"), lost.body, legacyKey, "second");
-  assert.deepEqual([refusedColleague.status, refusedColleague.data.error, "record" in refusedColleague.data], [409, "This request key was already used for different input.", false]);
+  assert.deepEqual([refusedColleague.status, refusedColleague.data.error, "record" in refusedColleague.data], [409, "This request was already sent with different details. Reload the page and try again.", false]);
   const recovered = await call(mine.q("/v1/connected/actions"), lost.body, legacyKey, "first");
   assert.deepEqual([recovered.status, recovered.data], [200, lost.answer.data]);
   checks += 7;

@@ -15,6 +15,7 @@ import {
   completeOperation,
 } from "../lib/valopay-store";
 import { requestFingerprint } from "../lib/digests";
+import { connectedActionDone } from "../lib/action-names";
 import { contractAnswer, lenderQuery, replayedAnswer, requiredKey } from "../lib/contract";
 import {
   connectedActionSchema,
@@ -57,7 +58,7 @@ router.post("/v1/connected/actions", async (req, res) => {
         const answer = connectedActionResultFor(input.action, merchantId);
         const replay = async (prior: { request_hash: string; response: unknown }) => {
           if (prior.request_hash !== fingerprint)
-            fail("This request key was already used for different input.", 409);
+            fail("This request was already sent with different details. Reload the page and try again.", 409);
           // The action was saved with this receipt: never answered as saving nothing, even when it no longer matches.
           const saved = replayedAnswer(req, answer, prior.response);
           if (input.action.startsWith("cash.") || input.action.startsWith("credit.")) {
@@ -90,7 +91,7 @@ router.post("/v1/connected/actions", async (req, res) => {
         // Versions advance first, so the answer carries them; it is checked before anything is saved.
         const changes = settleChanges(ctx, state);
         const result = contractAnswer(answer, {
-          message: "Sample workspace updated.",
+          message: `${connectedActionDone(input.action)}. Sample data only.`,
           record: outcome.result,
           mode: "synthetic",
           externalInstructionPerformed: false,

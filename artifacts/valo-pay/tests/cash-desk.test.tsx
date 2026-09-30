@@ -251,7 +251,7 @@ describe("Cash Desk", () => {
     expect(
       await screen.findByRole("heading", { name: "Cash Desk" }),
     ).toBeTruthy();
-    expect(screen.getByText("Sample SME · Trading company")).toBeTruthy();
+    expect(screen.getByText("Sample business · Trading company")).toBeTruthy();
     expect(
       (
         screen.getByRole("button", {

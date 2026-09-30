@@ -38,7 +38,7 @@ import { allocatableOnly, allocationChoices, pageRecords } from "../../api-serve
 import { pageQueue } from '../../api-server/src/lib/valopay-queues';
 import { importCsv, withRowIdColumn } from "../../api-server/src/lib/valopay-import";
 import { exportJobView, publicExportRecord, queueExport, retryExport } from '../../api-server/src/lib/export-jobs';
-import { recordTypeName, withAuditName } from '../../api-server/src/lib/action-names';
+import { connectedActionDone, recordTypeName, withAuditName } from '../../api-server/src/lib/action-names';
 import { LENDER_NOT_FOUND, UNKNOWN_DEMO_ROLE, notFound, onlyRoles } from '../../api-server/src/lib/refusal-words';
 import { buildConsoleOverview, buildConsoleReports, buildConsoleSettings } from "../../api-server/src/lib/valopay-close-views";
 import type { CloseRuntime } from "../../api-server/src/domain/effective-close-schedule";
@@ -242,7 +242,7 @@ export function installFakeApi(options: { now?: string; role?: string; queuedExp
       merchants: api.merchantIds.map((id) => states.get(id)!.merchant), roles: [...roles], productionEnabled: false,
     })],
     ['GET', /^\/v1\/connected$/, (_p,query)=>withState(merchantOf(query),(state,ctx)=>contract(connectedViewSchema, connectedView(state,ctx)))],
-    ['POST', /^\/v1\/connected\/actions$/, (_p,query,raw)=>{const input=connectedActionSchema.parse(raw);return withState(merchantOf(query),(state,ctx)=>contract(connectedActionResultSchema, {message:'Sample workspace updated.',record:runConnectedAction(state,ctx,input),mode:'synthetic',externalInstructionPerformed:false}),{action:input.action,objectId:input.recordId||'connected-workspace',summary:input.reason});}],
+    ['POST', /^\/v1\/connected\/actions$/, (_p,query,raw)=>{const input=connectedActionSchema.parse(raw);return withState(merchantOf(query),(state,ctx)=>contract(connectedActionResultSchema, {message:`${connectedActionDone(input.action)}. Sample data only.`,record:runConnectedAction(state,ctx,input),mode:'synthetic',externalInstructionPerformed:false}),{action:input.action,objectId:input.recordId||'connected-workspace',summary:input.reason});}],
     ["GET", /^\/v1\/overview$/, (_p, query) => S.GetOverviewResponse.parse(withState(merchantOf(query), (state, ctx) => buildConsoleOverview(state, ctx.now, overviewAudit(state), api.scheduler)))],
     ["GET", /^\/v1\/records\/(?<kind>[^/]+)$/, (params, query) => {
       if (!kinds.has(params.kind!)) fail("Unknown resource.", 404);

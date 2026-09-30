@@ -655,7 +655,7 @@ test("service cannot run outside sandbox or with actual actor", () => {
   state.settings.environment = "live";
   assert.throws(
     () => runCreditAction(state, operator, assessAction),
-    /restricted/,
+    /works only with sample data/,
   );
   state.settings.environment = "sandbox";
   assert.throws(
@@ -665,7 +665,7 @@ test("service cannot run outside sandbox or with actual actor", () => {
         { ...operator, actor: "actual-user" },
         assessAction,
       ),
-    /restricted/,
+    /works only with sample data/,
   );
 });
 test("service binds customer to tenant and rejects unexpected request fields", () => {
@@ -676,7 +676,7 @@ test("service binds customer to tenant and rejects unexpected request fields", (
         ...assessAction,
         data: { customerId: "not-in-this-tenant" },
       }),
-    /Choose a customer/,
+    /Choose an applicant from this lender/,
   );
   assert.throws(
     () =>
@@ -754,7 +754,7 @@ test("service review is append-only and role-distinct", () => {
   };
   assert.throws(
     () => runCreditAction(state, { ...operator, role: "Admin" }, action),
-    /assessor cannot/,
+    /A different person must review this assessment/,
   );
   const before = JSON.stringify(assessment),
     record = runCreditAction(state, finance, action);

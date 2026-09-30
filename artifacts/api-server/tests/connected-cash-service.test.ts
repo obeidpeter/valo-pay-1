@@ -73,7 +73,7 @@ checks++;
 const erp = act("cash.erp.prepare").record!;
 assert.equal(erp.status, "proposed");
 checks++;
-assert.throws(() => act("cash.erp.prepare"), /already has a draft/);
+assert.throws(() => act("cash.erp.prepare"), /already has an accounting draft/);
 checks++;
 assert.throws(() => act("cash.erp.review", operations, erp.id), /Finance/);
 checks++;
@@ -134,7 +134,7 @@ assert.throws(
       { ...finance, now: "2026-09-21T12:00:00Z" },
       payroll.id,
     ),
-  /stale/,
+  /out of date or have changed/,
 );
 checks++;
 const laterOperations = { ...operations, now: "2026-09-21T12:00:00Z" },
@@ -150,7 +150,7 @@ assert.equal(payroll.data.revisions.length, 1);
 checks += 3;
 assert.throws(
   () => act("cash.payroll.export", laterFinance, payroll.id),
-  /checker approval/,
+  /Finance must approve this before the export file/,
 );
 checks++;
 act("cash.payroll.approve", laterFinance, payroll.id);
@@ -179,7 +179,7 @@ assert.throws(
       { ...laterFinance, actor: operations.actor },
       payroll.id,
     ),
-  /different maker and checker/,
+  /The person who prepared it cannot approve it/,
 );
 checks++;
 // A short fresh balance prevents a new export, but must not strand already-exported evidence.
@@ -192,7 +192,7 @@ assert.equal(payroll.data.plan.fundingStatus, "shortfall");
 assert.equal(payroll.data.plan.approvalStatus, "draft");
 assert.throws(
   () => act("cash.payroll.export", laterFinance, payroll.id),
-  /checker approval/,
+  /Finance must approve this before the export file/,
 );
 checks += 3;
 act("cash.payroll.reconcile", laterFinance, payroll.id, {
@@ -211,7 +211,7 @@ assert.throws(
       itemId: "payroll-three",
       status: "succeeded",
     }),
-  /approval is missing|frozen details changed/,
+  /not approved, or it changed after approval/,
 );
 payroll.data.plan.items[2].beneficiaryVersion = originalBeneficiaryVersion;
 checks++;
@@ -260,7 +260,7 @@ assert.throws(
 );
 checks++;
 state.settings.environment = "production";
-assert.throws(() => act("cash.forecast"), /synthetic sandbox/);
+assert.throws(() => act("cash.forecast"), /works only with sample data/);
 checks++;
 // Tax periods are West Africa Time months, and a forecast keeps an approved
 // outflow that is past its due date, still unpaid, as due now.

@@ -80,7 +80,7 @@ async function dispatch(
     const prior = await findIdempotency(ctx, id);
     if (prior) {
       if (prior.request_hash !== fingerprint)
-        fail("This request key was already used for different input.", 409);
+        fail("This request was already sent with different details. Reload the page and try again.", 409);
       return prior.response as { recordId?: string; action: string };
     }
     const result = runConnectedAction(state, ctx, command);

@@ -1,4 +1,5 @@
-import { onlyRoles } from "../lib/refusal-words";
+import { notFound, onlyRoles } from "../lib/refusal-words";
+import { purposeLabels } from "./connected-consents";
 import { watMonth } from "./calendar";
 import { makeRecord, touch } from "./records";
 import { permissionActive } from "./connected-permission-validity";
@@ -123,12 +124,12 @@ function requireBoundAuthority(
 ): void {
   if (key === "reviewAuthority" && !record.data[key])
     throw refusal(
-      "A current Finance checker approval is required before export.",
+      "Finance must approve this before the export file can be prepared.",
       409,
     );
   if (!authorityCurrent(state, record.data[key], purposes, now))
     throw refusal(
-      "The permission used for this review changed or expired. Refresh the review under current permissions, then obtain a new Finance approval.",
+      "The permission used for this review changed or expired. Refresh the review, then ask Finance to approve it again.",
       409,
     );
 }
@@ -149,7 +150,7 @@ function requirePermission(
 ): void {
   if (!permission(state, purpose, now))
     throw refusal(
-      `Enable the SME ${purpose.replaceAll("_", " ")} permission in Connected Banking before continuing.`,
+      `Grant the ‘${purposeLabels[purpose]}’ permission in Permissions and readiness, then try again.`,
       403,
     );
 }
@@ -167,7 +168,7 @@ function ownRecord(
   id?: string,
 ): ValopayRecord {
   const record = ownRecords(state, kind).find((r) => r.id === id);
-  if (!record) throw refusal("This SME record was not found.", 404);
+  if (!record) throw refusal(notFound("Cash Desk record"), 404);
   return record;
 }
 /** Refuses a role the action does not allow: "Only an Admin or Operations can set up Cash Desk." */
@@ -178,7 +179,7 @@ function requireRole(ctx: Context, roles: string[], action: string): void {
 function minor(value: unknown, fallback: number): number {
   if (value === undefined) return fallback;
   if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0)
-    throw new Error("Enter a whole, non-negative amount in kobo.");
+    throw new Error("Enter a whole number of 0 or more.");
   return value;
 }
 function stored(state: DomainState) {
@@ -599,7 +600,7 @@ export function cashView(state: DomainState, ctx: Context) {
   return {
     initialised: !!stored(state),
     scope: data.scope,
-    name: "Sample SME · Trading company",
+    name: "Sample business · Trading company",
     accounts: read || !stored(state) ? accounts : [],
     positions,
     commitments: read || !stored(state) ? data.commitments : [],
@@ -738,9 +739,9 @@ export function cashView(state: DomainState, ctx: Context) {
         : [],
     permissions: { read, erp, payroll },
     limitations: [
-      "Sample SME data is separate from lender and borrower records.",
-      "Bank connections, ERP posting, tax submission and payroll payments are not enabled.",
-      "Forecasts and funding buffers do not reserve money.",
+      "The sample business’s records are kept apart from the lender’s customer records.",
+      "Bank connections, posting to accounting software, tax filing and payroll payments are switched off.",
+      "Forecasts and funding buffers do not set any money aside.",
     ],
   };
 }
@@ -757,12 +758,12 @@ export function runCashAction(
 ): ActionResult {
   if (state.settings.environment !== "sandbox")
     throw refusal(
-      "Cash Desk actions currently support synthetic sandbox workspaces only.",
+      "Cash Desk is not available in a pilot yet. It works only with sample data for now.",
       403,
     );
   if (!input.reason?.trim())
     throw new Error(
-      "Enter a reason for this action so the review trail is clear.",
+      "Enter a reason. It is saved in the audit log.",
     );
   const scope = entityScope(state);
   let record: ValopayRecord | undefined;
@@ -790,18 +791,18 @@ export function runCashAction(
     requirePermission(state, "merchant_account_read", ctx.now);
     if (stored(state))
       return {
-        message: "The sample Cash Desk is already ready.",
+        message: "Cash Desk is already set up with sample data.",
         data: { synthetic: true },
       };
     record = store(
       "connected-cash-workspace",
-      "Sample SME Cash Desk",
+      "Sample business Cash Desk",
       "active",
       { workspace: sample(state, ctx.now) },
     );
-    message = "Sample SME accounts and approved planning inputs are ready.";
+    message = "Cash Desk is ready, with the sample business’s accounts, invoices, bills and payroll. Sample data only.";
   } else {
-    if (!stored(state)) throw new Error("Set up the sample Cash Desk first.");
+    if (!stored(state)) throw new Error("Set up Cash Desk first.");
     // Recording retained outcomes is not new account access or payroll preparation.
     // Finance may reconcile a previously approved/exported item after revocation;
     // its immutable item identity and permitted transition still apply below.
@@ -820,7 +821,7 @@ export function runCashAction(
       record.data.workspace = refreshed;
       touch(record, ctx.now);
       message =
-        "Sample balance timestamps refreshed. This did not contact a bank.";
+        "Sample balances refreshed to the current time. Nothing was sent to a bank.";
     } else if (input.action === "cash.forecast") {
       requireRole(ctx, ["Admin", "Operations", "Finance"], "save a forecast");
       const positions = consolidateCashPositions(
@@ -852,13 +853,13 @@ export function runCashAction(
           sourceHash: forecastSource(position.bookedMinor, data.commitments),
         },
       );
-      message = "Base and downside forecasts saved with their input version.";
+      message = "Forecast saved, with its expected and cautious cases.";
     } else if (input.action === "cash.erp.prepare") {
       requireRole(ctx, ["Admin", "Operations"], "prepare an accounting draft");
       requirePermission(state, "erp_draft", ctx.now);
       if (ownRecords(state, "connected-cash-erp").length)
         throw new Error(
-          "The sample receipt already has a draft. Review that draft to avoid duplicates.",
+          "The sample receipt already has an accounting draft. Review that draft instead of preparing another.",
         );
       const draft = buildErpDraft({ ...data.erpInput, maker: ctx.actor });
       record = store(
@@ -871,7 +872,7 @@ export function runCashAction(
         },
       );
       message =
-        "The receipt, fee and credit note reconcile. A different Finance reviewer must approve the export.";
+        "Accounting draft prepared. The receipt, fee and credit note match. Next, Finance must approve it.";
     } else if (input.action === "cash.erp.refresh") {
       requireRole(ctx, ["Admin", "Operations"], "refresh an accounting review");
       requirePermission(state, "erp_draft", ctx.now);
@@ -880,7 +881,7 @@ export function runCashAction(
       const draft = buildErpDraft({ ...data.erpInput, maker: ctx.actor });
       if (draft.idempotencyKey !== previous.idempotencyKey)
         throw refusal(
-          "The receipt identity changed. Review a separately identified correction before continuing.",
+          "The receipt has changed since this draft was prepared, so the draft cannot be refreshed. Prepare a separate correction instead.",
           409,
         );
       record.data.revisions = [
@@ -905,7 +906,7 @@ export function runCashAction(
       record.status = draft.status;
       touch(record, ctx.now);
       message =
-        "Accounting review refreshed. The receipt identity is unchanged and a different Finance reviewer must approve the current evidence.";
+        "Accounting review refreshed. The receipt is the same. Finance must approve the draft again.";
     } else if (
       input.action === "cash.erp.review" ||
       input.action === "cash.erp.export"
@@ -942,7 +943,7 @@ export function runCashAction(
           ctx.now,
         );
         record.status = "reviewed";
-        message = "Finance review recorded. The ERP has not been changed.";
+        message = "Accounting draft approved. Nothing was posted to accounting software.";
       } else {
         requireBoundAuthority(
           state,
@@ -975,7 +976,7 @@ export function runCashAction(
         record.status = "exported";
         resultData = { manifest: record.data.manifest };
         message =
-          "Reviewed ERP export prepared. Downloading it does not post a receipt.";
+          "Accounting export file prepared. Nothing was posted to accounting software, and downloading the file does not post it.";
       }
       touch(record, ctx.now);
     } else if (input.action === "cash.vat.export") {
@@ -989,19 +990,19 @@ export function runCashAction(
       );
       record = store(
         "connected-cash-vat",
-        "VAT evidence review schedule",
+        "VAT schedule",
         schedule.status,
         { schedule, reviewer: ctx.actor },
       );
       resultData = { manifest: schedule };
       message =
-        "VAT review schedule saved with its evidence gaps. No return or payment was submitted.";
+        "VAT schedule saved, with its evidence gaps listed. No VAT return was filed and no tax was paid.";
     } else if (input.action === "cash.payroll.prepare") {
       requireRole(ctx, ["Admin", "Operations"], "prepare a payroll funding plan");
       requirePermission(state, "payroll_prepare", ctx.now);
       if (ownRecords(state, "connected-cash-payroll").length)
         throw new Error(
-          "This approved run already has a funding plan. Review its existing items before creating a correction.",
+          "This payroll run already has a funding plan. Review that plan before you prepare a correction.",
         );
       const plan = preparePayrollFundingPlan({
         scope,
@@ -1031,7 +1032,7 @@ export function runCashAction(
         },
       );
       message =
-        "Funding plan prepared from approved net pay. Ask a different Finance reviewer to check it.";
+        "Payroll funding plan prepared from the approved net pay. Next, Finance must approve it. No one has been paid.";
     } else if (input.action === "cash.payroll.refresh") {
       requireRole(ctx, ["Admin", "Operations"], "refresh a payroll funding review");
       requirePermission(state, "payroll_prepare", ctx.now);
@@ -1040,7 +1041,7 @@ export function runCashAction(
       const sourceAccount = data.accounts.find(
         (a) => a.id === oldPlan.sourceAccountId,
       );
-      if (!sourceAccount) throw new Error("The source account was not found.");
+      if (!sourceAccount) throw new Error("The account this plan pays from was not found. Reload the page and try again.");
       const revised = refreshPayrollFundingPlan(
         oldPlan,
         sourceAccount,
@@ -1068,7 +1069,7 @@ export function runCashAction(
       record.status = revised.fundingStatus;
       touch(record, ctx.now);
       message =
-        "Funding review refreshed. Previous outcomes remain unchanged and a different Finance checker must approve this version.";
+        "Payroll funding review refreshed. Outcomes already recorded are unchanged. Finance must approve this version.";
     } else if (
       input.action === "cash.payroll.approve" ||
       input.action === "cash.payroll.export" ||
@@ -1082,7 +1083,7 @@ export function runCashAction(
       const checkCurrentFunding = () => {
         if (!payrollFundingCurrent(data.accounts, plan, ctx.now))
           throw new Error(
-            "The funding snapshot is stale or changed. Refresh sample balances and the payroll review, then obtain a new checker approval.",
+            "The balances this plan was checked against are out of date or have changed. Refresh sample balances and the payroll funding review, then ask Finance to approve it again.",
           );
       };
       if (input.action === "cash.payroll.approve") {
@@ -1102,7 +1103,7 @@ export function runCashAction(
         );
         record.status = "approved";
         message =
-          "Checker approval saved. Bank authorisation is still separate.";
+          "Payroll funding plan approved. No one has been paid. Each payment still needs approval at the bank.";
       } else if (input.action === "cash.payroll.export") {
         requireBoundAuthority(
           state,
@@ -1123,7 +1124,7 @@ export function runCashAction(
         const manifest = exportPayrollManifest(plan);
         if (!manifest.itemCount)
           throw new Error(
-            "No unsent items remain. Reconcile submitted or unknown outcomes before further work.",
+            "No payments are left to export. Record the outcomes of the payments already exported.",
           );
         record.data.manifest = manifest;
         resultData = { manifest };
@@ -1137,13 +1138,13 @@ export function runCashAction(
           });
         record.status = "exported_unpaid";
         message =
-          "Approved bank export prepared. All exported items remain unpaid until bank evidence is recorded.";
+          "Payroll export file prepared. No one has been paid. Each payment stays unpaid until you record its outcome from the bank.";
       } else {
         const item = plan.items.find((i) => i.id === input.data.itemId);
-        if (!item) throw new Error("Select a payroll item.");
+        if (!item) throw new Error("Choose a payment from this payroll funding plan.");
         const status = String(input.data.status);
         if (!["succeeded", "failed", "unknown", "reversed"].includes(status))
-          throw new Error("Choose a supported sample bank outcome.");
+          throw new Error("Choose one of the sample bank outcomes.");
         plan = transitionPayrollItem(plan, item.id, {
           status: status as "succeeded" | "failed" | "unknown" | "reversed",
           reference: `SAMPLE-${status}-${item.id}`,
@@ -1165,11 +1166,11 @@ export function runCashAction(
         }
         record.status = payrollPlanSummary(plan).status;
         message =
-          "Sample bank outcome recorded for this item only. No payment was initiated.";
+          "Sample bank outcome recorded for this payment only. No money moved.";
       }
       record.data.plan = plan;
       touch(record, ctx.now);
-    } else throw new Error("Unknown Cash Desk action.");
+    } else throw new Error("This Cash Desk action is not available.");
   }
   // Recorded at saving, not at first replay: the grants a saved view or schedule was made under.
   const purposes = record && savedPurposes[record.kind];
@@ -1177,7 +1178,7 @@ export function runCashAction(
     const authority = authoritySnapshot(state, purposes, ctx.now);
     if (!authority)
       throw refusal(
-        "Current scoped permission is required before saving this response.",
+        "This needs a current permission before it can be saved. Grant it in Permissions and readiness, then try again.",
         403,
       );
     record.data.replayAuthority = authority;

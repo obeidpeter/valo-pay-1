@@ -11,7 +11,7 @@ import {
   type CreditReviewRecord,
 } from "./connected-credit";
 import { makeRecord } from "./records";
-import { onlyRoles } from "../lib/refusal-words";
+import { notFound, onlyRoles } from "../lib/refusal-words";
 import { permissionActive } from "./connected-permission-validity";
 import type { Context, DomainState, ValopayRecord } from "./types";
 
@@ -154,7 +154,7 @@ export function creditView(state: DomainState, ctx: Context) {
               ...result.policy,
               recommendation: "insufficient_evidence" as const,
               reasons: [
-                "Current permission is unavailable or changed. Obtain valid authority and create a new assessment before review.",
+                "A permission has changed or ended. Grant both permissions again, then run a new assessment.",
               ],
             },
             evidence: {
@@ -165,7 +165,7 @@ export function creditView(state: DomainState, ctx: Context) {
                 {
                   code: "CURRENT_AUTHORITY_UNAVAILABLE",
                   message:
-                    "Current permission is unavailable or changed. A new assessment is required before reuse.",
+                    "A permission has changed or ended since this assessment was run.",
                   severity: "blocking" as const,
                 },
               ],
@@ -203,25 +203,25 @@ export function creditView(state: DomainState, ctx: Context) {
     assessments,
     scenarios,
     model: {
-      name: "Illustrative salaried rulecard",
+      name: "Sample scoring rules for salaried applicants",
       version: "illustrative-rulecard-v1",
-      status: "Synthetic exercises only",
+      status: "Sample data only",
       validation: "Not validated for real lending",
       weights: [
-        { label: "Income regularity", maximum: 25 },
-        { label: "Stressed capacity", maximum: 30 },
-        { label: "Liquidity history", maximum: 15 },
-        { label: "Commitment behaviour", maximum: 20 },
-        { label: "Income variation", maximum: 10 },
+        { label: "Regular income", maximum: 25 },
+        { label: "Room to repay if income falls", maximum: 30 },
+        { label: "Typical account balance", maximum: 15 },
+        { label: "Repayment history", maximum: 20 },
+        { label: "How much income changes", maximum: 10 },
       ],
     },
     gate: {
       id: "G-CREDIT",
       enabled: false,
       requirements: [
-        "Approved source routes and real-data safeguards",
-        "Lender-approved policy and independent rule validation",
-        "Shadow assessment evidence and genuine reviewer authority",
+        "Approved ways to get bank data, and safeguards for real data",
+        "A lending policy the lender approved, and scoring rules checked by an independent party",
+        "Results from a trial run next to real decisions, and reviewers who make real lending decisions",
       ],
     },
   };
@@ -241,13 +241,13 @@ export function runCreditAction(
     state.settings.environment !== "sandbox" ||
     !ctx.actor.startsWith("Sandbox ")
   )
-    reject("Credit Desk is restricted to synthetic sandbox exercises.", 403);
+    reject("Credit Desk is not available in a pilot yet. It works only with sample data for now.", 403);
   if (
     typeof input.reason !== "string" ||
     input.reason.trim().length < 8 ||
     input.reason.length > 500
   )
-    reject("Explain the reason for this exercise in 8–500 characters.");
+    reject("Enter a reason of 8 to 500 characters. It is saved in the audit log.");
   if (input.action === "credit.assess") {
     if (!assessor(ctx))
       reject(onlyRoles(assessorRoles, "run an assessment", ctx.accessMode), 403);
@@ -275,7 +275,7 @@ export function runCreditAction(
       .parse(input.data);
     const customer =
       own(state, "customers").find((record) => record.id === data.customerId) ??
-      reject("Choose a customer in this workspace.", 404);
+      reject("Choose an applicant from this lender’s customers.", 404);
     const previous = own(state, "connected-credit-assessments")
       .filter((record) => record.customerId === customer.id)
       .sort(
@@ -309,7 +309,7 @@ export function runCreditAction(
         data.repaymentKobo === undefined ||
         data.termMonths === undefined
       )
-        reject("Provide the principal, repayment amount and term together.");
+        reject("Enter the loan amount, the monthly repayment and the number of repayments together.");
       assessment.requestedPrincipalKobo = data.principalKobo!;
       // One repayment a calendar month, not every 30 days, which would put two in some months.
       assessment.repaymentSchedule = Array.from(
@@ -344,10 +344,10 @@ export function runCreditAction(
     const record =
       own(state, "connected-credit-assessments").find(
         (item) => item.id === input.recordId,
-      ) ?? reject("Assessment not found in this workspace.", 404);
+      ) ?? reject(notFound("Assessment"), 404);
     if (record.data.createdBy === ctx.actor)
       reject(
-        "Use a different reviewer role for this exercise. The assessor cannot approve their own work.",
+        "A different person must review this assessment. Change your demo role in Settings, then review it.",
         403,
       );
     if (
@@ -356,7 +356,7 @@ export function runCreditAction(
       )
     )
       reject(
-        "This version already has an immutable review. Create a new assessment to record another review.",
+        "This assessment already has a review, and a review cannot be changed. Run a new assessment to review again.",
         409,
       );
     const latest = own(state, "connected-credit-assessments")
@@ -396,5 +396,5 @@ export function runCreditAction(
       },
     });
   }
-  return reject("Unknown Credit Desk action.");
+  return reject("This Credit Desk action is not available.");
 }

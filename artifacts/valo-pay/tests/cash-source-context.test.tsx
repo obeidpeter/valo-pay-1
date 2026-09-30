@@ -70,9 +70,9 @@ describe("Cash balance source context", () => {
     renderApp("/cash-desk");
     const context = await screen.findByRole("region", { name: "Sample balance sources" });
     expect(within(context).getByText("Review source limits")).toBeTruthy();
-    expect(within(context).getByText("One or more bank balances are stale.")).toBeTruthy();
-    expect(within(context).getByText("Transaction coverage has gaps; this is not a completed close.")).toBeTruthy();
-    expect(within(context).getByText("Available balance is not supplied for every account.")).toBeTruthy();
+    expect(within(context).getByText("One or more bank balances are out of date.")).toBeTruthy();
+    expect(within(context).getByText("Some transactions are missing, so these totals are not final.")).toBeTruthy();
+    expect(within(context).getByText("Some accounts do not show an available balance.")).toBeTruthy();
     expect(within(context).getByText("20 Sept 2026, 11:00 WAT")).toBeTruthy();
     expect(within(context).getByText("21 Sept 2026, 11:00 WAT")).toBeTruthy();
     expect(within(context).queryByText("No source warnings reported")).toBeNull();
@@ -91,7 +91,7 @@ describe("Cash balance source context", () => {
     const context = await screen.findByRole("region", { name: "Sample balance sources" });
     expect(within(context).getByText("No account balances are available for this view.")).toBeTruthy();
     expect(within(context).getAllByText("Unavailable")).toHaveLength(2);
-    expect(within(context).getByText(/2 accounts omitted/)).toBeTruthy();
+    expect(within(context).getByText(/2 accounts left out/)).toBeTruthy();
     expect(metric("Booked cash").getByText("Unavailable")).toBeTruthy();
     expect(metric("Available cash").getByText("Unavailable")).toBeTruthy();
     expect(screen.queryByRole("heading", { name: /Operating account/ })).toBeNull();

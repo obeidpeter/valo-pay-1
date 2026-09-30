@@ -113,12 +113,12 @@ const empty = (id: string) => { const state = seedMerchant(id, true); state.reco
   const ctx: CreditContext = { tenantId: "lender-a", actorId: "Sandbox Operations", permissions: ["credit:assess"], now: "2026-09-21T10:00:00.000Z" };
   const input = createSyntheticCreditInput({ tenantId: ctx.tenantId, applicantId: "applicant-a", applicationRef: "counted-application", now: ctx.now });
   const reason = (code: string, missedPayments: number) => assessCredit({ ...input, repaymentHistory: { ...input.repaymentHistory, missedPayments } }, ctx).score!.factors.find((factor) => factor.code === code)!.reason;
-  assert.equal(reason("commitment_behaviour", 1), "1 missed repayment in the supplied verified history. This does not establish complete bureau coverage.");
-  assert.equal(reason("commitment_behaviour", 2), "2 missed repayments in the supplied verified history. This does not establish complete bureau coverage.");
+  assert.equal(reason("commitment_behaviour", 1), "1 missed repayment in the checked repayment history. This history may not include every lender’s records.");
+  assert.equal(reason("commitment_behaviour", 2), "2 missed repayments in the checked repayment history. This history may not include every lender’s records.");
   const scope = { tenantId: "sample-tenant", legalEntityId: "sample-company", currency: "NGN" }, now = "2026-09-21T10:00:00.000Z";
   const account: CashAccount = { ...scope, id: "bank-1", name: "Operating account", source: "synthetic", sourceDefinition: "Provider booked and available balance", authorised: true, bookedMinor: 100_000, availableMinor: 90_000, pendingMinor: -10_000, balanceAsOf: now, fetchedAt: now, coverageComplete: true };
   const [position] = consolidateCashPositions(scope, [account, { ...account, id: "bank-2", authorised: false }], [], now);
-  assert.ok(position!.warnings.includes("1 account omitted: missing authority or not known at this as-of time."), JSON.stringify(position!.warnings));
+  assert.ok(position!.warnings.includes("1 account left out: no permission to read, or no balance known at this time."), JSON.stringify(position!.warnings));
   checks += 3;
 }
 
