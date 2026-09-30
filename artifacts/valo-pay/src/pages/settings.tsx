@@ -218,7 +218,7 @@ export default function SettingsPage() {
     <div className="space-y-8 max-w-4xl mx-auto">
       <header>
         <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
-        <p className="text-muted-foreground mt-1">Manage workspace settings and test access with demo roles.</p>
+        <p className="text-muted-foreground mt-1">Manage this lender’s settings.{workspace?.accessMode !== 'staff' && ' In the sandbox, you can also switch demo roles to test access.'}</p>
       </header>
 
       <section className="bg-card border rounded-xl p-6" aria-labelledby="paystack-heading">
@@ -397,7 +397,7 @@ export default function SettingsPage() {
                     aria-describedby="settings-executionWindowStart-help"
                     onChange={(e) => setExecSettings({...execSettings, executionStart: Number(e.target.value)})}
                   />
-                  <p id="settings-executionWindowStart-help" className="mt-1 text-xs text-muted-foreground">A whole hour, from {watHour(executionWindow.earliestHour)}. The window must end by {watHour(executionWindow.latestHour)}.</p>
+                  <p id="settings-executionWindowStart-help" className="mt-1 text-xs text-muted-foreground">Enter a whole hour from {executionWindow.earliestHour} to {executionWindow.latestHour - 1}, for example 8 for {watHour(8)}. The window must end by {watHour(executionWindow.latestHour)}.</p>
                 </>) : (
                   <div className="font-mono text-sm p-2 bg-secondary/50 rounded border">
                     {watHour(settings.settings?.executionStart ?? executionWindow.defaultStartHour)}
@@ -417,7 +417,7 @@ export default function SettingsPage() {
                     aria-describedby="settings-executionWindowEnd-help"
                     onChange={(e) => setExecSettings({...execSettings, executionEnd: Number(e.target.value)})}
                   />
-                  <p id="settings-executionWindowEnd-help" className="mt-1 text-xs text-muted-foreground">A whole hour, no later than {watHour(executionWindow.latestHour)}.</p>
+                  <p id="settings-executionWindowEnd-help" className="mt-1 text-xs text-muted-foreground">Enter a whole hour from {executionWindow.earliestHour + 1} to {executionWindow.latestHour}, for example 18 for {watHour(18)}.</p>
                 </>) : (
                   <div className="font-mono text-sm p-2 bg-secondary/50 rounded border">
                     {watHour(settings.settings?.executionEnd ?? executionWindow.defaultEndHour)}
@@ -533,7 +533,7 @@ export default function SettingsPage() {
       <section className="bg-card border rounded-xl shadow-sm overflow-hidden print:hidden" aria-labelledby="keyboard-title">
         <div className="p-4 border-b bg-secondary/20">
           <h2 id="keyboard-title" className="font-semibold text-lg">Keyboard</h2>
-          <p className="text-sm text-muted-foreground mt-1">Use these shortcuts to move around the console without a mouse.</p>
+          <p className="text-sm text-muted-foreground mt-1">Use these shortcuts to move around Valo Pay without a mouse.</p>
         </div>
         <dl className="divide-y">
           {keyboardShortcuts.map(shortcut => (

@@ -79,6 +79,8 @@ describe("settings", () => {
     const user = userEvent.setup();
     renderApp("/settings");
     expect(await screen.findByText("07:00 WAT")).toBeTruthy();
+    expect(screen.getByText("Manage this lender’s settings. In the sandbox, you can also switch demo roles to test access.")).toBeTruthy();
+    expect(screen.getByText("Use these shortcuts to move around Valo Pay without a mouse.")).toBeTruthy();
     expect(screen.getByText("06:00 WAT")).toBeTruthy();
     expect(screen.getByText("10:00 WAT")).toBeTruthy();
     const shown = screen.getByText("Daily approval: Finance or Admin approves each day’s instructions");
@@ -89,8 +91,8 @@ describe("settings", () => {
     // The format and the limits sit under each time field, not in its label.
     const help = (label: string) => document.getElementById(screen.getByLabelText(label).getAttribute("aria-describedby")!)?.textContent;
     expect(help("Daily close time (WAT)")).toBe("24-hour time, for example 07:00.");
-    expect(help("Collection window starts (WAT)")).toBe("A whole hour, from 06:00 WAT. The window must end by 20:00 WAT.");
-    expect(help("Collection window ends (WAT)")).toBe("A whole hour, no later than 20:00 WAT.");
+    expect(help("Collection window starts (WAT)")).toBe("Enter a whole hour from 6 to 19, for example 8 for 08:00 WAT. The window must end by 20:00 WAT.");
+    expect(help("Collection window ends (WAT)")).toBe("Enter a whole hour from 7 to 20, for example 18 for 18:00 WAT.");
   });
 
   it("explains the Admin requirement before another persona starts editing", async () => {
