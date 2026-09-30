@@ -557,7 +557,7 @@ it("asks for confirmation before revoking a staff member, and keeps their access
   const user = userEvent.setup();
   renderApp("/team");
   await user.selectOptions(await screen.findByLabelText("Access for Bola Sample"), "revoked");
-  await user.type(screen.getByLabelText("Reason for changing Bola Sample"), "Left the collections team");
+  await user.type(screen.getByLabelText("Reason for changing Bola Sample’s access"), "Left the collections team");
   const save = screen.getByRole("button", { name: "Save access change" });
   await user.click(save);
   // One more step, which says what revoking does and cannot undo; nothing is sent yet.

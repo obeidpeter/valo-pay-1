@@ -146,18 +146,18 @@ it("keeps what an applied suspension or revocation did once the directory shows 
   renderApp("/team");
   await screen.findByRole("heading", { name: "Chidi Ops" });
   await user.selectOptions(within(card("Funmi Ọbi")).getByLabelText("Access for Funmi Ọbi"), "suspended");
-  await user.type(within(card("Funmi Ọbi")).getByLabelText("Reason for changing Funmi Ọbi"), "On leave until the audit ends");
+  await user.type(within(card("Funmi Ọbi")).getByLabelText("Reason for changing Funmi Ọbi’s access"), "On leave until the audit ends");
   await user.click(within(card("Funmi Ọbi")).getByRole("button", { name: "Save access change" }));
   // The new version renews the card's form, which shows the membership as it now stands; its button goes with the old
   // form, so focus goes to what the change did.
   await waitFor(() => expect(within(card("Funmi Ọbi")).getByText(/^Finance · Suspended/)).toBeTruthy());
-  expect((within(card("Funmi Ọbi")).getByLabelText("Reason for changing Funmi Ọbi") as HTMLInputElement).value).toBe("");
+  expect((within(card("Funmi Ọbi")).getByLabelText("Reason for changing Funmi Ọbi’s access") as HTMLInputElement).value).toBe("");
   const suspended = within(card("Funmi Ọbi")).getByRole("status");
   expect(suspended.textContent).toBe("Funmi Ọbi is now Finance (suspended).");
   await waitFor(() => expect(document.activeElement).toBe(suspended));
 
   await user.selectOptions(within(card("Chidi Ops")).getByLabelText("Access for Chidi Ops"), "revoked");
-  await user.type(within(card("Chidi Ops")).getByLabelText("Reason for changing Chidi Ops"), "Left the pilot team this week");
+  await user.type(within(card("Chidi Ops")).getByLabelText("Reason for changing Chidi Ops’s access"), "Left the pilot team this week");
   await user.click(within(card("Chidi Ops")).getByRole("button", { name: "Save access change" }));
   await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Revoke access" }));
   await waitFor(() => expect(within(card("Chidi Ops")).getByText(/^Operations · Revoked/)).toBeTruthy());
@@ -171,7 +171,7 @@ it("returns focus to the kept confirmation once Revoke access is confirmed and a
   renderApp("/team");
   await screen.findByRole("heading", { name: "Chidi Ops" });
   await user.selectOptions(within(card("Chidi Ops")).getByLabelText("Access for Chidi Ops"), "revoked");
-  await user.type(within(card("Chidi Ops")).getByLabelText("Reason for changing Chidi Ops"), "Left the pilot team this week");
+  await user.type(within(card("Chidi Ops")).getByLabelText("Reason for changing Chidi Ops’s access"), "Left the pilot team this week");
   within(card("Chidi Ops")).getByRole("button", { name: "Save access change" }).focus();
   await user.keyboard("{Enter}");
   within(await screen.findByRole("dialog")).getByRole("button", { name: "Revoke access" }).focus();
@@ -196,7 +196,7 @@ for (const how of ["refused", "lost"] as const) it(`moves focus to the member's 
   renderApp("/team");
   await screen.findByRole("heading", { name: "Chidi Ops" });
   await user.selectOptions(within(card("Chidi Ops")).getByLabelText("Access for Chidi Ops"), "revoked");
-  await user.type(within(card("Chidi Ops")).getByLabelText("Reason for changing Chidi Ops"), "Left the pilot team this week");
+  await user.type(within(card("Chidi Ops")).getByLabelText("Reason for changing Chidi Ops’s access"), "Left the pilot team this week");
   within(card("Chidi Ops")).getByRole("button", { name: "Save access change" }).focus();
   await user.keyboard("{Enter}");
   within(await screen.findByRole("dialog")).getByRole("button", { name: "Revoke access" }).focus();
@@ -290,7 +290,7 @@ for (const how of ["refused", "lost"] as const) it(`moves a revocation's focus t
   await user.keyboard("{Enter}");
   await waitFor(() => expect(save.disabled).toBe(true));
   // While it waits, the person moves on to the card's access form, where the answer finds them.
-  const reason = within(card("Chidi Ops")).getByLabelText("Reason for changing Chidi Ops");
+  const reason = within(card("Chidi Ops")).getByLabelText("Reason for changing Chidi Ops’s access");
   reason.focus();
   answerGrant(how);
   const old = (await within(card("Chidi Ops")).findAllByRole("alert"))[0]!;
@@ -315,10 +315,10 @@ for (const first of ["refused", "applied"] as const) it(`moves a Save lender acc
   renderApp("/team");
   await screen.findByRole("heading", { name: "Chidi Ops" });
   await user.selectOptions(within(card("Chidi Ops")).getByLabelText("Role for Chidi Ops"), "Finance");
-  await user.type(within(card("Chidi Ops")).getByLabelText("Reason for changing Chidi Ops"), "Needs to review closes");
+  await user.type(within(card("Chidi Ops")).getByLabelText("Reason for changing Chidi Ops’s access"), "Needs to review closes");
   await user.click(within(card("Chidi Ops")).getByRole("button", { name: "Save access change" }));
   // While it waits, the person moves on to another member's card, where the answer finds them.
-  const elsewhere = within(card("Funmi Ọbi")).getByLabelText("Reason for changing Funmi Ọbi");
+  const elsewhere = within(card("Funmi Ọbi")).getByLabelText("Reason for changing Funmi Ọbi’s access");
   elsewhere.focus();
   answerChange(first);
   const old = first === "refused" ? (await within(card("Chidi Ops")).findAllByRole("alert"))[0]! : await within(card("Chidi Ops")).findByText("Chidi Ops is now Finance (active).");
@@ -351,7 +351,7 @@ for (const first of ["Save lender access", "Save access change"] as const) it(`m
     await user.type(form.getByLabelText("Reason for changing Chidi Ops’s lenders"), "Needs the second lender for cover");
   } else {
     await user.selectOptions(within(card("Chidi Ops")).getByLabelText("Role for Chidi Ops"), "Finance");
-    await user.type(within(card("Chidi Ops")).getByLabelText("Reason for changing Chidi Ops"), "Needs to review closes");
+    await user.type(within(card("Chidi Ops")).getByLabelText("Reason for changing Chidi Ops’s access"), "Needs to review closes");
   }
   await user.click(within(card("Chidi Ops")).getByRole("button", { name: first }));
   // While it waits, the person moves on to the invitation form, where the refusal finds them.
@@ -406,6 +406,18 @@ it("moves focus to the decision's message when Approve invitation, Approve chang
   expect(within(panel).getByText("Nothing is waiting for approval.")).toBeTruthy();
 });
 
+it("says a privileged role waits for a second Admin, shows a one-Admin pilot whom to ask, and keeps the set-up command in closed Technical setup", async () => {
+  liveTeam();
+  renderApp("/team");
+  const panel = (await screen.findByRole("heading", { name: "Waiting for a second Admin" })).closest("section")!;
+  expect(within(panel).getByText("Giving someone the Admin, Finance or Compliance reviewer role takes effect only when a second Admin, not the one who asked, approves it.")).toBeTruthy();
+  // The way forward for a lender's Admin is on the page; only the Valo Pay team's command is in Technical setup.
+  expect(within(panel).getByText("If your pilot has only one Admin, ask the Valo Pay team to add a second.").closest("details")).toBeNull();
+  const setup = within(panel).getByText("The Valo Pay team adds one with the staff set-up command, using its option for adding an Admin.").closest("details")!;
+  expect(setup.open).toBe(false);
+  expect(screen.getByText(/invitation can be accepted only after a second Admin approves it\./)).toBeTruthy();
+});
+
 // Backlog decision UX-B02-X1: team and access changes stay out of the operations journal, so while one's outcome is
 // unconfirmed the page asks before it is left or reloaded, which would lose the only way to check it.
 const leaving = () => { const unload = new Event("beforeunload", { cancelable: true }); window.dispatchEvent(unload); return unload.defaultPrevented; };
@@ -424,7 +436,7 @@ for (const lost of ["an access change", "an invitation"] as const) it(`asks befo
   expect(leaving()).toBe(false);
   if (lost === "an access change") {
     await user.selectOptions(within(card("Chidi Ops")).getByLabelText("Access for Chidi Ops"), "suspended");
-    await user.type(within(card("Chidi Ops")).getByLabelText("Reason for changing Chidi Ops"), "On leave for two weeks");
+    await user.type(within(card("Chidi Ops")).getByLabelText("Reason for changing Chidi Ops’s access"), "On leave for two weeks");
     await user.click(within(card("Chidi Ops")).getByRole("button", { name: "Save access change" }));
   } else {
     await user.type(screen.getByLabelText("Verified email"), "new.colleague@example.test");

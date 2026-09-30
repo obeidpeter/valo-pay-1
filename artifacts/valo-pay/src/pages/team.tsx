@@ -115,7 +115,8 @@ export default function TeamPage() {
                 two-step sign-in. Invitations last seven days, and access lasts
                 90 days from acceptance. After they accept, choose the lenders
                 they can work on. An Admin, Finance or Compliance reviewer
-                invitation also needs approval from a second Admin.
+                invitation can be accepted only after a second Admin approves
+                it.
               </p>
               <form
                 className="grid items-end gap-3 sm:grid-cols-[1fr_1fr_auto]"
@@ -354,7 +355,7 @@ function AccessForm({ member, mutation, answer }: { member: DirectoryMember; mut
         </div>
         <div className="space-y-1">
           <label className="block space-y-1 text-sm">
-            Reason for changing {member.name}
+            Reason for changing {member.name}’s access
             <input
               className={pilotField}
               required
@@ -394,7 +395,7 @@ function AccessForm({ member, mutation, answer }: { member: DirectoryMember; mut
           <DialogHeader>
             <DialogTitle>Revoke {member.name}’s access?</DialogTitle>
             <DialogDescription>
-              {member.name} will lose access to this workspace and all its lenders the next time they do anything. Their lender access and any invitation still waiting for them are removed.
+              {member.name} will lose access to this workspace and all its lenders the next time they use Valo Pay. Their lender access and any invitation still waiting for them are removed.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2 text-sm">
@@ -425,14 +426,14 @@ function Approvals({ directory, actor, decide, choose, message }: { directory: S
   return (
     <PilotPanel title="Waiting for a second Admin">
       <p className="text-sm text-muted-foreground">
-        Giving someone the Admin, Finance or Compliance reviewer role needs approval from a second Admin, not the one
-        who asked.
+        Giving someone the Admin, Finance or Compliance reviewer role takes effect only when a second Admin, not the
+        one who asked, approves it.
       </p>
+      <p className="text-sm text-muted-foreground">If your pilot has only one Admin, ask the Valo Pay team to add a second.</p>
       <details className="rounded-lg border p-3 text-sm">
         <summary className="min-h-8 cursor-pointer font-medium">Technical setup</summary>
         <p className="mt-2 text-muted-foreground">
-          If your pilot has only one Admin, ask the Valo Pay team to add a second. They add one with the staff set-up
-          command, using its option for adding an Admin.
+          The Valo Pay team adds one with the staff set-up command, using its option for adding an Admin.
         </p>
       </details>
       {!invitations.length && !directory.changes.length ? <p className="text-sm">Nothing is waiting for approval.</p> : (
@@ -476,7 +477,7 @@ function LenderGrants({ member, lenders, mutation }: { member: DirectoryMember; 
   return <form className="space-y-3 border-t pt-4" onSubmit={event => { event.preventDefault(); mutation.mutate({ path: `/team/members/${member.id}/lenders`, lender: false, method: "PATCH", data: { expectedUpdatedAt: member.updatedAt, lenderIds: selected, reason } }); }}>
     <fieldset disabled={busy} className="space-y-2"><legend className="mb-2 text-sm font-semibold">Lenders available to {member.name}</legend>{lenders.length ? lenders.map(lender => <label key={lender.id} className="flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" checked={selected.includes(lender.id)} onChange={event => setSelected(current => event.target.checked ? [...current, lender.id] : current.filter(id => id !== lender.id))} />{lender.name}</label>) : <p className="text-sm text-muted-foreground">Create a lender in Pilot journey before you give access.</p>}
       <div className="space-y-1"><label className="block space-y-1 text-sm">Reason for changing {member.name}’s lenders<textarea className={pilotField} required minLength={10} maxLength={1000} rows={2} value={reason} aria-describedby={`lenders-reason-help-${member.id}`} onChange={event => setReason(event.target.value)} /></label><p id={`lenders-reason-help-${member.id}`} className="text-xs text-muted-foreground">At least 10 characters. Saved in the access history.</p></div>
-      <p className="text-xs text-muted-foreground">If you clear every lender, the person loses lender access. The change applies the next time they do anything.</p>
+      <p className="text-xs text-muted-foreground">If you clear every lender, the person loses lender access. The change applies the next time they use Valo Pay.</p>
       <Button type="submit" variant="outline" busy={mutation.isPending}>Save lender access</Button>
     </fieldset>
   </form>;
