@@ -15,8 +15,10 @@ import { PageButtons } from "@/components/record-pagination";
 import { keepRowsWhilePaging } from "@/lib/use-record-pagination";
 import { formatDate, formatNumber } from "@/lib/formatters";
 import { recordPage } from "@/lib/record-navigation";
-import { readableLabel } from "@/components/record-label";
+import { readableLabel, StatusBadge } from "@/components/record-label";
 
+/** A stored label in sentence case, as it was written apart from its first letter: "kill switch" as "Kill switch". */
+const sentenceCase = (label: string) => label.charAt(0).toUpperCase() + label.slice(1);
 /** What a request asked, in one line: the record it names and the few fields it named. */
 function summaryLine(summary: OperationSummary): string {
   const record = [summary.targetKind && readableLabel(summary.targetKind), summary.targetId].filter(Boolean).join(" ");
@@ -57,26 +59,26 @@ export default function OperationsPage() {
   }, [action.error, client]);
   return (
     <div className="space-y-6">
-      <PilotHeading title="Operations">
-        Your requests for this lender, saved on the server. Reopening a request
-        uses its original data and request key. A pending result is not proof
-        that a payment failed.
+      <PilotHeading title="Request history">
+        Requests you sent for this lender. Checking a request sends it again
+        with its original details, so it cannot happen twice. A pending request
+        does not mean that a payment failed.
       </PilotHeading>
       <div className="rounded-xl border bg-secondary/20 p-4 text-sm">
-        History follows your signed-in account or this anonymous sandbox. Sign
-        in to the same account to return to its history. Requests that never
-        reached the service will not appear here.
+        This history belongs to your signed-in account, or to this browser’s
+        sandbox if you are not signed in. Sign in to the same account to see it
+        again. Requests that never reached Valo Pay are not listed.
       </div>
       <PilotError
         error={list.error}
-        pager="operations"
+        pager="requests"
         retry={() => {
           void list.refetch();
         }}
       />
       <RecoveryNotice mutation={action} />
       <p role="status" className="text-sm">
-        {message || (list.isLoading ? "Loading saved operations…" : "")}
+        {message || (list.isLoading ? "Loading requests…" : "")}
       </p>
       <div className="space-y-3">
         {list.data?.items.map((item) => {
@@ -91,7 +93,7 @@ export default function OperationsPage() {
             className="flex flex-col justify-between gap-4 rounded-xl border bg-card p-5 sm:flex-row"
           >
             <div className="min-w-0 space-y-2">
-              <h2 className={`font-semibold ${item.summary ? "" : "capitalize"}`}>{item.summary?.action ?? item.label}</h2>
+              <h2 className="font-semibold">{item.summary?.action ?? sentenceCase(item.label)}</h2>
               {line && <p className="break-all text-sm">{line}</p>}
               <p className="text-sm text-muted-foreground">{item.message}</p>
               {target && (
@@ -112,9 +114,7 @@ export default function OperationsPage() {
               </p>
             </div>
             <div className="flex shrink-0 flex-wrap items-center gap-2">
-              <span className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold capitalize">
-                {item.status}
-              </span>
+              <StatusBadge status={item.status} />
               {item.status === "pending" && (
                 <>
                   <Button
@@ -149,23 +149,25 @@ export default function OperationsPage() {
       </div>
       {list.data?.total === 0 && (
         <p className="rounded-xl border bg-card p-8 text-sm text-muted-foreground">
-          No received requests yet. Saved imports, case changes, reconciliation
-          and evidence requests will appear here.{" "}
+          No requests yet. Imports, case changes, reconciliation and exports
+          you send will appear here.{" "}
           {/* The next step, and something to focus: a keyboard user can then scroll the page on a short screen. */}
           <Link className="text-primary underline" href="/imports">
-            Start with an import batch
+            Open Import batches
           </Link>
         </p>
       )}
       {list.data && list.data.total > 25 && (
         <div className="flex items-center gap-3">
           <PageButtons
-            label="operations"
+            label="requests"
             busy={list.isPlaceholderData}
             atStart={!offset}
             atEnd={offset + 25 >= list.data.total}
             onPrevious={() => setOffset((n) => Math.max(0, n - 25))}
             onNext={() => setOffset((n) => n + 25)}
+            previous="Previous requests"
+            next="Next requests"
           >
             <span className="text-sm">
               {formatNumber(offset + 1)}–
@@ -176,10 +178,11 @@ export default function OperationsPage() {
         </div>
       )}
       <p className="max-w-3xl text-xs text-muted-foreground">
-        Cancellation waits for any in-progress transaction. It succeeds only
-        when this request has not completed, then prevents it from running
-        later. It does not reverse a saved financial record. Your current
-        permissions are checked again for every recovery attempt.
+        Cancel if unfinished works only while a request has not finished, and
+        stops it from running later. If the request is being processed,
+        cancelling waits for that to end first. It does not undo a saved
+        financial record. Your permissions are checked again each time you
+        check or cancel a request.
       </p>
     </div>
   );

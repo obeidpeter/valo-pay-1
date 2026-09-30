@@ -132,6 +132,7 @@ for (const refusal of refusals) it(`reads the list and the count again once ${re
   await user.click(await screen.findByRole("button", { name: refusal.button }));
   await screen.findByText(refusal.error);
   await waitFor(() => expect(screen.queryAllByRole("link", { name: /unconfirmed/ })).toEqual([]), { timeout: 2000 });
-  await screen.findByText(refusal.settled);
+  // The settled status is shown in words, through the shared labels.
+  await screen.findByText(refusal.settled === "cancelled" ? "Cancelled" : "Completed");
   expect([listReads > listed, countReads > counted]).toEqual([true, true]);
 });
