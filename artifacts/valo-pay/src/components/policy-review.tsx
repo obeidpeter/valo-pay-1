@@ -31,7 +31,7 @@ export function TemplatePreview({ text, title = 'Sample customer message' }: { t
     <div className="space-y-2">
       <p className="text-xs font-semibold text-muted-foreground">{title}</p>
       <blockquote className="rounded-lg border bg-background p-3 text-sm whitespace-pre-wrap break-words">{rendered || 'Write a message to see the sample here.'}</blockquote>
-      <p className="text-xs text-muted-foreground">Sample only. No message is sent.</p>
+      <p className="text-xs text-muted-foreground">Sample data only. No message is sent.</p>
       {Boolean(text) && templateTextProblems(text).length > 0 && <div role="status" className="space-y-1 text-xs text-warning-foreground"><p>This message needs changes before it can be saved or submitted.</p>{templateTextProblems(text).map(problem => <p key={problem}>{problem}</p>)}</div>}
     </div>
   );
@@ -83,7 +83,7 @@ export function PolicyReview({ record, records }: { record: ValopayRecord; recor
       <div className="space-y-2">
         <p className="text-xs font-semibold text-muted-foreground">Example message about the policy change</p>
         <blockquote className="rounded-lg border bg-background p-3 text-sm">Example Lender: We may try to collect each payment up to {formatCount(value('maxAttempts', policyGuardrails.defaultMaxAttempts), 'time')}, at least {formatCount(value('spacingHours', policyGuardrails.defaultSpacingHours), 'hour')} apart. We will tell you at least {formatCount(value('firstNoticeHours', policyGuardrails.defaultFirstNoticeHours), 'hour')} before the first try and {formatCount(value('retryNoticeHours', policyGuardrails.defaultRetryNoticeHours), 'hour')} before each retry. We {record.data?.partialAllowed ? 'may' : 'will not'} collect part of a payment. For help, contact support@example.com.</blockquote>
-        <p className="text-xs text-muted-foreground">Sample only. Approving does not send this message or apply the new version to existing mandates.</p>
+        <p className="text-xs text-muted-foreground">Sample data only. Approving does not send this message or apply the new version to existing mandates.</p>
       </div>
     </section>
   );
