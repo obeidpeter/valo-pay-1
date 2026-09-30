@@ -104,9 +104,9 @@ check(() => {
 });
 check(() => {
   const s = fresh();
-  assert.throws(() => checkout(s, 0), /greater/);
+  assert.throws(() => checkout(s, 0), /Enter more than 0/);
   assert.throws(() => checkout(s, openDue(s).amountKobo + 1), /outstanding/);
-  assert.throws(() => checkout(s, 1.5), /integer/);
+  assert.throws(() => checkout(s, 1.5), /Enter a whole number/);
 });
 check(() => {
   const s = fresh();

@@ -111,7 +111,7 @@ section("a naira line in a dollar batch", () => {
   equal([batch.data.otherCurrencyLineIds, n2.data.otherCurrencyLine, n2.data.settlementBatchId], [[n2.id], true, batch.id], "the naira line is linked and marked, not counted");
   const [report] = exceptionsOn(state, batch.id);
   equal([report?.data.condition, report?.amountKobo, "currency" in (report?.data ?? {})], [`settlement_variance:${batch.id}:currency:${n2.id}`, GROSS, false], "the report of the naira line is in naira");
-  check(String(report?.data.notes).startsWith("Settlement line PSK-N (NGN 25,000.00) is in NGN, and settlement batch B-MIX-2 is in USD"), `and names both currencies (${report?.data.notes})`);
+  check(String(report?.data.notes).startsWith("Settlement line PSK-N (₦25,000.00) is in NGN, and settlement batch B-MIX-2 is in USD"), `and names both currencies (${report?.data.notes})`);
   equal([naira.data.settlementStatus, naira.status, due.status, outstandingOf(due)], ["settled", "allocated", "paid", 0], "the naira collection is still reconciled and matched to its instalment");
   // Its line records no expected fee either.
   const u2 = lineOf(state, "u2");
@@ -174,7 +174,7 @@ section("a batch Finance enters by hand", () => {
   };
   for (const [currency, why] of [["XYZ", "not a code"], ["XAU", "no minor unit"], [7, "not text"]] as const) {
     const refused = enter(`B-HAND-${String(currency)}`, { currency });
-    check(!refused.ok && /ISO 4217|Expected string/.test(refused.message), `a currency that is ${why} is refused (${!refused.ok && refused.message})`);
+    check(!refused.ok && /Enter the batch currency as a three-letter code, such as NGN or USD\./.test(refused.message), `a currency that is ${why} is refused (${!refused.ok && refused.message})`);
   }
   const naira = accepted(enter("B-HAND-NGN", {}), "a batch entered with no currency");
   const dollars = accepted(enter("B-HAND-USD", { currency: " usd " }), "a batch entered in dollars");
@@ -294,7 +294,7 @@ section("an earlier mixed batch whose collection the provider lists in other bat
       for (const item of recordsOf(state, "observations")) if (item.reference === "PSK-U" || item.reference === "STMT-USD") item.data.currency = "USD";
       paymentOf(state, "PSK-U").data.currency = "USD";
       for (const batch of recordsOf(state, "settlement-batches")) delete batch.data.currency;
-      for (const report of recordsOf(state, "exceptions")) if (String(report.data.notes).includes("PSK-U")) { report.data.notes = String(report.data.notes).replaceAll("NGN 1,000.00", "USD 1,000.00"); report.data.currency = "USD"; }
+      for (const report of recordsOf(state, "exceptions")) if (String(report.data.notes).includes("PSK-U")) { report.data.notes = String(report.data.notes).replaceAll("₦1,000.00", "USD 1,000.00"); report.data.currency = "USD"; }
     }
     return state;
   };

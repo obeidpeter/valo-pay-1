@@ -85,7 +85,7 @@ describe('saved background exports',()=>{
   api.mutate(state=>{const record=state.records.find(record=>record.id===pack.id)!;record.status='ready';Object.assign(record.data,{checksum:'b'.repeat(64),generatedAt:api.now,byteLength:321});});
   api.role='Operations';
   const view=renderApp(`/customers/${customer.id}`);
-  const refusal=/Only an Admin, Finance or Compliance reviewer can export or download dispute packs, customer records or the audit trail\. Ask one of them for this file\./;
+  const refusal=/Only an Admin, Finance or Compliance reviewer can export or download dispute packs, customer records or the audit log\. Ask one of them for this file\./;
   expect((await screen.findAllByText(refusal)).length).toBeGreaterThan(0);
   expect(screen.getByRole('button',{name:'Export dispute pack (PDF)'}).hasAttribute('disabled')).toBe(true);
   view.unmount();

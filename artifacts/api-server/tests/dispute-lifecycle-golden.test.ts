@@ -321,7 +321,7 @@ section("a late sample outcome closes the unknown-outcome exception", () => {
   const answer = accepted(connectedWithNote(state, operations(wat("2027-07-02T11:00:00")), "payment.outcome", intent.id, { outcome: "failed" }), "the provider's late answer");
   equal([intent.status, unknown!.status, unknown!.data.resolutionCode], ["failed", "closed", "condition_cleared"], "the exception closes because the outcome is now known");
   // The review of these fixes: the step's audit entry names the exception it closed.
-  equal([answer.result.id, answer.auditNote], [intent.id, "Closed 1 exception whose condition cleared (unknown outcome: the pay-by-bank payment's outcome is now recorded as failed)."], "and the step's audit entry names it");
+  equal([answer.result.id, answer.auditNote], [intent.id, "Closed 1 exception whose condition cleared (outcome unknown: the pay-by-bank payment's outcome is now recorded as failed)."], "and the step's audit entry names it");
   close(state, "2027-07-03T07:00:00");
   equal(exceptionsFor(state, intent.id, "unknown_outcome").length, 1, "and is never raised again");
 });

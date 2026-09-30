@@ -38,7 +38,7 @@ export function majorToMinor(value: string, currency?: string): number {
   const code = codeOf(currency);
   if (code === "NGN") return nairaToKobo(value);
   const digits = currencyMinorUnit(code);
-  if (digits === undefined) throw new MoneyInputError(`${code} has no minor unit in ISO 4217, so an amount in it cannot be read in major units. Check the currency code, or give the amount in its smallest unit.`);
+  if (digits === undefined) throw new MoneyInputError(`Valo Pay cannot read an amount in ${code} in its main unit, because ${code} has no smaller unit. Check the currency code, or enter the amount in its smallest unit.`);
   const input = value.trim();
   if (!new RegExp(`^(?:\\d+|\\d{1,3}(?:,\\d{3})+)${digits ? `(?:\\.\\d{0,${digits}})?` : ""}$`).test(input)) {
     const example = digits ? `1,000.${"5".padEnd(digits, "0")}` : "1,000";
@@ -54,8 +54,8 @@ export function majorToMinor(value: string, currency?: string): number {
 export function minorToMajor(value: number, currency?: string): string {
   const code = codeOf(currency);
   const digits = code === "NGN" ? 2 : currencyMinorUnit(code);
-  if (digits === undefined) throw new MoneyInputError(`${code} has no minor unit in ISO 4217, so an amount in it cannot be written in major units.`);
-  if (!Number.isSafeInteger(value) || value < 0) throw new MoneyInputError(`The stored amount must be a non-negative whole number of the smallest unit of ${code}.`);
+  if (digits === undefined) throw new MoneyInputError(`Valo Pay cannot write an amount in ${code} in its main unit, because ${code} has no smaller unit.`);
+  if (!Number.isSafeInteger(value) || value < 0) throw new MoneyInputError(`The saved amount must be a whole number of 0 or more, in the smallest unit of ${code}.`);
   const minor = BigInt(value), unit = 10n ** BigInt(digits);
   return digits ? `${minor / unit}.${String(minor % unit).padStart(digits, "0")}` : String(minor);
 }
@@ -86,6 +86,6 @@ export function csvAmountToKobo(value: string, unit: 'naira' | 'kobo', currency?
  */
 export function amountUnitName(unit: 'naira' | 'kobo', kind: string): string {
   const ownCurrency = importFieldsOf(kind).includes("currency");
-  if (unit === 'naira') return ownCurrency ? "Major units (₦, or the row's currency)" : "Naira (₦)";
-  return ownCurrency ? "Minor units (kobo, or the smallest unit of the row's currency)" : "Kobo";
+  if (unit === 'naira') return ownCurrency ? "Main unit (₦, or the row’s own currency)" : "Naira (₦)";
+  return ownCurrency ? "Smallest unit (kobo, or the smallest unit of the row’s own currency)" : "Kobo";
 }

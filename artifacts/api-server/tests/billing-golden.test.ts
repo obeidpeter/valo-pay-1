@@ -93,31 +93,31 @@ checks += 5;
   save({ signedFullPriceTerms: false, discountStartDate: '2027-01-01', fullPriceStartDate: '2028-01-01', discountTermsReference: 'SYN-CAUSES' });
   assert.equal(recordsOf(state, 'commercial')[0]!.data.discountReview, undefined, 'nothing is proposed while the full-price terms are not signed');
   const flag = cause();
-  assert.match(flag, /^These design-partner terms cannot price a new invoice yet\. The full-price terms are not recorded as signed: tick “Full-price terms are signed”/);
+  assert.match(flag, /^These design-partner terms cannot be used on a new invoice yet\. The full-price terms are not recorded as signed\. Tick “Full-price terms are signed”/);
   assert.doesNotMatch(flag, /missing|correcting|await/, 'the dates are complete and valid, so they are not blamed');
   // An agreement saved before the dates existed, with the flag ticked: the missing dates and reference are named.
   save({ signedFullPriceTerms: true, discountStartDate: null, fullPriceStartDate: null, discountTermsReference: null });
-  assert.match(cause(), /The discount start date, the full-price start date and the signed agreement reference are missing: enter them from the signed agreement\.$/);
+  assert.match(cause(), /The discount start date, the full-price start date and the signed agreement reference are missing\. Enter them from the signed agreement\.$/);
   // Neither the flag nor the dates: both causes, each in its own words.
   terms.data.signedFullPriceTerms = false;
   const both = cause();
   assert.match(both, /full-price terms are not recorded as signed.*The discount start date, the full-price start date and the signed agreement reference are missing/);
   // Stored before today's checks (written directly, not through the record API): a missing reference, a mid-month date, an unreadable date.
   Object.assign(terms.data, { signedFullPriceTerms: true, discountStartDate: '2027-01-01', fullPriceStartDate: '2028-01-01', discountTermsReference: ' ' });
-  assert.match(cause(), /The signed agreement reference is missing: enter it from the signed agreement\.$/);
+  assert.match(cause(), /The signed agreement reference is missing\. Enter it from the signed agreement\.$/);
   Object.assign(terms.data, { discountTermsReference: 'SYN-CAUSES', discountStartDate: '2027-01-15' });
-  assert.match(cause(), /The saved discount dates need correcting\. Discount dates must be the first day of a real billing month\./);
+  assert.match(cause(), /The saved discount dates need correcting\. Each discount date must be the first day of a month, because a monthly invoice uses one price for the whole month\./);
   Object.assign(terms.data, { discountStartDate: 20270101 });
-  assert.match(cause(), /The saved discount start date cannot be read: enter it again from the signed agreement\.$/);
+  assert.match(cause(), /Valo Pay cannot read the saved discount start date\. Enter it again from the signed agreement\.$/);
   // Proposed, then changed outside the record API: the proposal no longer matches the dates.
   terms.data.discountStartDate = '2027-01-01';
   save({ fullPriceStartDate: '2028-01-01' });
   assert.equal(terms.data.discountReview?.discountStartDate, '2027-01-01', 'saving complete signed terms records a proposal');
   terms.data.fullPriceStartDate = '2027-12-01';
-  assert.match(cause(), /The discount dates or agreement reference changed after they were proposed: save the commercial terms again/);
+  assert.match(cause(), /The discount dates or agreement reference changed after they were proposed\. Save the commercial terms again/);
   // A proposal stored in a form the service cannot read.
   Object.assign(terms.data, { fullPriceStartDate: '2028-01-01', discountReview: { ...terms.data.discountReview, reviewedBy: 42 } });
-  assert.match(cause(), /The recorded proposal or confirmation of these discount dates cannot be read/);
+  assert.match(cause(), /Valo Pay cannot read the saved proposal or confirmation of these discount dates/);
   checks += 9;
 }
 
@@ -146,7 +146,7 @@ checks += 5;
   // One person saves the dates. That is a proposal: it prices nothing until a different person confirms it.
   save(staff('ada', 'Finance'), { signedFullPriceTerms: true, ...dates });
   assert.equal(billing().nextInvoicePricingReady, false, 'the person who saved the dates cannot price an invoice alone');
-  assert.throws(() => issueInvoice(state, finance(now), { period: '2027-06' }), refusedWith(409, /The discount dates await confirmation: a different Admin or Finance user from the person who proposed them must confirm them/));
+  assert.throws(() => issueInvoice(state, finance(now), { period: '2027-06' }), refusedWith(409, /The discount dates are waiting for confirmation\. A different Admin or Finance team member must check them against the signed agreement/));
   assert.deepEqual(terms.data.discountReview, proposal, 'the service records who proposed the dates, which person that is, when, and what they proposed');
   // The proposer cannot confirm, in another role or under another account of the same person; nor can a role without the right.
   assert.throws(() => confirm(staff('ada', 'Admin')), refusedWith(403, /A different person must confirm these discount dates/));
@@ -163,7 +163,7 @@ checks += 5;
   assert.equal(terms.updatedAt, wat('2027-06-21T10:00:00'));
   assert.match(answer.message, /confirmed/i);
   assert.deepEqual([billing().pricingReady, billing().nextInvoicePricingReady], [true, true]);
-  assert.match(billing().nextInvoicePricingExplanation, /^50% design-partner discount for this billing month\. Confirmed agreement: discount from 2027-01-01; full price from 2028-01-01\.$/);
+  assert.match(billing().nextInvoicePricingExplanation, /^50% design-partner discount for this billing month\. Confirmed agreement: discount from 1 Jan 2027; full price from 1 Jan 2028\.$/);
   assert.throws(() => confirm(staff('chi', 'Finance')), refusedWith(409, /already confirmed by Clerk:user_bola/));
   const ordinary = structuredClone(state);
   recordsOf(ordinary, 'commercial')[0]!.data.designPartner = false;
@@ -194,7 +194,7 @@ checks += 5;
   const legacy = { reviewedBy: 'Clerk:user_ada', reviewedAt: '2026-09-29T10:00:00.000Z', discountStartDate: '2027-01-01', fullPriceStartDate: '2027-12-01', termsReference: 'SYN-TWO-PEOPLE' };
   terms.data.discountReview = structuredClone(legacy);
   assert.equal(billing().nextInvoicePricingReady, false, 'a single-person review from before this fix prices nothing');
-  assert.match(billing().nextInvoicePricingExplanation, /await confirmation/);
+  assert.match(billing().nextInvoicePricingExplanation, /waiting for confirmation/);
   assert.throws(() => confirm(staff('ada', 'Admin'), { ...dates, fullPriceStartDate: '2027-12-01' }), refusedWith(403, /different person/), 'its reviewer cannot confirm it');
   confirm(staff('bola', 'Admin', wat('2027-06-26T09:00:00')), { ...dates, fullPriceStartDate: '2027-12-01' });
   assert.deepEqual(terms.data.discountReview, { ...legacy, confirmedBy: 'Clerk:user_bola', confirmedPrincipal: 'principal-bola', confirmedAt: wat('2027-06-26T09:00:00') });
@@ -438,7 +438,7 @@ const firstHalf = ['2027-01', '2027-02', '2027-03', '2027-04', '2027-05', '2027-
   delete recordsOf(state, 'commercial')[0]!.data.discountReview;
   state.settings.billingPeriod = '2028-01';
   const before = structuredClone(state);
-  assert.throws(() => issueInvoice(state, finance(wat('2028-02-02T09:00:00')), { period: '2028-01' }), /No proposal is recorded for these discount dates/,
+  assert.throws(() => issueInvoice(state, finance(wat('2028-02-02T09:00:00')), { period: '2028-01' }), /These discount dates have not been proposed/,
     'Older design-partner agreements need proposed and confirmed contract dates before a new invoice, not an automatic full-price calendar rollover.');
   assert.deepEqual(state, before, 'Refused pricing creates no invoice or financial change');
   const billing = buildReports(state, wat('2028-02-02T09:00:00')).billing;
@@ -466,7 +466,7 @@ const firstHalf = ['2027-01', '2027-02', '2027-03', '2027-04', '2027-05', '2027-
   collection('CONTRACT-RECEIPT', wat('2028-05-10T09:00:00'));
   const may = invoiceFor(state, '2028-05', wat('2028-06-02T09:00:00'));
   assert.equal(may.data.designPartnerDiscount?.rate, 0.5);
-  assert.match(may.data.designPartnerDiscount?.note ?? '', /full price from 2028-07-01/);
+  assert.match(may.data.designPartnerDiscount?.note ?? '', /full price from 1 Jul 2028/);
   assert.deepEqual(may.data.terms?.discountReview, terms.data.discountReview);
   const immutable = structuredClone(may);
   assert.equal(invoiceFor(state, '2028-06', wat('2028-07-02T09:00:00')).data.designPartnerDiscount?.rate, 0.5);
@@ -522,7 +522,7 @@ const firstHalf = ['2027-01', '2027-02', '2027-03', '2027-04', '2027-05', '2027-
     const billing = buildReports(state, wat('2027-07-02T09:00:00')).billing;
     assert.equal(billing.pricingReady, false, `${label}: malformed stored evidence needs review`);
     assert.equal(billing.totalKobo, null, `${label}: no assumed price`);
-    assert.throws(() => issueInvoice(state, finance(wat('2027-07-02T09:00:00')), { period: '2027-06' }), /These design-partner terms cannot price a new invoice yet\. The (recorded proposal or confirmation of these discount dates|saved (discount start date|signed agreement reference)) cannot be read/,
+    assert.throws(() => issueInvoice(state, finance(wat('2027-07-02T09:00:00')), { period: '2027-06' }), /These design-partner terms cannot be used on a new invoice yet\. Valo Pay cannot read the saved (proposal or confirmation of these discount dates|discount start date|signed agreement reference)/,
       `${label}: a documented pricing refusal naming the unreadable evidence, not an incidental TypeError`);
     assert.deepEqual(state, before, `${label}: refusal and report preserve historical state`);
     checks += 4;
@@ -603,7 +603,7 @@ const firstHalf = ['2027-01', '2027-02', '2027-03', '2027-04', '2027-05', '2027-
   // PSK-F's refund was recorded without an amount, as refunds were before refundedKobo existed: it is read as the whole payment.
   assert.deepEqual(pending.map((line) => [line.paymentReference, line.reason, line.kobo]), [["PSK-D", "confirmed_duplicate", -3_750], ["PSK-F", "refund", -3_750], ["PSK-R", "reversal", -3_750], ["PSK-W", "wrong_allocation", -3_750]], "one credit per affected collection, the untouched one is not adjusted");
   assert.ok(pending.every((line) => line.originalInvoiceId === first.id && line.originalInvoiceReference === first.reference), "every line references the invoice it corrects");
-  assert.match(pending[2]!.explanation, /PSK-R .*at the 50% design-partner discount.*reversed by the provider.*credit of NGN 37\.50/);
+  assert.match(pending[2]!.explanation, /PSK-R .*at the 50% design-partner discount.*reversed by the provider.*credit of ₦37\.50/);
   assert.deepEqual([pending[2]!.feeDeltaKobo, pending[2]!.discountRate, pending[2]!.billedChargedKobo], [-7_500, 0.5, 3_750], "the line shows the public fee it takes off and the rate it was billed at");
   assert.ok(pending[3]!.allocationIds.length >= 1, "the superseded allocation is referenced");
   assert.equal(buildReports(state, wat("2027-07-15T09:00:00")).billing.pendingAdjustmentsKobo, -15_000, "the statement shows what the next invoice will carry");
@@ -686,7 +686,7 @@ const firstHalf = ['2027-01', '2027-02', '2027-03', '2027-04', '2027-05', '2027-
   assert.deepEqual([december2026.data.usageLines[0].feeKobo, december2026.data.usageLines[0].discountRate, december2026.data.usageLines[0].chargedKobo], [15_000, 0, 15_000]);
   assert.deepEqual(december2027.data.usageLines.map((line: any) => [line.paymentReference, line.feeKobo, line.discountRate, line.chargedKobo]), [["PSK-2027", 15_000, 0.5, 7_500], ["PSK-UP", 7_500, 0.5, 3_750]]);
   assert.deepEqual(january2028.data.adjustments.map((line: any) => [line.feeDeltaKobo, line.discountRate, line.billedChargedKobo]), [[-15_000, 0.5, 7_500], [4_500, 0.5, 3_750]]);
-  assert.match(january2028.data.adjustments[0].explanation, /billed NGN 75\.00 on INV-2027-12-013 at the 50% design-partner discount\) was reversed by the provider after it was billed; credit of NGN 75\.00\./);
+  assert.match(january2028.data.adjustments[0].explanation, /billed ₦75\.00 on INV-2027-12-013 at the 50% design-partner discount\) was reversed by the provider after it was billed; credit of ₦75\.00\./);
   assert.match(january2028.data.designPartnerDiscount.note, /Adjustment lines carry the rate of the invoice that first billed each collection/);
   assert.deepEqual(pendingAdjustments(state), [], "each correction is billed once");
   checks += 12;

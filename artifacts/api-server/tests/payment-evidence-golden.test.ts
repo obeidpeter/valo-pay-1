@@ -519,7 +519,7 @@ section("a net-only line applied before the debit's gross", () => {
   const cleared = accepted(request(earlier, () => executeAction(earlier, finance(wat("2027-07-03T07:00:00")), { action: "daily_close" })), "the close after the rule changed");
   equal([heldEarlier.status, heldEarlier.data.paymentId, third!.amountKobo], ["resolved", third!.id, 2_500_000], "the held gross joins its payment");
   equal([stale.status, stale.data.resolutionCode], ["closed", "condition_cleared"], "its exception closes as its condition cleared");
-  check(/suspected duplicate: payment evidence PSK-NET-3 is now resolved/.test(String(cleared.data.auditNote)), `and the close's audit entry names it (${cleared.data.auditNote})`);
+  check(/possible duplicate: payment evidence PSK-NET-3 is now resolved/.test(String(cleared.data.auditNote)), `and the close's audit entry names it (${cleared.data.auditNote})`);
 });
 
 // ---------- Review finding 4: a gross below the amount received ----------
@@ -779,7 +779,7 @@ section("a net-only settlement line in its batch", () => {
   const completed = closeAnswer(earlier.state, "2027-07-02T07:30:00");
   equal([totals(batch), completed.record!.data.report.variances.count], [["reconciled", 2_500_000, 12_500, 12_500, 2_487_500], 0], "the gross that completes the payment corrects the batch, which reconciles");
   equal([variance!.status, variance!.data.resolutionCode], ["closed", "condition_cleared"], "and its exception closes as its condition cleared");
-  check(/settlement variance: settlement batch B-NET is now reconciled/.test(String(completed.data.auditNote)), `the close's audit entry names it (${completed.data.auditNote})`);
+  check(/settlement difference: settlement batch B-NET is now reconciled/.test(String(completed.data.auditNote)), `the close's audit entry names it (${completed.data.auditNote})`);
 });
 
 // ---------- Second review finding 6: the allocation picker offers what a manual allocation of that payment accepts ----------
@@ -1032,7 +1032,7 @@ function carriedReport(label: string, clearBy: "second credit" | "fee corrected"
   const again = addObservation(state, { reference: "PSK-X1", amountKobo: d1!.amountKobo - fee(d1!.amountKobo), grossAmountKobo: d1!.amountKobo, feeKobo: fee(d1!.amountKobo), batchReference: "B2", source: "settlement", customerId: d1!.customerId, eventId: "s-x1-again", occurredAt: wat("2027-07-02T07:00:00") });
   close(state, "2027-07-02T08:00:00");
   const [carrier] = exceptionsFor(state, b2.id, "settlement_variance");
-  check(carrier?.status === "open" && String(carrier.data.notes).includes("Settlement line PSK-X1 (NGN 18,000.00) is already counted in settlement batch B1") && ((carrier.data.countedTwice ?? []) as string[]).includes(`settlement_variance:${b2.id}:line:${again.id}`), `${label}: B2's open exception carries the report (${carrier?.data.notes})`);
+  check(carrier?.status === "open" && String(carrier.data.notes).includes("Settlement line PSK-X1 (₦18,000.00) is already counted in settlement batch B1") && ((carrier.data.countedTwice ?? []) as string[]).includes(`settlement_variance:${b2.id}:line:${again.id}`), `${label}: B2's open exception carries the report (${carrier?.data.notes})`);
   return { state, b2, carrier: carrier!, again };
 }
 /** B2 leaves variance: the rest of its credit arrives, or Finance corrects the fee it typed. */
@@ -1129,7 +1129,7 @@ section("a batch an earlier build counted before the gross arrived", () => {
   equal([totals(batch), completed.record!.data.report.variances.count], [["reconciled", 2_500_000, 12_500, 12_500, 2_487_500], 0], "the next close counts the line again with its payment's gross, and the batch reconciles");
   equal([line.data.countedGrossKobo, line.data.assumedFeeKobo, line.data.expectedFeeKobo], [2_500_000, 12_500, 12_500], "the line records what it now adds");
   equal([variance.status, variance.data.resolutionCode], ["closed", "condition_cleared"], "and the batch's exception closes as its condition cleared");
-  check(/settlement variance: settlement batch B-NET-9 is now reconciled/.test(String(completed.data.auditNote)), `the close's audit entry names it (${completed.data.auditNote})`);
+  check(/settlement difference: settlement batch B-NET-9 is now reconciled/.test(String(completed.data.auditNote)), `the close's audit entry names it (${completed.data.auditNote})`);
   const before = JSON.stringify(recordsOf(state, "settlement-batches"));
   close(state, "2027-07-03T08:00:00");
   equal(JSON.stringify(recordsOf(state, "settlement-batches")), before, "a later close counts it no further");

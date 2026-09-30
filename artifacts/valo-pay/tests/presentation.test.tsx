@@ -128,10 +128,10 @@ it('imports the exact sample pack through batch validation, matches it automatic
 // that name. It names the option each record type offers (amountUnitName).
 it('names the amount unit of each sample file as Import batches offers it', async () => {
   const brief = presenterBrief('2026-09-22');
-  expect(brief).toContain("In Import batches choose the matching record type and, under Amounts in the source file, Naira (₦), or Major units (₦, or the row's currency) for Payment evidence;");
+  expect(brief).toContain("In Import batches choose the matching record type and, under Amounts in the source file, Naira (₦), or Main unit (₦, or the row’s own currency) for Payment evidence;");
   expect(brief).not.toMatch(/choose Naira,/);
   renderApp('/presentation');
-  expect((await screen.findByText(/^In Import batches, choose each matching record type/)).textContent).toMatch(/^In Import batches, choose each matching record type and, under Amounts in the source file, Naira \(₦\), or Major units \(₦, or the row's currency\) for Payment evidence\. Use source name/);
+  expect((await screen.findByText(/^In Import batches, choose each matching record type/)).textContent).toMatch(/^In Import batches, choose each matching record type and, under Amounts in the source file, Naira \(₦\), or Main unit \(₦, or the row’s own currency\) for Payment evidence\. Use source name/);
 });
 
 it('opens the sample customer at step three, where the automatic R1 match and its explanation are shown', async () => {

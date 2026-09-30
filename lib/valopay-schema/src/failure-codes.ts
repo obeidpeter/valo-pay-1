@@ -13,17 +13,17 @@ export interface FailureCodeDefinition {
 
 /** The TRD 4.4 catalogue, keyed by normalised code. */
 export const failureCodes = {
-  INSUFFICIENT_FUNDS: { meaning: "The account did not have enough money for this debit.", retry: "yes", handling: "Retry only within the policy limits and after the required notice." },
+  INSUFFICIENT_FUNDS: { meaning: "The account did not have enough money for this debit.", retry: "yes", handling: "Retry only within the retry policy’s limits and after the required notice." },
   ACCOUNT_RESTRICTED: { meaning: "The bank has restricted debits from this account.", retry: "once", handling: "Allow one retry after the required waiting period, then raise an exception." },
-  INVALID_ACCOUNT: { meaning: "Account does not exist or is closed.", retry: "no", handling: "Raise an exception and flag the mandate for review." },
+  INVALID_ACCOUNT: { meaning: "The account does not exist or is closed.", retry: "no", handling: "Raise an exception and flag the mandate for review." },
   MANDATE_INACTIVE: { meaning: "The provider has not marked the mandate as active.", retry: "no", handling: "Cancel the attempt and review the mandate activation." },
-  MANDATE_LIMIT_EXCEEDED: { meaning: "Amount above the mandate limit.", retry: "no", handling: "Raise an exception. Do not retry a lower amount unless the consent covers it." },
-  BANK_UNAVAILABLE: { meaning: "The customer's bank did not respond.", retry: "yes", handling: "Retry only within the policy limits." },
-  PROVIDER_ERROR: { meaning: "The aggregator reported an internal error.", retry: "yes", handling: "First retry the connection. Retry the debit under the policy only if the provider confirms that no debit occurred." },
+  MANDATE_LIMIT_EXCEEDED: { meaning: "The amount is above the mandate limit.", retry: "no", handling: "Raise an exception. Do not retry a lower amount unless the consent covers it." },
+  BANK_UNAVAILABLE: { meaning: "The customer’s bank did not respond.", retry: "yes", handling: "Retry only within the retry policy’s limits." },
+  PROVIDER_ERROR: { meaning: "The provider reported an internal error.", retry: "yes", handling: "Check the connection first. Retry the debit under the retry policy only if the provider confirms that no debit took place." },
   TIMEOUT_UNKNOWN: { meaning: "The provider has not confirmed whether the debit succeeded.", retry: "unresolved", handling: "Check the status with the provider. Raise an exception if the outcome is still unknown after 24 hours." },
-  DUPLICATE: { meaning: "Provider reports a duplicate instruction.", retry: "no", handling: "Match the result to the original instruction." },
-  CUSTOMER_DISPUTED: { meaning: "Customer has disputed the debit.", retry: "never", handling: "Pause collection for the instalment and raise an exception with a one-business-day deadline." },
-  UNKNOWN: { meaning: "The provider returned a failure code that has not been classified.", retry: "no", handling: "Raise an exception, classify the code and update the failure-code mapping." },
+  DUPLICATE: { meaning: "The provider reports a duplicate instruction.", retry: "no", handling: "Match the result to the original instruction." },
+  CUSTOMER_DISPUTED: { meaning: "The customer has disputed the debit.", retry: "never", handling: "Pause collection for the instalment and raise an exception with a one-business-day deadline." },
+  UNKNOWN: { meaning: "The provider returned a failure code that has not been classified.", retry: "no", handling: "Raise an exception and classify the code, so that Valo Pay knows whether to retry." },
 } as const satisfies Record<string, FailureCodeDefinition>;
 
 /** A catalogue code. */

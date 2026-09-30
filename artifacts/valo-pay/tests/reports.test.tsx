@@ -45,7 +45,7 @@ describe("reports", () => {
     api.mutate(state => { const terms = state.records.find(record => record.kind === 'commercial')!; Object.assign(terms.data, { signed: true, designPartner: true, signedFullPriceTerms: false, effectiveDate: '2027-01-01', discountStartDate: '2027-01-01', fullPriceStartDate: '2028-01-01', discountTermsReference: 'SYN-CAUSE' }); });
     renderApp('/reports?view=billing');
     const box = (await screen.findByText('Commercial terms need review')).parentElement!;
-    const cause = 'These design-partner terms cannot price a new invoice yet. The full-price terms are not recorded as signed: tick “Full-price terms are signed” once they are, so that the discount dates can be proposed.';
+    const cause = 'These design-partner terms cannot be used on a new invoice yet. The full-price terms are not recorded as signed. Tick “Full-price terms are signed” once they are, so the discount dates can be proposed.';
     expect(box.textContent).toContain(`Next invoice: ${cause}`);
     expect(box.textContent).not.toMatch(/Review the discount dates/);
     expect((screen.getByRole('button', { name: 'Issue invoice' }) as HTMLButtonElement).disabled).toBe(true);

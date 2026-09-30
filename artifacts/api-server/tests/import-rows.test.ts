@@ -71,7 +71,7 @@ const quick = (state: ReturnType<typeof seedMerchant>, kind: string, csv: string
   const [row] = customers.rows;
   assert.equal(row!.message, "Consent captured at (column consentCapturedAt): Use YYYY-MM-DD or a UTC timestamp such as 2026-09-18T07:00:00Z, and a real date. Consent source or reference (column consent): Enter a value; it is blank on this row. Pay day (column pay_day): Enter a number of at most 31."); checks += 1;
   check(!/consentProvenance|payDay|String must contain|Number must be/.test(row!.message), "no raw field path or zod default text");
-  check(/consentProvenance: String must contain at least 1 character\(s\)/.test(String(row!.detail)) && /consentCapturedAt must use YYYY-MM-DD/.test(String(row!.detail)), `the raw detail is kept (${row!.detail})`);
+  check(/Consent source or reference: Enter a value\./.test(String(row!.detail)) && /Consent captured at: Enter a real date as YYYY-MM-DD/.test(String(row!.detail)) && !/String must contain|consentProvenance|consentCapturedAt/.test(String(row!.detail)), `the detail keeps every problem in the service's own words, with field labels (${row!.detail})`);
 
   const noConsent = quick(state, "customers", "row_id,name\nr1,No consent column", { commit: false });
   assert.equal(noConsent.rows[0]!.message, "No column is mapped to Consent source or reference. Map the column that holds it."); checks += 1;
@@ -97,8 +97,8 @@ const quick = (state: ReturnType<typeof seedMerchant>, kind: string, csv: string
   // amount that is not a whole number names the kind's own option (amountUnitName) and the row's smallest unit.
   const minor = quick(state, "observations", "row_id,name,reference,customerId,amount,source,currency\nr1,Naira decimals,QUICK-MINOR-1,DEMO-C1001,10.50,card,\nr2,Dollar decimals,QUICK-MINOR-2,DEMO-C1001,10.50,card,usd", { commit: false, amountUnit: "kobo" });
   assert.deepEqual(minor.rows.map((row) => row.message), [
-    "Amount: Enter kobo as a whole number without commas or decimals, for example 100000. Choose Major units (₦, or the row's currency) if the source uses naira.",
-    "Amount: Enter the smallest unit of USD as a whole number without commas or decimals, for example 100000. Choose Major units (₦, or the row's currency) if the source gives amounts in USD rather than its smallest unit.",
+    "Amount: Enter kobo as a whole number without commas or decimals, for example 100000. Choose Main unit (₦, or the row’s own currency) if the source uses naira.",
+    "Amount: Enter the smallest unit of USD as a whole number without commas or decimals, for example 100000. Choose Main unit (₦, or the row’s own currency) if the source gives amounts in USD rather than its smallest unit.",
   ]); checks += 1;
 }
 
@@ -120,8 +120,8 @@ const quick = (state: ReturnType<typeof seedMerchant>, kind: string, csv: string
 {
   // Record create and edit keep their single first message: the import path alone collects every problem.
   const state = seedMerchant("single-message");
-  assert.throws(() => validateRecord(state, admin, "customers", { name: "Two problems", data: { consentCapturedAt: "2026-02-30", consentProvenance: "" } }), (error: Error) => error.message === "consentCapturedAt must use YYYY-MM-DD or a UTC timestamp such as 2026-09-18T07:00:00Z, and name a real date."); checks += 1;
-  assert.throws(() => validateRecord(state, admin, "customers", { name: "Blank consent", data: { consentProvenance: "", payDay: 40 } }), (error: Error) => error.message === "Invalid customers data: consentProvenance: String must contain at least 1 character(s); payDay: Number must be less than or equal to 31"); checks += 1;
+  assert.throws(() => validateRecord(state, admin, "customers", { name: "Two problems", data: { consentCapturedAt: "2026-02-30", consentProvenance: "" } }), (error: Error) => error.message === "Consent captured at: Enter a real date as YYYY-MM-DD, or a UTC timestamp such as 2026-09-18T07:00:00Z."); checks += 1;
+  assert.throws(() => validateRecord(state, admin, "customers", { name: "Blank consent", data: { consentProvenance: "", payDay: 40 } }), (error: Error) => error.message === "Consent source or reference: Enter a value. Pay day: Enter 31 or less."); checks += 1;
 }
 
 {
@@ -179,7 +179,7 @@ const quick = (state: ReturnType<typeof seedMerchant>, kind: string, csv: string
   const state = seedMerchant("platform-fields");
   const history = quick(state, "mandates", "row_id,name,customerId,amount,workflow,consentEvidence,history\nr1,History,DEMO-C1001,5000000,hosted_consent,SYNTHETIC-CONSENT,v1", { commit: false, mapping: { history: "policyVersionHistory" } });
   assert.equal(history.rows[0]!.message, "Policy version history (column history): A CSV column cannot fill this field. Choose Skip column for it."); checks += 1;
-  check(/policyVersionHistory: Expected array, received string/.test(String(history.rows[0]!.detail)), "the detail keeps zod's words");
+  check(/^Policy version history: Check this value\. It is not in the form this field takes\.$/.test(String(history.rows[0]!.detail)), `the detail says so in plain words, with the field's label (${history.rows[0]!.detail})`);
   // Every import field of every kind, given values it cannot take, is worded without a raw path or a zod default.
   const base: Record<string, Record<string, string>> = {
     customers: { name: "N", consentProvenance: "Synthetic" },

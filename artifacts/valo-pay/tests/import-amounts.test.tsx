@@ -97,7 +97,7 @@ describe('CSV amount units', () => {
     expect(refused.rows.map(row => row.message).slice(0, 3)).toEqual([
       expect.stringMatching(/JPY with no decimal places/),
       expect.stringMatching(/KWD with no more than 3 decimal places/),
-      expect.stringMatching(/XAU.*minor unit/),
+      expect.stringMatching(/cannot read an amount in XAU in its main unit, because XAU has no smaller unit/),
     ]);
     // The minor units a row states are taken as they are, whatever its currency.
     const minor = importCsv(state, ctx, { kind: 'observations', syntheticOnly: true, commit: true, amountUnit: 'kobo', csv: 'name,reference,amount,source,currency\nYen,CSV-JPY-MINOR,1000,card,JPY', identities: { source: 'currency-rows', batchId: 'minor', ids: ['minor-1'] } });
@@ -117,9 +117,9 @@ describe('CSV amount units', () => {
     expect(within(preview).getByRole('columnheader', { name: 'Amount to import' })).toBeTruthy();
     expect(within(preview).getAllByRole('row').slice(1).map(row => row.lastElementChild?.textContent)).toEqual(['JPY\u00a01,000', 'USD\u00a010.00', '₦18,000.50']);
     expect(document.getElementById('import-unit-help')?.textContent).toMatch(/The preview shows each converted amount in its currency\.$/);
-    expect(within(preview).getByText(/^Source amounts: Major units \(₦, or the row's currency\)\./)).toBeTruthy();
+    expect(within(preview).getByText(/^Source amounts: Main unit \(₦, or the row’s own currency\)\./)).toBeTruthy();
     // The sample file's unit is named as the unit control offers it, not by its raw value.
-    expect(screen.getByRole('button', { name: 'Download sample CSV' }).parentElement?.textContent).toMatch(/Download sample CSV to get started, with its amounts in the unit chosen above: Major units \(₦, or the row's currency\)\.$/);
+    expect(screen.getByRole('button', { name: 'Download sample CSV' }).parentElement?.textContent).toMatch(/Download sample CSV to get started, with its amounts in the unit chosen above: Main unit \(₦, or the row’s own currency\)\.$/);
   });
 
   // Integration fix: Import batches and Sources showed every converted amount as naira (JPY 1,000 as ₦10.00) and added

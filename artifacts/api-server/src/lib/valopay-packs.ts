@@ -7,7 +7,7 @@
  */
 import PDFDocument from "pdfkit";
 import { VALO_PACK_SANS_BOLD, VALO_PACK_SANS_REGULAR } from "../fonts/valo-pack-sans";
-import { counted, moneyText, otherCurrenciesText, WAT_OFFSET_MS } from "@workspace/valopay-schema";
+import { counted, moneyText, nairaText, otherCurrenciesText, WAT_OFFSET_MS } from "@workspace/valopay-schema";
 import type { Context, DomainState, ValopayRecord } from "../domain/types";
 import { inNaira, positionFor, unallocatedOtherCurrencies, type CustomerPosition, type OtherCurrencies } from "../domain/close";
 import { currencyOf, exceptionCurrency } from "../domain/reconciliation";
@@ -64,7 +64,7 @@ export interface DisputePack {
   note: string;
 }
 
-const kobo = (value: number): string => `NGN ${(value / 100).toLocaleString("en-NG", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const kobo = (value: number): string => nairaText(value);
 const watStamp = (iso: string): string => {
   const ms = Date.parse(iso);
   if (!Number.isFinite(ms)) return "n/a";
@@ -221,11 +221,11 @@ export function packFonts(): { regular: Buffer; bold: Buffer } {
   return fontFiles;
 }
 
-/** The naira sign is spelled "NGN" so the PDF reads as the CSV does, and control characters other than line breaks are dropped; everything else is rendered by the embedded typeface. */
+/** Control characters other than line breaks are dropped; everything else, the naira sign included, is rendered by the embedded typeface. */
 function pdfSafe(value: unknown): string {
   const source = text(value);
   if (source.length > 50_000) throw Object.assign(new Error('A PDF field exceeds the supported layout size. Use JSON or CSV for this record.'), { exportPdfFieldTooLarge: true });
-  return source.replace(/₦/g, "NGN ").replace(/[\p{Cc}\p{Cf}]/gu, (character) => (character === "\n" || character === "\t" ? character : ""));
+  return source.replace(/[\p{Cc}\p{Cf}]/gu, (character) => (character === "\n" || character === "\t" ? character : ""));
 }
 
 /** Rendering options; compress false for a test that reads the PDF back. */

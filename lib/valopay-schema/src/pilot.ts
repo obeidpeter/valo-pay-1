@@ -22,7 +22,7 @@ export function exportPermitted(role: string, kind: string): boolean {
   return !(sensitiveExportKinds as readonly string[]).includes(kind) || (sensitiveExportRoles as readonly string[]).includes(role);
 }
 /** The refusal, in plain words, for a role that may not queue, retry or download a sensitive export. */
-export const sensitiveExportRefusal = "Only an Admin, Finance or Compliance reviewer can export or download dispute packs, customer records or the audit trail.";
+export const sensitiveExportRefusal = "Only an Admin, Finance or Compliance reviewer can export or download dispute packs, customer records or the audit log.";
 /** Saved synthetic source batch, including the current revision for corrections. */
 export const batchInputSchema = z
   .object({

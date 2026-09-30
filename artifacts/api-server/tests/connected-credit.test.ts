@@ -684,7 +684,7 @@ test("service binds customer to tenant and rejects unexpected request fields", (
         ...assessAction,
         data: { ...assessAction.data, score: 100 },
       }),
-    /Unrecognized/,
+    /This request has details Valo Pay does not use/,
   );
 });
 test("service requires actual consent records and preserves missing state", () => {

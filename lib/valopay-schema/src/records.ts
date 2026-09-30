@@ -49,9 +49,9 @@ export function deadlinePassed(value: unknown, now: number | string): boolean {
 export const recordTextLimits = { status: 100, reference: 200, customerId: 100, eventId: 200 } as const;
 
 /** ISO date (YYYY-MM-DD) or a UTC ISO timestamp with millisecond precision or less, naming a real date. */
-export const isoDateOrTimestamp = z.string().regex(/^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z)?$/, "Use YYYY-MM-DD or a UTC timestamp such as 2026-09-18T07:00:00Z.").refine(isRealDate, "Enter a valid date.");
+export const isoDateOrTimestamp = z.string().regex(/^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z)?$/, "Use YYYY-MM-DD or a UTC timestamp such as 2026-09-18T07:00:00Z.").refine(isRealDate, "Enter a real date.");
 /** A day as YYYY-MM-DD, naming a real date. */
-export const isoDay = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD, for example 2026-09-18.").refine(isRealDate, "Enter a valid date.");
+export const isoDay = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD, for example 2026-09-18.").refine(isRealDate, "Enter a real date.");
 /**
  * A design partner's discount dates as the service recorded them (BIL-02). Saving signed terms with the dates records a
  * proposal bound to them: who proposed them (reviewedBy, the demo role or staff account, and proposedPrincipal, the person
@@ -64,7 +64,7 @@ export const discountReviewSchema = z.object({
   proposedPrincipal: z.string().optional(), confirmedBy: z.string().optional(), confirmedPrincipal: z.string().optional(), confirmedAt: isoDateOrTimestamp.optional(),
 });
 /** An amount in kobo: a non-negative safe integer. */
-export const kobo = z.number({ invalid_type_error: 'Enter an amount as a number.' }).int('Enter a whole number in kobo (100 kobo = ₦1).').min(0, 'The amount cannot be negative.').max(Number.MAX_SAFE_INTEGER, 'The amount is too large.');
+export const kobo = z.number({ invalid_type_error: 'Enter an amount as a number.' }).int('Enter the amount in naira, with no more than 2 decimal places.').min(0, 'Enter an amount of ₦0 or more.').max(Number.MAX_SAFE_INTEGER, 'This amount is too large. Enter a smaller amount.');
 const versionNumber = z.coerce.number().int().min(1);
 /** Every record the platform writes is marked synthetic; a provider-accepted notice clears it (NOT-10). */
 const common = { synthetic: z.boolean().optional() };
@@ -248,8 +248,8 @@ export const recordDataSchemas = {
     ...common,
     source: z.enum(observationSources),
     dueItemId: z.string().optional(),
-    provider: z.string().max(200, 'A provider identity is at most 200 characters.').optional(),
-    eventId: z.string().max(recordTextLimits.eventId, `An event ID is at most ${recordTextLimits.eventId} characters.`).optional(),
+    provider: z.string().max(200, 'Use at most 200 characters.').optional(),
+    eventId: z.string().max(recordTextLimits.eventId, `Use at most ${recordTextLimits.eventId} characters.`).optional(),
     narration: z.string().optional(),
     batchReference: z.string().optional(),
     feeKobo: kobo.optional(),
@@ -257,7 +257,7 @@ export const recordDataSchemas = {
     occurredAt: isoDateOrTimestamp.optional(),
     reversed: z.boolean().optional(),
     virtualAccountCustomerId: z.string().optional(),
-    providerConnection: z.string().max(200, 'A provider connection identity is at most 200 characters.').optional(),
+    providerConnection: z.string().max(200, 'Use at most 200 characters.').optional(),
     currency: z.string().optional(),
     settlementStatus: z.enum(settlementStatuses).optional(),
     paymentId: z.string().optional(),
@@ -382,7 +382,7 @@ export const recordDataSchemas = {
     provider: z.string().optional(),
     batchReference: z.string().min(1),
     /** The ISO 4217 code, in capitals, of the batch's money: its first counted line's, or what Finance entered (naira unless given). A batch an earlier build saved without one is in naira. */
-    currency: z.string().optional(),
+    currency: z.string({ invalid_type_error: "Enter the batch currency as a three-letter code, such as NGN or USD." }).optional(),
     grossKobo: kobo,
     feeKobo: kobo,
     netKobo: kobo,
@@ -405,7 +405,7 @@ export const recordDataSchemas = {
   exceptions: z.object({
     ...common,
     case: z.object({ assignee: z.string(), assigneeName: z.string(), nextAction: z.string(), nextActionAt: isoDateOrTimestamp, evidenceIds: z.array(z.string()),eventId:z.string().optional(),handoverEventId:z.string().optional() }).optional(),
-    type: z.string().min(1),
+    type: z.string({ required_error: "Choose one from the list." }).min(1, "Choose one from the list."),
     severity: z.enum(exceptionSeverities).optional(),
     owner: z.string().optional(),
     dueBy: isoDateOrTimestamp.optional(),

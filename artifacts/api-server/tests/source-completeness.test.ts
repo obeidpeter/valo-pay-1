@@ -25,7 +25,7 @@ const decision=(review:any)=>({action:"approve" as const,expectedUpdatedAt:revie
 assert.equal(watBusinessDate("2026-09-21T23:30:00.000Z"),date);
 {
   const state=fresh();assert.equal(sourceCompleteness(state,date).status,"incomplete");
-  assert.throws(()=>saveSourceManifest(state,ctx,{...declaration,businessDate:"2026-02-30"}),/valid business date/);
+  assert.throws(()=>saveSourceManifest(state,ctx,{...declaration,businessDate:"2026-02-30"}),/Enter a real business date/);
   assert.throws(()=>saveSourceManifest(state,{...ctx,role:"Read-only"},declaration),/role/);
   assert.throws(()=>saveSourceManifest(state,ctx,{...declaration,files:[file,file]}),/once/);
   const original=saveSourceManifest(state,ctx,declaration), snapshot=JSON.stringify(original);

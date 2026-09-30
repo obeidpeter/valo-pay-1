@@ -6,7 +6,7 @@ import { executeAction } from "../src/domain/actions.js";
 import { assertNoRealBankDetails, makeRecord, recordsOf } from "../src/domain/records.js";
 import { reconcile } from "../src/domain/reconciliation.js";
 import { seedMerchant } from "../src/lib/valopay-seed.js";
-import { exceptionCatalogue, recordStatuses } from "@workspace/valopay-schema";
+import { exceptionCatalogue, recordStatuses, templateTextProblems } from "@workspace/valopay-schema";
 import { importCsv } from "../src/lib/valopay-import.js";
 
 let checks = 0;
@@ -49,7 +49,7 @@ const patch = (record: any, changes: any) => ({ ...record, ...changes, data: { .
   assert.equal(created.data.severity, "high");
   assert.ok(created.data.dueBy > admin.now);
   assert.throws(() => validateRecord(state, ops, "exceptions", { name: "x", status: "open", data: { type: "something_else" } }), /Unknown exception type/);
-  assert.throws(() => validateRecord(state, ops, "exceptions", { name: "x", status: "open", data: {} }), /type/);
+  assert.throws(() => validateRecord(state, ops, "exceptions", { name: "x", status: "open", data: {} }), /Type: Choose one from the list\./);
   checks += 13;
 }
 
@@ -149,7 +149,7 @@ const patch = (record: any, changes: any) => ({ ...record, ...changes, data: { .
   const customer: any = { name: "c", status: "inactive", data: { consentProvenance: "Imported" } };
   assert.doesNotThrow(() => validateRecord(state, ops, "customers", customer));
   assert.throws(() => validateRecord(state, ops, "customers", { ...customer, status: "archived" }), new RegExp(`Allowed: ${recordStatuses.customers.join(", ")}`));
-  assert.throws(() => validateRecord(state, ops, "customers", { name: "c", status: "active", data: {} }), /consentProvenance/);
+  assert.throws(() => validateRecord(state, ops, "customers", { name: "c", status: "active", data: {} }), /Consent source or reference: Enter a value\./);
   const policy: any = { name: "p", status: "draft", data: { version: "2", maxAttempts: 3, spacingHours: 48, firstNoticeHours: 48, retryNoticeHours: 24, author: admin.actor } };
   validateRecord(state, admin, "policies", policy);
   assert.equal(policy.data.version, 2, "coerced numbers are written back");
@@ -172,6 +172,13 @@ const patch = (record: any, changes: any) => ({ ...record, ...changes, data: { .
     checks++;
   }
   assert.doesNotThrow(() => validateRecord(state, admin, 'templates', patch(template, { data: { text: '{{ merchant }} {{ amount }} {{ date }} {{ contact }}' } }), true));
+  // The lender's name is {{lender}}; {{merchant}}, its earlier spelling, keeps working in templates saved with it.
+  assert.doesNotThrow(() => validateRecord(state, admin, 'templates', patch(template, { data: { text: '{{ lender }} {{ amount }} {{ date }} {{ contact }}' } }), true));
+  assert.deepEqual(templateTextProblems('{{lender}}: Your payment of {{amount}} is due on {{date}}. For help, contact {{contact}}.'), [], '{{lender}} names the lender');
+  assert.deepEqual(templateTextProblems('{{merchant}}: Your payment of {{amount}} is due on {{date}}. For help, contact {{contact}}.'), [], 'a saved template with {{merchant}} still passes');
+  assert.deepEqual(templateTextProblems('Your payment of {{amount}} is due on {{date}}. For help, contact {{contact}}.'), ['Add {{lender}} to the message.'], 'a message without the lender\'s name asks for {{lender}}');
+  assert.deepEqual(templateTextProblems('{{shop}}: {{lender}} {{amount}} {{date}} {{contact}}'), ['Unknown placeholder {{shop}}. Use only {{amount}}, {{date}}, {{lender}} and {{contact}}.'], 'an unknown placeholder names the four to use');
+  checks += 5;
   act('submit_template');
   assert.throws(() => validateRecord(state, admin, 'templates', patch(template, { data: { text: originalText + ' Changed.' } }), true), /submitted template cannot be edited/);
   assert.throws(() => act('reject_template', { ...reviewer, actor: admin.actor }), /other than its author/);

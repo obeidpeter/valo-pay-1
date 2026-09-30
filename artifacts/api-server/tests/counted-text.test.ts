@@ -33,11 +33,11 @@ const empty = (id: string) => { const state = seedMerchant(id, true); state.reco
   const close = makeRecord(state, "closes" as string, { status: "completed", name: "Close", data: { report: { variances: { count: 1, batches: [] }, positionRebuild: { mismatches: [] }, unallocated: { count: 1, kobo: 500 }, proposed: { count: 2, kobo: 900 }, possibleDuplicates: { count: 0 } } } });
   const detail = Object.fromEntries(closeReviewIssues(close).map((issue) => [issue.id, issue.detail]));
   assert.equal(detail["settlement-variance"], "1 difference was recorded.");
-  assert.equal(detail.unallocated, "1 item totalling NGN 5.00 remains at this close.");
-  assert.equal(detail.proposed, "2 items totalling NGN 9.00 remain at this close.");
+  assert.equal(detail.unallocated, "1 item totalling ₦5.00 remains at this close.");
+  assert.equal(detail.proposed, "2 items totalling ₦9.00 remain at this close.");
   // Money in another currency is named beside the naira, in its own currency (the third review of the audit fixes).
   const withDollars = makeRecord(state, "closes" as string, { status: "completed", name: "Close", data: { report: { unallocated: { count: 2, kobo: 500, otherCurrencies: { USD: { count: 1, amount: 100_000 } } } } } });
-  assert.equal(Object.fromEntries(closeReviewIssues(withDollars).map((issue) => [issue.id, issue.detail])).unallocated, "2 items totalling NGN 5.00 and USD 1,000.00 remain at this close.");
+  assert.equal(Object.fromEntries(closeReviewIssues(withDollars).map((issue) => [issue.id, issue.detail])).unallocated, "2 items totalling ₦5.00 and USD 1,000.00 remain at this close.");
   checks += 4;
 }
 

@@ -432,7 +432,7 @@ describe('payments that cannot be allocated', () => {
     });
     expect(permissionReason(finance, { action: 'manual_allocate', record: reversed })).toBe('Payment SBX-REVERSED-1 was reversed by the provider. Its money went back, so it cannot be allocated to an instalment.');
     expect(permissionReason(finance, { action: 'manual_allocate', record: refunded })).toBe('Payment SBX-REFUNDED-1 was refunded to the payer. Its money went back, so it cannot be allocated to an instalment.');
-    expect(permissionReason(finance, { action: 'manual_allocate', record: partly })).toMatch(/^Payment SBX-REFUNDED-PART was refunded to the payer in part: NGN [\d,.]+ went back, so nothing is left to allocate to an instalment\.$/);
+    expect(permissionReason(finance, { action: 'manual_allocate', record: partly })).toMatch(/^Payment SBX-REFUNDED-PART was refunded to the payer in part: ₦[\d,.]+ went back, so nothing is left to allocate to an instalment\.$/);
     for (const payment of [reversed, refunded, partly]) expect(permissionReason(finance, { action: 'manual_allocate', record: payment })).toBe(serviceRefusal(payment));
   });
 });

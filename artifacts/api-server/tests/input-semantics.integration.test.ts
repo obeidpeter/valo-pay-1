@@ -83,7 +83,7 @@ try {
     assert.equal(ok(await call(q(`/v1/records/customers?updatedSince=${encodeURIComponent(withOffset)}`))).items.some((item: any) => item.id === latest.id), true, "an offset names the same instant");
     const before = ok(await call(q("/v1/records/exceptions"))).total;
     const impossible = await call(q("/v1/records/exceptions"), "POST", { name: "Due on 30 February", data: { type: "unallocated_payment", severity: "low", dueBy: "2026-02-30" } });
-    assert.deepEqual([impossible.status, /dueBy: Enter a valid date/.test(impossible.data.error), ok(await call(q("/v1/records/exceptions"))).total], [400, true, before], `an impossible deadline is refused, not rolled over to 2 March, and nothing is saved: ${JSON.stringify(impossible.data)}`);
+    assert.deepEqual([impossible.status, /^Due by: Enter a real date\.$/.test(impossible.data.error), ok(await call(q("/v1/records/exceptions"))).total], [400, true, before], `an impossible deadline is refused, not rolled over to 2 March, and nothing is saved: ${JSON.stringify(impossible.data)}`);
     checks += 9;
   }
 

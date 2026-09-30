@@ -27,7 +27,7 @@ export const importCorrectionChangesSchema = z
         (value) =>
           Number.isFinite(Date.parse(value)) &&
           new Date(value).toISOString().slice(0, 10) === value,
-        "Use a valid date.",
+        "Enter a real date.",
       )
       .optional(),
   })

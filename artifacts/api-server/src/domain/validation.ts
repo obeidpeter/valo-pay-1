@@ -1,5 +1,5 @@
 import {
-  ABSOLUTE_TICKET_FLOOR_KOBO, PLATFORM_OWNER, activationWorkflows, currencyMinorUnit, defaultStatus, describeIssues,
+  ABSOLUTE_TICKET_FLOOR_KOBO, PLATFORM_OWNER, activationWorkflows, currencyMinorUnit, defaultStatus, importFieldLabel,
   editableKinds, exceptionCatalogue, exceptionTransitions, executionOwners, experimentRules, isActionOnlyStatus, mandateTransitions, normaliseFailureCode, observationEventKey,
   normaliseOwner, policyGuardrails, recordDataSchemas, recordStatuses, recordTextLimits, resolveExceptionType, roles, isKnownFailureCode, isRealDate, templateTextProblems, discountTermsStatus,
 } from "@workspace/valopay-schema";
@@ -41,15 +41,15 @@ type Refuse = (field: string | undefined, message: string, rule?: ProblemRule) =
 const throwFirst: Refuse = (_field, message) => { throw new Error(message); };
 
 /** Every date-like field (named ...At, ...Date or ...Deadline) is a real calendar date as written: 2026-02-30 is refused, not read as 2 March (isRealDate). */
-function validateDates(value: unknown, refuse: Refuse, key = ""): void {
+function validateDates(kind: string, value: unknown, refuse: Refuse, key = ""): void {
   if (value && typeof value === "object" && !Array.isArray(value)) {
     Object.entries(value as Record<string, unknown>).forEach(([childKey, child]) => {
       if (/(At|Date|Deadline)$/.test(childKey) && child !== undefined && child !== null && (typeof child !== "string" || !isRealDate(child))) {
-        refuse(childKey, `${childKey} must use YYYY-MM-DD or a UTC timestamp such as 2026-09-18T07:00:00Z, and name a real date.`, { type: "date" });
+        refuse(childKey, `${importFieldLabel(kind, childKey)}: Enter a real date as YYYY-MM-DD, or a UTC timestamp such as 2026-09-18T07:00:00Z.`, { type: "date" });
       }
-      validateDates(child, refuse, childKey);
+      validateDates(kind, child, refuse, childKey);
     });
-  } else if (Array.isArray(value)) value.forEach((child) => validateDates(child, refuse, key));
+  } else if (Array.isArray(value)) value.forEach((child) => validateDates(kind, child, refuse, key));
 }
 
 function parent<K extends string>(state: DomainState, id: unknown, kind: K, label: string): RecordOf<K> {
@@ -64,9 +64,11 @@ function parseData(kind: string, data: Record<string, any>, problems?: Validatio
   const schema = (recordDataSchemas as Record<string, { safeParse: (value: unknown) => { success: true; data: Record<string, unknown> } | { success: false; error: any } }>)[kind];
   if (!schema) return;
   const result = schema.safeParse(data);
-  if (!result.success && !problems) throw new Error(`Invalid ${kind} data: ${describeIssues(result.error)}`);
+  // Each issue in the field's own words: "Due by: Enter a real date."
+  const worded = (issue: ZodIssue) => `${issue.path.length ? importFieldLabel(kind, String(issue.path[0])) : "Details"}: ${issue.message}`;
+  if (!result.success && !problems) throw new Error((result.error.issues as ZodIssue[]).map(worded).join(" "));
   if (!result.success) {
-    for (const issue of result.error.issues as ZodIssue[]) problems!.push({ ...(issue.path.length ? { field: String(issue.path[0]) } : {}), message: `${issue.path.join(".") || "data"}: ${issue.message}`, rule: { type: "issue", issue } });
+    for (const issue of result.error.issues as ZodIssue[]) problems!.push({ ...(issue.path.length ? { field: String(issue.path[0]) } : {}), message: worded(issue), rule: { type: "issue", issue } });
     return;
   }
   Object.assign(data, result.data);
@@ -158,7 +160,7 @@ export function validateRecord(
   }
   if (!problems) assertNoRealBankDetails(input);
   else for (const [key, value] of [...Object.entries(input).filter(([key]) => key !== "data"), ...Object.entries(input.data ?? {})]) attempt(key, () => assertNoRealBankDetails(value, key));
-  validateDates(input, refuse);
+  validateDates(kind, input, refuse);
   if (!editable.has(kind)) throw new Error(`${kind} cannot be created or edited directly.`);
   if (!roleSet.has(ctx.role) || ctx.role === "Read-only") throw Object.assign(new Error("This demo role has read-only access."), { status: 403 });
   if (input.merchantId && input.merchantId !== state.merchant.id) throw new Error("Linked records must belong to the same lender workspace.");
@@ -436,7 +438,7 @@ export function validateRecord(
     if (data.currency === undefined) delete data.currency;
     else {
       const code = typeof data.currency === "string" ? data.currency.trim().toUpperCase() : "";
-      if (currencyMinorUnit(code) === undefined) throw new Error("Enter the batch currency as an ISO 4217 code with a minor unit, such as NGN or USD.");
+      if (currencyMinorUnit(code) === undefined) throw new Error("Enter the batch currency as a three-letter code, such as NGN or USD.");
       data.currency = code;
       if (Array.isArray(existing?.data.lineObservationIds) && code !== String(existing!.data.currency || "NGN").toUpperCase()) throw new Error("A settlement batch built from the provider's lines is in its first line's currency, which reconciliation records; it cannot be changed here.");
     }

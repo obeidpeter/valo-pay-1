@@ -12,10 +12,10 @@ export const valueLabels: Readonly<Record<string, string>> = {
   returned: "Returned to the payer",
   in_collection: "Collection in progress", in_flight: "Awaiting an outcome",
   not_proven: "Not yet proven", not_eligible: "Not eligible for a retry",
-  would_schedule: "Would schedule a retry", observation_only: "Observation only",
+  would_schedule: "Would schedule a retry", observation_only: "Watch only: no instruction sent",
   give_up: "No further retries", defer: "Retry postponed", holdout: "Comparison group",
   engine: "Automated retry group", preregistered: "Plan registered",
-  handed_back: "Returned to the fallback collection owner",
+  handed_back: "Collection returned",
   transfer_to_activate: "Activate with a bank transfer", hosted_consent: "Consent through the provider",
   paper_mandate: "Paper mandate", not_ours: "Payment belongs elsewhere",
   allocated_manual: "Allocated manually", held_credit: "Kept as unallocated credit",
@@ -36,6 +36,9 @@ export const valueLabels: Readonly<Record<string, string>> = {
   MANDATE_LIMIT_EXCEEDED: "Mandate limit exceeded", BANK_UNAVAILABLE: "Bank unavailable",
   PROVIDER_ERROR: "Provider error", TIMEOUT_UNKNOWN: "Outcome unknown",
   DUPLICATE: "Duplicate instruction", CUSTOMER_DISPUTED: "Customer disputed the debit", UNKNOWN: "Unclassified failure",
+  // Codes the service writes: exception types as the exception catalogue names them, and service outcomes.
+  suspected_duplicate: "Possible duplicate", settlement_variance: "Settlement difference", unknown_outcome: "Outcome unknown",
+  condition_cleared: "Closed automatically", stop: "Collection stopped", csv_only: "CSV only",
 };
 
 /** A stored value in words: its label, or the value spelled out ("pending_review" as "Pending review"). */
