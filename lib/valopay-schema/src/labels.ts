@@ -41,7 +41,7 @@ export const valueLabels: Readonly<Record<string, string>> = {
   awaiting_verification: "Waiting for a Paystack check", quarantined: "Held for review", ignored_stale: "Ignored: older message",
   rejected_fixture: "Rejected: signature did not match", wrong_allocation: "Wrong match undone",
   re_allocation: "Allocated again at a higher value",
-  preview: "Waiting for approval", running: "In progress", attention: "Needs attention", already_absent: "Already deleted",
+  preview: "Waiting for review", running: "In progress", attention: "Needs attention", already_absent: "Already deleted",
   "staff.invited": "Invitation created", "staff.invitation_approved": "Invitation approved", "staff.invitation_revoked": "Invitation revoked",
   "staff.accepted": "Invitation accepted", "staff.change_requested": "Access change requested", "staff.changed": "Access changed",
   "staff.change_approved": "Access change approved", "staff.change_declined": "Access change rejected or withdrawn",

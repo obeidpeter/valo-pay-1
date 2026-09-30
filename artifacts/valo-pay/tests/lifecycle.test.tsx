@@ -55,7 +55,7 @@ it('shows deletion run and deletion record statuses in words, and keeps the prev
   enable(); const user = userEvent.setup(); renderApp('/lifecycle');
   await prepare(user);
   const runs = () => screen.getByRole('heading', { name: 'Deletion runs' }).closest('section')!;
-  await waitFor(() => expect(within(runs()).getByText('Waiting for approval · 0 deleted')).toBeTruthy());
+  await waitFor(() => expect(within(runs()).getByText('Waiting for review · 0 deleted')).toBeTruthy());
   const code = screen.getByText(/^Preview code \(SHA-256\): [a-f0-9]+$/).closest('details')!;
   expect(code.open).toBe(false);
   expect(within(code).getByText('Technical details')).toBeTruthy();
