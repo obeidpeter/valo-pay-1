@@ -174,11 +174,11 @@ export const helpGuides: HelpGuide[] = [
     steps: [
       "Open Collections. Choose All instalments, Overdue, Due today or Failed collection attempts. Use Collected by to filter by who collects them.",
       "Read each row’s amount, what is outstanding, the due date, its status and owner, and its next step.",
-      "To see what the retry policy would do next, select Test retry policy. To practise a failed collection attempt, select Simulate failed collection.",
+      "To see what the retry policy would do next, select Test retry policy. To practise a failed collection attempt, select Simulate failed collection attempt.",
       "To add sample instalments, select Import sample data.",
     ],
     result:
-      "The list shows each instalment as its saved records describe it. Testing a policy or simulating a failure changes only sample records. No money moved, and nothing was sent to a bank.",
+      "The list shows each instalment as its saved records describe it. Testing a policy changes nothing. Simulating a failure adds a failed collection attempt to the sample records. No money moved, and nothing was sent to a bank.",
     blocked:
       "If an instalment is on hold or in dispute, its row says why. Only Admin or Finance can release an instalment from dispute.",
     recovery:
@@ -197,7 +197,7 @@ export const helpGuides: HelpGuide[] = [
     steps: [
       "Run reconciliation on the sample payments, then select Run daily close on Reports. Open the saved close in Close review.",
       "Check that every expected file arrived and read the differences. Explain each one and name a different Finance reviewer. If you accept a difference that is still open, say so.",
-      "Select Submit for Finance review. The reviewer opens it from My work, checks it, and approves it or asks for changes.",
+      "Select Submit for Finance review. The reviewer opens it from My work, checks it, and selects Approve close or Request changes.",
     ],
     result:
       "Approval records that the reviewer accepted that daily close. It does not resolve exceptions, move money or approve later changes automatically.",
@@ -212,14 +212,14 @@ export const helpGuides: HelpGuide[] = [
     category: "Customers and policies",
     title: "Find a customer and their history",
     summary:
-      "Find a customer, then read their mandates, instalments, payments and history on one page.",
+      "Find a customer, then read their mandates, instalments, payments and past events on one page.",
     destination: "Customers, then the customer’s history",
     needs:
       "Access to the chosen lender. Every role can read customer records. Admin, Operations or Finance can add a customer.",
     steps: [
       "Open Customers. Search by name, reference or masked phone number, or press / to move to the search box.",
-      "Open the customer’s history from their row. Check their position first: what they still owe and what they have paid.",
-      "Read their mandates, instalments, payments and history. To add a customer, select Add customer and enter sample details only.",
+      "Open the customer’s history from their row. Check the Balance summary first: what is outstanding and what is allocated.",
+      "Read their mandates, instalments, payments and past events. To add a customer, select Add customer and enter sample details only.",
       "To collect a customer’s records for a dispute, select Export dispute pack (PDF), then download it from Saved exports when it is ready.",
     ],
     result:
@@ -283,9 +283,9 @@ export const helpGuides: HelpGuide[] = [
     needs:
       "The customer, lender, instalment, amount and currency. Pay by Bank practises the payment steps with sample data. It is not a live bank checkout.",
     steps: [
-      "Check the lender, customer, purpose, amount, currency and any fees. Then practise the customer’s authorisation at their bank.",
+      "Check the lender, customer, purpose, amount and currency. Then select Simulate authorisation to practise the customer’s step at their bank.",
       "Read the checkout’s progress. Awaiting authorisation, Authorised, Pending and Outcome unknown all mean the payment is not confirmed. They do not mean it failed either.",
-      "Go back to the same checkout to check the result. If its outcome is unknown, open the linked exception and wait for evidence. Do not create a new checkout to replace it.",
+      "Go back to the same checkout to check the result. If its outcome is unknown, wait for evidence. After 24 hours the daily close opens an exception for Finance, and the checkout links to it. Do not create a new checkout to replace it.",
     ],
     result:
       "A confirmed payment and a settlement are different events: confirmation does not mean the provider has paid out. In the sandbox, both are sample evidence.",
@@ -305,7 +305,7 @@ export const helpGuides: HelpGuide[] = [
     needs:
       "An applicant for the chosen lender, with two separate permissions: Read applicant accounts and Assess an application. Admin or Operations runs the assessment. A different Admin, Finance or Compliance reviewer reviews it.",
     steps: [
-      "Choose the applicant and check their permissions. Run a new assessment, or open the version for the loan request you are reviewing.",
+      "Choose the applicant and check their permissions. Select Run assessment for a new version, or choose the version you are reviewing in Assessment version.",
       "Read how much evidence there is, how old it is, and the costs, commitments and explanation. Missing evidence or permission stops the assessment. It does not mean zero risk.",
       "In the review panel, enter your decision, your reasons and the explanation for the applicant, then select Record review. If you change the recommended outcome, explain why.",
     ],
@@ -329,7 +329,7 @@ export const helpGuides: HelpGuide[] = [
     steps: [
       "Check when each account’s balance was read and whether its source is up to date. An older balance may not show the money available now.",
       "Compare commitments, expected receipts, fees and the planning buffer. Treat unknown or hidden figures as needing review, not as zero.",
-      "Check the assumptions, then select Save forecast. If the sample data is out of date, refresh it on the page and prepare the forecast again.",
+      "Check the assumptions, then select Save forecast. If the sample data is out of date, select Refresh sample balances and prepare the forecast again.",
     ],
     result:
       "A forecast is a plan based on its recorded evidence. A planning buffer keeps no money aside, and refreshing sample data does not contact a bank.",
@@ -349,9 +349,9 @@ export const helpGuides: HelpGuide[] = [
     needs:
       "The Read business accounts and Prepare accounting drafts and VAT schedules permissions, and the sample receipt. An Admin or Operations team member prepares the draft, and a different Finance reviewer checks it.",
     steps: [
-      "Prepare the draft. Check the receipt, the amount before fees, the fee, the amount after fees, the invoice it pays and the account mapping.",
-      "A different Finance reviewer checks the draft and approves it. Before that, recheck any amount still owed and any closed accounting period.",
-      "Prepare the reviewed export while the evidence and permissions are current, then download the export file.",
+      "Select Prepare accounting draft. Check the receipt, the amount before fees, the fee, the amount after fees, the invoice it pays and the account mapping.",
+      "A different Finance reviewer checks the draft and selects Approve draft. Before that, recheck any amount still owed and any closed accounting period.",
+      "Select Prepare export file while the evidence and permissions are current, then download the export file.",
     ],
     result:
       "This prepares a sample accounting export. Nothing was posted to accounting software, and your accounting software stays the official record.",
@@ -393,9 +393,9 @@ export const helpGuides: HelpGuide[] = [
     needs:
       "An approved sample net-pay run, and the Read business accounts and Prepare payroll funding permissions. An Admin or Operations team member prepares the plan, and a different Finance reviewer checks it.",
     steps: [
-      "Prepare the funding plan from the approved run. Check the source account, when its balance was read, and the commitments, fees and buffer.",
-      "Ask a different Finance reviewer to check the plan and its items. If the funding evidence is too low or out of date, fix it before export.",
-      "When the checks pass, prepare and download the reviewed export file. Track each item’s outcome in the same plan.",
+      "Select Prepare funding plan for the approved run. Check the source account, when its balance was read, and the commitments, fees and buffer.",
+      "Ask a different Finance reviewer to check the plan and its items and select Approve funding plan. If the funding evidence is too low or out of date, fix it before export.",
+      "When the checks pass, select Prepare bank export file and download it. Track each item’s outcome in the same plan.",
     ],
     result:
       "Approving the funding and downloading the file pay no one. No one has been paid, and your payroll system still does the calculations.",
@@ -417,7 +417,7 @@ export const helpGuides: HelpGuide[] = [
     steps: [
       "Read the purpose, subject and expiry. Reading accounts, assessing an application, preparing accounting drafts and preparing payroll funding each need a separate permission.",
       "If you do not want to set up a sample permission, leave the form without saving. You can still read why the task is blocked.",
-      "To withdraw a permission, select it and check who it covers and what will stop. Enter a reason, then select Withdraw permission.",
+      "To withdraw a permission, select Withdraw on its row and check who it covers and what will stop. Enter a reason, then select Withdraw permission.",
     ],
     result:
       "Withdrawing stops new work that depends on the permission and keeps past evidence. Payments already on their way can still be reconciled. It does not undo an earlier payment or withdraw other permissions.",
@@ -445,7 +445,7 @@ export const helpGuides: HelpGuide[] = [
     result:
       "A daily close is saved as a record you can review. Running it is not approval: a different person must review it. Reports use sample data only.",
     blocked:
-      "If a daily close cannot run, the page says why, such as files missing for that date. Each button says which roles can use it.",
+      "If a daily close cannot run, the page says why, such as a date in the future. Missing files do not stop it: the close records them for the Finance reviewer. Each button says which roles can use it.",
     recovery:
       "If a daily close was interrupted, check Request history before you run it again.",
     terms: ["close", "close-review", "pilot-results", "sample-data"],
@@ -503,7 +503,7 @@ export const helpGuides: HelpGuide[] = [
     needs:
       "Access to the chosen lender. Admin can add evidence. Admin or Finance can add commercial terms and confirm discount dates.",
     steps: [
-      "Open Go-live evidence and read the live readiness checks: what is recorded and what is not yet checked.",
+      "Open Go-live evidence and read Go-live requirements: what is recorded and what is still missing.",
       "Select Add evidence and enter its title, owner and date, with a reference or link to the document.",
       "Select Add terms to record a lender’s commercial terms. When the terms have discount dates, a different person selects Confirm discount dates after checking the signed agreement.",
       "Every two weeks, select Record review and tick the tasks you checked.",
@@ -553,7 +553,7 @@ export const helpGuides: HelpGuide[] = [
       "Some invitations and role changes need a second Admin to approve them before they take effect.",
     ],
     result:
-      "The person works only on the lenders you gave them, in their role. An invitation lasts seven days, and membership lasts 90 days.",
+      "The person works only on the lenders you gave them, in their role. An invitation lasts seven days, and access lasts 90 days from when they accept.",
     blocked:
       "Only Admin can invite or change team members. You cannot approve your own invitation or change: another Admin must.",
     recovery:
@@ -573,14 +573,14 @@ export const helpGuides: HelpGuide[] = [
       "In Retention policy, choose how long each kind of file is kept, enter a reason and select Save retention policy. Saving a policy deletes nothing.",
       "To keep an item from deletion, choose it and select Place a hold.",
       "Select Prepare deletion preview to see exactly which items would be deleted.",
-      "A different Admin checks every item and approves the deletion run. Then select Start deletion.",
+      "A different Admin checks every item, ticks the box and selects Approve deletion. Then select Start deletion.",
     ],
     result:
       "Only the approved items are deleted, and a deletion record proves each one. Financial records and the audit log are never deleted.",
     blocked:
-      "An item on hold is never deleted. You cannot approve a deletion preview you prepared yourself.",
+      "An item on hold is never deleted. In a pilot, a different Admin must approve a deletion preview you prepared.",
     recovery:
-      "If a run stops part way, open it in the saved deletion runs and resume it. Items already deleted stay deleted.",
+      "If a run stops part way, open it in Deletion runs and select Continue deletion. Items already deleted stay deleted.",
     terms: ["deletion-run", "deletion-record", "audit-log"],
   },
   {
@@ -621,7 +621,7 @@ export const helpTerms: readonly HelpTerm[] = [
     id: "accounting-draft",
     term: "Accounting draft",
     meaning:
-      "A proposed entry for a receipt in the accounting records, waiting for a Finance review. Valo Pay never posts it to your accounting software.",
+      "A proposed entry for a receipt in the accounting records, waiting for a Finance review. Valo Pay does not post it to your accounting software.",
     also: ["Accounting work waiting for review", "ERP"],
   },
   {
@@ -697,7 +697,7 @@ export const helpTerms: readonly HelpTerm[] = [
     id: "customer-history",
     term: "Customer history",
     meaning:
-      "One customer’s mandates, instalments, payments and history on one page. Open it from the customer’s row on Customers.",
+      "One customer’s mandates, instalments, payments and past events on one page. Open it from the customer’s row on Customers.",
     also: ["Customer timeline", "timeline"],
   },
   {
@@ -794,7 +794,7 @@ export const helpTerms: readonly HelpTerm[] = [
     term: "Mandate",
     meaning:
       "A customer’s permission for recurring bank debits, which you can suspend, resume, cancel or reissue. It does not show that any one debit worked.",
-    also: ["Permission for recurring bank debits", "Debit mandate", "recurring debit"],
+    also: ["Permission for recurring bank debits", "Debit mandate", "recurring debit", "pause", "Pause, cancel or reissue a debit mandate"],
   },
   {
     id: "match",
@@ -807,7 +807,7 @@ export const helpTerms: readonly HelpTerm[] = [
     id: "notification-template",
     term: "Message template",
     meaning:
-      "The reviewed wording of a message to a customer. A preview or an approved template does not show that a message was sent or read.",
+      "The reviewed wording of a message to a customer. A preview or an approved template does not show that a message was sent, received or accepted.",
     also: ["Reviewed message wording", "Notification template"],
   },
   {
@@ -821,7 +821,7 @@ export const helpTerms: readonly HelpTerm[] = [
     id: "stale",
     term: "Out of date",
     meaning:
-      "The data is too old to rely on. Check the time shown and refresh it on the page before you use it for new work.",
+      "The data is too old, or it has changed. Check the time shown and refresh it on the page before you use it for new work.",
     also: ["Data may be out of date", "Stale evidence", "stale"],
   },
   {
@@ -841,7 +841,7 @@ export const helpTerms: readonly HelpTerm[] = [
     id: "observation",
     term: "Payment evidence",
     meaning:
-      "A record of a payment from a bank statement, a settlement report or a provider notification. Two records can describe the same payment, so Valo Pay counts it once.",
+      "A record of a payment from a bank statement, a settlement report or a provider notification. Two records can describe the same payment. Valo Pay joins them when they match, and holds any it cannot tell apart for Finance to check.",
     also: ["Observation", "payment observation", "source record", "webhook"],
   },
   {
@@ -856,7 +856,7 @@ export const helpTerms: readonly HelpTerm[] = [
     term: "Permission",
     meaning:
       "A recorded agreement for one purpose, such as reading an applicant’s accounts. You grant it and can withdraw it, and its status is Active, Withdrawn or Expired.",
-    also: ["consent", "authority", "revoke", "Permissions & readiness"],
+    also: ["consent", "authority", "revoke", "Permissions & readiness", "Access & recovery"],
   },
   {
     id: "pilot-results",
@@ -869,7 +869,7 @@ export const helpTerms: readonly HelpTerm[] = [
     id: "account-read",
     term: "Read applicant accounts",
     meaning:
-      "The permission to read an applicant’s bank accounts for one purpose and period. Permission to read an account is not permission to take money from it.",
+      "The permission to read an applicant’s bank accounts for one purpose and period. It does not allow an assessment: that needs Assess an application. Permission to read an account is not permission to take money from it.",
     also: ["Permission to read an account", "Account-read consent", "account-read"],
   },
   {
@@ -905,27 +905,27 @@ export const helpTerms: readonly HelpTerm[] = [
     term: "Request not confirmed",
     meaning:
       "Valo Pay’s answer to a request was lost, so you do not know yet whether it was saved. Check the original request before you change anything.",
-    also: ["Outcome not confirmed", "Unconfirmed operation", "unconfirmed request", "interrupted request"],
+    also: ["Outcome not confirmed", "Unconfirmed operation", "unconfirmed request", "interrupted request", "recover", "recovery", "Recover an interrupted request", "Access & recovery"],
   },
   {
     id: "collection-policy",
     term: "Retry policy",
     meaning:
       "The rules for when and how often to retry a collection. Testing or approving a policy sends no instruction and does not replace a mandate’s consent and notice checks.",
-    also: ["Retry rules", "Collection policy", "collection rules"],
+    also: ["Retry rules", "Collection policy", "collection rules", "Policies & templates", "Review retry rules and message templates"],
   },
   {
     id: "reviewer",
     term: "Reviewer",
     meaning:
-      "The different person who checks work that someone else prepared. A different person must review it, and switching demo roles is not a second person.",
+      "The person who checks work that someone else prepared. A different person must review it, and switching demo roles is not a second person.",
     also: ["preparer", "A separate person checks the work", "Maker/checker separation", "maker", "checker", "independent review"],
   },
   {
     id: "role",
     term: "Role",
     meaning:
-      "What you can do in Valo Pay. The roles are Admin, Operations, Finance, Compliance reviewer and Read-only, and reading help does not change yours.",
+      "Your job in Valo Pay, which decides what you can do. The roles are Admin, Operations, Finance, Compliance reviewer and Read-only, and reading help does not change yours.",
     also: ["Your allowed actions", "Role and current authority", "authority"],
   },
   {
@@ -1033,7 +1033,7 @@ export function matchesHelpSearch(query: string, ...text: string[]): boolean {
   const normalise = (value: string) =>
     value
       .normalize("NFKD")
-      .replace(/[̀-ͯ]/g, "")
+      .replace(/[\u0300-\u036f]/g, "")
       .toLocaleLowerCase();
   const content = normalise(text.join(" "));
   return normalise(query)

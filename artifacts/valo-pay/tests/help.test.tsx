@@ -153,6 +153,12 @@ describe("public task help", () => {
       ["mandate", /Suspend, resume, cancel or reissue a mandate/],
       ["reconciliation", /Match a payment to an instalment/],
       ["payroll", /Prepare a reviewed payroll file/],
+      // Words and names the guides used before the language pass still find them.
+      ["recover", /Check a request that was not confirmed/],
+      ["Recover an interrupted request", /Check a request that was not confirmed/],
+      ["pause", /Suspend, resume, cancel or reissue a mandate/],
+      ["Policies & templates", /Review retry policies and message templates/],
+      ["Access & recovery", /Grant or withdraw a permission/],
     ] as const;
     for (const [query, title] of cases) {
       await user.clear(input);
