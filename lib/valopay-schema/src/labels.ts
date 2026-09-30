@@ -36,11 +36,16 @@ export const valueLabels: Readonly<Record<string, string>> = {
   MANDATE_LIMIT_EXCEEDED: "Mandate limit exceeded", BANK_UNAVAILABLE: "Bank unavailable",
   PROVIDER_ERROR: "Provider error", TIMEOUT_UNKNOWN: "Outcome unknown",
   DUPLICATE: "Duplicate instruction", CUSTOMER_DISPUTED: "Customer disputed the debit", UNKNOWN: "Unclassified failure",
-  // Import batches, Data sources, Data retention and Team and access.
+  // Import batches, Data sources, Reports, Data retention and Team and access.
   committed: "Imported", awaiting_review: "Waiting for review", awaiting_first_delivery: "Waiting for the first delivery",
   awaiting_verification: "Waiting for a Paystack check", quarantined: "Held for review", ignored_stale: "Ignored: older message",
   rejected_fixture: "Rejected: signature did not match", wrong_allocation: "Wrong match undone",
   re_allocation: "Allocated again at a higher value",
+  "staff.invited": "Invitation created", "staff.invitation_approved": "Invitation approved", "staff.invitation_revoked": "Invitation revoked",
+  "staff.accepted": "Invitation accepted", "staff.change_requested": "Access change requested", "staff.changed": "Access changed",
+  "staff.change_approved": "Access change approved", "staff.change_declined": "Access change rejected or withdrawn",
+  "staff.lender_access_changed": "Lender access changed", "staff.provisioned": "First Admin set up by the Valo Pay team",
+  "staff.administrator_added": "Admin added by the Valo Pay team", "staff.renewed": "Access renewed",
 };
 
 /** A stored value in words: its label, or the value spelled out ("pending_review" as "Pending review"). */

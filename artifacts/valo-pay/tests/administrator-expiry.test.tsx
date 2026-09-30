@@ -72,7 +72,7 @@ it("says nothing to a staff administrator whose access lasts", async () => {
   const reads = staffHost("Admin", [member("Clerk:user_me", "Admin", new Date(Date.now() + 60 * DAY).toISOString())]);
   // Team & access shows the same read of the team, so once its member is on screen the warning has had its data.
   renderApp("/team");
-  await screen.findByText(/^Admin · active · expires /);
+  await screen.findByText(/^Admin · Active · expires /);
   expect(screen.queryByRole("status", { name: "Administrator access" })).toBeNull();
   expect(reads.team).toBe(1);
 });

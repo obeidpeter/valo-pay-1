@@ -171,7 +171,7 @@ it("identifies demo access honestly and does not offer working staff invitation 
   expect(
     screen.queryByRole("button", { name: "Create invitation" }),
   ).toBeNull();
-  expect(screen.getByText(/requires a configured organisation/)).toBeTruthy();
+  expect(screen.getByText(/Named staff accounts need the Valo Pay team to set up your organisation and its first Admin/)).toBeTruthy();
 });
 
 it("offers the latest saved version after a colleague saves the batch", async () => {
@@ -367,15 +367,15 @@ it("lists what waits for a second administrator and never offers the asker their
   };
   const user = userEvent.setup();
   renderApp("/team");
-  const panel = (await screen.findByRole("heading", { name: "Waiting for a second administrator" })).closest("section")!;
+  const panel = (await screen.findByRole("heading", { name: "Waiting for a second Admin" })).closest("section")!;
   expect(within(panel).getAllByRole("button", { name: "Approve invitation" })).toHaveLength(1);
-  expect(within(panel).getByText("You sent it: another administrator approves it.")).toBeTruthy();
+  expect(within(panel).getByText("You sent this, so another Admin must approve it.")).toBeTruthy();
   expect(within(panel).getAllByRole("button", { name: "Approve change" })).toHaveLength(1);
-  expect(within(panel).getByText("You asked for it: another administrator approves it.")).toBeTruthy();
-  expect(within(panel).getAllByRole("button", { name: "Decline change" })).toHaveLength(1);
-  expect(within(panel).getByText("A change to your own membership: another administrator approves or declines it.")).toBeTruthy();
-  expect(screen.getByText(/finance@example\.test · Finance/).parentElement?.textContent).toContain("waiting for a second administrator");
-  expect(screen.getByText("Operations · active").textContent).not.toContain("expires");
+  expect(within(panel).getByText("You asked for this, so another Admin must approve it.")).toBeTruthy();
+  expect(within(panel).getAllByRole("button", { name: "Reject change" })).toHaveLength(1);
+  expect(within(panel).getByText("This change is to your own access, so another Admin must approve or reject it.")).toBeTruthy();
+  expect(screen.getByText(/finance@example\.test · Finance/).parentElement?.textContent).toContain("waiting for a second Admin");
+  expect(screen.getByText("Operations · Active").textContent).not.toContain("expires");
   await user.click(within(panel).getByRole("button", { name: "Approve invitation" }));
   expect(await within(panel).findByText("Invitation approved: finance@example.test can now accept it as Finance.")).toBeTruthy();
   await user.click(within(panel).getByRole("button", { name: "Withdraw request" }));
@@ -599,7 +599,7 @@ for (const page of ["/pilot", "/team"] as const) it(`asks before leaving ${page}
     expect(leaving()).toBe(false);
     await user.click(screen.getByRole("button", { name: "Create lender" }));
   } else {
-    const verify = await screen.findByRole("button", { name: "Verify encryption access" });
+    const verify = await screen.findByRole("button", { name: "Check the encryption key" });
     expect(leaving()).toBe(false);
     await user.click(verify);
   }

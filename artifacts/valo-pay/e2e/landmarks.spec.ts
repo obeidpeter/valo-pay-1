@@ -39,7 +39,7 @@ const routes: Array<[string, string | RegExp]> = [
   ["/pilot", "Pilot journey"],
   ["/sources", "Data sources"],
   ["/operations", "Operations"],
-  ["/team", "Team & access"],
+  ["/team", "Team and access"],
   ["/lifecycle", "Data retention"],
   ["/settings", "Settings & administration"],
   ["/presentation", /^Show how a lender/],

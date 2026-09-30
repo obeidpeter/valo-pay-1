@@ -92,7 +92,7 @@ for (const [how, said] of [
 for (const theme of ['light', 'dark'] as const) test(`new operations pages expose bounded state and clear setup controls in ${theme}`, async ({ page }, info) => {
   await page.emulateMedia({ colorScheme: theme });
   await page.addInitScript(value => localStorage.setItem('valopay-theme', value), theme);
-  for (const [route, title] of [['/work', 'My work'], ['/close-review', 'Finance close review'], ['/lifecycle', 'Data retention'], ['/team', 'Team & access']]) {
+  for (const [route, title] of [['/work', 'My work'], ['/close-review', 'Finance close review'], ['/lifecycle', 'Data retention'], ['/team', 'Team and access']]) {
     await page.goto(route);
     await expect(page.getByRole('heading', { name: title, exact: true })).toBeVisible();
     if (route === '/work') await expect(page.getByText('No work assigned here', { exact: true })).toBeVisible();
@@ -113,9 +113,12 @@ for (const theme of ['light', 'dark'] as const) test(`new operations pages expos
       await expect(page.getByRole('checkbox', { name: 'Generated export files' })).not.toBeChecked();
     }
     if (route === '/team') {
-      await expect(page.getByRole('heading', { name: 'Staff pilot setup' })).toBeVisible();
+      // The server's setup checks are an Admin's closed Technical setup section.
+      const setup = page.locator('details').filter({ has: page.getByRole('heading', { name: 'Technical setup', exact: true }) });
+      await expect(setup).not.toHaveAttribute('open', '');
+      await setup.getByRole('heading', { name: 'Technical setup', exact: true }).click();
       await expect(page.getByText('No external wrapping key is configured in this offline test.', { exact: true })).toBeVisible();
-      await expect(page.getByRole('button', { name: 'Verify encryption access' })).toHaveCount(0);
+      await expect(page.getByRole('button', { name: 'Check the encryption key' })).toHaveCount(0);
     }
     await audit(page);
     await page.screenshot({ path: info.outputPath(`${route.slice(1)}-${theme}.png`), fullPage: true });
