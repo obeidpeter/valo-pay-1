@@ -48,7 +48,7 @@ const cashSections = [
   { id: "cash", label: "Cash and forecast", icon: ChartNoAxesCombined, description: "Check each balance’s timestamp and your assumptions before you save a forecast. A planning buffer does not set money aside." },
   { id: "accounting", label: "Accounting", icon: FileCheck2, description: "Admin or Operations prepares the draft. A different Finance reviewer approves it before export. Your accounting software stays the official record." },
   { id: "vat", label: "VAT evidence", icon: ShieldCheck, description: "Check invoice, bank and ledger evidence with an accountant. Saving a VAT schedule does not file a VAT return or pay tax." },
-  { id: "payroll", label: "Payroll funding", icon: Users, description: "Check there is enough money for the approved payroll (net pay), have a different Finance reviewer approve the plan and track each item. Approving the plan and exporting the file do not pay anyone." },
+  { id: "payroll", label: "Payroll funding", icon: Users, description: "Check there is enough money for the approved payroll (net pay). A different Finance reviewer approves the plan. Approving the plan and exporting the file do not pay anyone." },
 ] as const;
 export default function CashDeskPage() {
   const api = useConnected();

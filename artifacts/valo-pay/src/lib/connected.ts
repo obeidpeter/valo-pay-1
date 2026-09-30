@@ -71,7 +71,7 @@ export function useConnected() {
     retry: false,
     mutationFn: async (input: ConnectedInput) => {
       if (!merchantId || !query.data)
-        throw new Error("Wait for the workspace to load.");
+        throw new Error("Wait for the page to load.");
       await attempt.execute(input, async ({ payload, key, input: original }) => {
         const result = await request(
           `/api/v1/connected/actions?merchantId=${encodeURIComponent(merchantId)}`,
