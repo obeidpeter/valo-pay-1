@@ -128,7 +128,7 @@ for (const record of beforeProviderIdentity) if (record.kind === "settlement-bat
   assert.equal(record.data.providerIdentityKey, JSON.stringify([String(record.data.providerConnection).trim().toLowerCase(), record.reference]));
   delete record.data.providerIdentityKey;
 }
-assert.equal(digest([state.merchant, state.settings, beforeProviderIdentity.sort(byId)]), "bf1a1d1ba6bd71ea02dfe7b44ddfcb60f9e33820d46133140a60a141952325d3", "only the new provider identity changes the earlier golden records (reworded as the language pass below says)");
+assert.equal(digest([state.merchant, state.settings, beforeProviderIdentity.sort(byId)]), "e3ff5b673db1bfb92cdd484ccd78827465e9e749e5bd8852dcf8f8d80ac3d57b", "only the new provider identity changes the earlier golden records (reworded as the language pass below says)");
 if (process.env.VALOPAY_GOLDEN_PRINT === "1") console.log(JSON.stringify({ outcome, records, visits: [first.visits, second.visits] }, null, 2));
 /**
  * Computed for this scenario by the code before its lookups were indexed: first at c22c229, then again by the dispute
@@ -142,11 +142,12 @@ if (process.env.VALOPAY_GOLDEN_PRINT === "1") console.log(JSON.stringify({ outco
  * summary ("Daily close 1 Jul 2027", "payment evidence records received", "older than 24 hours"), and the names,
  * explanations, notes, reasons and cancellation reasons reconciliation and the retry rules write ("Payment PSK-1",
  * "Allocation of PSK-1 to DEMO-1", "Retry decision · retry postponed (notice not confirmed)"), and the details of the
- * measurements a close records ("1,016 of 1,089 payments are allocated in full or in part", "Amount still owed on instalments"), checked field by field
+ * measurements a close records ("1,016 of 1,089 payments are allocated in full or in part", "Amount still owed on instalments"), and the sample
+ * lender's segment and customer contact details ("Tier-2 lender · sample data", "the Meridian Credit collections team"), checked field by field
  * against the records the earlier code wrote; the close answers' data are unchanged.
  */
 const golden = {
-  records: "4535eeb7775b836e4cdffc1bbe3f513a6f77bc83d768ef4af2905b6388cc324c",
+  records: "c20a3f1a83aaf278434ffa9c97c0591c62dfb6b3b1c8c3cfbffe515898f95750",
   monthEnd: "dff97eb6d50336fb650cf48652975f842fd2b85f14df835eb535a7dbb4a35a7d",
   nextDay: "1a88e829ce6bd3940c6a5248e5bbdfddc0a7786480202fc138aca0a834c4a798",
 };

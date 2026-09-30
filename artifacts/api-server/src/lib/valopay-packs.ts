@@ -7,10 +7,11 @@
  */
 import PDFDocument from "pdfkit";
 import { VALO_PACK_SANS_BOLD, VALO_PACK_SANS_REGULAR } from "../fonts/valo-pack-sans";
-import { counted, moneyText, nairaText, otherCurrenciesText, WAT_OFFSET_MS } from "@workspace/valopay-schema";
+import { collectionOwnerText, counted, dayText, evidenceSourceText, instantText, moneyText, nairaText, notFoundText, optionText, otherCurrenciesText, recordTypeTitle, supersededReasonText, valueLabel, valueWords, WAT_OFFSET_MS } from "@workspace/valopay-schema";
 import type { Context, DomainState, ValopayRecord } from "../domain/types";
 import { inNaira, positionFor, unallocatedOtherCurrencies, type CustomerPosition, type OtherCurrencies } from "../domain/close";
 import { currencyOf, exceptionCurrency } from "../domain/reconciliation";
+import { policySummary, retryRuleText } from "../domain/policy-engine";
 import { recordsOf } from "../domain/records";
 import { verifyAudit } from "./valopay-store";
 import { collectExportBytes } from './export-download';
@@ -65,12 +66,29 @@ export interface DisputePack {
 }
 
 const kobo = (value: number): string => nairaText(value);
+/** The CSV's atWAT column: a WAT time other systems read, kept in its original form. */
 const watStamp = (iso: string): string => {
   const ms = Date.parse(iso);
   if (!Number.isFinite(ms)) return "n/a";
   return `${new Date(ms + WAT_OFFSET_MS).toISOString().slice(0, 19).replace("T", " ")} WAT`;
 };
 const text = (value: unknown): string => value === undefined || value === null || value === "" ? "" : typeof value === "object" ? JSON.stringify(value) : String(value);
+/** A stored instant as people read it, "18 Sept 2026, 08:00 WAT", or "not recorded". */
+const when = (value: unknown): string => typeof value === "string" && Number.isFinite(Date.parse(value)) ? instantText(value) : "not recorded";
+/** A message channel in words: "SMS". */
+const channelText = (channel: unknown): string => String(channel) === "sms" ? "SMS" : valueLabel(channel);
+/** Why a match was taken out of use, in today's words. */
+const noLongerApplied = (reason: unknown): string => {
+  const why = supersededReasonText(reason);
+  return /^(No longer applied|An accuracy review)/.test(why) ? why : `No longer applied: ${why}`;
+};
+const yesNo = (value: unknown): string => value ? "yes" : "no";
+/** How a mandate is activated, after "Activation:". */
+const activationText = (workflow: unknown): string => {
+  const phrases: Record<string, string> = { transfer_to_activate: "by bank transfer", hosted_consent: "consent through the provider", paper_mandate: "paper mandate" };
+  const code = String(workflow ?? "");
+  return Object.hasOwn(phrases, code) ? phrases[code]! : valueWords(code);
+};
 
 /** The policy, template and cutover versions that governed an instant: the latest approved before it (AUD-06). */
 function governing(documents: GoverningDocument[], kind: GoverningDocument["kind"], at: string): GoverningDocument | undefined {
@@ -83,7 +101,7 @@ function governingDocuments(state: DomainState): GoverningDocument[] {
   approvedPolicies.forEach((policy, index) => documents.push({
     id: policy.id, kind: "policies", name: policy.name, version: Number(policy.data.version || 1), status: policy.status,
     appliesFrom: String(policy.data.approvedAt), appliesUntil: approvedPolicies[index + 1] ? String(approvedPolicies[index + 1]!.data.approvedAt) : null,
-    text: `Up to ${counted(Number(policy.data.maxAttempts ?? 3), "attempt")} counting every source; at least ${policy.data.spacingHours ?? 48} hours between attempts; first notice ${policy.data.firstNoticeHours ?? 48} hours before the first attempt; failed-debit notice ${policy.data.retryNoticeHours ?? 24} hours before any re-presentation; partial debits ${policy.data.partialAllowed ? "allowed" : "not allowed"}. Compliance mapping: ${policy.data.complianceMapping ?? "not recorded"}. Approved by ${policy.data.reviewer ?? "n/a"} (author ${policy.data.author ?? "n/a"}).`,
+    text: `${policySummary(policy)} Rules it follows: ${text(policy.data.complianceMapping).replace(/\.$/, "") || "not recorded"}. Approved by ${text(policy.data.reviewer) || "not recorded"}; written by ${text(policy.data.author) || "not recorded"}.`,
     parameters: { maxAttempts: policy.data.maxAttempts, spacingHours: policy.data.spacingHours, firstNoticeHours: policy.data.firstNoticeHours, retryNoticeHours: policy.data.retryNoticeHours, partialAllowed: policy.data.partialAllowed, author: policy.data.author, reviewer: policy.data.reviewer, approvedAt: policy.data.approvedAt },
   }));
   const approvedTemplates = recordsOf(state, "templates").filter((item) => item.status === "approved" && item.data.approvedAt).sort((a, b) => String(a.data.approvedAt).localeCompare(String(b.data.approvedAt)));
@@ -97,8 +115,8 @@ function governingDocuments(state: DomainState): GoverningDocument[] {
     id: cutover.id, kind: "cutovers", name: cutover.name, version: null, status: cutover.status,
     appliesFrom: String(cutover.data.handedBackAt || cutover.createdAt), appliesUntil: contracts[index + 1] ? String(contracts[index + 1]!.data.handedBackAt || contracts[index + 1]!.createdAt) : null,
     text: cutover.status === "handed_back"
-      ? `Hand-back to ${cutover.data.fallbackOwner ?? "the fallback owner"}: ${(cutover.data.checklist as string[] | undefined)?.join("; ") ?? ""}. Confirmation: ${cutover.data.confirmation ?? ""}`
-      : `Inventory: ${cutover.data.inventory ?? ""}. Incumbent disabled: ${cutover.data.incumbentDisabled ? "yes" : "no"}; external attempts imported: ${cutover.data.externalAttemptsImported ? "yes" : "no"}; dual-run complete: ${cutover.data.dualRunComplete ? "yes" : "no"}; accountable user: ${cutover.data.accountableUser ?? ""}; fallback owner: ${cutover.data.fallbackOwner ?? ""}. Confirmation: ${cutover.data.confirmation ?? ""}`,
+      ? `Collection returned to ${collectionOwnerText(cutover.data.fallbackOwner)}: ${(cutover.data.checklist as string[] | undefined)?.join("; ") ?? ""}. Confirmation: ${text(cutover.data.confirmation) || "none"}`
+      : `Collection systems: ${text(cutover.data.inventory) || "not recorded"}. Previous collection system switched off: ${yesNo(cutover.data.incumbentDisabled)}; its collection attempts imported: ${yesNo(cutover.data.externalAttemptsImported)}; parallel-run day complete: ${yesNo(cutover.data.dualRunComplete)}; named person: ${text(cutover.data.accountableUser) || "not named"}; collection returns to: ${collectionOwnerText(cutover.data.fallbackOwner)}. Confirmation: ${text(cutover.data.confirmation) || "none"}`,
     parameters: { fallbackOwner: cutover.data.fallbackOwner, accountableUser: cutover.data.accountableUser, incumbentDisabled: cutover.data.incumbentDisabled, externalAttemptsImported: cutover.data.externalAttemptsImported, dualRunComplete: cutover.data.dualRunComplete },
   }));
   return documents.sort((a, b) => a.appliesFrom.localeCompare(b.appliesFrom));
@@ -118,30 +136,34 @@ function describe(record: ValopayRecord): { event: string; detail: string } {
   const d = record.data;
   const notice = d.noticeRequired as { purpose?: unknown; requiredBy?: unknown; evidenced?: unknown } | undefined;
   const inputs = d.inputs as { code?: unknown; attemptNumber?: unknown; ceiling?: unknown } | undefined;
+  const status = valueWords(record.status);
   switch (record.kind) {
-    case "customers": return { event: "Customer record", detail: `Consent provenance: ${text(d.consentProvenance)}.` };
-    case "mandates": return { event: `Mandate ${record.status}`, detail: `Workflow ${text(d.workflow)}; origin ${text(d.origin)}; consent evidence ${text(d.consentEvidence) || "none"}${Array.isArray(d.consentGaps) && d.consentGaps.length ? `; consent gaps: ${d.consentGaps.join(", ")}` : ""}; limit ${kobo(record.amountKobo)}.` };
-    case "due-items": return { event: `Due item ${record.reference} ${record.status}`, detail: `Due ${text(d.dueDate)}; owner ${text(d.owner)}; outstanding ${kobo(Number(d.outstandingKobo ?? record.amountKobo))}${d.experimentArm ? `; experiment arm ${d.experimentArm}` : ""}${d.amendedAt ? `; amended ${watStamp(String(d.amendedAt))}` : ""}.` };
-    case "attempts": return { event: `Attempt ${text(d.number) || "?"} ${record.status}`, detail: `${text(d.source)} source${d.failureCode ? `; failure code ${d.failureCode}` : ""}${d.rawFailureCode && d.rawFailureCode !== d.failureCode ? ` (raw ${d.rawFailureCode})` : ""}${d.providerReference ? `; provider reference ${d.providerReference}` : ""}${d.cancellationReason ? `; ${d.cancellationReason}` : ""}.` };
-    case "observations": return { event: `Observation (${text(d.source)})`, detail: `${record.status}${d.resolutionKey ? ` by ${d.resolutionKey}` : ""}${d.paymentId ? `; resolved to payment ${d.paymentId}` : ""}${d.resolvedTo ? `; resolved to ${d.resolvedTo}` : ""}${d.batchReference ? `; batch ${d.batchReference}` : ""}.` };
-    case "payments": return { event: `Payment ${record.reference} ${record.status}`, detail: `Channel ${text(d.channel)}; collection ${text(d.collectionStatus)}; settlement ${text(d.settlementStatus)}; reversal ${text(d.reversalStatus)}; refund ${text(d.refundStatus)}; allocated ${moneyText(Number(d.allocatedKobo || 0), currencyOf(record))}${d.explanation ? `; ${text(d.explanation).replace(/\.$/, "")}` : ""}.` };
-    case "allocations": return { event: `Allocation ${text(d.rule)} ${record.status}`, detail: `${text(d.confidence)} confidence${d.automatic ? ", automatic" : ""}; ${text(d.explanation)}${d.supersededReason ? ` Superseded: ${d.supersededReason}` : ""}${typeof d.reviewed === "boolean" ? ` Reviewed ${d.reviewed ? "correct" : "wrong"} by ${text(d.reviewedBy)}.` : ""}` };
-    case "exceptions": return { event: `Exception ${text(d.type)} ${record.status}`, detail: `Owner ${text(d.owner)}; severity ${text(d.severity)}; due by ${d.dueBy ? watStamp(String(d.dueBy)) : "n/a"}${d.resolutionCode ? `; resolved ${d.resolutionCode} by ${text(d.resolvedBy)}` : ""}. ${text(d.notes)}` };
-    case "notifications": return { event: `Notification ${text(d.purpose)} ${record.status}`, detail: `${text(d.channel)}; ${text(d.class)} class; accepted ${d.acceptedAt ? watStamp(String(d.acceptedAt)) : "not accepted"}; delivered ${d.deliveredAt ? watStamp(String(d.deliveredAt)) : "not delivered"}. Text: ${text(d.renderedText)}` };
+    case "customers": return { event: "Customer record", detail: `Consent source: ${text(d.consentProvenance) || "not recorded"}.` };
+    case "mandates": return { event: `Mandate: ${status}`, detail: `Activation: ${activationText(d.workflow)}; origin: ${valueWords(d.origin)}; consent evidence: ${text(d.consentEvidence) || "none"}${Array.isArray(d.consentGaps) && d.consentGaps.length ? `; missing consent evidence: ${d.consentGaps.join(", ")}` : ""}; debit limit ${kobo(record.amountKobo)}.` };
+    case "due-items": return { event: `Instalment ${record.reference}: ${status}`, detail: `Due ${d.dueDate ? dayText(d.dueDate) : "date not recorded"}; collected by ${collectionOwnerText(d.owner)}; outstanding ${kobo(Number(d.outstandingKobo ?? record.amountKobo))}${d.experimentArm ? `; recovery test: ${valueWords(d.experimentArm)}` : ""}${d.amendedAt ? `; corrected ${when(d.amendedAt)}` : ""}.` };
+    case "attempts": return { event: `Collection attempt${d.number ? ` ${text(d.number)}` : ""}: ${status}`, detail: `${d.source === "external" ? "Recorded from another collection system" : `Source: ${valueWords(d.source)}`}${d.failureCode ? `; failure: ${valueLabel(d.failureCode)} (${d.failureCode})` : ""}${d.rawFailureCode && d.rawFailureCode !== d.failureCode ? `; code as received: ${d.rawFailureCode}` : ""}${d.providerReference ? `; provider reference ${d.providerReference}` : ""}${d.cancellationReason ? `; ${d.cancellationReason}` : ""}.` };
+    case "observations": return { event: `Payment evidence from ${evidenceSourceText(d.source)}`, detail: `${valueLabel(record.status)}${d.resolutionKey ? `, matched by ${valueWords(d.resolutionKey)}` : ""}${d.paymentId ? `; linked to payment record ${d.paymentId}` : ""}${d.resolvedTo ? `; resolved to ${text(d.resolvedTo)}` : ""}${d.batchReference ? `; settlement batch ${d.batchReference}` : ""}.` };
+    case "payments": return { event: `Payment ${record.reference}: ${status}`, detail: `Channel: ${valueWords(d.channel)}; collection: ${valueWords(d.collectionStatus)}; settlement: ${valueWords(d.settlementStatus)}; reversal: ${valueWords(d.reversalStatus)}; refund: ${valueWords(d.refundStatus)}; allocated ${moneyText(Number(d.allocatedKobo || 0), currencyOf(record))}${d.explanation ? `; ${text(d.explanation).replace(/\.$/, "")}` : ""}.` };
+    case "allocations": return { event: `Allocation: ${status}`, detail: `${valueLabel(d.confidence)} match${d.automatic ? ", made automatically" : ""} (rule ${text(d.rule) || "not recorded"}). ${text(d.explanation)}${d.supersededReason ? ` ${noLongerApplied(d.supersededReason)}` : ""}${typeof d.reviewed === "boolean" ? ` Reviewed as ${d.reviewed ? "correct" : "wrong"} by ${text(d.reviewedBy)}.` : ""}` };
+    case "exceptions": return { event: `Exception: ${valueLabel(d.type)} (${status})`, detail: `Owner: ${text(d.owner) || "not set"}; severity: ${valueWords(d.severity)}; deadline ${d.dueBy ? when(d.dueBy) : "not set"}${d.resolutionCode ? `; resolved as ${optionText(d.resolutionCode)} by ${text(d.resolvedBy)}` : ""}. ${text(d.notes)}` };
+    case "notifications": return { event: `Customer message: ${valueWords(d.purpose)} (${status})`, detail: `${channelText(d.channel)}; ${valueWords(d.class)} message; ${d.acceptedAt ? `accepted by the provider ${when(d.acceptedAt)}` : "not yet accepted by the provider"}; ${d.deliveredAt ? `delivered ${when(d.deliveredAt)}` : "not delivered"}. Text: ${text(d.renderedText)}` };
     case "retry-decisions": return {
-      event: `Retry decision: ${text(d.decision).replace(/_/g, " ")}`,
-      detail: `Row ${text(d.rule)}; policy v${text(d.policyVersion)}; ${text(d.reason)}${d.nextAt ? ` Next attempt ${watStamp(String(d.nextAt))}.` : ""}${notice ? ` Notice required: ${text(notice.purpose)}${notice.requiredBy ? ` by ${watStamp(String(notice.requiredBy))}` : ""}, ${notice.evidenced ? "evidenced" : "not evidenced"}.` : ""}${d.experimentArm ? ` Arm ${d.experimentArm}.` : ""} Inputs: code ${text(inputs?.code) || "none"}, attempt ${text(inputs?.attemptNumber)} of ${text(inputs?.ceiling)}.`,
+      event: `Retry decision: ${valueWords(d.decision)}`,
+      detail: `Rule: ${retryRuleText(d.rule)}; retry policy version ${text(d.policyVersion) || "not recorded"}. ${text(d.reason)}${d.nextAt ? ` Next attempt ${when(d.nextAt)}.` : ""}${notice ? ` Notice needed: ${valueWords(notice.purpose)}${notice.requiredBy ? ` by ${when(notice.requiredBy)}` : ""}, ${notice.evidenced ? "confirmed" : "not confirmed"}.` : ""}${d.experimentArm ? ` Recovery test: ${valueWords(d.experimentArm)}.` : ""} Inputs: failure ${inputs?.code ? valueLabel(inputs.code) : "none"}, attempt ${text(inputs?.attemptNumber)} of ${text(inputs?.ceiling)}.`,
     };
-    case "audit": return { event: `Action ${record.name}`, detail: `${text(d.actor)}: ${text(d.summary)}` };
-    case "case-events": return { event: record.name, detail: `${text(d.note)} Assignee: ${text(d.after?.assigneeName)}. Next action: ${text(d.after?.nextAction)}; follow-up ${d.after?.nextActionAt ? watStamp(String(d.after.nextActionAt)) : 'not set'}. Evidence: ${text(d.after?.evidenceIds || [])}.` };
-    default: return { event: `${record.kind} ${record.status}`, detail: text(record.name) };
+    case "audit": return { event: `Action: ${valueLabel(record.name)}`, detail: `${text(d.actor)}: ${text(d.summary)}` };
+    case "case-events": {
+      const evidence = Array.isArray(d.after?.evidenceIds) ? (d.after.evidenceIds as unknown[]).map(String) : [];
+      return { event: record.name, detail: `${text(d.note)} Assigned to: ${text(d.after?.assigneeName) || "no one"}. Next step: ${text(d.after?.nextAction) || "not set"}; follow-up ${d.after?.nextActionAt ? when(d.after.nextActionAt) : "not set"}. Evidence: ${evidence.length ? evidence.join(", ") : "none"}.` };
+    }
+    default: return { event: `${recordTypeTitle(record.kind)}: ${status}`, detail: text(record.name) };
   }
 }
 
 /** One customer's complete evidence, sorted oldest first, with the governing versions resolved per event. */
 export function buildDisputePack(state: DomainState, ctx: Context, customerId: string): DisputePack {
   const customer = recordsOf(state, "customers").find((record) => record.id === customerId);
-  if (!customer) throw Object.assign(new Error("Customer not found."), { status: 404 });
+  if (!customer) throw Object.assign(new Error(notFoundText("customer")), { status: 404 });
   const related = [customer, ...state.records.filter((record) => record.customerId === customerId && record.id !== customerId)];
   const relatedIds = new Set(related.map((record) => record.id));
   const actions = recordsOf(state, "audit").filter((record) => relatedIds.has(String(record.data.objectId)) || record.data.objectId === customerId);
@@ -156,7 +178,7 @@ export function buildDisputePack(state: DomainState, ctx: Context, customerId: s
     const at = eventTime(record);
     const { event, detail } = describe(record);
     return {
-      at, kind: record.kind, event, status: record.status, reference: record.reference, amountKobo: record.amountKobo, currency: currencyFor(record), detail: detail + (record.data.importIdentity ? ` Imported from ${text(record.data.importIdentity.source)}; source row ${text(record.data.importIdentity.rowId)}${record.data.importIdentity.batchId ? `; batch ${text(record.data.importIdentity.batchId)}` : ''}.` : ''),
+      at, kind: record.kind, event, status: record.status, reference: record.reference, amountKobo: record.amountKobo, currency: currencyFor(record), detail: detail + (record.data.importIdentity ? ` Imported from ${text(record.data.importIdentity.source)}; source row ID ${text(record.data.importIdentity.rowId)}${record.data.importIdentity.batchId ? `; import batch ${text(record.data.importIdentity.batchId)}` : ''}.` : ''),
       actor: ['audit', 'case-events'].includes(record.kind) ? text(record.data.actor) || null : record.data.confirmedBy || record.data.reviewedBy || record.data.resolvedBy || null,
       policyVersion: governing(documents, "policies", at)?.version ?? null,
       templateVersion: governing(documents, "templates", at)?.version ?? null,
@@ -186,12 +208,12 @@ export function buildDisputePack(state: DomainState, ctx: Context, customerId: s
       retryDecisions: by("retry-decisions").length,
       humanActions: actions.length,
       consent,
-      governingVersions: { policies: documents.filter((d) => d.kind === "policies").map((d) => `v${d.version} from ${watStamp(d.appliesFrom)}`), templates: documents.filter((d) => d.kind === "templates").map((d) => `v${d.version} from ${watStamp(d.appliesFrom)}`), cutovers: documents.filter((d) => d.kind === "cutovers").map((d) => `${d.name} (${d.status}) from ${watStamp(d.appliesFrom)}`) },
+      governingVersions: { policies: documents.filter((d) => d.kind === "policies").map((d) => `version ${d.version} from ${when(d.appliesFrom)}`), templates: documents.filter((d) => d.kind === "templates").map((d) => `version ${d.version} from ${when(d.appliesFrom)}`), cutovers: documents.filter((d) => d.kind === "cutovers").map((d) => `${d.name} (${valueWords(d.status)}) from ${when(d.appliesFrom)}`) },
       events: timeline.length,
     },
     timeline, documents,
     auditVerification: verifyAudit(state),
-    note: "Sample data only, not live evidence. Amounts are stored in whole kobo and displayed in naira (NGN); money in another currency is stored in that currency's minor unit, shown in its own currency and never added to a naira total. Times use West Africa Time (WAT). Valo Pay never holds money. Each file has a SHA-256 checksum to check its integrity, saved with the export record and download link.",
+    note: "Sample data only, not live evidence. Amounts are stored in whole kobo and shown in naira (₦). Money in another currency is stored in that currency’s smallest unit, shown in its own currency and never added to a naira total. Times are in West Africa Time (WAT). Valo Pay never holds money. Each file has a SHA-256 checksum, saved with its export record, to show the file has not changed.",
   };
 }
 
@@ -235,7 +257,7 @@ export interface PdfOptions { compress?: boolean; signal?: AbortSignal; timeoutM
 export async function renderDisputePackPdf(pack: DisputePack, options: PdfOptions = {}): Promise<Buffer> {
     options.signal?.throwIfAborted();
     const margin = 40;
-    const document = new PDFDocument({ size: "A4", lang: "en-GB", margin, bufferPages: true, compress: options.compress ?? true, info: { Title: `Dispute pack ${text(pack.customer.reference)}`, Author: "Valo Pay", Subject: "AUD-02 dispute pack (synthetic sandbox)" } });
+    const document = new PDFDocument({ size: "A4", lang: "en-GB", margin, bufferPages: true, compress: options.compress ?? true, info: { Title: `Dispute pack ${text(pack.customer.reference)}`, Author: "Valo Pay", Subject: "Dispute pack (sample data)" } });
     const result = collectExportBytes(document, options.signal, 32 * 1024 * 1024, options.timeoutMs ?? 30_000);
     void result.catch(() => {});
     const deadline = performance.now() + (options.timeoutMs ?? 30_000);
@@ -249,14 +271,14 @@ export async function renderDisputePackPdf(pack: DisputePack, options: PdfOption
     const heading = (title: string) => { document.moveDown(0.6); document.font("Sans-Bold").fontSize(12).fillColor("#102E2A").text(pdfSafe(title)); document.fillColor("#222222").moveDown(0.3); };
 
     // ---- Page 1: summary ----
-    document.font("Sans-Bold").fontSize(20).fillColor("#102E2A").text("VALO PAY  -  Dispute pack");
-    document.font("Sans").fontSize(9).fillColor("#9B6524").text("SYNTHETIC SANDBOX - NOT LIVE EVIDENCE").fillColor("#222222").moveDown(0.5);
-    line("Customer", `${text(pack.customer.name)} (${text(pack.customer.reference)}) - ${text(pack.customer.status)}`);
-    line("Lender", `${pack.merchant.name} - provider ${pack.merchant.provider} - ${pack.merchant.mode} mode`);
-    line("Bank", `${text(pack.customer.bankName) || "n/a"} ${text(pack.customer.accountMasked)}  phone ${text(pack.customer.phoneMasked) || "n/a"}`);
-    line("Generated", `${watStamp(pack.generatedAt)} by ${pack.generatedBy}`);
-    line("Audit chain", `${pack.auditVerification.valid ? "verified intact" : "BROKEN"}; ${counted(pack.auditVerification.count, "entry", "entries")}; head ${pack.auditVerification.headHash.slice(0, 16)}`);
-    heading("Customer position (from instalments and payment records; no funds held)");
+    document.font("Sans-Bold").fontSize(20).fillColor("#102E2A").text("Valo Pay dispute pack");
+    document.font("Sans").fontSize(9).fillColor("#9B6524").text("Sample data only: not live evidence").fillColor("#222222").moveDown(0.5);
+    line("Customer", `${text(pack.customer.name)} (${text(pack.customer.reference)}) · ${valueWords(pack.customer.status)}`);
+    line("Lender", `${pack.merchant.name} · provider ${pack.merchant.provider} · ${pack.merchant.mode === "observation" ? "Valo Pay only watches collections" : "Valo Pay sends collection instructions"}`);
+    line("Bank", `${text(pack.customer.bankName) || "not recorded"} ${text(pack.customer.accountMasked)} · phone ${text(pack.customer.phoneMasked) || "not recorded"}`);
+    line("Prepared", `${when(pack.generatedAt)} by ${pack.generatedBy}`);
+    line("Audit log", `${pack.auditVerification.valid ? "every entry checked and intact" : "the check failed; ask an Admin to investigate"} (${counted(pack.auditVerification.count, "entry", "entries")})`);
+    heading("Customer position (from instalments and payments; Valo Pay never holds money)");
     line("Total instalments", kobo(pack.position.obligationsKobo));
     line("Allocated", kobo(pack.position.allocatedKobo));
     line("Outstanding", kobo(pack.position.outstandingKobo));
@@ -268,25 +290,28 @@ export async function renderDisputePackPdf(pack: DisputePack, options: PdfOption
     const s = pack.summary as Record<string, any>;
     line("Mandates", `${s.mandates.count} (${s.mandates.active} active, ${s.mandates.pendingActivation} awaiting activation)`);
     line("Instalments", `${s.dueItems.count} (${s.dueItems.paid} paid, ${s.dueItems.inCollection} in collection, ${s.dueItems.unpaidFinal} unpaid after final attempt, ${s.dueItems.inDispute} in dispute)`);
-    line("Attempts", `${s.attempts.count} (${s.attempts.succeeded} succeeded, ${s.attempts.failed} failed, ${s.attempts.cancelled} cancelled)`);
+    line("Collection attempts", `${s.attempts.count} (${s.attempts.succeeded} succeeded, ${s.attempts.failed} failed, ${s.attempts.cancelled} cancelled)`);
     line("Payments", `${s.payments.count} totalling ${kobo(s.payments.kobo)}${beside(s.payments.otherCurrencies)} (${s.payments.reversed} reversed)`);
-    line("Allocations", `${s.allocations.confirmed} confirmed, ${s.allocations.superseded} superseded`);
+    line("Allocations", `${s.allocations.confirmed} confirmed, ${s.allocations.superseded} no longer applied`);
     line("Exceptions", `${s.exceptions.open} open, ${s.exceptions.resolved} resolved`);
-    line("Notifications", `${s.notifications.count} (${s.notifications.accepted} accepted by the provider, ${s.notifications.delivered} delivered)`);
+    line("Customer messages", `${s.notifications.count} (${s.notifications.accepted} accepted by the provider, ${s.notifications.delivered} delivered)`);
     line("Retry decisions", `${s.retryDecisions}`);
     line("Staff actions", `${s.humanActions}`);
     heading("Customer consent");
     if (!s.consent.length) document.font("Sans").fontSize(9).text("No mandate on file.");
     for (const item of s.consent as Array<{ mandate: string; evidence: string; gaps: string[]; provenance: string }>) {
       check();
-      line(item.mandate, `evidence ${item.evidence || "none"}; provenance ${item.provenance || "n/a"}${item.gaps.length ? `; GAPS: ${item.gaps.join(", ")}` : "; no gaps"}`);
+      line(item.mandate, `evidence ${item.evidence || "none"}; consent source ${item.provenance || "not recorded"}${item.gaps.length ? `; missing evidence: ${item.gaps.join(", ")}` : "; nothing missing"}`);
     }
-    heading("Versions in effect at the time (AUD-06)");
+    heading("Versions in effect at the time");
     line("Retry policy", s.governingVersions.policies.join("; ") || "no approved version");
-    line("Notice template", s.governingVersions.templates.join("; ") || "no approved version");
-    line("Cutover contract", s.governingVersions.cutovers.join("; ") || "none");
+    line("Message template", s.governingVersions.templates.join("; ") || "no approved version");
+    line("Collection transfer", s.governingVersions.cutovers.join("; ") || "none");
     document.moveDown(0.6);
-    document.font("Sans").fontSize(8).fillColor("#555555").text(pdfSafe(pack.note)).fillColor("#222222");
+    document.font("Sans").fontSize(8).fillColor("#555555").text(pdfSafe(pack.note));
+    // An auditor's check of the audit log needs its last entry's hash: shown once, under its own heading, saying what it is for.
+    if (pack.auditVerification.count) document.moveDown(0.3).text(pdfSafe(`Technical details: the last audit log entry’s hash is ${pack.auditVerification.headHash.slice(0, 16)}. An auditor can compare it with the audit log to show no entry was changed.`));
+    document.fillColor("#222222");
 
     // ---- Timeline pages ----
     const columns = [
@@ -294,7 +319,7 @@ export async function renderDisputePackPdf(pack: DisputePack, options: PdfOption
       { key: "event", title: "Event", x: margin + 86, width: 120 },
       { key: "detail", title: "Detail", x: margin + 210, width: width - 210 - 62 - 34 },
       { key: "amount", title: "Amount", x: margin + width - 92, width: 62 },
-      { key: "policy", title: "Pol.", x: margin + width - 28, width: 28 },
+      { key: "policy", title: "Policy", x: margin + width - 28, width: 28 },
     ] as const;
     const tableHeader = () => {
       document.font("Sans-Bold").fontSize(8).fillColor("#102E2A");
@@ -310,7 +335,7 @@ export async function renderDisputePackPdf(pack: DisputePack, options: PdfOption
     tableHeader();
     for (const event of pack.timeline) {
       check();
-      const cells: Record<string, string> = { at: watStamp(event.at), event: pdfSafe(`${event.event}${event.actor ? ` (${event.actor})` : ""}`), detail: pdfSafe(event.detail), amount: event.amountKobo ? moneyText(event.amountKobo, event.currency) : "", policy: event.policyVersion ? `v${event.policyVersion}` : "-" };
+      const cells: Record<string, string> = { at: when(event.at), event: pdfSafe(`${event.event}${event.actor ? ` (${event.actor})` : ""}`), detail: pdfSafe(event.detail), amount: event.amountKobo ? moneyText(event.amountKobo, event.currency) : "", policy: event.policyVersion ? `v${event.policyVersion}` : "-" };
       const height = Math.max(...columns.map((column) => document.heightOfString(cells[column.key] || " ", { width: column.width }))) + 4;
       if (document.y + height > bottom) { document.addPage(); document.y = margin; tableHeader(); }
       const y = document.y;
@@ -321,11 +346,11 @@ export async function renderDisputePackPdf(pack: DisputePack, options: PdfOption
 
     // ---- Governing documents ----
     document.addPage();
-    document.font("Sans-Bold").fontSize(12).fillColor("#102E2A").text("Documents in effect at the time (AUD-06)", margin, margin, { width }).fillColor("#222222").moveDown(0.4);
-    if (!pack.documents.length) document.font("Sans").fontSize(9).text("No approved policy version, template or cutover contract applied to this customer's events.", margin, document.y, { width });
+    document.font("Sans-Bold").fontSize(12).fillColor("#102E2A").text("Documents in effect at the time", margin, margin, { width }).fillColor("#222222").moveDown(0.4);
+    if (!pack.documents.length) document.font("Sans").fontSize(9).text("No approved retry policy version, message template or collection transfer applied to this customer’s events.", margin, document.y, { width });
     for (const item of pack.documents) {
       check();
-      const title = `${item.kind === "policies" ? "Retry policy" : item.kind === "templates" ? "Notice template" : "Cutover contract"} ${item.version ? `v${item.version} ` : ""}- ${item.name} (${item.status}); applied from ${watStamp(item.appliesFrom)}${item.appliesUntil ? ` until ${watStamp(item.appliesUntil)}` : " onwards"}`;
+      const title = `${item.kind === "policies" ? "Retry policy" : item.kind === "templates" ? "Message template" : "Collection transfer"} ${item.version ? `version ${item.version} ` : ""}· ${item.name} (${valueWords(item.status)}); in effect from ${when(item.appliesFrom)}${item.appliesUntil ? ` until ${when(item.appliesUntil)}` : " onwards"}`;
       const body = pdfSafe(item.text);
       const needed = document.heightOfString(title, { width }) + document.heightOfString(body, { width }) + 16;
       if (document.y + needed > bottom) { document.addPage(); document.y = margin; }
@@ -340,7 +365,7 @@ export async function renderDisputePackPdf(pack: DisputePack, options: PdfOption
       document.switchToPage(index);
       // Writing inside the bottom margin would otherwise make pdfkit open a new page.
       document.page.margins.bottom = 0;
-      document.font("Sans").fontSize(7.5).fillColor("#666666").text(pdfSafe(`Page ${index - range.start + 1} of ${range.count}  |  Valo Pay dispute pack  |  ${text(pack.customer.reference)}  |  synthetic sandbox  |  generated ${watStamp(pack.generatedAt)}`), margin, document.page.height - margin + 4, { width, align: "center", lineBreak: false });
+      document.font("Sans").fontSize(7.5).fillColor("#666666").text(pdfSafe(`Page ${index - range.start + 1} of ${range.count}  ·  Valo Pay dispute pack  ·  ${text(pack.customer.reference)}  ·  sample data only  ·  prepared ${when(pack.generatedAt)}`), margin, document.page.height - margin + 4, { width, align: "center", lineBreak: false });
     }
     document.end();
     } catch (error) { document.destroy(error instanceof Error ? error : new Error(String(error))); }

@@ -130,6 +130,16 @@ export function evidenceSourceText(source: unknown): string {
   return Object.hasOwn(phrases, code) ? phrases[code]! : valueWords(code);
 }
 
+/** Who collects an instalment, inside a sentence: "the loan management system", "the lender team", "Valo Pay". */
+export function collectionOwnerText(owner: unknown): string {
+  const phrases: Record<string, string> = {
+    lms: "the loan management system", merchant_manual: "the lender team", provider_auto: "the provider’s automatic collection",
+    valo: "Valo Pay", valopay: "Valo Pay",
+  };
+  const code = String(owner ?? "");
+  return Object.hasOwn(phrases, code) ? phrases[code]! : code ? valueWords(code) : "not recorded";
+}
+
 /** Items in a sentence: "A, B or C", or with "and": "A, B and C". */
 export function listText(items: readonly string[], joiner: "or" | "and" = "or"): string {
   return items.length < 2 ? items.join("") : `${items.slice(0, -1).join(", ")} ${joiner} ${items.at(-1)}`;

@@ -101,7 +101,7 @@ test("an import whose name falls back warns, suggests the column and asks before
   page,
 }) => {
   const warning =
-    "No column is mapped to Name, so each record's name is taken from its reference (or its row number without one). Not mapped to a field: full_name, which looks like the name. Map the column that holds the name, or commit knowing the fallback is saved.";
+    "No column is mapped to Name, so each record’s name is taken from its reference (or its row number without one). Not mapped to a field: full_name, which looks like the name. Map the column that holds the name, or import anyway to save the fallback.";
   await page.goto("/imports");
   await page.getByRole("textbox", { name: "Batch name" }).fill("Mapped customers");
   await page.getByRole("textbox", { name: "Source name" }).fill("Loan system export");

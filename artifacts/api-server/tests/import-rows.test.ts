@@ -22,7 +22,7 @@ const quick = (state: ReturnType<typeof seedMerchant>, kind: string, csv: string
   // Decision 1: every quick-import row carries a source row ID, and a file or mapping without one is refused.
   const state = seedMerchant("quick-row-ids");
   const before = state.records.length;
-  refused(() => quick(state, "customers", "name,consentProvenance\nNo row ID,Synthetic consent", { identityColumn: "" }), /^Map a row ID column\. Choose the column that holds each row's source row ID/, "no row ID column is refused");
+  refused(() => quick(state, "customers", "name,consentProvenance\nNo row ID,Synthetic consent", { identityColumn: "" }), /^Map a row ID column\. Choose the column that holds each row’s source row ID/, "no row ID column is refused");
   refused(() => quick(state, "customers", "name,consentProvenance\nNo row ID,Synthetic consent"), /^Map a row ID column\. The file has no column named “row_id”\./, "a row ID column the file lacks is refused, naming it");
   refused(() => quick(state, "customers", "row_id,name,consentProvenance\nr1,First,Synthetic consent\n,Second,Synthetic consent"), /different, non-empty value on every row/, "a blank row ID is refused");
   refused(() => quick(state, "customers", "row_id,name,consentProvenance\nr1,First,Synthetic consent\nr1,Second,Synthetic consent"), /different, non-empty value on every row/, "a repeated row ID is refused");
@@ -54,7 +54,7 @@ const quick = (state: ReturnType<typeof seedMerchant>, kind: string, csv: string
   assert.doesNotThrow(() => assertNoDirectImportedCorrection(quickRecord, { ...quickRecord, name: "Edited after a quick import", data: { ...quickRecord.data } })); checks += 1;
   check(!fromImportBatch(quickRecord) && fromImportBatch({ data: { importIdentity: { source: "loan-system", rowId: "r1", batchId: "batch-1" } } }), "the console's edit lock is a batch's alone");
   // Its history names the quick import and the row, and no batch.
-  check(buildDisputePack(state, admin, quickRecord.id).timeline[0]!.detail.endsWith("Imported from Quick import; source row r1."), "the customer's history names the source row");
+  check(buildDisputePack(state, admin, quickRecord.id).timeline[0]!.detail.endsWith("Imported from Quick import; source row ID r1."), "the customer's history names the source row");
 
   // Payment evidence keeps its own event rules as well: the same event under a new row ID is refused.
   const evidence = quick(state, "observations", "row_id,reference,customerId,amountKobo,source,eventId\no1,QUICK-EVIDENCE-1,DEMO-C1001,2500000,webhook,evt-1");
@@ -83,7 +83,7 @@ const quick = (state: ReturnType<typeof seedMerchant>, kind: string, csv: string
   assert.equal(quick(state, "due-items", dueFile, { commit: false, amountUnit: "naira" }).rows[0]!.message, "Amount: Enter an amount above ₦0 in naira, for example 1,000.50."); checks += 1;
   assert.equal(quick(state, "due-items", dueFile, { commit: false }).rows[0]!.message, "Amount: Enter a whole number of kobo above 0, for example 100000 for ₦1,000."); checks += 1;
   const undated = quick(state, "due-items", "row_id,name,customerId,amount,owner,status,mandate\nr1,Undated,DEMO-C1001,1000000,someone,paid,NOPE-M", { commit: false, mapping: { mandate: "mandateId" } });
-  assert.equal(undated.rows[0]!.message, "Status: Paid (paid) is set by a domain action, so a new instalment cannot start with it. Leave the column blank or use Scheduled (scheduled). No column is mapped to Due date. Map the column that holds it. Collection owner (column owner): “someone” is not one of the choices. Use Valo Pay (valopay), Loan management system (lms), Lender team (merchant_manual) or Provider automatic collection (provider_auto). Mandate reference or ID (column mandate): No mandate has the reference or ID “NOPE-M” in this lender."); checks += 1;
+  assert.equal(undated.rows[0]!.message, "Status: Paid (paid) is set by Valo Pay later, so a new instalment cannot start with it. Leave the column blank or use Scheduled (scheduled). No column is mapped to Due date. Map the column that holds it. Collection owner (column owner): “someone” is not one of the choices. Use Valo Pay (valopay), Loan management system (lms), Lender team (merchant_manual) or Provider automatic collection (provider_auto). Mandate reference or ID (column mandate): No mandate has the reference or ID “NOPE-M” in this lender."); checks += 1;
 
   const status = quick(state, "customers", "row_id,name,consentProvenance,status\nr1,Archived,Synthetic consent,archived", { commit: false });
   assert.equal(status.rows[0]!.message, "Status: “archived” is not one of the choices. Use Active (active) or Inactive (inactive)."); checks += 1;
@@ -206,10 +206,10 @@ const quick = (state: ReturnType<typeof seedMerchant>, kind: string, csv: string
   // Decision 4 for the import's own conflicts: a row reports its reference and row ID conflicts beside every other rule.
   const state = seedMerchant("conflicts");
   const conflict = quick(state, "customers", "row_id,name,reference,consentProvenance,status\nr1,Conflict,DEMO-C1001,,archived", { commit: false });
-  assert.equal(conflict.rows[0]!.message, "Loan software reference (column reference): This reference belongs to another saved record. Check its source row identity before importing; a conflicting row will not be silently skipped. Status: “archived” is not one of the choices. Use Active (active) or Inactive (inactive). Consent source or reference (column consentProvenance): Enter a value; it is blank on this row."); checks += 1;
+  assert.equal(conflict.rows[0]!.message, "Loan software reference (column reference): This reference belongs to another saved record. Check the row’s source row ID before you import. A conflicting row is refused, never skipped. Status: “archived” is not one of the choices. Use Active (active) or Inactive (inactive). Consent source or reference (column consentProvenance): Enter a value; it is blank on this row."); checks += 1;
   // A cell that cannot be read does not hide the reference conflict.
   const unreadable = quick(state, "due-items", "row_id,name,reference,customerId,amount,dueDate,owner\nr1,Unreadable,DEMO-LOAN-1001,DEMO-C1001,12.5,2028-12-01,lms", { commit: false });
-  assert.equal(unreadable.rows[0]!.message, "Amount: Enter kobo as a whole number without commas or decimals, for example 100000. Choose Naira (₦) if the source uses naira. Reference: This reference belongs to another saved record. Check its source row identity before importing; a conflicting row will not be silently skipped."); checks += 1;
+  assert.equal(unreadable.rows[0]!.message, "Amount: Enter kobo as a whole number without commas or decimals, for example 100000. Choose Naira (₦) if the source uses naira. Reference: This reference belongs to another saved record. Check the row’s source row ID before you import. A conflicting row is refused, never skipped."); checks += 1;
   // A row ID imported before with different data reports the other rules too, and its own record's reference is no conflict.
   check(quick(state, "customers", "row_id,name,reference,consentProvenance\nk1,Keyed once,QUICK-KEYED-1,Synthetic consent").imported === 1, "a keyed row is imported");
   const changed = quick(state, "customers", "row_id,name,reference,consentProvenance,status\nk1,Keyed renamed,QUICK-KEYED-1,Synthetic consent,archived", { commit: false });

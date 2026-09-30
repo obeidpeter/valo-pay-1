@@ -69,7 +69,7 @@ const empty = (id: string) => { const state = seedMerchant(id, true); state.reco
   assert.equal(decision.rule, "ceiling");
   assert.match(decision.reason, /^The limit of 1 attempt has been reached across all collection systems\./);
   const pack = buildDisputePack(state, ctxAt(wat("2027-07-01T08:00:00"), "Finance"), customer.id);
-  assert.match(pack.documents.find((document) => document.kind === "policies")!.text, /^Up to 1 attempt counting every source;/);
+  assert.match(pack.documents.find((document) => document.kind === "policies")!.text, /^Version 1: up to 1 attempt in total across all collection systems;/);
   policy.data.maxAttempts = 3;
   assert.match(policySummary(policy), /: up to 3 attempts in total/);
   checks += 5;

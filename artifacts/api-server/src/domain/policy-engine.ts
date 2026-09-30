@@ -306,6 +306,12 @@ const retryRuleWords: Record<string, string> = {
   floor: "below the minimum debit", settled: "paid or closed", plan: "retry planned",
 };
 
+/** A retry decision's rule in words: "notice not confirmed", "attempt limit reached". */
+export function retryRuleText(rule: unknown): string {
+  const code = String(rule ?? "");
+  return Object.hasOwn(retryRuleWords, code) ? retryRuleWords[code]! : code.replace(/_/g, " ") || "not recorded";
+}
+
 /**
  * RET-03: persist a decision as an immutable record on the customer's timeline.
  * A close that re-evaluates an item and reaches the same decision writes nothing;

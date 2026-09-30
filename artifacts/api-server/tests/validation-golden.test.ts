@@ -230,15 +230,15 @@ const patch = (record: any, changes: any) => ({ ...record, ...changes, data: { .
   const invalid = importCsv(state, admin, { ...input, csv: 'name,reference,consentProvenance\nValid,SAMPLE-CSV-2,Synthetic\nInvalid,SAMPLE-CSV-3,', mapping: undefined, identityColumn: 'reference', commit: true });
   assert.equal(invalid.valid, 1); assert.equal(invalid.invalid, 1); assert.equal(invalid.imported, 0); assert.equal(state.records.length, stableCount);
   assert.match(invalid.rows[0]!.message, /Not imported/);
-  assert.throws(() => importCsv(state, admin, { ...input, syntheticOnly: false }), /Only synthetic/);
+  assert.throws(() => importCsv(state, admin, { ...input, syntheticOnly: false }), /Only sample data can be imported/);
   assert.throws(() => importCsv(state, admin, { ...input, mapping: { 'Full name': 'name', 'External ref': 'name' } }), /only once/);
-  assert.throws(() => importCsv(state, admin, { ...input, mapping: { Consent: '__proto__' } }), /valid destination/);
-  assert.throws(() => importCsv(state, admin, { ...input, mapping: { Unknown: 'name' } }), /valid destination/);
+  assert.throws(() => importCsv(state, admin, { ...input, mapping: { Consent: '__proto__' } }), /Choose a field, or Skip column, for each column in the file/);
+  assert.throws(() => importCsv(state, admin, { ...input, mapping: { Unknown: 'name' } }), /Choose a field, or Skip column, for each column in the file/);
   assert.throws(() => importCsv(state, admin, { ...input, csv: 'name,name\nOne,Two' }), /different, non-empty header/);
-  assert.throws(() => importCsv(state, admin, { ...input, csv: '__proto__,name\nobject,Name' }), /Reserved object names/);
+  assert.throws(() => importCsv(state, admin, { ...input, csv: '__proto__,name\nobject,Name' }), /Some names, such as ‘constructor’, cannot be used/);
   assert.throws(() => importCsv(state, admin, { ...input, csv: 'name\n' + 'é'.repeat(750001) }), /1.5 MB/);
   assert.throws(() => importCsv(state, admin, { ...input, csv: 'name\n' + Array.from({ length: 501 }, () => 'Sample').join('\n') }), /between 1 and 500/);
-  assert.throws(() => importCsv(state, admin, { ...input, csv: 'name\n"Unclosed' }), /CSV could not be parsed/);
+  assert.throws(() => importCsv(state, admin, { ...input, csv: 'name\n"Unclosed' }), /Valo Pay could not read this CSV file/);
   checks += 25;
 }
 

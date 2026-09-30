@@ -39,6 +39,9 @@ const tricky = { Zeta: 1, ärende: 2, _x: [3, { B: 4, a: 5, "10": 6, "9": 7 }], 
 
 const state = seedMerchant("golden-lender", true);
 state.records = [];
+// The connected revision covers the lender record as it is stored: a sample lender that earlier builds created stored
+// this segment (the language pass writes "sample data" for new ones), so the pinned revision is taken over it.
+state.merchant.segment = "Smaller lender · synthetic";
 const values: Record<string, unknown> = {};
 
 // Source rows: a committed batch whose columns become data fields.

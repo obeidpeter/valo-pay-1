@@ -2,8 +2,8 @@ import {
   allocationDecisionDataSchema, counted, businessDateSchema, discountConfirmationDataSchema,
   DEFAULT_ACTIVATION_WINDOW_DAYS, PLATFORM_OWNER, activationReminderCaps, closeRules, failureCodeList, handBackFallbackOwner, isKnownFailureCode,
   heldEvidenceCodes, heldEvidenceOf, moneyText, nairaText, nextCloseInstant, normaliseFailureCode, otherCurrenciesText, passRuleText, paymentUnappliedKobo, providerIdentityConfirmedCode, providerIdentityOf, providerIdentityParts, resolutionCodesForException, resolutionRuleVersion, resolveExceptionType, unseenReversalCodes, unseenReversalOf, withinQuietHours, templateTextProblems,
-  changedText, dayText, durationText, instantText, listText, monthText, optionText as option, policyGuardrails, valueLabel, valueWords,
-  type CloseTrigger, type HandBackOwner,
+  changedText, collectionOwnerText, dayText, durationText, instantText, listText, monthText, optionText as option, policyGuardrails, valueLabel, valueWords,
+  type CloseTrigger,
 } from "@workspace/valopay-schema";
 import { findRecord, makeRecord, recordsOf, touch } from "./records";
 import {
@@ -35,10 +35,6 @@ const UNAVAILABLE_ACTION = "This action is not available. Reload the page and tr
 const QUIET_HOURS = "Customer messages cannot be sent during quiet hours, from 21:00 to 08:00 WAT. Try again after 08:00 WAT.";
 /** A mandate's retry policy changes only to an approved version of the same policy. */
 const SAME_POLICY = "Choose an approved version of this mandate’s retry policy.";
-/** Who collection is returned to, in a sentence, as the console's Settings names them. */
-const ownerPhrases: Record<HandBackOwner, string> = {
-  lms: "the loan management system", merchant_manual: "the lender team", provider_auto: "the provider’s automatic collection",
-};
 
 /**
  * The lender's contact details as a customer message ends with them: "Questions? Contact our collections team."
@@ -654,9 +650,9 @@ function runAction(state: DomainState, ctx: Context, input: ActionInput, audit?:
     const cancelled = cancelScheduledAttempts(state, now, "Collection returned to its previous owner. No future instruction is held.", () => true);
     state.merchant.killSwitch = true;
     settleStopRelease(state);
-    const checklist = [`Collection of ${counted(reverted.length, "instalment")} returned to ${ownerPhrases[fallbackOwner]}`, `${counted(cancelled.length, "scheduled collection attempt")} cancelled`, "To do: the lender switches its previous collection schedules back on, checking them against this list", "To do: give the lender a full export of its records", "No future instructions are held for this lender"];
+    const checklist = [`Collection of ${counted(reverted.length, "instalment")} returned to ${collectionOwnerText(fallbackOwner)}`, `${counted(cancelled.length, "scheduled collection attempt")} cancelled`, "To do: the lender switches its previous collection schedules back on, checking them against this list", "To do: give the lender a full export of its records", "No future instructions are held for this lender"];
     const cutover = makeRecord(state, "cutovers", { name: "Collection returned", status: "handed_back", createdAt: now, data: { checklist, fallbackOwner, confirmation: reason(input), revertedDueItemIds: reverted, cancelledAttemptIds: cancelled, handedBackAt: now } });
-    return result(`Collection returned to ${ownerPhrases[fallbackOwner]}. Scheduled collection attempts were cancelled, and no future instructions are queued.`, cutover, { fallbackOwner, reverted: reverted.length, cancelled: cancelled.length });
+    return result(`Collection returned to ${collectionOwnerText(fallbackOwner)}. Scheduled collection attempts were cancelled, and no future instructions are queued.`, cutover, { fallbackOwner, reverted: reverted.length, cancelled: cancelled.length });
   }
   if (input.action === "notify_policy_change") {
     assertActionRole(ctx, ["Admin", "Operations"], "record a policy change notice");
