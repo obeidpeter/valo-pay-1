@@ -311,7 +311,7 @@ describe('paging a fixed-step list by keyboard', () => {
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Previous sources' }));
   }, 30_000);
 
-  it('keeps focus on Next while the next page of Operations loads', async () => {
+  it('keeps focus on Next requests while the next page of Request history loads', async () => {
     // The offline API keeps no journal: sixty saved requests are answered here, and each answer can be held.
     const send = globalThis.fetch;
     let gate: Promise<void> | null = null;
@@ -327,7 +327,7 @@ describe('paging a fixed-step list by keyboard', () => {
     const user = userEvent.setup();
     renderApp('/operations');
     await screen.findByText('Saved request 0');
-    const next = await nextWhileHeld(user, 'Next', hold);
+    const next = await nextWhileHeld(user, 'Next requests', hold);
     expect(document.activeElement).toBe(next);
     await screen.findByText('Saved request 25');
   }, 30_000);
