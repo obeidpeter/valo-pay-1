@@ -39,7 +39,7 @@ function OverviewHeader() {
     <header className="flex flex-wrap items-end justify-between gap-4">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Overview</h1>
-        <p className="mt-2 text-sm text-muted-foreground">{lender?.name || 'This lender'}’s customers, payment matches and exceptions at a glance.{workspace?.environment === 'sandbox' ? ' Sample data only.' : ''}</p>
+        <p className="mt-2 text-sm text-muted-foreground">{lender?.name || 'This lender'}’s customers, payment matches and exceptions at a glance.</p>
       </div>
       <Button asChild variant="outline" className="gap-2"><Link href="/reports"><FileBarChart2 aria-hidden="true" className="h-4 w-4" /> Open Reports</Link></Button>
     </header>
