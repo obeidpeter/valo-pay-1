@@ -417,7 +417,7 @@ try {
         )!.data.result.score.value = 0;
         await saveState(ctx, state);
       }),
-    (error: any) => error.status === 409 && /immutable/.test(error.message),
+    (error: any) => error.status === 409 && /Saved evidence cannot be changed/.test(error.message),
   );
   await inWorkspace(
     request(a),
@@ -450,7 +450,7 @@ try {
           "Changed old decision";
         await saveState(ctx, state);
       }),
-    (error: any) => error.status === 409 && /immutable/.test(error.message),
+    (error: any) => error.status === 409 && /Saved evidence cannot be changed/.test(error.message),
   );
   await assert.rejects(
     () =>

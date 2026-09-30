@@ -15,7 +15,7 @@ export function customerTimeline(state: DomainState, id: string) {
   const unallocatedOther = unallocatedOtherCurrencies(payments);
   return {
     customer,
-    position: { obligationsKobo, allocatedKobo, outstandingKobo, unallocatedKobo, ...(unallocatedOther ? { unallocatedOtherCurrencies: unallocatedOther } : {}), note: "Calculated from instalments and payment records. Valo Pay never holds money." },
+    position: { obligationsKobo, allocatedKobo, outstandingKobo, unallocatedKobo, ...(unallocatedOther ? { unallocatedOtherCurrencies: unallocatedOther } : {}), note: "Calculated from instalments and payment records. Valo Pay does not hold these funds." },
     events: related.sort((a, b) => b.createdAt.localeCompare(a.createdAt)), mandates: related.filter((record) => record.kind === "mandates"), dueItems, payments,
   };
 }

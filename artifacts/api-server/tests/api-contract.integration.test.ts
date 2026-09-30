@@ -148,7 +148,7 @@ try {
     assert.equal(terms.data.discountReview, undefined, "nothing is proposed while the full-price terms are not signed");
     const flag = await billingAct("issue_invoice", { period: firstPeriod });
     assert.equal(flag.status, 409, JSON.stringify(flag.data));
-    assert.match(flag.data.error, /The full-price terms are not recorded as signed: tick “Full-price terms are signed”/);
+    assert.match(flag.data.error, /The full-price terms are not recorded as signed\. Tick “Full-price terms are signed” once they are/);
     assert.equal(ok(await billingCall("/v1/reports")).billing.nextInvoicePricingExplanation, flag.data.error, "the report gives the refusal's words");
     // Ticked, the dates are a proposal by the Finance persona, at the database's time, bound to the sandbox's visitor.
     terms = ok(await billingCall(`/v1/records/commercial/${terms.id}`, "PATCH", { expectedUpdatedAt: terms.updatedAt, data: { signedFullPriceTerms: true } }));
@@ -159,7 +159,7 @@ try {
     const proposed = structuredClone(terms.data.discountReview);
     const awaiting = await billingAct("issue_invoice", { period: firstPeriod });
     assert.equal(awaiting.status, 409, JSON.stringify(awaiting.data));
-    assert.match(awaiting.data.error, /The discount dates await confirmation: a different Admin or Finance user from the person who proposed them must confirm them/);
+    assert.match(awaiting.data.error, /The discount dates are waiting for confirmation\. An Admin or Finance team member who did not propose them must check them/);
     // A confirmation is keyed, so the operations journal records it: without a key it is refused, naming the header.
     refusedFor(await call(bq("/v1/actions"), "POST", { action: "confirm_discount_terms", recordId: terms.id, reason: "Confirm without a key", data: dates }, { cookie: billingCookie }), 400, "Idempotency-Key");
     // Switching demo roles is not a second person.
@@ -288,7 +288,7 @@ try {
     const cleared = (await pool.query("SELECT status,data FROM valopay_records WHERE id=$1", [stale.id])).rows[0];
     assert.deepEqual([cleared.status, cleared.data.resolutionCode], ["closed", "condition_cleared"], "the outcome step closed the exception whose condition cleared");
     const entry = (await pool.query("SELECT data FROM valopay_records WHERE merchant_id=$1 AND kind='audit' AND name='payment.outcome' ORDER BY (data->>'sequence')::int DESC LIMIT 1", [lender])).rows[0];
-    assert.equal(entry.data.summary, "Contract check: payment.outcome. Closed 1 exception whose condition cleared (unallocated payment: payment SBX-PAY-1001 is allocated in full).", "and its audit entry names it after the reason");
+    assert.equal(entry.data.summary, "Contract check: payment.outcome. Closed 1 exception automatically, because its cause went away (unallocated payment: payment SBX-PAY-1001 is allocated in full).", "and its audit entry names it after the reason");
   }
 
   // ---- The legacy writes take an optional key: with one they are journaled, without one they still run ----
@@ -563,7 +563,7 @@ try {
       await store.saveState(ctx, state);
       return { termsId: terms.id, allocationId: allocation.id };
     });
-    const awaiting = /The discount dates await confirmation: a different Admin or Finance user from the person who proposed them must confirm them/;
+    const awaiting = /The discount dates are waiting for confirmation\. An Admin or Finance team member who did not propose them must check them/;
     assert.deepEqual([(await billing()).nextInvoicePricingReady, (await billing()).nextInvoicePeriod], [false, first]);
     assert.match((await billing()).nextInvoicePricingExplanation, awaiting, "a single-person review awaits confirmation");
     const refused = await staffAct("finance", "issue_invoice", { period: first });

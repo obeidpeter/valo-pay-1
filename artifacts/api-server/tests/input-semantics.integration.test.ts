@@ -99,11 +99,11 @@ try {
     field(await call(q("/v1/records/exceptions"), "POST", { name: "Long customer", customerId: long, data: { type: "unallocated_payment", severity: "low" } }), "customerId");
     field(await call(q(`/v1/records/customers/${victim.id}`), "PATCH", { reference: long, expectedUpdatedAt: victim.updatedAt }), "reference");
     const evidence = await call(q("/v1/records/observations"), "POST", { name: "Long event", reference: "OBS-LONG-EVENT", customerId: victim.id, amountKobo: 150000, data: { source: "webhook", eventId: long } });
-    assert.deepEqual([evidence.status, /eventId/.test(evidence.data.error)], [400, true], `an over-long event ID is refused, naming eventId: ${JSON.stringify(evidence.data).slice(0, 300)}`);
+    assert.deepEqual([evidence.status, /Event ID/.test(evidence.data.error)], [400, true], `an over-long event ID is refused, naming the event ID: ${JSON.stringify(evidence.data).slice(0, 300)}`);
     // An imported row is checked the same way: invalid in a preview, and a commit saves nothing.
     const csv = `row_id,name,reference,consentProvenance\nrow-1,Long row,${long},Synthetic fixture\n`;
     const preview = ok(await call(q("/v1/imports"), "POST", { kind: "customers", csv, identityColumn: "row_id", syntheticOnly: true, commit: false }));
-    assert.deepEqual([preview.invalid, preview.rows[0].message, /reference is at most 200 characters/.test(preview.rows[0].detail)], [1, "Loan software reference (column reference): Use at most 200 characters.", true], "an imported row with an over-long reference is invalid, naming its column");
+    assert.deepEqual([preview.invalid, preview.rows[0].message, /Loan software reference: Use at most 200 characters\./.test(preview.rows[0].detail)], [1, "Loan software reference (column reference): Use at most 200 characters.", true], "an imported row with an over-long reference is invalid, naming its column");
     const customerCount = await saved("customers");
     const commit = await call(q("/v1/imports"), "POST", { kind: "customers", csv, identityColumn: "row_id", syntheticOnly: true, commit: true });
     assert.deepEqual([commit.status, await saved("customers"), await saved("costs")], [200, customerCount, costs], "nothing over-long is saved");

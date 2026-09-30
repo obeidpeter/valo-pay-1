@@ -120,7 +120,7 @@ export function discountTermsStatus(data: unknown): DiscountTermsStatus {
       : blocked("changed_since_proposed", "The discount dates or agreement reference changed after they were proposed. Save the commercial terms again to propose the current dates.");
   }
   const proposed = { by: proposal.reviewedBy, at: proposal.reviewedAt };
-  if (!confirmed) return { ...blocked("awaiting_confirmation", "The discount dates are waiting for confirmation. A different Admin or Finance team member must check them against the signed agreement and confirm them in Go-live evidence."), proposal: proposed };
+  if (!confirmed) return { ...blocked("awaiting_confirmation", "The discount dates are waiting for confirmation. An Admin or Finance team member who did not propose them must check them against the signed agreement and confirm them in Go-live evidence."), proposal: proposed };
   return { state: "confirmed", ready: true, explanation: `Confirmed agreement: discount from ${dayText(start)}; full price from ${dayText(end)}.`, proposal: proposed, confirmation: { by: proposal.confirmedBy as string, at: proposal.confirmedAt as string } };
 }
 

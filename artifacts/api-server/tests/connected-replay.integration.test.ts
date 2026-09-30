@@ -190,7 +190,7 @@ try {
   const read = await call(sandbox.q("/v1/connected"));
   assert.equal(read.status, 422, JSON.stringify(read.data));
   assert.deepEqual([read.data.code, read.data.operation], ["MONEY_OUT_OF_RANGE", undefined], "a read has no journal entry to name");
-  assert.match(read.data.error, /^This calculation cannot be completed within the supported amount or rate limits\./);
+  assert.match(read.data.error, /^Valo Pay cannot complete this calculation because an amount or rate is outside the supported limits\./);
   assert.deepEqual(warnings.filter((entry) => entry.event === "money.calculation_refused"), [{ event: "money.calculation_refused", code: "MONEY_OUT_OF_RANGE" }], "logged once, with its code and no amount");
   const revision = await store.inWorkspace(request(), response(), async (ctx) => connectedRevision(await store.loadState(ctx, lender, "share")), "read");
   const forecasts = async () => Number((await pool.query("SELECT count(*)::int AS n FROM valopay_records WHERE merchant_id=$1 AND kind='connected-cash-forecasts'", [lender])).rows[0].n);
@@ -202,7 +202,7 @@ try {
   assert.equal((await pool.query("SELECT status FROM valopay_operations WHERE id=$1", [refused.operation])).rows[0].status, "cancelled");
   assert.equal(ok(await call(`/v1/operations/pending?merchantId=${lender}`)).pending, 0);
   const listed = ok(await call(`/v1/operations?merchantId=${lender}`)).items.find((item: { id: string }) => item.id === refused.operation);
-  assert.match(listed.message, /^The service refused this request: This calculation cannot be completed/);
+  assert.match(listed.message, /^The service refused this request: Valo Pay cannot complete this calculation/);
   const again = await call(sandbox.q("/v1/connected/actions"), body, key);
   assert.deepEqual([again.status, again.data.operation], [409, "cancelled"]);
   assert.equal(await forecasts(), before);

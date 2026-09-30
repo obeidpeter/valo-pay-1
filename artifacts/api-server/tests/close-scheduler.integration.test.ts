@@ -143,7 +143,7 @@ try {
     assert.equal(audit.data.objectId, closedA.closeId);
     const cleared = state.records.find((record) => record.id === settledException)!;
     assert.deepEqual([cleared.status, cleared.data.resolutionCode], ["closed", "condition_cleared"], "the scheduled close closed the exception whose condition cleared");
-    assert.match(String(audit.data.summary), /^Scheduled daily close of \d{4}-\d{2}-\d{2} completed.* Closed 1 exception whose condition cleared \(unallocated payment: payment SBX-PAY-1001 is allocated in full\)\.$/, `the scheduled close's audit entry names it: ${audit.data.summary}`);
+    assert.match(String(audit.data.summary), /^Scheduled daily close of \d{1,2} [A-Z][a-z]{2,3} \d{4} completed.* Closed 1 exception automatically, because its cause went away \(unallocated payment: payment SBX-PAY-1001 is allocated in full\)\.$/, `the scheduled close's audit entry names it: ${audit.data.summary}`);
     assert.equal(state.settings.nextCloseAt, followingCloseInstant(dueAt, "07:00"), "the cursor moved one business date on, to 07:00 WAT the day after the time it covered");
     assert.ok(String(state.settings.nextCloseAt) > dbNow);
   });

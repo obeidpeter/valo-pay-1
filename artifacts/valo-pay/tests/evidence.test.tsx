@@ -88,7 +88,7 @@ describe('evidence register and operational reviews', () => {
     expect((submitted.body as { data: Record<string, unknown> }).data).not.toHaveProperty('discountReview');
     expect(api.state().records.find(record => record.kind === 'commercial')!.data.discountReview).toEqual({ reviewedBy: 'Sandbox Admin', reviewedAt: api.now, proposedPrincipal: 'synthetic-console-person-1', discountStartDate: '2027-02-01', fullPriceStartDate: '2028-02-01', termsReference: 'SYNTHETIC-AGREEMENT-2027' });
     // Saved, the dates are a proposal: the form's answer and the row say they await a second person, and who proposed them.
-    const awaiting = /The discount dates are waiting for confirmation\. A different Admin or Finance team member must check them against the signed agreement/;
+    const awaiting = /The discount dates are waiting for confirmation\. An Admin or Finance team member who did not propose them must check them against the signed agreement/;
     expect(within(section).getByRole('status').textContent).toMatch(/^Terms saved\. These design-partner terms cannot be used on a new invoice yet\. The discount dates are waiting for confirmation/);
     const table = within(section).getByRole('table');
     expect(within(table).getByText(awaiting)).toBeTruthy();

@@ -146,7 +146,7 @@ checks += 5;
   // One person saves the dates. That is a proposal: it prices nothing until a different person confirms it.
   save(staff('ada', 'Finance'), { signedFullPriceTerms: true, ...dates });
   assert.equal(billing().nextInvoicePricingReady, false, 'the person who saved the dates cannot price an invoice alone');
-  assert.throws(() => issueInvoice(state, finance(now), { period: '2027-06' }), refusedWith(409, /The discount dates are waiting for confirmation\. A different Admin or Finance team member must check them against the signed agreement/));
+  assert.throws(() => issueInvoice(state, finance(now), { period: '2027-06' }), refusedWith(409, /The discount dates are waiting for confirmation\. An Admin or Finance team member who did not propose them must check them against the signed agreement/));
   assert.deepEqual(terms.data.discountReview, proposal, 'the service records who proposed the dates, which person that is, when, and what they proposed');
   // The proposer cannot confirm, in another role or under another account of the same person; nor can a role without the right.
   assert.throws(() => confirm(staff('ada', 'Admin')), refusedWith(403, /A different person must confirm these discount dates/));
