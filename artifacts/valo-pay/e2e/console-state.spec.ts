@@ -29,7 +29,7 @@ function confirms(page: Page) {
 test("browser Back and Forward ask before an unsaved draft is discarded", async ({ page }) => {
   const asked = confirms(page);
   await page.goto("/overview");
-  await expect(page.getByRole("heading", { level: 1, name: "Operations overview" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
   await navigate(page, "Settings");
   await expect(page.getByText("07:00 WAT").first()).toBeVisible();
   await page.getByRole("button", { name: "Edit", exact: true }).click();
@@ -47,7 +47,7 @@ test("browser Back and Forward ask before an unsaved draft is discarded", async 
   // Accepted: Back leaves, and Forward returns to a page without the draft.
   asked.answer.accept = true;
   await page.goBack();
-  await expect(page.getByRole("heading", { level: 1, name: "Operations overview" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
   await expect.poll(() => asked.seen.length).toBe(2);
   await page.goForward();
   await expect(page.getByRole("heading", { level: 1, name: "Settings & administration" })).toBeVisible();
@@ -118,12 +118,12 @@ test("a failed background refresh keeps the open draft and says the workspace co
 test("Try again on a failed refresh's notice refreshes the workspace at once", async ({ page }) => {
   await page.clock.install();
   await page.goto("/overview");
-  await expect(page.getByRole("heading", { level: 1, name: "Operations overview" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
   const outage = await breakWorkspace(page, 502);
   await passRefresh(page);
   const problem = page.getByRole("status").filter({ hasText: "Your workspace could not be refreshed." });
   await expect(problem).toBeVisible();
-  await expect(page.getByRole("heading", { level: 1, name: "Operations overview" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
   await outage.restore();
   await problem.getByRole("button", { name: "Try again" }).click();
   await expect(problem).toHaveCount(0);

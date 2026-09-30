@@ -17,7 +17,7 @@ const routes: Array<[string, string | RegExp]> = [
   ["/sign-up", "Create your workspace"],
   ["/team-invite", "Join your pilot workspace"],
   ["/no-such-page", "Page not found"],
-  ["/overview", "Operations overview"],
+  ["/overview", "Overview"],
   ["/work", "My work"],
   ["/exceptions", "Exceptions"],
   ["/reconciliation", "Reconciliation"],

@@ -16,7 +16,7 @@ describe('dashboard usability', () => {
     expect(screen.getByRole('link', { name: /Possible duplicates/ }).getAttribute('href')).toBe('/reconciliation?view=duplicates');
     expect(screen.getByRole('link', { name: /Failed collections/ }).getAttribute('href')).toBe('/collections?view=failed');
     expect(screen.getByRole('link', { name: /Overdue exceptions/ }).getAttribute('href')).toBe('/exceptions?view=overdue');
-    expect(screen.getByRole('link', { name: 'View daily closes' }).getAttribute('href')).toBe('/reports');
+    expect(within(screen.getByRole('region', { name: 'Alerts' })).getByRole('link', { name: 'Open Reports' }).getAttribute('href')).toBe('/reports');
     await user.click(activation);
     expect(await screen.findByRole('heading', { name: 'Mandates' })).toBeTruthy();
     expect((await screen.findByRole('button', { name: 'Awaiting activation (2)' })).getAttribute('aria-pressed')).toBe('true');

@@ -40,7 +40,7 @@ it('keeps presentation controls separate from platform actions and resumes after
   let guide = screen.getByRole('region', { name: 'Presentation guide' });
   expect(within(guide).getByText(/Show presenter notes/).closest('details')?.open).toBe(false);
   await user.click(within(guide).getByRole('link', { name: 'Open overview' }));
-  await screen.findByRole('heading', { name: 'Operations overview' });
+  await screen.findByRole('heading', { name: 'Overview' });
   expect(screen.queryByRole('region', { name: 'Sandbox guide' })).toBeNull();
   await user.click(screen.getByRole('button', { name: 'Next talking point' }));
   expect(window.location.pathname).toBe('/overview');

@@ -11,9 +11,9 @@ describe("loading and waiting", () => {
     const release = api.hold(/^\/v1\/overview$/);
     renderApp("/overview");
     await waitFor(() => expect(screen.getByRole("status").textContent).toBe("Loading the overview…"));
-    expect(screen.queryByRole("heading", { name: "Operations overview" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Overview" })).toBeNull();
     release();
-    expect(await screen.findByRole("heading", { name: "Operations overview" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Overview" })).toBeTruthy();
     expect(screen.queryByText(/^Loading /)).toBeNull();
   });
 

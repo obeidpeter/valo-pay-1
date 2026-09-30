@@ -9,7 +9,7 @@ test('entering the console from a scrolled public page keeps the environment hea
   await entry.scrollIntoViewIfNeeded();
   expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(100);
   await entry.click();
-  await expect(page.getByRole('heading', { name: 'Operations overview', level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Overview', level: 1 })).toBeVisible();
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
   await expect(page.locator('.environment-strip')).toBeInViewport({ ratio: 1 });
   expect(await page.locator('.console-shell').evaluate(node => node.getBoundingClientRect().top)).toBe(0);
@@ -19,7 +19,7 @@ test('entering the console from a scrolled public page keeps the environment hea
   await page.getByRole('main').press('Control+Home');
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
   await page.reload();
-  await expect(page.getByRole('heading', { name: 'Operations overview', level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Overview', level: 1 })).toBeVisible();
   await page.getByRole('main').press('Control+Home');
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
   await expect(page.locator('.environment-strip')).toBeInViewport({ ratio: 1 });

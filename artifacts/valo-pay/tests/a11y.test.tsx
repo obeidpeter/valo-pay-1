@@ -24,7 +24,7 @@ describe("accessibility", () => {
     ["/", "Collections, credit and cash. One clear workspace."],
     ["/sign-in", "Sign in to your workspace"],
     ["/no-such-page", "Page not found"],
-    ["/overview", "Operations overview"],
+    ["/overview", "Overview"],
     ["/customers", "Customers"],
     ["/mandates", "Mandates"],
     ["/reconciliation", "Reconciliation"],

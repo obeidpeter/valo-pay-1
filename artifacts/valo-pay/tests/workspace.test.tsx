@@ -15,7 +15,7 @@ describe("workspace", () => {
   it("says what is happening until the workspace arrives", async () => {
     renderApp("/overview");
     expect(screen.getByRole("status").textContent).toBe("Loading your workspace…");
-    expect(await screen.findByRole("heading", { name: "Operations overview" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Overview" })).toBeTruthy();
     expect(screen.queryByText("Loading your workspace…")).toBeNull();
   });
 
@@ -35,7 +35,7 @@ describe("workspace", () => {
     await waitFor(() => expect(document.title).toBe("Workspace unavailable · Valo Pay"));
 
     await user.click(within(alert).getByRole("button", { name: "Try again" }));
-    expect(await screen.findByRole("heading", { name: "Operations overview" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Overview" })).toBeTruthy();
     expect(api.calls.filter((call) => call.path === "/v1/workspace").map((call) => call.status)).toEqual([429, 200]);
     await waitFor(() => expect(document.title).toBe("Overview · Valo Pay"));
   });
@@ -113,13 +113,13 @@ describe("a failed background refresh of the workspace", () => {
   it("passes on a 429's own words, says when the next automatic refresh is, and tries again on request", async () => {
     const user = userEvent.setup();
     renderApp("/overview");
-    await screen.findByRole("heading", { name: "Operations overview" });
+    await screen.findByRole("heading", { name: "Overview" });
     api.failNext(workspace, { status: 429, error: "Request limit reached. Please try again in one minute.", headers: { "Retry-After": "120" } });
     await refreshWorkspace();
     await waitFor(() => expect(refreshNotice()).toBeTruthy());
     expect(refreshNotice()!.textContent).toContain("Request limit reached. Please try again in one minute.");
     expect(refreshNotice()!.textContent).toMatch(/As the service asked, the next automatic refresh is after \d{1,2} \w{3,4} \d{4}, \d{2}:\d{2} WAT\./);
-    expect(screen.getByRole("heading", { name: "Operations overview" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Overview" })).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Please wait before trying again" })).toBeNull();
     await user.click(within(refreshNotice()!).getByRole("button", { name: "Try again" }));
     await waitFor(() => expect(refreshNotice()).toBeNull());

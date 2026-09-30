@@ -234,7 +234,7 @@ describe("reports", () => {
   it("says when the automatic close is off", async () => {
     api.mutate((state) => { state.settings.scheduledCloseEnabled = false; });
     renderApp("/reports");
-    expect(await screen.findByText("Automatic daily close is off for this lender. Run closes manually.")).toBeTruthy();
+    expect(await screen.findByText("Automatic daily closes are off for this lender. Run a daily close on Reports when you need one.")).toBeTruthy();
   });
 
   it('distinguishes no accuracy measurement from a measured zero and offers the next action', async () => {

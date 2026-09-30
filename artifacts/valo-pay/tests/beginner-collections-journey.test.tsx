@@ -43,7 +43,7 @@ it('takes an empty lender from corrected sample imports to a reviewed payment an
   }
 
   renderApp('/overview');
-  await screen.findByRole('heading', { name: 'Operations overview' });
+  await screen.findByRole('heading', { name: 'Overview' });
   await user.click(screen.getByRole('button', { name: 'Get started · 3 steps' }));
   const start = screen.getByRole('region', { name: 'Where to start' });
   await within(start).findByText('Step 1 · Not started');

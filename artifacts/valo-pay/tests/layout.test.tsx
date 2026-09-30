@@ -10,7 +10,7 @@ describe("layout", () => {
   it("loads the first lender and switches to the second", async () => {
     const user = userEvent.setup();
     renderApp("/overview");
-    await screen.findByRole("heading", { name: "Operations overview" });
+    await screen.findByRole("heading", { name: "Overview" });
     const [first, second] = api.merchantIds as [string, string];
     expect(api.calls.some((call) => call.path === "/v1/overview" && call.query.merchantId === first)).toBe(true);
     expect(api.calls.some((call) => call.path === "/v1/overview" && call.query.merchantId === second)).toBe(false);
@@ -27,8 +27,8 @@ describe("layout", () => {
   it("navigates between pages from the sidebar", async () => {
     const user = userEvent.setup();
     renderApp("/overview");
-    await screen.findByRole("heading", { name: "Operations overview" });
-    await user.click(screen.getByRole("link", { name: /Audit log/ }));
+    await screen.findByRole("heading", { name: "Overview" });
+    await user.click(screen.getByRole("link", { name: "Audit log" }));
     expect(await screen.findByRole("button", { name: /Check audit log/ })).toBeTruthy();
     await waitFor(() => expect(document.title).toBe("Audit log · Valo Pay"));
     // The brand in the sidebar and in the phone bar leads back to the landing page, the same lockup as on it.

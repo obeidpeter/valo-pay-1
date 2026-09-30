@@ -37,7 +37,7 @@ test('presentation preparation, downloads and guide are usable on desktop and ph
   const guide = page.getByRole('region', { name: 'Presentation guide' });
   await expect(guide).toBeVisible();
   await guide.getByRole('link', { name: 'Open overview' }).click();
-  await expect(page.getByRole('heading', { name: 'Operations overview' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible();
   await guide.getByRole('button', { name: 'Next talking point' }).click();
   await page.reload();
   await expect(guide.getByText('2 of 6 · Bring in payment evidence')).toBeVisible();

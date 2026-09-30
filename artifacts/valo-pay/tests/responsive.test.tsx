@@ -17,7 +17,7 @@ describe("responsive layout", () => {
   it("offers the same pages and lender in the phone bar's drawer as in the sidebar, with the current page marked", async () => {
     const user = userEvent.setup();
     renderApp("/overview");
-    await screen.findByRole("heading", { name: "Operations overview" });
+    await screen.findByRole("heading", { name: "Overview" });
     // The lender is chosen in the same place on a phone and on a desktop: once each, the same name.
     const lenders = screen.getAllByLabelText("Active lender") as HTMLSelectElement[];
     expect(lenders).toHaveLength(2);
@@ -48,7 +48,7 @@ describe("responsive layout", () => {
   it("closes the drawer after a page is chosen in it and moves focus to the page content, as the sidebar does", async () => {
     const user = userEvent.setup();
     renderApp("/overview");
-    await screen.findByRole("heading", { name: "Operations overview" });
+    await screen.findByRole("heading", { name: "Overview" });
     await user.click(screen.getByRole("button", { name: "Menu" }));
     const drawer = await screen.findByRole("dialog", { name: "Menu" });
     await user.click(within(drawer).getByRole("link", { name: "Audit log" }));
@@ -76,7 +76,7 @@ describe("responsive layout", () => {
   it("switches the lender from the phone bar and the drawer follows the change of page", async () => {
     const user = userEvent.setup();
     renderApp("/overview");
-    await screen.findByRole("heading", { name: "Operations overview" });
+    await screen.findByRole("heading", { name: "Overview" });
     const [first, second] = api.merchantIds as [string, string];
     const [phoneLender] = screen.getAllByLabelText("Active lender") as HTMLSelectElement[];
     await user.selectOptions(phoneLender!, second);
@@ -89,7 +89,7 @@ describe("responsive layout", () => {
 
   it("lists every page once, in named groups with daily work first and a label and icon of its own", async () => {
     renderApp("/overview");
-    await screen.findByRole("heading", { name: "Operations overview" });
+    await screen.findByRole("heading", { name: "Overview" });
     const [sidebarPages] = screen.getAllByRole("navigation", { name: "Pages" });
     const groups = within(sidebarPages!).getAllByRole("group");
     const named = groups.map((group) => [document.getElementById(group.getAttribute("aria-labelledby")!)!.textContent, within(group).getAllByRole("link").map((link) => link.getAttribute("aria-label") || link.textContent)]);

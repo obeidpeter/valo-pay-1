@@ -19,7 +19,7 @@ const text = (selector: string) => () => document.querySelector(selector)?.textC
 
 describe("failed background refresh", () => {
   it.each([
-    ["/overview", /^\/v1\/overview$/, "Operations overview", "The overview could not be refreshed.", text('section[aria-labelledby="overview-metrics-title"]')],
+    ["/overview", /^\/v1\/overview$/, "Overview", "The overview could not be refreshed.", text('section[aria-labelledby="overview-metrics-title"]')],
     ["/reports", /^\/v1\/reports$/, "Reports & analytics", "Reports could not be refreshed.", text('section[aria-label="Operational metrics"]')],
     ["/reports", /^\/v1\/close-history$/, "Reports & analytics", "The close history could not be refreshed.", text("#daily-closes")],
     ["/settings", /^\/v1\/settings$/, "Settings & administration", "Collection settings could not be refreshed.", () => screen.queryByRole("heading", { name: "Collection settings" })?.closest("section")?.textContent],
@@ -62,7 +62,7 @@ describe("failed background refresh", () => {
   it("still shows the full problem when the first load fails", async () => {
     api.failNext(/^\/v1\/overview$/, { status: 503, error: "The service is busy. Try again in a moment." });
     renderApp("/overview");
-    expect(await screen.findByText("Unable to load the overview")).toBeTruthy();
+    expect(await screen.findByText("We could not load the overview")).toBeTruthy();
     expect(screen.queryByText("The overview could not be refreshed.")).toBeNull();
   });
 });

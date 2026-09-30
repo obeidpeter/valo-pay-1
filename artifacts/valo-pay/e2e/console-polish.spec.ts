@@ -143,12 +143,12 @@ test("loading and error states keep an h1", async ({ page }) => {
   await expect(page.getByRole("status").filter({ hasText: "Loading your workspace…" })).toBeVisible();
   expect(await headingOne(page)).toEqual([]);
   release();
-  await expect(page.getByRole("heading", { level: 1, name: "Operations overview" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
   await page.unroute("**/api/v1/workspace");
 
   // A page whose first load failed, with nothing to show.
   for (const [route, api, problem] of [
-    ["/overview", "**/api/v1/overview?*", "Unable to load the overview"],
+    ["/overview", "**/api/v1/overview?*", "We could not load the overview"],
     ["/pay-by-bank", "**/api/v1/connected?*", "Unable to load pay-by-bank"],
     ["/credit-desk", "**/api/v1/connected?*", "Unable to load Credit Desk"],
     ["/cash-desk", "**/api/v1/connected?*", "Unable to load Cash Desk"],
@@ -187,7 +187,7 @@ test("the anonymous sandbox on a host without sign-in never fetches Clerk's code
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   await page.goto("/overview");
-  await expect(page.getByRole("heading", { level: 1, name: "Operations overview" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
   // The console fetches every page's code while the browser is idle, Team & access among them.
   await expect.poll(() => [...scripts].some((url) => /\/team-[\w-]+\.js$/.test(url)), { timeout: 15_000 }).toBe(true);
   await page.waitForLoadState("networkidle");
@@ -211,7 +211,7 @@ test("the landing page and the anonymous sandbox carry no shared schemas, zod or
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   expect(await entryCarries("/")).toEqual([]);
   await page.goto("/overview");
-  await expect(page.getByRole("heading", { level: 1, name: "Operations overview" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
   expect(await entryCarries("/overview")).toEqual([]);
   // The console fetches every page's code while idle; none of it is the warning, which only a staff administrator loads.
   await expect.poll(() => [...scripts].some((url) => /\/team-[\w-]+\.js$/.test(url)), { timeout: 15_000 }).toBe(true);

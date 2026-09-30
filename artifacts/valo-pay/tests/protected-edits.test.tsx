@@ -83,7 +83,7 @@ describe('protected console drafts', () => {
     const user = userEvent.setup();
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
     renderApp('/overview');
-    await screen.findByRole('heading', { name: 'Operations overview' });
+    await screen.findByRole('heading', { name: 'Overview' });
     await user.click(screen.getAllByRole('link', { name: 'Settings' })[0]!);
     await screen.findByText('07:00 WAT');
     await user.click(screen.getByRole('button', { name: 'Edit' }));
@@ -94,7 +94,7 @@ describe('protected console drafts', () => {
     expect(screen.getByDisplayValue(/keep this/)).toBeTruthy();
     confirm.mockReturnValue(true);
     await act(async () => { window.history.back(); });
-    await screen.findByRole('heading', { name: 'Operations overview' });
+    await screen.findByRole('heading', { name: 'Overview' });
     expect(window.location.pathname).toBe('/overview');
   });
 

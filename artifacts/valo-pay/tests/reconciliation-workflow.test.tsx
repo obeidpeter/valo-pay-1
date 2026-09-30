@@ -212,7 +212,7 @@ describe('allocation picker search', () => {
     const user = userEvent.setup();
     const dueItem = api.state().records.find(record => record.kind === 'due-items' && record.status === 'scheduled')!;
     renderApp('/overview');
-    await screen.findByRole('heading', { name: 'Operations overview' });
+    await screen.findByRole('heading', { name: 'Overview' });
     await user.click(screen.getAllByRole('link', { name: 'Reconciliation' })[0]!);
     await user.click((await screen.findAllByRole('button', { name: 'Allocate' }))[0]!);
     const dialog = await screen.findByRole('dialog', { name: 'Allocate payment' });
@@ -228,7 +228,7 @@ describe('allocation picker search', () => {
     expect(choices.every(option => option.textContent!.includes(dueItem.reference))).toBe(true);
     expect(window.history.length).toBe(entries);
     await act(async () => { window.history.back(); });
-    await screen.findByRole('heading', { name: 'Operations overview' });
+    await screen.findByRole('heading', { name: 'Overview' });
     expect(window.location.pathname).toBe('/overview');
   });
 });
