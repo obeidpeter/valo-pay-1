@@ -42,7 +42,7 @@ test("browser Back and Forward ask before an unsaved draft is discarded", async 
   expect(asked.seen[0]).toContain("Discard your unsaved changes?");
   await expect(page).toHaveURL(/\/settings$/);
   await expect(contact).toHaveValue(/keep this/);
-  await expect(page.getByRole("heading", { level: 1, name: "Settings & administration" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Settings", exact: true })).toBeVisible();
 
   // Accepted: Back leaves, and Forward returns to a page without the draft.
   asked.answer.accept = true;
@@ -50,7 +50,7 @@ test("browser Back and Forward ask before an unsaved draft is discarded", async 
   await expect(page.getByRole("heading", { level: 1, name: "Operations overview" })).toBeVisible();
   await expect.poll(() => asked.seen.length).toBe(2);
   await page.goForward();
-  await expect(page.getByRole("heading", { level: 1, name: "Settings & administration" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Settings", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Edit", exact: true })).toBeVisible();
 });
 

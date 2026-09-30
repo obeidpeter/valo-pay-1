@@ -124,7 +124,7 @@ describe("responsive layout", () => {
 
   it("scrolls the sidebar's list, and only the list, to a current page below its fold", async () => {
     renderApp("/settings");
-    await screen.findByRole("heading", { name: "Settings & administration" });
+    await screen.findByRole("heading", { name: "Settings" });
     const [sidebarPages] = screen.getAllByRole("navigation", { name: "Pages" });
     const current = within(sidebarPages!).getByRole("link", { name: "Settings" });
     expect(current.getAttribute("aria-current")).toBe("page");

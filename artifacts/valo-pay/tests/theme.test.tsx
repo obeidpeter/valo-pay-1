@@ -73,7 +73,7 @@ describe("theme", () => {
     renderApp("/settings");
     const darkRadio = await screen.findByRole("radio", { name: "Dark" });
     expect((screen.getByRole("radio", { name: "Follow the device" }) as HTMLInputElement).checked).toBe(true);
-    expect(screen.getByText("Following the device: light now.")).toBeTruthy();
+    expect(screen.getByText("Following your device (currently Light).")).toBeTruthy();
     await user.click(darkRadio);
     expect(html()).toBe(true);
     expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe("dark");

@@ -22,7 +22,7 @@ describe("failed background refresh", () => {
     ["/overview", /^\/v1\/overview$/, "Operations overview", "The overview could not be refreshed.", text('section[aria-labelledby="overview-metrics-title"]')],
     ["/reports", /^\/v1\/reports$/, "Reports", "Reports could not be refreshed.", text('section[aria-label="Totals"]')],
     ["/reports", /^\/v1\/close-history$/, "Reports", "The close history could not be refreshed.", text("#daily-closes")],
-    ["/settings", /^\/v1\/settings$/, "Settings & administration", "Collection settings could not be refreshed.", () => screen.queryByRole("heading", { name: "Collection settings" })?.closest("section")?.textContent],
+    ["/settings", /^\/v1\/settings$/, "Settings", "Collection settings could not be refreshed.", () => screen.queryByRole("heading", { name: "Collection settings" })?.closest("section")?.textContent],
     ["/credit-desk", /^\/v1\/connected$/, "Credit Desk", "Credit Desk could not be refreshed.", text(".connected-page")],
     ["/pay-by-bank", /^\/v1\/connected$/, "Pay-by-bank", "Pay-by-bank could not be refreshed.", text(".connected-page fieldset")],
     ["/cash-desk", /^\/v1\/connected$/, "Cash Desk", "Cash Desk could not be refreshed.", text(".connected-page fieldset")],

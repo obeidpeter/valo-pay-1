@@ -162,15 +162,15 @@ describe("unconfirmed changes the journal records point to Operations", () => {
     await user.type(amount, "10.29");
     api.failNext(/^\/v1\/settings$/, "offline", "PATCH");
     await user.click(screen.getByRole("button", { name: "Save" }));
-    await screen.findByText("Settings outcome unconfirmed");
-    pointsToOperations("Settings outcome unconfirmed");
+    await screen.findByText(/We do not know yet whether Valo Pay saved your settings/);
+    pointsToOperations(/We do not know yet whether Valo Pay saved your settings/);
     // The live-instruction block test and the emergency stop.
     api.failNext(/^\/v1\/actions$/, "offline", "POST");
     await user.click(screen.getByRole("button", { name: "Test live-instruction block" }));
-    await screen.findByText(/The block-test response is unconfirmed/);
-    pointsToOperations(/The block-test response is unconfirmed/);
+    await screen.findByText(/We do not know yet whether Valo Pay received the block test/);
+    pointsToOperations(/We do not know yet whether Valo Pay received the block test/);
     vi.spyOn(window, "confirm").mockReturnValue(true);
-    for (const notice of [/The block-test response is unconfirmed/, "Settings outcome unconfirmed"]) {
+    for (const notice of [/We do not know yet whether Valo Pay received the block test/, /We do not know yet whether Valo Pay saved your settings/]) {
       const alert = screen.getByText(notice).closest('[role="alert"]') as HTMLElement;
       await user.click(within(alert).getByRole("button", { name: "Discard original request" }));
       await waitFor(() => expect(screen.queryByText(notice)).toBeNull());
@@ -178,16 +178,16 @@ describe("unconfirmed changes the journal records point to Operations", () => {
     await cancelInterrupted(user);
     await user.type(screen.getByLabelText("Reason for changing the emergency stop"), "Stop sample operations for a review");
     api.failNext(/^\/v1\/actions$/, "offline", "POST");
-    await user.click(screen.getByRole("button", { name: "Activate emergency stop" }));
-    await screen.findByText(/The emergency-stop response is unconfirmed/);
-    const stop = pointsToOperations(/The emergency-stop response is unconfirmed/);
+    await user.click(screen.getByRole("button", { name: "Turn on emergency stop" }));
+    await screen.findByText(/We do not know yet whether Valo Pay changed the emergency stop/);
+    const stop = pointsToOperations(/We do not know yet whether Valo Pay changed the emergency stop/);
     await user.click(within(stop).getByRole("button", { name: "Discard original request" }));
-    await waitFor(() => expect(screen.queryByText(/The emergency-stop response is unconfirmed/)).toBeNull());
+    await waitFor(() => expect(screen.queryByText(/We do not know yet whether Valo Pay changed the emergency stop/)).toBeNull());
     // The role switch is not journaled: its notice keeps the retry and names no Operations.
     await user.selectOptions(screen.getByLabelText("Demo role"), "Finance");
     api.failNext(/^\/v1\/actions$/, "offline", "POST");
     await user.click(screen.getByRole("button", { name: "Switch role" }));
-    const role = (await screen.findByText(/The role-change response is unconfirmed/)).closest('[role="alert"]') as HTMLElement;
+    const role = (await screen.findByText(/We do not know yet whether Valo Pay changed your role/)).closest('[role="alert"]') as HTMLElement;
     expect(role.textContent).not.toMatch(/Operations/);
     expect(within(role).queryByRole("link", { name: "Open Operations" })).toBeNull();
   });

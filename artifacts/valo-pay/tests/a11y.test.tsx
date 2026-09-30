@@ -33,7 +33,7 @@ describe("accessibility", () => {
     ["/reports", "Reports"],
     ["/evidence", "Go-live evidence"],
     ["/audit", "Audit log"],
-    ["/settings", "Settings & administration"],
+    ["/settings", "Settings"],
     ["/pay-by-bank", "Pay-by-bank"],
     ["/credit-desk", "Credit Desk"],
     ["/cash-desk", "Cash Desk"],

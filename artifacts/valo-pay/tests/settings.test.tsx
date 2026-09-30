@@ -75,6 +75,24 @@ describe("settings", () => {
     expect(api.calls.filter((call) => call.method === "PATCH" && call.path === "/v1/settings").at(-1)?.status).toBe(400);
   });
 
+  it("shows every time as a 24-hour WAT time, and names each way of approving instructions the same in the form and on the page", async () => {
+    const user = userEvent.setup();
+    renderApp("/settings");
+    expect(await screen.findByText("07:00 WAT")).toBeTruthy();
+    expect(screen.getByText("06:00 WAT")).toBeTruthy();
+    expect(screen.getByText("10:00 WAT")).toBeTruthy();
+    const shown = screen.getByText("Daily approval: Finance or Admin approves each day’s instructions");
+    expect(shown.textContent).not.toMatch(/—/);
+    await user.click(screen.getByRole("button", { name: "Edit" }));
+    const options = [...(screen.getByLabelText("Instruction approval") as HTMLSelectElement).options].map((option) => option.textContent);
+    expect(options).toEqual(["Daily approval: Finance or Admin approves each day’s instructions", "Standing approval: instructions follow the signed settings"]);
+    // The format and the limits sit under each time field, not in its label.
+    const help = (label: string) => document.getElementById(screen.getByLabelText(label).getAttribute("aria-describedby")!)?.textContent;
+    expect(help("Daily close time (WAT)")).toBe("24-hour time, for example 07:00.");
+    expect(help("Collection window starts (WAT)")).toBe("A whole hour. The window must fall between 06:00 WAT and 20:00 WAT.");
+    expect(help("Collection window ends (WAT)")).toBe("A whole hour, no later than 20:00 WAT.");
+  });
+
   it("explains the Admin requirement before another persona starts editing", async () => {
     const user = userEvent.setup();
     api.role = "Finance";
@@ -100,17 +118,17 @@ describe("settings", () => {
     });
     renderApp("/settings");
     await screen.findByText("07:00 WAT");
-    expect(screen.queryByText(/Emergency stop active/)).toBeNull();
-    await user.click(screen.getByRole("button", { name: "Return collection ownership" }));
-    const dialog = await screen.findByRole("dialog", { name: "Return collection ownership" });
-    const summary = within(dialog).getByRole("region", { name: "Hand-back summary" });
+    expect(screen.queryByText(/Emergency stop is on/)).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Return collection" }));
+    const dialog = await screen.findByRole("dialog", { name: "Return collection to the previous owner?" });
+    const summary = within(dialog).getByRole("region", { name: "Summary of returning collection" });
     // The consequences and the numbers are on screen before anything is confirmed.
     const figure = (term: string) => within(summary).getByText(term).nextElementSibling?.textContent;
     await waitFor(() => expect(figure("Instalments Valo Pay collects now")).toBe("2 instalments"));
     await waitFor(() => expect(figure("Scheduled attempts to cancel")).toBe("1 attempt"));
     await waitFor(() => expect(figure("Collection returns to")).toBe("Lender team"));
     expect(figure("Emergency stop")).toBe("Turns on for this lender");
-    expect(summary.textContent).toContain("Every instalment Valo Pay collects returns to the lender team");
+    expect(summary.textContent).toContain("Every instalment Valo Pay collects goes back to the lender team.");
     expect(summary.textContent).toContain("Turn it off separately, in Emergency controls");
     expect(api.calls.some((call) => call.method === "POST" && call.path === "/v1/actions")).toBe(false);
 
@@ -123,12 +141,12 @@ describe("settings", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
 
     // The result is announced with the service's own message and counts (a notice is also announced through a short-lived copy).
-    expect(await screen.findAllByText("Collection ownership returned")).toBeTruthy();
+    expect(await screen.findAllByText("Collection returned")).toBeTruthy();
     const [announced] = screen.getAllByText(/^Collection ownership returned to the configured fallback owner\./);
-    expect(announced!.textContent).toContain("2 instalments returned to the lender team; 1 scheduled attempt cancelled.");
+    expect(announced!.textContent).toContain("2 instalments returned to the lender team, and 1 scheduled attempt cancelled.");
     expect(announced!.textContent).toContain("The emergency stop is now on for this lender.");
     // The page shows the stop on, and the service agrees.
-    expect(await screen.findByText(/Emergency stop active/)).toBeTruthy();
+    expect(await screen.findByText(/Emergency stop is on/)).toBeTruthy();
     expect(screen.getByRole("button", { name: "Turn off emergency stop" })).toBeTruthy();
     const state = api.state();
     expect(state.merchant.killSwitch).toBe(true);
@@ -140,7 +158,7 @@ describe("settings", () => {
     const user = userEvent.setup();
     api.mutate((state) => { state.merchant.killSwitch = true; });
     renderApp("/settings");
-    expect(await screen.findByText(/In a pilot, turning the stop off needs a second administrator’s approval\. In this sandbox one person plays every role, so it takes effect at once\./)).toBeTruthy();
+    expect(await screen.findByText(/In a pilot, turning the stop off needs a second Admin’s approval\. In this sandbox one person plays every role, so it takes effect at once\./)).toBeTruthy();
     await user.type(screen.getByLabelText("Reason for changing the emergency stop"), "The rehearsal incident is over.");
     await user.click(screen.getByRole("button", { name: "Turn off emergency stop" }));
     // The page says what the request did, in the service's words.
@@ -159,7 +177,7 @@ describe("settings", () => {
     };
     api.mutate((state) => { state.merchant.killSwitch = true; state.settings.emergencyStopReleases = { lender: { requestedBy: "Clerk:user_b", requestedAt: api.now, reason: "The incident is closed.", policyId: null } }; });
     renderApp("/settings");
-    expect(await screen.findByText(/Clerk:user_b asked to turn the emergency stop off on .*: “The incident is closed\.”\. The stop stays on until another administrator approves it/)).toBeTruthy();
+    expect(await screen.findByText(/Clerk:user_b asked to turn the emergency stop off on .*: “The incident is closed\.”\. The stop stays on until another Admin approves, giving a reason in the box above\./)).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Turn off emergency stop|Ask to turn off emergency stop/ })).toBeNull();
     await user.type(screen.getByLabelText("Reason for changing the emergency stop"), "Checked the incident notes with Operations.");
     await user.click(screen.getByRole("button", { name: "Approve turning it off" }));
@@ -178,7 +196,7 @@ describe("settings", () => {
     };
     api.mutate((state) => { state.merchant.killSwitch = true; state.settings.emergencyStopReleases = { lender: { requestedBy: "Clerk:user_a", requestedAt: api.now, reason: "The incident is closed.", policyId: null } }; });
     renderApp("/settings");
-    expect(await screen.findByText("You asked for this, so another administrator must approve it.")).toBeTruthy();
+    expect(await screen.findByText("You asked for this, so another Admin must approve it.")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Approve turning it off" })).toBeNull();
     expect(screen.getByRole("button", { name: "Keep the stop on" })).toBeTruthy();
     globalThis.fetch = send;
