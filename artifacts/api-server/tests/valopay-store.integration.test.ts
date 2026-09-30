@@ -314,7 +314,7 @@ try {
     const state = await loadState(context, savesMerchant);
     state.records.find((record) => record.id === `${savesMerchant}-close-old`)!.data.summary = "rewritten";
     await saveState(context, state);
-  }), /Evidence records are immutable/, "a summarised close can never be written back over its full report");
+  }), /Saved evidence cannot be changed/, "a summarised close can never be written back over its full report");
   assert.equal((await pool.query("SELECT data->>'summary' AS summary FROM valopay_records WHERE id=$1", [`${savesMerchant}-close-old`])).rows[0].summary, "close-old");
   // A save writes a run of changed or added records in one statement, 500 at most (audit of 23 September, item 33):
   // a month-end close changes thousands of records, each of which used to be a statement of its own.

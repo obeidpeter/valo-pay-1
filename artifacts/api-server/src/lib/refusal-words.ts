@@ -29,3 +29,23 @@ export function demoRoleHint(accessMode: string | undefined): string {
 export function onlyRoles(roles: readonly string[], action: string, accessMode: string | undefined, reason = ""): string {
   return `Only ${roleList(roles)} can ${action}.${reason ? ` ${reason}` : ""}${demoRoleHint(accessMode)}`;
 }
+
+/** A lender the request names that the person's workspace does not hold, or no longer does. */
+export const LENDER_NOT_FOUND = "Lender not found. Reload the page and choose a lender from the list.";
+
+/** A request checked with another role than the one that sent it: a team member cannot change role; a person in the
+ * sandbox changes back to the demo role that sent it. */
+export function sentWithAnotherRole(accessMode: string | undefined): string {
+  return accessMode === "staff"
+    ? "This request was sent with a different role, so you cannot check it with yours."
+    : "This request was sent with a different demo role. Change your demo role in Settings, then check it.";
+}
+
+/** Something the request names that is missing, as the writing standard words it: "Customer not found. It may have
+ * been deleted, or it belongs to another lender." */
+export function notFound(thing: string): string {
+  return `${thing} not found. It may have been deleted, or it belongs to another lender.`;
+}
+
+/** A demo role the sandbox does not have. */
+export const UNKNOWN_DEMO_ROLE = "Choose one of the demo roles.";

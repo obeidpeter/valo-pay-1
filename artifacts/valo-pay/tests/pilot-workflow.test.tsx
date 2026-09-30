@@ -466,7 +466,7 @@ it("offers the latest version only when the refusal says the batch changed", asy
     /^\/v1\/pilot\/batches\/[^/]+\/save$/,
     {
       status: 409,
-      error: "Review your pending operations before submitting more requests.",
+      error: "You have 100 requests that Valo Pay has not confirmed. Check them in Request history before you send more.",
     },
     "POST",
   );
@@ -474,7 +474,7 @@ it("offers the latest version only when the refusal says the batch changed", asy
   await user.click(
     screen.getByRole("button", { name: "Save and check batch" }),
   );
-  await screen.findByText(/Review your pending operations/);
+  await screen.findByText(/You have 100 requests that Valo Pay has not confirmed/);
   expect(screen.queryByText(/This batch changed after you opened it/)).toBeNull();
   expect(screen.queryByRole("button", { name: "Load latest version" })).toBeNull();
   expect(csvValue()).toMatch(/ $/);

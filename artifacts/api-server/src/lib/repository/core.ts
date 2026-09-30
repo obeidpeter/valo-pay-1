@@ -13,6 +13,7 @@ import { recordChanged, nextRecordVersion } from "../edit-versions";
 import type { Request, Response } from "express";
 import { pool, poolSize, type PoolClient } from "@workspace/db";
 import { createLenderGate } from "../lender-gate";
+import { LENDER_NOT_FOUND, UNKNOWN_DEMO_ROLE } from "../refusal-words";
 import {
   beginStatement,
   checkOut,
@@ -230,7 +231,7 @@ export function fail(message: string, status = 400): never {
   throw Object.assign(new Error(message), { status });
 }
 export const conflict = (
-  message = "Operation conflicts with the current lender state.",
+  message = "This change conflicts with the lender’s latest records. Reload the page and try again.",
 ): never => fail(message, 409);
 /** Anonymous sandboxes expire after this many days without a change; the cookie carries the same lifetime. */
 export const ANONYMOUS_WORKSPACE_DAYS = 30;
@@ -283,7 +284,7 @@ function principalFor(req: Request, res: Response) {
 export function sessionFor(context: StoreContext): Session {
   const session = sessions.get(context);
   if (!session || !session.active)
-    fail("This workspace transaction is no longer available.", 409);
+    fail("This request can no longer change the lender. Try again.", 409);
   return session;
 }
 /** Whether this request's own transaction verified the restricted database: the readiness page reports this, never the configuration alone. */
@@ -849,7 +850,7 @@ export async function readMerchant(
       [merchantId, session.workspace.id, session.principal],
     )
   ).rows[0];
-  if (!merchant) fail("Lender not found in this workspace.", 404);
+  if (!merchant) fail(LENDER_NOT_FOUND, 404);
   if (context.accessMode === "staff" && context.role !== "Admin") {
     const grant = (
       await session.client.query(
@@ -858,7 +859,10 @@ export async function readMerchant(
       )
     ).rows[0];
     if (!grant)
-      fail("Lender not found in your permitted workspace access.", 404);
+      fail(
+        "You do not have access to this lender. Choose another lender, or ask an Admin for access.",
+        404,
+      );
   }
   if (session.operationId && lock === "update") {
     const operation = (
@@ -876,7 +880,7 @@ export async function readMerchant(
       operation.status === "cancelled"
     )
       fail(
-        "This request has been cancelled or your authority changed. Refresh Operations.",
+        "This request was cancelled, or your access has changed. Reload Request history to check it.",
         409,
       );
   }
@@ -1550,12 +1554,13 @@ export async function changeRole(context: StoreContext, role: string) {
     fail("Staff cannot switch demo personas.", 403);
   if (session.access !== "persona")
     conflict("A persona change requires an exclusive workspace transaction.");
-  if (!roles.includes(role)) fail("Unknown sandbox persona.");
+  if (!roles.includes(role)) fail(UNKNOWN_DEMO_ROLE);
   const result = await session.client.query(
     "UPDATE valopay_workspaces SET role=$3 WHERE id=$1 AND principal_hash=$2",
     [session.workspace.id, session.principal, role],
   );
-  if (!rowsAffected(result)) fail("Workspace not found.", 404);
+  if (!rowsAffected(result))
+    fail("Your workspace was not found. Reload the page to open it again.", 404);
   session.workspace.role = role;
 }
 
@@ -1589,7 +1594,7 @@ export async function saveState(
   const { changed, unchanged } = changesSince(snapshot, state);
   // A summarised close would overwrite its full stored report; closes are evidence and never change.
   if (changed.some((record) => session.summarised?.has(record.id)))
-    conflict("Evidence records are immutable.");
+    conflict("Saved evidence cannot be changed. Reload the page and try again.");
   advanceChanged(snapshot, changed, context.now);
   // An unchanged record is its own "before": identical JSON is identical content.
   const current = new Map(state.records.map((record) => [record.id, record]));
@@ -1608,7 +1613,7 @@ export async function saveState(
     session.workspace.id,
     session.principal,
   ]);
-  if (!owned.rows[0]) fail("Lender not found in this workspace.", 404);
+  if (!owned.rows[0]) fail(LENDER_NOT_FOUND, 404);
   // Explicit synthetic staging dual-write only. A typed failure rolls back the
   // same transaction as the v1 write; no migration runs here or on startup.
   const projectionMode = process.env.VALOPAY_FINANCIAL_PROJECTION || "off";
@@ -1686,8 +1691,10 @@ export async function saveState(
     );
     if ((result.rowCount || 0) !== batch.length) {
       if (existing)
-        conflict("Record was changed concurrently; reload before retrying.");
-      fail("Lender not found in this workspace.", 404);
+        conflict(
+          "Another change saved this record at the same moment. Reload the page and try again.",
+        );
+      fail(LENDER_NOT_FOUND, 404);
     }
     start = end;
   }
@@ -1703,7 +1710,7 @@ export async function saveState(
     ],
   );
   if (!rowsAffected(merchantUpdate))
-    fail("Lender not found in this workspace.", 404);
+    fail(LENDER_NOT_FOUND, 404);
   // A subsequent repository save in this transaction validates against what
   // was just written, never a caller-supplied "previous" array.
   for (const record of changed)

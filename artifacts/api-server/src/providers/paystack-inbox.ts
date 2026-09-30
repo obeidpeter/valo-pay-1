@@ -4,7 +4,7 @@ export { assertProviderEventChange, quarantinedWithoutDisagreement } from '../do
 import type { Context, DomainState, ValopayRecord } from "../domain/types";
 import { makeRecord } from "../domain/records";
 import { assertRecordVersion } from "../lib/edit-versions";
-import { onlyRoles } from "../lib/refusal-words";
+import { notFound, onlyRoles } from "../lib/refusal-words";
 import { parsePaystackTestWebhook, reconcilePaystackEvidence, reconcilePaystackMandateEvidence, type PaystackWebhook } from "./paystack";
 
 function refuse(message: string, status = 400): never { throw Object.assign(new Error(message), { status }); }
@@ -49,7 +49,7 @@ export function receivePaystackEvent(state: DomainState, ctx: Context, event: Pa
 export function replayProviderEvent(state: DomainState, ctx: Context, id: string, version: string, reason: string) {
   if (!["Admin", "Finance"].includes(ctx.role)) refuse(onlyRoles(["Admin", "Finance"], "recheck a saved receipt", ctx.accessMode), 403);
   const record = state.records.find(r => r.id === id && r.kind === "provider-events");
-  if (!record) refuse("Provider receipt not found in this lender.", 404);
+  if (!record) refuse(notFound("Saved receipt"), 404);
   assertRecordVersion(record, version);
   if (record.status === "quarantined" || record.status === "rejected_fixture") refuse("This receipt cannot be replayed. Investigate its original conflict; replay cannot clear quarantine or repair a rejected signature.", 409);
   if (record.status === "verified") refuse("This receipt already has an independently verified observation. Use normal reconciliation; replay must not create or replace its evidence.", 409);

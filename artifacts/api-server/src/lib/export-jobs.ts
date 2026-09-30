@@ -6,7 +6,7 @@ import type { ExportInput } from './valopay-exports';
 import { reviewedCloseEvidence } from '../domain/close-review';
 import { sensitiveExportKinds, sensitiveExportRefusal } from '@workspace/valopay-schema';
 import { rolePermits } from './pilot-access';
-import { onlyRoles } from './refusal-words';
+import { notFound, onlyRoles } from './refusal-words';
 
 export const EXPORT_LEASE_MS = 5 * 60_000;
 export const MAX_EXPORT_BYTES = 32 * 1024 * 1024;
@@ -48,7 +48,7 @@ export function assertExportPermitted(role: string, kind: unknown): void {
   if ((sensitiveExportKinds as readonly unknown[]).includes(kind) && !rolePermits(role, 'export_sensitive')) fail(sensitiveExportRefusal, 403);
 }
 export function findExportJob(state: DomainState, id: string): ValopayRecord {
-  return state.records.find(record => record.kind === 'exports' && record.id === id) ?? fail('Export not found in this lender.', 404);
+  return state.records.find(record => record.kind === 'exports' && record.id === id) ?? fail(notFound('Export'), 404);
 }
 /** Internal storage identifiers and lease credentials are never sent to the console or exported as data. */
 export function publicExportRecord(record: ValopayRecord): ValopayRecord {
@@ -82,7 +82,7 @@ export function queueExport(state: DomainState, ctx: Context, input: ExportInput
   if (ctx.role === 'Read-only') fail(onlyRoles(EXPORT_MAKER_ROLES, 'create exports', ctx.accessMode, 'Read-only can still download exports already made.'), 403);
   const review = input.kind === 'reviewed-close' ? reviewedCloseEvidence(state, input.closeReviewId || '', true) : undefined;
   if (!privateDirectory || !/^\/?[^/]+\/.+/.test(privateDirectory)) fail('Private export storage is not configured. Contact the workspace administrator.', 503);
-  if (input.customerId && !state.records.some(record => record.kind === 'customers' && record.id === input.customerId)) fail('Customer not found in this lender.', 404);
+  if (input.customerId && !state.records.some(record => record.kind === 'customers' && record.id === input.customerId)) fail(notFound('Customer'), 404);
   if (state.records.filter(record => record.kind === 'exports' && ['queued', 'running'].includes(record.status)).length >= EXPORT_QUEUE_LIMIT) fail('Ten exports are already waiting or running for this lender. Wait for one to finish before starting another.', 429, { retryAfterSeconds: EXPORT_QUEUE_RETRY_AFTER_SECONDS });
   const id = randomUUID(), parts = privateDirectory.replace(/^\//, '').replace(/\/+$/, '').split('/'), bucket = parts.shift()!;
   const objectName = `${parts.join('/')}/exports/${state.merchant.id}/${id}.${input.format}`;
@@ -97,7 +97,7 @@ export function retryExport(state: DomainState, ctx: Context, id: string): Expor
   const record = findExportJob(state, id);
   assertExportPermitted(ctx.role, record.data.kind);
   if (ctx.role === 'Read-only') fail(onlyRoles(EXPORT_MAKER_ROLES, 'retry exports', ctx.accessMode, 'Read-only can still download exports already made.'), 403);
-  if(record.data.fileDeletedAt)fail('This export file expired under the retention policy. Start a new export if current evidence is needed.',410);
+  if(record.data.fileDeletedAt)fail('This export file was deleted under the lender’s retention policy. Create a new export if you need the file.',410);
   if (record.status === 'ready' || record.status === 'queued') return exportJobView(record, ctx.now);
   if (record.status === 'running' && !exportIsClaimable(record, ctx.now)) return exportJobView(record, ctx.now);
   returnExportToQueue(record, ctx.now);

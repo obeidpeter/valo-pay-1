@@ -14,8 +14,8 @@ import type { DomainState, ValopayRecord } from "../domain/types";
 import { getGates } from "../lib/valopay-readiness";
 import { importCsv, withRowIdColumn } from "../lib/valopay-import";
 import { exportDescriptorForRecord, exportKinds, readExport } from "../lib/valopay-exports";
-import { withAuditName } from "../lib/action-names";
-import { onlyRoles } from "../lib/refusal-words";
+import { recordTypeName, withAuditName } from "../lib/action-names";
+import { UNKNOWN_DEMO_ROLE, notFound, onlyRoles } from "../lib/refusal-words";
 import { assertExportPermitted, exportJobView, publicExportRecord, queueExport, retryExport } from '../lib/export-jobs';
 import { assertRecordVersion, assertSettingsVersion, mergeData } from "../lib/edit-versions";
 import { schedulerStatus } from "../lib/close-scheduler";
@@ -75,7 +75,7 @@ export async function withState<S extends z.ZodTypeAny>(req:Request,res:Response
   // A demo-role switch changes ctx.actor itself. Its unchanged retry must keep
   // the original request identity; all other actions stay persona-bound.
   const fingerprint=receipt?requestFingerprint({path:req.path,method:req.method,body:req.body,actor:setRole?"Sandbox role switch":ctx.actor}):"";
-  const replay=async(found:{request_hash:string;response:unknown})=>{if(found.request_hash!==fingerprint)fail("This idempotency key was used with different input.",409);const saved=replayedAnswer(req,responseSchema,found.response);await completeOperation(ctx,saved);return saved;};
+  const replay=async(found:{request_hash:string;response:unknown})=>{if(found.request_hash!==fingerprint)fail("This request was already sent with different details. Reload the page and try again.",409);const saved=replayedAnswer(req,responseSchema,found.response);await completeOperation(ctx,saved);return saved;};
   if(receipt){const found=await findStoredAnswer(ctx,merchantId,receipt.id,receipt.earlier);if(found)return replay(found);}
   // A read loads from its snapshot and takes no lock; a mutation takes the exclusive lock (and holds its journal entry first).
   const state=await loadState(ctx,merchantId,mutating?"update":"share",options);
@@ -130,7 +130,7 @@ router.post("/v1/records/:kind",async(req,res)=>{
   if(kind==="due-items")input.data.outstandingKobo=body.amountKobo;
   if(kind==="attempts"){input.data.source="external";input.data.simulated=true;}
   validateRecord(state,ctx,kind,input);
-  if(body.reference&&state.records.some(r=>r.kind===kind&&r.reference===body.reference&&kind!=="observations"))fail("Reference already exists. Use an idempotency key for safe replay.",409);
+  if(body.reference&&state.records.some(r=>r.kind===kind&&r.reference===body.reference&&kind!=="observations"))fail(`Another ${recordTypeName(kind).toLowerCase()} already uses this reference. Enter a different reference.`,409);
   return makeRecord(state,kind,input);
   },true,S.CreateRecordResponse);
  res.json(result);
@@ -140,7 +140,7 @@ router.patch("/v1/records/:kind/:id",async(req,res)=>{
  const result=await withState(req,res,(state,ctx)=>{
   // Every edit names the version it was made on (the contract requires expectedUpdatedAt), a coordinated case's included.
   const {expectedUpdatedAt}=recordVersion.parse(req.body);
-  const old=state.records.find(r=>r.kind===kind&&r.id===id);if(!old)fail("Record not found.",404);
+  const old=state.records.find(r=>r.kind===kind&&r.id===id);if(!old)fail(notFound(recordTypeName(kind)),404);
   if (kind === 'exceptions' && old.data.case?.assignee && old.data.case.assignee !== ctx.actor && ctx.role !== 'Admin') fail('Ask the case assignee or an administrator to make this change.',403);
   assertRecordVersion(old,expectedUpdatedAt);
   const input={...old,...body,data:{...mergeData(old.data,body.data),synthetic:true} as Record<string,any>,updatedAt:ctx.now};
@@ -159,19 +159,19 @@ router.post("/v1/actions",async(req,res)=>{
  // A person's first close of the day: once it commits, the background worker checks the lender's whole audit chain.
  let auditCheckDue=false;
  const result=await withState(req,res,async(state,ctx)=>{
-  if (body.action === 'resolve_exception' && state.records.find(r=>r.id===body.recordId)?.data.case && !body.expectedUpdatedAt) fail('Refresh this coordinated case before resolving it.',409);
+  if (body.action === 'resolve_exception' && state.records.find(r=>r.id===body.recordId)?.data.case && !body.expectedUpdatedAt) fail('Reload this case before you resolve it.',409);
   if(body.expectedUpdatedAt!==undefined){
-   const record=state.records.find(r=>r.id===body.recordId);if(!record)fail("Record not found.",404);
+   const record=state.records.find(r=>r.id===body.recordId);if(!record)fail(notFound("Record"),404);
    assertRecordVersion(record,body.expectedUpdatedAt);
   }
   if(body.action==="set_role"){
-   const role=String(body.data?.role);if(!roles.includes(role))fail("Unknown sandbox persona.");
+   const role=String(body.data?.role);if(!roles.includes(role))fail(UNKNOWN_DEMO_ROLE);
     await changeRole(ctx,role);
-   return {message:`Demo role changed to ${role}. This only affects the sample workspace.`,data:{role}};
+   return {message:`Demo role changed to ${role}. It gives no access to real data or live payments.`,data:{role}};
   }
   // The whole chain, from its first entry, as the lender's database holds it.
   if(body.action==="verify_audit")return {message:"Audit log check complete.",data:await verifyAuditTrail(ctx,state)};
-  if(body.action==="mark_pack_used")fail("Synthetic packs cannot be recorded as evidence used in a real case.",403);
+  if(body.action==="mark_pack_used")fail("A dispute pack made from sample data cannot be recorded as used in a real case.",403);
   // A daily close lists a broken audit chain as this write checked it.
   const answer=executeAction(state,ctx,body,{audit:writeAuditCheck(ctx,state)});
   auditCheckDue=body.action==="daily_close"&&dailyAuditCheckDue(state.settings,ctx.now);
@@ -234,10 +234,10 @@ router.patch("/v1/settings",async(req,res)=>{
   if(ctx.role!=="Admin")fail(onlyRoles(["Admin"],"change lender settings",ctx.accessMode),403);
   assertSettingsVersion(state.settings,expectedRevision);
   const start=body.executionStart??state.settings.executionStart??executionWindow.defaultStartHour,end=body.executionEnd??state.settings.executionEnd??executionWindow.defaultEndHour;
-  if(start<executionWindow.earliestHour||end>executionWindow.latestHour||start>=end)fail(`Set the collection window between ${executionWindow.earliestHour}:00 and ${executionWindow.latestHour}:00 West Africa Time, with the start before the end.`);
-  if(body.minimumTicketKobo!==undefined&&body.minimumTicketKobo<ABSOLUTE_TICKET_FLOOR_KOBO)fail("The minimum debit is ₦5,000. This limit cannot be overridden.");
-  if(body.defaultOwner&&!(handBackOwners as readonly string[]).includes(body.defaultOwner))fail("Valo Pay can take collection ownership only after a verified handover for live operations.");
-  if(body.authorisationMode&&!(authorisationModes as readonly string[]).includes(body.authorisationMode))fail(`Authorisation mode must be one of: ${authorisationModes.join(", ")}.`);
+  if(start<executionWindow.earliestHour||end>executionWindow.latestHour||start>=end)fail(`Set the collection window between ${String(executionWindow.earliestHour).padStart(2,"0")}:00 and ${String(executionWindow.latestHour).padStart(2,"0")}:00 WAT, with the start before the end.`);
+  if(body.minimumTicketKobo!==undefined&&body.minimumTicketKobo<ABSOLUTE_TICKET_FLOOR_KOBO)fail("The minimum debit is ₦5,000.00. This limit cannot be overridden.");
+  if(body.defaultOwner&&!(handBackOwners as readonly string[]).includes(body.defaultOwner))fail("Choose the loan management system, the lender team or the provider. Valo Pay can own collection only after a collection transfer for live use.");
+  if(body.authorisationMode&&!(authorisationModes as readonly string[]).includes(body.authorisationMode))fail("Choose Batch approval or Standing authorisation for instruction approval.");
   for(const key of ["unallocatedAlertThreshold","notificationCostAlertKobo"] as const)if(body[key]!==undefined&&(!Number.isInteger(body[key])||Number(body[key])<0))fail(`${key} must be a whole number of zero or more.`);
   if(body.closeTime!==undefined&&!isCloseTime(body.closeTime))fail("closeTime must use HH:MM in West Africa Time, for example 07:00.");
   const previous={time:closeTimeOf(state.settings),enabled:state.settings.scheduledCloseEnabled!==false};
@@ -250,8 +250,8 @@ router.patch("/v1/settings",async(req,res)=>{
 });
 router.post("/v1/exports",async(req,res)=>{
  const body=S.CreateExportBody.parse(req.body);
- if(!kinds.has(body.kind)&&!(exportKinds as readonly string[]).includes(body.kind))fail("Unknown export kind.");
- if(["customer-pack","dispute-pack"].includes(body.kind)&&!body.customerId)fail("A dispute pack needs customerId.");
+ if(!kinds.has(body.kind)&&!(exportKinds as readonly string[]).includes(body.kind))fail("Choose what to export from the list.");
+ if(["customer-pack","dispute-pack"].includes(body.kind)&&!body.customerId)fail("Choose a customer for the dispute pack.");
  // A reviewed close is checked as current against its whole close, which the load keeps as a summary once more than a
  // week older than the newest: that one close is loaded whole, as for the review's decision.
  const whole=body.kind==='reviewed-close'&&body.closeReviewId?{closeReviewIds:[body.closeReviewId]}:{};
@@ -264,7 +264,7 @@ async function authorisedExport<T>(req:Request,res:Response,use:(record:ValopayR
  const {merchantId}=lenderQuery(req),id=pathId(req.params.id);
  return inWorkspace(req,res,async ctx=>{
   const page=await listRecords(ctx,merchantId,'exports',{id,limit:1});
-  if(!page.items[0])fail('Export not found in this lender.',404);
+  if(!page.items[0])fail(notFound('Export'),404);
   if(download)assertExportPermitted(ctx.role,page.items[0].data.kind);
   // The transaction clock decides whether the export is stalled or its lease expired.
   return use(page.items[0],ctx.now);

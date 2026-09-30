@@ -312,7 +312,7 @@ try {
   assert.equal(readOnly.data.operation, undefined, "No entry was written, so nothing is marked.");
   const otherRole = await call(path, "POST", unfinishedBody, unfinishedKey);
   assert.equal(otherRole.status, 403);
-  assert.match(otherRole.data.error, /original role/);
+  assert.match(otherRole.data.error, /^This request was sent with a different demo role\. Change your demo role in Settings, then check it\.$/);
   assert.equal(otherRole.data.operation, undefined, "A pending entry checked under another role is not marked.");
   await switchRole("Admin");
 
@@ -472,7 +472,7 @@ try {
       await store.rejectOperation(
         sandboxRequest(),
         { id: legacyId, merchantId: lender },
-        { status: 404, message: "Lender not found in your permitted workspace access." },
+        { status: 404, message: "You do not have access to this lender. Choose another lender, or ask an Admin for access." },
         "refused",
       ),
       "completed",

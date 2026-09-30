@@ -164,7 +164,7 @@ function secondExecute(how: '502' | 'lost' | 'refused') {
     if (!String(input).includes('/execute') || ++sent !== 2) return baseFetch(input, options);
     // A proxy's error page: nothing says whether the service did anything.
     if (how === '502') return new Response('<html><body>502 Bad Gateway</body></html>', { status: 502, headers: { 'content-type': 'text/html' } });
-    if (how === 'refused') return new Response(JSON.stringify({ error: 'The approved preview does not match.' }), { status: 409, headers: { 'content-type': 'application/json' } });
+    if (how === 'refused') return new Response(JSON.stringify({ error: 'This deletion run changed after you opened it. Reload the page and try again.' }), { status: 409, headers: { 'content-type': 'application/json' } });
     // The service removes the second source, and its answer never arrives.
     await baseFetch(input, options);
     throw new TypeError('Failed to fetch');
@@ -177,7 +177,7 @@ async function runByKeyboard(user: ReturnType<typeof userEvent.setup>) {
 for (const [how, said, removed] of [
   ['502', 'The run stopped because its last request was not confirmed: it failed or its answer was lost, and it may have removed more sources. Use Check original request above to find out. Removed so far: 1 of 3 sources.', 1],
   ['lost', 'The run stopped because its last request was not confirmed: it failed or its answer was lost, and it may have removed more sources. Use Check original request above to find out. Removed so far: 1 of 3 sources.', 2],
-  ['refused', 'The run stopped because its last request was refused: The approved preview does not match. Removed so far: 1 of 3 sources.', 1],
+  ['refused', 'The run stopped because its last request was refused: This deletion run changed after you opened it. Reload the page and try again. Removed so far: 1 of 3 sources.', 1],
 ] as const) it(`says where a run stopped when its request is ${how === '502' ? 'answered 502' : how === 'lost' ? 'lost' : 'refused'}, and reading continues from there`, async () => {
   const ids = [batchId, ...moreBatches()];
   enable(); const user = userEvent.setup(); renderApp('/lifecycle');
@@ -221,7 +221,7 @@ it('keeps retention details and controls unavailable to non-administrators', asy
 
 it('says when the retention run the address names is not in this lender, and keeps the page usable', async () => {
   renderApp('/lifecycle?run=retention-run-elsewhere');
-  await screen.findByText('Retention run not found in this lender.');
+  await screen.findByText('Deletion run not found. It may belong to another lender.');
   expect(api.calls.some(call => call.method === 'GET' && call.path === '/v1/lifecycle/runs/retention-run-elsewhere')).toBe(true);
   expect(screen.getByRole('button', { name: 'Prepare deletion preview' })).toBeTruthy();
   expect(screen.queryByRole('heading', { name: 'Approved deletion run' })).toBeNull();

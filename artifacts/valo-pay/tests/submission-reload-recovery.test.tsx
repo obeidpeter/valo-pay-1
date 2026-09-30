@@ -20,7 +20,7 @@ let loseAnswer: boolean;
 let cancelLost: boolean;
 function operation() {
   return status && { id: 'original-operation', label: 'Allocate a payment', actor: identity.actor, role: identity.role, status,
-    createdAt: '2026-09-27T10:00:00Z', updatedAt: '2026-09-27T10:00:00Z', message: status === 'completed' ? 'The service saved this request.' : status === 'cancelled' ? 'The request was cancelled and saved nothing.' : 'Completion is not confirmed.', recordId: null, recordKind: null, summary: null };
+    createdAt: '2026-09-27T10:00:00Z', updatedAt: '2026-09-27T10:00:00Z', message: status === 'completed' ? 'Valo Pay saved this request.' : status === 'cancelled' ? 'The request was cancelled and saved nothing.' : 'Completion is not confirmed.', recordId: null, recordKind: null, summary: null };
 }
 function Form() {
   // Real page callers often scope the form to its lender, leaving recovery to distinguish actors and roles.
@@ -88,7 +88,7 @@ describe('interrupted submissions after reloading', () => {
     expect(requests.filter(request => request.path === '/api/v1/actions')).toHaveLength(1);
     expect(requests.find(request => request.path.endsWith('/lookup'))?.body).toEqual({ key: originalKey, method: 'POST', path: '/v1/actions' });
     await user.click(screen.getByRole('button', { name: 'Check original request' }));
-    await screen.findByText('The service saved this request.');
+    await screen.findByText('Valo Pay saved this request.');
     expect(requests.find(request => request.path.endsWith('/retry'))).toMatchObject({ key: null, body: {} });
     // Recovery does not invent another key or reconstitute private form fields in the browser.
     expect(stored()).toHaveLength(1);

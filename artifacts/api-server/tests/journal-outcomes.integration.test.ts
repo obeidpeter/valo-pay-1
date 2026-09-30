@@ -224,7 +224,7 @@ try {
     const [entry] = await entryOf(key);
     assert.equal(entry?.status, "completed", "the write ran and its entry completed, never left pending");
     const cancel = await call(q(`/v1/operations/${entry!.id}/cancel`), "POST", {});
-    assert.deepEqual([cancel.status, cancel.data.error], [409, "This request already completed. Refresh Operations to see its saved result."]);
+    assert.deepEqual([cancel.status, cancel.data.error], [409, "This request has already completed. Reload Request history to see its saved result."]);
     assert.deepEqual(ok(await call(q("/v1/actions"), "POST", roleSwitch, key)).data, { role: "Admin" }, "the role switch still answers its own result");
     assert.equal(await saved(body.reference), 1);
     checks += 4;
@@ -253,10 +253,10 @@ try {
     assert.equal(ok(await call(inOther("/v1/operations/pending"))).pending, 0, "nothing waits for confirmation or counts towards the pending limit");
     const listed = ok(await call(inOther("/v1/operations"))).items.find((item: { id: string }) => item.id === id);
     assert.equal(listed?.status, "cancelled");
-    assert.match(listed.message, /^The service refused this request: This calculation cannot be completed within the supported amount or rate limits\./);
+    assert.match(listed.message, /^Valo Pay refused this request: This calculation cannot be completed within the supported amount or rate limits\./);
     const again = await call(inOther("/v1/actions"), "POST", body, key);
     assert.deepEqual([again.status, again.data.operation], [409, "cancelled"], "the same key cannot run again");
-    assert.match(again.data.error, /^The service refused this request and saved nothing: This calculation cannot be completed/);
+    assert.match(again.data.error, /^Valo Pay refused this request and saved nothing: This calculation cannot be completed/);
     assert.equal(await closes(), before, "and nothing was saved");
     checks += 9;
   }

@@ -56,7 +56,7 @@ import {
   coordinateCase,
 } from "../domain/pilot-workflow";
 import { routerOptions } from "./router-options";
-import { onlyRoles } from "../lib/refusal-words";
+import { notFound, onlyRoles } from "../lib/refusal-words";
 
 const router: IRouter = Router(routerOptions);
 const idOf = pathId;
@@ -244,7 +244,7 @@ router.get("/v1/pilot/batches/:id", async (req, res) => {
         const batch = state.records.find(
           (r) => r.kind === "import-batches" && r.id === id,
         );
-        if (!batch) fail("Import batch not found.", 404);
+        if (!batch) fail(notFound("Import batch"), 404);
         await revealImportPayloads(ctx, state, (r) => r.id === id);
         return contractAnswer(importBatchDetailSchema, {
           batch,
@@ -312,7 +312,7 @@ router.get("/v1/pilot/cases/:id", async (req, res) => {
           record = state.records.find(
             (r) => r.kind === "exceptions" && r.id === id,
           );
-        if (!record) fail("Exception not found.", 404);
+        if (!record) fail(notFound("Exception"), 404);
         return contractAnswer(caseDetailSchema, {
           record,
           assignees: await caseAssignees(ctx),

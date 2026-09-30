@@ -202,7 +202,7 @@ try {
   assert.equal((await pool.query("SELECT status FROM valopay_operations WHERE id=$1", [refused.operation])).rows[0].status, "cancelled");
   assert.equal(ok(await call(`/v1/operations/pending?merchantId=${lender}`)).pending, 0);
   const listed = ok(await call(`/v1/operations?merchantId=${lender}`)).items.find((item: { id: string }) => item.id === refused.operation);
-  assert.match(listed.message, /^The service refused this request: This calculation cannot be completed/);
+  assert.match(listed.message, /^Valo Pay refused this request: This calculation cannot be completed/);
   const again = await call(sandbox.q("/v1/connected/actions"), body, key);
   assert.deepEqual([again.status, again.data.operation], [409, "cancelled"]);
   assert.equal(await forecasts(), before);

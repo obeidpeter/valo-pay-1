@@ -83,11 +83,11 @@ try {
   for (const key of [...saved.map((write) => write.key), refusedKey, pendingKey]) listedIds.set(key, (await entry(key)).id);
   for (const write of saved) {
     const shown = item(write.key);
-    assert.deepEqual([shown.status, shown.recordId, shown.recordKind, shown.message], ["completed", write.record.id, "customers", "The service saved this request."]);
+    assert.deepEqual([shown.status, shown.recordId, shown.recordKind, shown.message], ["completed", write.record.id, "customers", "Valo Pay saved this request."]);
   }
   assert.equal(item(refusedKey).status, "cancelled");
-  assert.match(item(refusedKey).message, /^The service refused this request: .+ Correct it and submit it again\.$/, "a refused request shows the reason it was given");
-  assert.deepEqual([item(pendingKey).status, item(pendingKey).recordId, item(pendingKey).message], ["pending", null, "Completion has not been confirmed. Check the original request."]);
+  assert.match(item(refusedKey).message, /^Valo Pay refused this request: .+ Correct it and send it again\.$/, "a refused request shows the reason it was given");
+  assert.deepEqual([item(pendingKey).status, item(pendingKey).recordId, item(pendingKey).message], ["pending", null, "Valo Pay has not confirmed this request yet. Check the original request."]);
   // Each entry says what it asked, from its path: a new customer record. Its name, reference and consent are not read.
   for (const key of listedIds.keys()) assert.deepEqual(item(key).summary, { action: "Add a record", targetKind: "customers", targetId: null, details: [] });
   const paged = await call(`/v1/operations?merchantId=${lender}&offset=3`);

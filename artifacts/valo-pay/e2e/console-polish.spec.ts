@@ -154,7 +154,7 @@ test("loading and error states keep an h1", async ({ page }) => {
     ["/cash-desk", "**/api/v1/connected?*", "Unable to load Cash Desk"],
     ["/connections", "**/api/v1/connected?*", "Unable to load permissions"],
   ] as const) {
-    await page.route(api, (request) => request.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ error: "Lender not found in this workspace.", requestId: "browser-missing" }) }));
+    await page.route(api, (request) => request.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ error: "Lender not found. Reload the page and choose a lender from the list.", requestId: "browser-missing" }) }));
     await page.goto(route);
     await expect(page.getByText(problem)).toBeVisible();
     expect(await page.locator("h1").count(), route).toBe(1);

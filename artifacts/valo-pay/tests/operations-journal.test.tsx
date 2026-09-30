@@ -22,7 +22,7 @@ function journal(items: Array<Record<string, unknown>>, pending = items.filter((
 }
 const entry = (id: string, status: string, rest: Record<string, unknown> = {}) => ({
   id, label: `Save ${id}`, actor: "Sandbox Admin", role: "Admin", status, createdAt: api.now, updatedAt: api.now,
-  message: status === "completed" ? "The service saved this request." : "Completion has not been confirmed. Check the original request.",
+  message: status === "completed" ? "Valo Pay saved this request." : "Valo Pay has not confirmed this request yet. Check the original request.",
   recordId: null, recordKind: null, summary: null, ...rest,
 });
 const card = (heading: string) => screen.getByRole("heading", { name: heading }).closest("article") as HTMLElement;
@@ -110,7 +110,7 @@ it("shows no count when nothing waits", async () => {
 // Operations link are read again at once, not on the list's next refresh or when the window next takes focus.
 const refusals = [
   { button: "Check original request", path: "retry", settled: "cancelled", error: "A reference already exists." },
-  { button: "Cancel if unfinished", path: "cancel", settled: "completed", error: "This request already completed. Refresh Operations to see its saved result." },
+  { button: "Cancel if unfinished", path: "cancel", settled: "completed", error: "This request has already completed. Reload Request history to see its saved result." },
 ] as const;
 for (const refusal of refusals) it(`reads the list and the count again once ${refusal.path === "retry" ? "a check" : "a cancel"} from Operations is refused`, async () => {
   const user = userEvent.setup();
