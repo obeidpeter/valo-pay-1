@@ -40,7 +40,7 @@ test("the allocation picker counts only the instalments it offers", async ({ pag
   await dialog.getByRole("searchbox", { name: "Find an instalment" }).fill("DEMO-LOAN-1001");
   await expect(dialog.getByText("No instalment that can take a payment matches this search.")).toBeVisible();
   await expect(offered).toHaveCount(0);
-  await expect(dialog.getByRole("navigation", { name: "instalment choices pagination" })).toHaveCount(0);
+  await expect(dialog.getByRole("navigation", { name: "Pages of instalment choices" })).toHaveCount(0);
 });
 test("paged queue search, saved view, record return and browser history", async ({
   page,
@@ -182,7 +182,7 @@ test("arriving at the accuracy review scrolls there once; paging a table keeps t
   await expect(review).toBeFocused();
   await expect(review).toBeInViewport();
   const pager = page.getByRole("navigation", {
-    name: "matches to review pagination",
+    name: "Pages of matches to review",
   });
   for (const next of ["Page 2 of 3", "Page 3 of 3"]) {
     await pager

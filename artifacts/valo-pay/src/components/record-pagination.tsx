@@ -145,7 +145,7 @@ export function RecordPagination({ pagination, total, busy = false, label = 'rec
   const controls = usePagerFocus(label, busy);
   const go = (control: Control, change: () => void) => { if (busy) return; press(label, control); keep(change); };
   return (
-    <><nav ref={nav} aria-label={`${label} pagination`} className="flex flex-wrap items-center justify-between gap-3 border-t px-5 py-3 text-xs text-muted-foreground">
+    <><nav ref={nav} aria-label={`Pages of ${label}`} className="flex flex-wrap items-center justify-between gap-3 border-t px-5 py-3 text-xs text-muted-foreground">
       <p aria-live="polite" aria-atomic="true">{total ? `${formatNumber(Math.min(offset + 1, total))}–${formatNumber(Math.min(offset + pageSize, total))} of ${formatNumber(total)} ${label}` : `0 ${label}`}</p>
       <div className="flex flex-wrap items-center gap-2 print:hidden">
         <label className="flex items-center gap-2">Rows per page

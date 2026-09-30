@@ -94,7 +94,7 @@ describe('customer consent and return context', () => {
     await waitFor(() => expect(document.activeElement?.id).toBe(rowId));
     expect((screen.getByRole('textbox', { name: 'Search customers' }) as HTMLInputElement).value).toBe('Search retained');
     expect((screen.getByRole('combobox', { name: 'customers per page' }) as HTMLSelectElement).value).toBe('50');
-    expect(screen.getByRole('navigation', { name: 'customers pagination' }).textContent).toContain('51–80 of 80 customers');
+    expect(screen.getByRole('navigation', { name: 'Pages of customers' }).textContent).toContain('51–80 of 80 customers');
     expect(new URLSearchParams(window.location.search).get('page')).toBe('2');
   });
 

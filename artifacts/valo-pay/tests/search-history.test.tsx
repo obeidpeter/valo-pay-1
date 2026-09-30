@@ -134,7 +134,7 @@ it("requests bounded history pages while keeping full balances and an off-page s
   await waitFor(() =>
     expect(
       within(
-        screen.getByRole("navigation", { name: "history events pagination" }),
+        screen.getByRole("navigation", { name: "Pages of history events" }),
       ).getByText(/26–50 of/),
     ).toBeTruthy(),
   );

@@ -32,7 +32,7 @@ describe('large customer directory', () => {
     await screen.findByText('Scale customer 09999');
     const table = screen.getByRole('table');
     expect(within(table).getAllByRole('row')).toHaveLength(26);
-    const pages = screen.getByRole('navigation', { name: 'customers pagination' });
+    const pages = screen.getByRole('navigation', { name: 'Pages of customers' });
     expect(pages.textContent).toContain('1–25 of 10,000 customers');
     await user.click(within(pages).getByRole('button', { name: 'Next page of customers' }));
     await screen.findByText('Scale customer 09974');
@@ -87,7 +87,7 @@ describe('paging by keyboard', () => {
     sixtyCustomers();
     renderApp('/customers');
     await screen.findByText('Pager customer 59');
-    const pages = screen.getByRole('navigation', { name: 'customers pagination' });
+    const pages = screen.getByRole('navigation', { name: 'Pages of customers' });
     const next = within(pages).getByRole('button', { name: 'Next page of customers' });
     const release = api.hold(/^\/v1\/records\/customers$/);
     await press(user, next);
@@ -167,7 +167,7 @@ describe('paging by keyboard', () => {
     const row = (await within(payments).findByText('SBX-UNIDENTIFIED-001')).closest('tr')!;
     await user.click(within(row).getByRole('button', { name: 'Allocate payment' }));
     const dialog = await screen.findByRole('dialog', { name: 'Allocate payment' });
-    const pager = await within(dialog).findByRole('navigation', { name: 'instalment choices pagination' });
+    const pager = await within(dialog).findByRole('navigation', { name: 'Pages of instalment choices' });
     const total = Number(within(pager).getByText(/^1–25 of \d+ instalment choices$/).textContent!.match(/of (\d+)/)![1]);
     expect(total).toBeGreaterThan(50);
     const next = within(pager).getByRole('button', { name: 'Next page of instalment choices' });
@@ -188,7 +188,7 @@ describe('paging by keyboard', () => {
    */
   async function pageThrough(user: ReturnType<typeof userEvent.setup>, label: string, request: RegExp, rows: () => number) {
     // A page of several tables (Reconciliation's six) can take a few seconds to render under load.
-    const pager = await screen.findByRole('navigation', { name: `${label} pagination` }, { timeout: 10_000 });
+    const pager = await screen.findByRole('navigation', { name: `Pages of ${label}` }, { timeout: 10_000 });
     const next = within(pager).getByRole('button', { name: `Next page of ${label}` });
     const release = api.hold(request);
     await press(user, next);

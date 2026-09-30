@@ -260,7 +260,7 @@ describe('allocation picker counts', () => {
     expect(offered()).toHaveLength(0);
     expect(within(dialog).getByText('No instalment that can take a payment matches this search. Try another name or reference.')).toBeTruthy();
     expect(within(dialog).getByText('Paid, cancelled, closed and disputed instalments are not listed. Instalments on hold while Finance reviews an earlier reversal decision are not listed either.')).toBeTruthy();
-    expect(within(dialog).queryByRole('navigation', { name: 'instalment choices pagination' })).toBeNull();
+    expect(within(dialog).queryByRole('navigation', { name: 'Pages of instalment choices' })).toBeNull();
   });
 });
 

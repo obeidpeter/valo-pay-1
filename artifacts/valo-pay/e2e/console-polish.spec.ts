@@ -242,7 +242,7 @@ const focusFell = (page: Page) => page.evaluate(() => (window as unknown as { fo
  */
 async function pageToTheEnd(page: Page, path: string, label: string) {
   await page.goto(path);
-  const pager = page.getByRole("navigation", { name: `${label} pagination` });
+  const pager = page.getByRole("navigation", { name: `Pages of ${label}` });
   const next = pager.getByRole("button", { name: `Next page of ${label}` });
   const pages = Number((await pager.getByText(/^Page 1 of [\d,]+$/).innerText()).replace(/^Page 1 of |,/g, ""));
   expect(pages, path).toBeGreaterThan(2);
