@@ -147,7 +147,7 @@ section("resolving the dispute as not upheld", () => {
 section("Finance releases an instalment from dispute with a reason", () => {
   const { state, due, dispute } = reversedInstalment("finance-release");
   const at = wat("2027-07-04T09:00:00");
-  refused(act(state, operations(at), "release_dispute", due.id, "Operations tries to release it"), /not permitted/, 403, "Operations cannot release an instalment from dispute");
+  refused(act(state, operations(at), "release_dispute", due.id, "Operations tries to release it"), /Only an Admin or Finance team member can release an instalment from dispute\./, 403, "Operations cannot release an instalment from dispute");
   refused(act(state, finance(at), "release_dispute", due.id, "  "), /reason/, undefined, "a release needs a reason");
   // Before the release, pay-by-bank refuses the instalment.
   refused(connected(state, operations(at), "payment.create", undefined, { dueItemId: due.id, amountKobo: due.amountKobo }), /open instalment/, 400, "pay-by-bank refuses an instalment in dispute");
@@ -284,7 +284,7 @@ section("an unknown pay-by-bank outcome", () => {
   refused(connected(state, operations(later), "payment.create", undefined, { dueItemId: due.id, amountKobo: due.amountKobo }), /unknown outcome/, 409, "and a new checkout is refused");
   // Only Finance records the outcome, and a failure code belongs to a debit attempt.
   refused(act(state, operations(later), "resolve_exception", unknown!.id, "Operations tries to settle it.", { resolutionCode: "resolved_failed" }), /Finance/, 403, "Operations cannot record a pay-by-bank payment's outcome");
-  refused(act(state, finance(later), "resolve_exception", unknown!.id, "With a debit failure code.", { resolutionCode: "resolved_failed", confirmedFailureCode: "INSUFFICIENT_FUNDS" }), /debit attempt/, undefined, "a debit failure code is refused for a checkout");
+  refused(act(state, finance(later), "resolve_exception", unknown!.id, "With a debit failure code.", { resolutionCode: "resolved_failed", confirmedFailureCode: "INSUFFICIENT_FUNDS" }), /A failure code is only for a collection attempt/, undefined, "a debit failure code is refused for a checkout");
   // Finance marks it failed: the instalment is released.
   const resolved = accepted(act(state, finance(later), "resolve_exception", unknown!.id, "The bank confirmed no payment arrived for this checkout.", { resolutionCode: "resolved_failed" }), "Finance's resolution as failed") as any;
   equal([unknown!.status, intent.status, intent.data.outcomeResolution?.outcome, intent.data.outcomeResolution?.resolvedBy], ["resolved", "failed", "failed", "Sandbox Finance"], "the checkout is recorded as failed, by Finance");

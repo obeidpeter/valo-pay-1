@@ -116,7 +116,7 @@ const quietDeadlines = (state: ReturnType<typeof seedMerchant>) => { for (const 
   quietDeadlines(state);
   state.settings.nextCloseAt = wat("2027-06-28T07:00:00");
   const early = executeAction(state, ctxAt(wat("2027-06-28T06:30:00"), "Finance"), { action: "daily_close" }).record!;
-  assert.equal(early.name, "Daily close 2027-06-28");
+  assert.equal(early.name, "Daily close 28 Jun 2027");
   assert.deepEqual(early.data.schedule, { trigger: "manual", scheduledFor: null, delayMinutes: null, late: false, nextAt: wat("2027-06-28T07:00:00") }, "the 07:00 close is still to come");
   assert.equal(state.settings.nextCloseAt, wat("2027-06-28T07:00:00"), "a manual close before the time does not move the cursor past it");
   assert.equal(scheduledCloseDue(state, wat("2027-06-28T06:59:00")), false);
@@ -124,10 +124,10 @@ const quietDeadlines = (state: ReturnType<typeof seedMerchant>) => { for (const 
   checks += 5;
 
   const onTime = runDailyClose(state, ctxAt(wat("2027-06-28T07:00:30"), "Operations"), "scheduled");
-  assert.equal(onTime.record!.name, "Daily close 2027-06-28 · scheduled · business date 2027-06-27");
+  assert.equal(onTime.record!.name, "Daily close 28 Jun 2027 · scheduled · business date 27 Jun 2027");
   assert.equal(onTime.record!.data.sourceBusinessDate, "2027-06-27", "decision 1: the 07:00 close of 28 June checks the files of 27 June, the day it closes");
   assert.deepEqual(onTime.record!.data.schedule, { trigger: "scheduled", scheduledFor: wat("2027-06-28T07:00:00"), delayMinutes: 0, late: false, nextAt: wat("2027-06-29T07:00:00") });
-  assert.equal(onTime.message, "Scheduled daily close of 2027-06-27 completed. No data was fetched from the provider or sent to the loan management system.");
+  assert.equal(onTime.message, "Scheduled daily close of 27 Jun 2027 completed. No data was fetched from the provider or sent to the loan management system.");
   assert.deepEqual(onTime.data.schedule, onTime.record!.data.schedule, "the action result carries the schedule block");
   assert.equal(state.settings.nextCloseAt, wat("2027-06-29T07:00:00"), "the cursor moved to the next 07:00");
   assert.equal(scheduledCloseDue(state, wat("2027-06-28T07:01:00")), false, "not due again until tomorrow");
@@ -150,7 +150,7 @@ const quietDeadlines = (state: ReturnType<typeof seedMerchant>) => { for (const 
   state.settings.nextCloseAt = wat("2027-06-28T07:00:00");
   const late = runDailyClose(state, ctxAt(wat("2027-06-28T15:10:00"), "Operations"), "scheduled");
   assert.equal(late.record!.data.schedule.delayMinutes, 490); assert.equal(late.record!.data.schedule.late, true);
-  assert.equal(late.message, "Scheduled daily close of 2027-06-27 completed 490 minutes after its 07:00 WAT time. No data was fetched from the provider or sent to the loan management system.");
+  assert.equal(late.message, "Scheduled daily close of 27 Jun 2027 completed about 8 hours after its 07:00 WAT time. No data was fetched from the provider or sent to the loan management system.");
   assert.equal(late.record!.data.report.alerts.some((alert: { key: string }) => alert.key === "close_missed"), true, "the report freezes the missed-close alert as it stood when the late close started");
   assert.equal(state.settings.nextCloseAt, wat("2027-06-29T07:00:00"), "the cursor moves to the next day, not to another close today");
   checks += 5;
@@ -184,10 +184,10 @@ const quietDeadlines = (state: ReturnType<typeof seedMerchant>) => { for (const 
   assert.deepEqual(records.map((close) => close.data.sourceBusinessDate), ["2027-06-27", "2027-06-28", "2027-06-29", "2027-06-30"], "one close per missed business date, oldest first");
   assert.deepEqual(records.map((close) => close.data.reviewBasis.sourceCompleteness.businessDate), ["2027-06-27", "2027-06-28", "2027-06-29", "2027-06-30"], "each checks its own date's source files");
   assert.deepEqual(records.map((close) => close.data.schedule.scheduledFor), ["2027-06-28", "2027-06-29", "2027-06-30", "2027-07-01"].map((day) => wat(`${day}T07:00:00`)), "and covers its own scheduled time");
-  assert.equal(records[0]!.name, "Daily close 2027-07-01 · scheduled · business date 2027-06-27");
+  assert.equal(records[0]!.name, "Daily close 1 Jul 2027 · scheduled · business date 27 Jun 2027");
   assert.equal(new Set(records.map((close) => close.name)).size, 4, "each has its own name");
-  assert.equal(closes[0]!.message, "Scheduled daily close of 2027-06-27 completed 4,440 minutes after its 07:00 WAT time. 3 missed business dates are still to close. No data was fetched from the provider or sent to the loan management system.");
-  assert.equal(closes[3]!.message, "Scheduled daily close of 2027-06-30 completed 123 minutes after its 07:00 WAT time. No data was fetched from the provider or sent to the loan management system.");
+  assert.equal(closes[0]!.message, "Scheduled daily close of 27 Jun 2027 completed about 3 days after its 07:00 WAT time. 3 missed business dates are still to close. No data was fetched from the provider or sent to the loan management system.");
+  assert.equal(closes[3]!.message, "Scheduled daily close of 30 Jun 2027 completed about 2 hours after its 07:00 WAT time. No data was fetched from the provider or sent to the loan management system.");
   assert.equal(state.settings.nextCloseAt, wat("2027-07-02T07:00:00"), "caught up: the next close is tomorrow's");
   assert.equal(scheduledCloseDue(state, wat("2027-07-01T09:04:00")), false);
   assert.equal(buildAlerts(state, wat("2027-07-01T09:04:00")).some((alert) => alert.key === "close_missed"), false, "the missed-close alert clears once every owed date is closed");
@@ -210,7 +210,7 @@ const quietDeadlines = (state: ReturnType<typeof seedMerchant>) => { for (const 
   assert.equal(state.settings.nextCloseAt, wat("2027-06-29T07:00:00"));
   const manual = close("2027-06-30T09:05:00");
   assert.deepEqual([manual.record!.data.sourceBusinessDate, manual.record!.data.schedule.scheduledFor, manual.record!.data.schedule.late], ["2027-06-28", wat("2027-06-29T07:00:00"), true]);
-  assert.equal(manual.message, "Daily close of 2027-06-28 completed in place of its scheduled close, 1,565 minutes after its 07:00 WAT time. 1 missed business date is still to close. No data was fetched from the provider or sent to the loan management system.");
+  assert.equal(manual.message, "Daily close of 28 Jun 2027 completed in place of its scheduled close, about 26 hours after its 07:00 WAT time. 1 missed business date is still to close. No data was fetched from the provider or sent to the loan management system.");
   assert.equal(state.settings.nextCloseAt, wat("2027-06-30T07:00:00"), "the next owed date is still pending");
   const named = close("2027-06-30T09:10:00", "2027-06-29");
   assert.deepEqual([named.record!.data.sourceBusinessDate, named.record!.data.schedule.scheduledFor], ["2027-06-29", wat("2027-06-30T07:00:00")], "naming the owed date covers it too");
@@ -230,7 +230,7 @@ const quietDeadlines = (state: ReturnType<typeof seedMerchant>) => { for (const 
   quietDeadlines(state);
   state.settings.nextCloseAt = wat("2027-07-01T07:00:00");
   const early = executeAction(state, ctxAt(wat("2027-07-01T00:30:00"), "Finance"), { action: "daily_close" }).record!;
-  assert.equal(early.name, "Daily close 2027-07-01", "00:30 WAT on 1 July is still 30 June in UTC");
+  assert.equal(early.name, "Daily close 1 Jul 2027", "00:30 WAT on 1 July is still 30 June in UTC");
   assert.equal(early.data.sourceBusinessDate, "2027-07-01");
   checks += 2;
 }

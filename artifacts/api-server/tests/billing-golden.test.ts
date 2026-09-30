@@ -151,9 +151,9 @@ checks += 5;
   // The proposer cannot confirm, in another role or under another account of the same person; nor can a role without the right.
   assert.throws(() => confirm(staff('ada', 'Admin')), refusedWith(403, /A different person must confirm these discount dates/));
   assert.throws(() => confirm({ ...staff('ada-second-login', 'Admin'), principalId: 'principal-ada' }), refusedWith(403, /A different person must confirm/));
-  assert.throws(() => confirm(staff('olu', 'Operations')), /not permitted/);
+  assert.throws(() => confirm(staff('olu', 'Operations')), /Only an Admin or Finance team member can confirm discount dates\./);
   // The confirmer names what they checked: dates that are not the proposal's are refused, and nothing is recorded.
-  assert.throws(() => confirm(staff('bola', 'Admin'), { ...dates, fullPriceStartDate: '2027-12-01' }), refusedWith(409, /changed since you read them/));
+  assert.throws(() => confirm(staff('bola', 'Admin'), { ...dates, fullPriceStartDate: '2027-12-01' }), refusedWith(409, /The proposed discount dates changed after you opened them\./));
   assert.throws(() => confirm(staff('bola', 'Admin'), { discountStartDate: '2027-01-01' }), (error: unknown) => (error as { issues?: Array<{ path: unknown[] }> }).issues?.some((issue) => issue.path.join('.') === 'data.fullPriceStartDate') === true);
   assert.deepEqual(terms.data.discountReview, proposal, 'refused confirmations record nothing');
   // A different person confirms: who, which person and when are recorded, and the confirmed dates price the month.
@@ -167,7 +167,7 @@ checks += 5;
   assert.throws(() => confirm(staff('chi', 'Finance')), refusedWith(409, /already confirmed by Clerk:user_bola/));
   const ordinary = structuredClone(state);
   recordsOf(ordinary, 'commercial')[0]!.data.designPartner = false;
-  assert.throws(() => executeAction(ordinary, staff('chi', 'Finance'), { action: 'confirm_discount_terms', recordId: terms.id, reason: 'Checked', data: dates }), refusedWith(409, /not a design partner's: they are billed at the full public price/));
+  assert.throws(() => executeAction(ordinary, staff('chi', 'Finance'), { action: 'confirm_discount_terms', recordId: terms.id, reason: 'Checked', data: dates }), refusedWith(409, /These terms are billed at the full public price, so there are no discount dates to confirm\./));
   // An edit that leaves the flags, dates and reference alone keeps the proposal and the confirmation.
   save(staff('ada', 'Finance', wat('2027-06-22T09:00:00')), { monthlyVolume: 4_321 });
   assert.deepEqual(terms.data.discountReview, confirmed, 'unrelated edits keep both');
@@ -188,7 +188,7 @@ checks += 5;
   // No client supplies who proposed or who confirmed.
   terms.data.fullPriceStartDate = '2027-12-01';
   for (const forged of [{ ...terms.data.discountReview, confirmedBy: 'Clerk:user_zed' }, { ...proposal, confirmedBy: 'Clerk:user_zed', confirmedPrincipal: 'principal-zed', confirmedAt: now }, undefined]) {
-    assert.throws(() => save(staff('ada', 'Finance'), { discountReview: forged }), /recorded by the service and cannot be supplied or edited/);
+    assert.throws(() => save(staff('ada', 'Finance'), { discountReview: forged }), /Valo Pay records who proposed and who confirmed the discount dates/);
   }
   // A review an earlier build recorded, by one person with no confirmation, is a proposal awaiting confirmation.
   const legacy = { reviewedBy: 'Clerk:user_ada', reviewedAt: '2026-09-29T10:00:00.000Z', discountStartDate: '2027-01-01', fullPriceStartDate: '2027-12-01', termsReference: 'SYN-TWO-PEOPLE' };
@@ -216,7 +216,7 @@ checks += 5;
     Object.assign(terms, edit);
   };
   const confirm = (ctx: Context) => () => executeAction(state, ctx, { action: 'confirm_discount_terms', recordId: terms.id, reason: 'Switched to Admin', data: { ...dates, discountStartDate: terms.data.discountStartDate } });
-  const oneVisitor = (error: unknown) => (error as { status?: number }).status === 403 && /switching demo roles does not provide independent confirmation/.test((error as Error).message);
+  const oneVisitor = (error: unknown) => (error as { status?: number }).status === 403 && /Switching demo roles is not a second person\./.test((error as Error).message);
   propose(visitor('Finance'), '2027-01-01');
   assert.equal(terms.data.discountReview?.proposedPrincipal, 'sandbox-visitor');
   assert.throws(confirm(visitor('Admin')), oneVisitor);
@@ -486,8 +486,8 @@ const firstHalf = ['2027-01', '2027-02', '2027-03', '2027-04', '2027-05', '2027-
   for (const patch of [{ fullPriceStartDate: '2027-01-01' }, { discountStartDate: '2027-02-30' }, { discountStartDate: '2027-06-15' }, { discountTermsReference: '' }]) {
     assert.throws(() => validateRecord(state, finance(wat('2027-06-02T09:00:00')), 'commercial', changed(patch), true));
   }
-  assert.throws(() => validateRecord(state, finance(wat('2027-06-02T09:00:00')), 'commercial', changed({ discountReview: { ...terms.data.discountReview, reviewedBy: 'Someone else' } }), true), /recorded by the service and cannot be supplied or edited/);
-  assert.throws(() => validateRecord(state, ctxAt(wat('2027-06-02T09:00:00'), 'Read-only'), 'commercial', changed({ fullPriceStartDate: '2028-02-01' }), true), /read-only access/);
+  assert.throws(() => validateRecord(state, finance(wat('2027-06-02T09:00:00')), 'commercial', changed({ discountReview: { ...terms.data.discountReview, reviewedBy: 'Someone else' } }), true), /Valo Pay records who proposed and who confirmed the discount dates/);
+  assert.throws(() => validateRecord(state, ctxAt(wat('2027-06-02T09:00:00'), 'Read-only'), 'commercial', changed({ fullPriceStartDate: '2028-02-01' }), true), /Your role is Read-only, so you can view records but not change them\./);
   const cleared = changed({ signedFullPriceTerms: false });
   validateRecord(state, finance(wat('2027-06-02T09:00:00')), 'commercial', cleared, true);
   assert.equal(cleared.data.discountReview, undefined);
@@ -564,7 +564,7 @@ const firstHalf = ['2027-01', '2027-02', '2027-03', '2027-04', '2027-05', '2027-
   assert.throws(() => invoiceFor(state, "2027-05", wat("2027-07-02T09:00:00")), /period order/);
   assert.throws(() => issueInvoice(state, finance(wat("2027-07-02T09:00:00")), { period: "2027-08" }), /future period/);
   assert.throws(() => issueInvoice(state, finance(wat("2027-07-02T09:00:00")), { period: "June" }), /YYYY-MM/);
-  assert.throws(() => executeAction(state, ctxAt(wat("2027-07-02T09:00:00"), "Operations"), { action: "issue_invoice", reason: "x", data: { period: "2027-07" } }), /not permitted/);
+  assert.throws(() => executeAction(state, ctxAt(wat("2027-07-02T09:00:00"), "Operations"), { action: "issue_invoice", reason: "x", data: { period: "2027-07" } }), /Only an Admin or Finance team member can issue an invoice\./);
   assert.throws(() => invoiceFor(state, "2027-07", wat("2027-07-31T23:30:00")), /once the month has ended/, "a month is invoiced only after it has ended");
   checks += 22;
 
@@ -575,7 +575,7 @@ const firstHalf = ['2027-01', '2027-02', '2027-03', '2027-04', '2027-05', '2027-
   assert.equal(next.data.usageLines[0].paymentReference, "PSK-2", "billed once, on the first invoice after its reversal window closed");
   const before = structuredClone(state);
   invoice.data.totals.totalKobo = 1;
-  assert.throws(() => assertFinalState(before, state, state.merchant.id), /immutable/, "issued invoices are never edited");
+  assert.throws(() => assertFinalState(before, state, state.merchant.id), /Saved evidence cannot be changed\. Reload the page and try again\./, "issued invoices are never edited");
   invoice.data.totals.totalKobo = before.records.find((item) => item.id === invoice.id)!.data.totals.totalKobo;
   checks += 4;
 }

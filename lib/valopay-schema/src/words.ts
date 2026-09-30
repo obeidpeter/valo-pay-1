@@ -102,6 +102,11 @@ export function rolesText(roles: readonly string[]): string {
   return `${/^(Admin|Operations)/.test(names[0]!) ? "an" : "a"} ${listed}${person}`;
 }
 
+/** Items in a sentence: "A, B or C", or with "and": "A, B and C". */
+export function listText(items: readonly string[], joiner: "or" | "and" = "or"): string {
+  return items.length < 2 ? items.join("") : `${items.slice(0, -1).join(", ")} ${joiner} ${items.at(-1)}`;
+}
+
 /** A missing record in the standard's words: "Instalment not found. It may have been deleted, or it belongs to another lender." */
 export function notFoundText(thing: string): string {
   return `${thing.charAt(0).toUpperCase()}${thing.slice(1)} not found. It may have been deleted, or it belongs to another lender.`;

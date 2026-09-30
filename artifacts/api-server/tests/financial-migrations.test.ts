@@ -415,7 +415,7 @@ function refusal(state: DomainState, exception: TypedRecord<"exceptions">, role:
   try { confirm(structuredClone(state), structuredClone(exception), role, data, at); } catch (error) { return [(error as { status?: number }).status ?? 400, (error as Error).message]; }
   return [200, ""];
 }
-const onlyConfirmation = /^Resolution code must be provider_identity_confirmed: a settlement batch held for its provider identity is released only when Finance or an administrator confirms whose payout it is\. If the providers cannot attribute the payout to one connection, leave this exception open until the data owner repairs the evidence/;
+const onlyConfirmation = /^Choose ‘Provider identity confirmed’: this settlement batch stays held until Finance or an Admin confirms whose payout it is\. If the providers cannot say which connection it belongs to, leave this exception open until the data owner corrects the evidence\./;
 {
   // Decision: the hold's exception offers and accepts only provider_identity_confirmed, the one code that decides it. The
   // settlement codes would close it while the batch stays held with its evidence uncounted, with no way out.
@@ -557,7 +557,7 @@ function duplicateBatches(merchantId: string) {
   const { state } = liveFixture({ withFailure: false, merchantId: "duplicate-reference" });
   addObservation(state, { reference: "PAY-1", amountKobo: 99_500, grossAmountKobo: 100_000, feeKobo: 500, batchReference: "R-1", source: "settlement", eventId: "l1", occurredAt: wat("2027-07-01T08:00:00"), providerConnection: "connection-a" } as any);
   run(state);
-  const duplicate = /^Another settlement batch already has this reference\. A batch is one provider connection's payout/;
+  const duplicate = /^Another settlement batch already has this reference\. Each batch is one provider connection’s payout/;
   const refusedWith409 = (run: () => unknown) => assert.throws(run, (error) => (error as { status?: number }).status === 409 && duplicate.test((error as Error).message));
   const hand = () => ({ name: "Settlement batch R-1B", status: "pending", reference: "R-1B", amountKobo: 0, customerId: "", data: { batchReference: "R-1B", provider: "connection-a", grossKobo: 100_000, feeKobo: 500, netKobo: 99_500 } });
   refusedWith409(() => validateRecord(state, finance, "settlement-batches", { ...hand(), reference: "R-1", data: { ...hand().data, batchReference: "R-1" } }));

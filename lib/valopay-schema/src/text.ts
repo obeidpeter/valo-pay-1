@@ -18,6 +18,17 @@ export function counted(count: number, singular: string, plural = `${singular}s`
   return `${numberFormat.format(count)} ${pluralRules.select(count) === "one" ? singular : plural}`;
 }
 /**
+ * A length of time as people read it, from whole minutes: "45 minutes" under
+ * two hours, then hours under two days, then days, with "about" when the time
+ * is not a whole number of them ("about 3 hours").
+ */
+export function durationText(minutes: number): string {
+  const whole = Math.max(0, Math.floor(minutes));
+  if (whole < 120) return counted(whole, "minute");
+  const [unit, size] = whole < 2880 ? ["hour", 60] as const : ["day", 1440] as const;
+  return `${whole % size === 0 ? "" : "about "}${counted(Math.round(whole / size), unit)}`;
+}
+/**
  * An amount in kobo as Valo Pay writes money for people, in messages, notes and
  * PDFs: "₦25,000.00", and "-₦1.50" for a credit, as the console shows it. A whole
  * number of kobo is split into naira and kobo with integer arithmetic, so every

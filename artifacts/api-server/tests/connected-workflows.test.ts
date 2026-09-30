@@ -381,7 +381,7 @@ check(() => {
   });
   assert.throws(
     () => assertFinalState(before, s, s.merchant.id),
-    /flight together/,
+    /Pay by Bank checkout and another collection in progress at the same time/,
   );
 });
 check(() => {
@@ -393,7 +393,7 @@ check(() => {
   });
   const before = structuredClone(s);
   s.records.at(-1)!.data.result.score = 99;
-  assert.throws(() => assertFinalState(before, s, s.merchant.id), /immutable/);
+  assert.throws(() => assertFinalState(before, s, s.merchant.id), /Saved evidence cannot be changed\. Reload the page and try again\./);
 });
 check(() => {
   const s = fresh(),

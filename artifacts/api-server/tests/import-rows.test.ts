@@ -145,9 +145,9 @@ const quick = (state: ReturnType<typeof seedMerchant>, kind: string, csv: string
   const state = seedMerchant("row-id-screen");
   const before = state.records.length;
   const raw = "account_number,name,consentProvenance\n0123456789,Raw account row,Synthetic consent";
-  refused(() => quick(state, "customers", raw, { identityColumn: "account_number" }), /^Raw bank account details are not permitted; store a masked identifier only\.$/, "a raw account number as the row ID is refused");
-  refused(() => quick(state, "customers", raw, { identityColumn: "account_number", commit: false }), /^Raw bank account details are not permitted/, "and refused by a check");
-  refused(() => quick(state, "customers", "Account ID,name,consentProvenance\n0123-4567-89,Account digits,Synthetic consent", { identityColumn: "Account ID" }), /^Raw financial identifiers are not permitted/, "digits under a financial header are refused");
+  refused(() => quick(state, "customers", raw, { identityColumn: "account_number" }), /^Do not enter a full bank account number\. Enter a masked number, for example •••• 1234\.$/, "a raw account number as the row ID is refused");
+  refused(() => quick(state, "customers", raw, { identityColumn: "account_number", commit: false }), /^Do not enter a full bank account number/, "and refused by a check");
+  refused(() => quick(state, "customers", "Account ID,name,consentProvenance\n0123-4567-89,Account digits,Synthetic consent", { identityColumn: "Account ID" }), /^Do not enter full account, card or BVN numbers/, "digits under a financial header are refused");
   check(state.records.length === before, "nothing is saved from a refused row ID");
   const masked = quick(state, "customers", "account_ref,name,consentProvenance\nACC-0001,Account reference row,Synthetic consent", { identityColumn: "account_ref" });
   check(masked.imported === 1 && state.records.find((record) => record.name === "Account reference row")?.data.importIdentity.rowId === "ACC-0001", "a row ID that is no account number is kept");

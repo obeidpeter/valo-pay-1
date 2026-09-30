@@ -85,12 +85,12 @@ const refused = (run: () => unknown, pattern: RegExp, message: string) => { asse
   eq(found('"note"'), [], "JSON's quotes around a key are not searched");
   eq(found("Synthetic fixture").includes(quoted.id), true, "a data value is searched");
   // A name is never empty (the record API used to save "" as the kind's name).
-  refused(() => validateRecord(state, ctx, "customers", { name: "   ", data: { consentProvenance: "Synthetic fixture" } }), /name cannot be empty/, "a blank name is refused");
+  refused(() => validateRecord(state, ctx, "customers", { name: "   ", data: { consentProvenance: "Synthetic fixture" } }), /^Error: Enter a name for this record\.$/, "a blank name is refused");
   // Indexed text is bounded, refused naming its field, before PostgreSQL's index could fail on it (API item 3).
   const long = "x".repeat(201);
-  refused(() => validateRecord(state, ctx, "customers", { name: "Long reference", reference: long, data: { consentProvenance: "Synthetic fixture" } }), /reference is at most 200 characters/, "an over-long reference is refused");
-  refused(() => validateRecord(state, ctx, "costs", { name: "Long status", status: "s".repeat(101), data: {} }), /status is at most 100 characters/, "an over-long free-form status is refused");
-  refused(() => validateRecord(state, ctx, "exceptions", { name: "Long customer", customerId: "c".repeat(101), data: { type: "unallocated_payment", severity: "low" } }), /customerId is at most 100 characters/, "an over-long customerId is refused");
+  refused(() => validateRecord(state, ctx, "customers", { name: "Long reference", reference: long, data: { consentProvenance: "Synthetic fixture" } }), /^Error: Loan software reference: Use at most 200 characters\.$/, "an over-long reference is refused");
+  refused(() => validateRecord(state, ctx, "costs", { name: "Long status", status: "s".repeat(101), data: {} }), /^Error: Status: Use at most 100 characters\.$/, "an over-long free-form status is refused");
+  refused(() => validateRecord(state, ctx, "exceptions", { name: "Long customer", customerId: "c".repeat(101), data: { type: "unallocated_payment", severity: "low" } }), /^Error: Customer reference or ID: Use at most 100 characters\.$/, "an over-long customerId is refused");
   refused(() => validateRecord(state, ctx, "observations", { name: "Long event", reference: "OBS-1", customerId: customers()[0]!.id, amountKobo: 150000, data: { source: "webhook", eventId: "e".repeat(201) } }), /Event ID: Use at most 200 characters/, "an over-long event ID is refused");
 }
 

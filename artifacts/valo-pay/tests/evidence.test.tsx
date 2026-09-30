@@ -207,7 +207,7 @@ describe('evidence register and operational reviews', () => {
     expect(sent.body).toMatchObject({ action: 'confirm_discount_terms', data: agreement, reason: 'Checked against the signed agreement' });
     expect(api.state().records.find(record => record.kind === 'commercial')!.data.discountReview).toMatchObject({ confirmedBy: 'Sandbox Finance', confirmedPrincipal: 'synthetic-console-person-2', confirmedAt: api.now });
     const section = (await screen.findByRole('heading', { name: 'Commercial commitments' })).closest('section')!;
-    expect(within(section).getByRole('status').textContent).toMatch(/^Discount dates confirmed: 50% discount from 2027-02-01, full price from 2028-02-01 \(agreement SYNTHETIC-AGREEMENT-2027\), proposed by Sandbox Admin\./);
+    expect(within(section).getByRole('status').textContent).toMatch(/^Discount dates confirmed: 50% discount from 1 Feb 2027, full price from 1 Feb 2028 \(agreement SYNTHETIC-AGREEMENT-2027\), proposed by Sandbox Admin\./);
     expect(await within(table).findByText(`Confirmed by Sandbox Finance · ${formatDate(api.now)}`)).toBeTruthy();
     expect(within(table).queryByRole('button', { name: 'Confirm discount dates' })).toBeNull();
   });

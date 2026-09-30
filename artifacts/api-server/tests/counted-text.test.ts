@@ -79,7 +79,7 @@ const empty = (id: string) => { const state = seedMerchant(id, true); state.reco
 {
   const { state } = liveFixture({ merchantId: "counted-hand-back", withFailure: false });
   const result = executeAction(state, ctxAt(wat("2027-06-28T09:00:00")), { action: "hand_back", reason: "Pilot ends; the lender's system collects again." });
-  assert.deepEqual((result.record!.data.checklist as string[]).slice(0, 2), ["Ownership of 1 obligation reverted to lms", "0 scheduled attempts cancelled with notices"]);
+  assert.deepEqual((result.record!.data.checklist as string[]).slice(0, 2), ["Collection of 1 instalment returned to the loan management system", "0 scheduled collection attempts cancelled"]);
   checks += 1;
 }
 

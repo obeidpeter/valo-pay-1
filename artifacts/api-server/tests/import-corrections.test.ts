@@ -419,7 +419,7 @@ assert.equal(
   };
   assert.ok(
     previewImportCorrection(low, ctx, lowInput).blockers.some((blocker) =>
-      /need an Admin/.test(blocker),
+      /An Admin must record a reason to allow it\./.test(blocker),
     ),
     "Operations cannot correct an instalment below the lender minimum, as they cannot edit one there directly",
   );

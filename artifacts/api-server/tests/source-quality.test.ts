@@ -117,10 +117,10 @@ for (const tamper of [
   (record: typeof first.event) => { record.data.connectionId = "another-lender"; },
   (record: typeof first.event) => { record.data.deliveryCount = 0; },
   (record: typeof first.event) => { record.data.replayHistory[0].reason = "rewritten history"; },
-]) { const altered = structuredClone(first.event); tamper(altered); assert.throws(() => assertProviderEventChange(first.event, altered), /immutable/); }
+]) { const altered = structuredClone(first.event); tamper(altered); assert.throws(() => assertProviderEventChange(first.event, altered), /Saved provider receipts cannot be changed/); }
 const quarantined = inbox.records.find(record => record.status === "quarantined")!;
 const cleared = structuredClone(quarantined); cleared.status = "awaiting_verification"; cleared.data.replayHistory.push({ result: "awaiting_verification" });
-assert.throws(() => assertProviderEventChange(quarantined, cleared), /immutable/);
+assert.throws(() => assertProviderEventChange(quarantined, cleared), /Saved provider receipts cannot be changed/);
 assert.equal("connectionId" in providerEventView(first.event),false);
 assert.equal("event" in providerEventView(first.event),false);
 

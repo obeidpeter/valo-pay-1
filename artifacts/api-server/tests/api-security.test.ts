@@ -250,7 +250,7 @@ function answer(error: unknown): Answer {
   // A record's data cannot smuggle a key that names an object's own machinery.
   for (const key of ["__proto__", "constructor", "prototype"]) {
     const data = JSON.parse(`{"${key}": {"polluted": true}, "note": "x"}`) as Record<string, unknown>;
-    assert.throws(() => validateRecord({} as never, { role: "Admin" } as never, "customers", { data }), new RegExp(`data\\.${key} is not an allowed field`), `${key} is refused before anything else looks at the data`);
+    assert.throws(() => validateRecord({} as never, { role: "Admin" } as never, "customers", { data }), /^Error: This request has a field Valo Pay does not accept\. Reload the page and try again\.$/, `${key} is refused before anything else looks at the data`);
   }
   checks += 3;
 }

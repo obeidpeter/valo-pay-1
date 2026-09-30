@@ -61,7 +61,7 @@ function secondInstalment(state: DomainState, due: TypedRecord<"due-items">, amo
   equal(payment.status, "returned", "a reversed payment is returned, not unallocated");
   equal([proposal.status, proposal.data.supersededReason], ["superseded", "Payment reversed by the provider."], "its pending proposal is withdrawn with the reason");
   equal(payment.data.proposedDueItemId, undefined, "no proposal is shown on the payment");
-  assert.throws(() => executeAction(state, finance(wat("2027-07-02T10:00:00")), { action: "confirm_allocation", recordId: payment.id, reason: "Stale screen", data: seen }), /no proposed allocation/); checks += 1;
+  assert.throws(() => executeAction(state, finance(wat("2027-07-02T10:00:00")), { action: "confirm_allocation", recordId: payment.id, reason: "Stale screen", data: seen }), /This payment has no proposed match to review\. Reload the page to see its current status\./); checks += 1;
   refused(() => executeAction(state, finance(wat("2027-07-02T10:00:00")), { action: "manual_allocate", recordId: payment.id, reason: "By hand", data: { dueItemId: due.id, amountKobo: GROSS } }), /reversed by the provider\. Its money went back/, 409, "a reversed payment cannot be allocated by hand");
   refused(() => executeAction(state, finance(wat("2027-07-02T10:00:00")), { action: "record_refund", recordId: payment.id, reason: "Refunded", data: { reference: "RF-REV" } }), /already went back/, 409, "a reversed payment cannot also be refunded");
   equal(positionFor(state, due.customerId).unallocatedKobo, 0, "reversed money is not customer credit");
@@ -99,7 +99,7 @@ function secondInstalment(state: DomainState, due: TypedRecord<"due-items">, amo
   executeAction(state, finance(wat("2027-07-03T10:00:00")), { action: "manual_allocate", recordId: over.id, reason: "Customer paid instalment 5 with extra", data: { dueItemId: due.id, amountKobo: GROSS } });
   equal([over.status, due.status, positionFor(state, due.customerId).unallocatedKobo], ["overpaid", "paid", 500_000], "the excess is the customer's credit until it is refunded");
   const refundedExcess = executeAction(state, finance(wat("2027-07-03T11:00:00")), { action: "record_refund", recordId: over.id, reason: "Excess returned to the payer", data: { reference: "RF-OVER" } });
-  equal(refundedExcess.message, "External refund of ₦5,000.00 recorded: the money this payment had not applied. Valo Pay did not move funds.", "the amount reads like the other money in the API");
+  equal(refundedExcess.message, "External refund of ₦5,000.00 recorded: the money this payment had not allocated. Valo Pay did not move any money.", "the amount reads like the other money in the API");
   equal([over.status, over.data.refundStatus, over.data.allocatedKobo], ["allocated", "refunded", GROSS], "the refund returns the excess; what was applied stays applied");
   equal(over.data.refundedKobo, 500_000, "only the excess is recorded as refunded");
   equal([due.status, allocationsFor(state, over).map((item) => item.status)], ["paid", ["confirmed"]], "the instalment stays paid by the money that stayed");
@@ -157,7 +157,7 @@ function secondInstalment(state: DomainState, due: TypedRecord<"due-items">, amo
   equal([proposal.status, payment.data.proposedDueItemId], ["superseded", undefined], "the proposal that no longer fits is withdrawn");
   refused(() => executeAction(state, finance(wat("2027-07-01T11:02:00")), { action: "record_refund", recordId: payment.id, reason: "Returned", data: { reference: "RF-STALE" } }), /nothing unapplied to refund/, 409, "a payment whose money is all applied has nothing a refund recorded here can return");
   equal([payment.status, payment.data.refundStatus, payment.data.refundedKobo], ["allocated", "none", undefined], "and the refused refund records nothing");
-  assert.throws(() => executeAction(state, finance(wat("2027-07-01T11:05:00")), { action: "reject_allocation", recordId: payment.id, reason: "Old screen", data: seen }), /no proposed allocation/); checks += 1;
+  assert.throws(() => executeAction(state, finance(wat("2027-07-01T11:05:00")), { action: "reject_allocation", recordId: payment.id, reason: "Old screen", data: seen }), /This payment has no proposed match to review\. Reload the page to see its current status\./); checks += 1;
   for (const day of ["2027-07-02", "2027-07-03"]) reconcile(state, finance(wat(`${day}T07:00:00`)));
   equal([payment.status, allocationsFor(state, payment).filter((item) => item.status === "confirmed").length], ["allocated", 1], "later closes leave the applied payment alone");
   invariant(state);
@@ -382,11 +382,11 @@ function secondInstalment(state: DomainState, due: TypedRecord<"due-items">, amo
   equal(evaluateRetry(state, finance(wat("2027-06-29T07:00:00")), due, policy).rule, "in_flight", "while unknown, the instalment waits");
   refused(() => executeAction(state, operations(wat("2027-06-29T07:00:00")), { action: "simulate_failure", recordId: due.id, reason: "Another", data: { failureCode: "INSUFFICIENT_FUNDS" } }), /unknown outcome/, undefined, "and no further attempt is recorded");
   // The confirmed code is checked before anything is recorded.
-  refused(() => resolve(state, unknown!, wat("2027-06-29T08:00:00"), "resolved_succeeded", { confirmedFailureCode: "INSUFFICIENT_FUNDS" }), /only when an unknown outcome is resolved as failed/, undefined, "a code needs a failed outcome");
+  refused(() => resolve(state, unknown!, wat("2027-06-29T08:00:00"), "resolved_succeeded", { confirmedFailureCode: "INSUFFICIENT_FUNDS" }), /Leave the failure code blank unless you resolve an unknown outcome as ‘Confirmed failed’\./, undefined, "a code needs a failed outcome");
   refused(() => resolve(state, unknown!, wat("2027-06-29T08:00:00"), "resolved_failed", { confirmedFailureCode: "TIMEOUT_UNKNOWN" }), /Choose the failure code the provider confirmed/, undefined, "the timeout is not a confirmed code");
   equal(unknown!.status, "open", "a refused resolution records nothing");
   const resolved = resolve(state, unknown!, wat("2027-06-29T08:00:00"), "resolved_failed", { confirmedFailureCode: "INSUFFICIENT_FUNDS" });
-  equal(resolved.message, "Exception resolution recorded. The attempt is now recorded as failed.", "the result names the attempt's new outcome");
+  equal(resolved.message, "Exception resolution recorded. The collection attempt is now recorded as failed.", "the result names the attempt's new outcome");
   equal([attempt.status, attempt.data.failureCode, attempt.data.rawFailureCode, unknown!.data.confirmedFailureCode], ["failed", "INSUFFICIENT_FUNDS", "INSUFFICIENT_FUNDS", "INSUFFICIENT_FUNDS"], "the attempt takes the confirmed outcome");
   equal([attempt.data.outcomeConfirmation?.previousStatus, attempt.data.outcomeConfirmation?.previousFailureCode, attempt.data.outcomeConfirmation?.previousRawFailureCode, attempt.data.outcomeConfirmation?.exceptionId], ["unknown", "TIMEOUT_UNKNOWN", "TIMEOUT_UNKNOWN", unknown!.id], "what it showed before, including the provider's raw code, is kept on it");
   check(evaluateRetry(state, finance(wat("2027-06-29T09:00:00")), due, policy).rule !== "in_flight", "the instalment no longer waits as in flight");

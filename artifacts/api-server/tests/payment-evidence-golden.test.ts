@@ -528,9 +528,9 @@ section("a zero or understated gross", () => {
   const csv = "reference,amount,grossAmountKobo,batchReference,source,eventId,occurredAt\nPSK-ZERO-1,1.00,0.00,B-Z,settlement,z-1,2027-07-01T06:00:00Z";
   const imported = importCsv(state, ctxAt(wat("2027-07-01T08:00:00"), "Finance"), { kind: "observations", csv, syntheticOnly: true, commit: true, identityColumn: "eventId", amountUnit: "naira" });
   equal([imported.valid, imported.invalid, imported.imported], [0, 1, 0], "a settlement line whose gross is below its amount is refused");
-  check(/gross amount cannot be less than the amount received/.test(imported.rows[0]!.message), `with the reason (${imported.rows[0]!.message})`);
+  check(/amount before fees cannot be less than the amount received/.test(imported.rows[0]!.message), `with the reason (${imported.rows[0]!.message})`);
   const low = request(state, () => postObservation(state, wat("2027-07-01T08:00:00"), { reference: "PSK-LOW-1", amountKobo: 2_487_500, data: { source: "settlement", grossAmountKobo: 2_487_499, batchReference: "B-Z", eventId: "low-1" } }));
-  check(!low.ok && /gross amount cannot be less than the amount received/.test(low.message), "and so is the same evidence posted as a record");
+  check(!low.ok && /amount before fees cannot be less than the amount received/.test(low.message), "and so is the same evidence posted as a record");
   accepted(request(state, () => postObservation(state, wat("2027-07-01T08:00:00"), { reference: "PSK-EVEN-1", amountKobo: 2_500_000, data: { source: "webhook", grossAmountKobo: 2_500_000, eventId: "even-1" } })), "a gross equal to the amount");
   // A 0-kobo payment an earlier build made from such a line waits for nobody: no exception opens and closes at every close.
   const zero = makeRecord(state, "payments", { name: "Canonical payment", status: "unallocated", reference: "PSK-ZERO-OLD", customerId: due.customerId, amountKobo: 0, createdAt: wat("2027-07-01T06:00:00"), data: { providerReference: "PSK-ZERO-OLD", providerConnection: "Sandbox Rail", currency: "NGN", channel: "direct_debit", observedAt: wat("2027-07-01T06:00:00"), virtualAccountCustomerId: due.customerId, collectionStatus: "succeeded", settlementStatus: "settled", reversalStatus: "none", refundStatus: "none", allocatedKobo: 0, canonical: true } });
@@ -557,7 +557,7 @@ section("money in another currency", () => {
   state.settings.unallocatedAlertThreshold = 0;
   const alert = buildAlerts(state, wat("2027-07-02T10:00:00")).find((item) => item.key === "unallocated_over_threshold");
   equal([report.unallocated.count, report.unallocated.olderThan24Hours, report.unallocated.olderThan24Hours, report.unallocated.olderThan24Hours], [report.reconciliation.unallocated, buildReports(state, wat("2027-07-02T10:00:00")).operational.unallocatedOlderThan24Hours, alert?.count, baseline.count + 1], "the close, its reconciliation, the reports and the alert count alike, the USD payment included");
-  check(/unallocated \(\d+ older than 24h\), including USD 1,000\.00 in another currency, /.test(String(closed.data.summary)), `the close's summary names the money in another currency (${closed.data.summary})`);
+  check(/unallocated \(\d+ older than 24 hours\), including USD 1,000\.00 in another currency, /.test(String(closed.data.summary)), `the close's summary names the money in another currency (${closed.data.summary})`);
   check(!report.customerPositionsChanged.some((item: { customerId: string }) => item.customerId === due.customerId), "no naira position changed");
   const next = close(state, "2027-07-02T11:00:00").data.report;
   equal([next.openingUnallocated.count, next.openingUnallocated.kobo, (next.openingUnallocated as any).otherCurrencies], [baseline.count + 1, baseline.kobo, { USD: { count: 1, amount: 100_000 } }], "the next close opens with it counted and listed the same way");
@@ -728,7 +728,7 @@ section("the same payment is offered only where it applies", () => {
     // Tried on a copy: a refused request puts back a copy of the records it started from.
     const copy = structuredClone(state);
     const refused = request(copy, () => executeAction(copy, finance(wat("2027-07-01T10:00:00")), { action: "resolve_exception", recordId: held!.id, reason: "Same payment?", data: { resolutionCode: "same_payment" } }));
-    check(!refused.ok && /Resolution code must be one of: confirmed_duplicate_refund, distinct_payments, applied_to_next, not_money\./.test(refused.message), `joining it is refused (${!refused.ok && refused.message})`);
+    check(!refused.ok && /^This resolution is not available for this exception now\. Choose one of these: ‘Duplicate confirmed; refund required’, ‘Distinct payments’, ‘Applied to the next instalment’ or ‘Not money; evidence set aside’\.$/.test(refused.message), `joining it is refused (${!refused.ok && refused.message})`);
   }
   check(/and it names another payer\. It was not merged into that payment, and no payment was made for it\./.test(String(exceptionsFor(state, elsewhere.id)[0]?.data.notes)), "the other connection's hold names its conflict too");
   // A payment held by the ladder, not evidence, offers neither.
@@ -863,7 +863,7 @@ section("a waiting reversal Finance resolved before its payment arrived", () => 
   equal([adoptedElsewhere.reversal, adoptedElsewhere.debit, adoptedElsewhere.raised], [["resolved", "adopted_after_review", true], ["Sandbox Rail Settlements", "returned", "reversed"], []], "and reverses it through another spelling of the connection too, with no new exception");
   // Escalated to the provider is not offered: the exception stays open while it is checked, and the payment then applies it.
   const escalated = run("escalated", "escalated_to_provider", true);
-  check(!escalated.answer.ok && /Resolution code must be one of: provider_state_adopted, platform_state_confirmed\./.test(escalated.answer.message), `escalated_to_provider is refused (${!escalated.answer.ok && escalated.answer.message})`);
+  check(!escalated.answer.ok && /^This resolution is not available for this exception now\. Choose one of these: ‘Provider state adopted’ or ‘Platform state confirmed’\.$/.test(escalated.answer.message), `escalated_to_provider is refused (${!escalated.answer.ok && escalated.answer.message})`);
   equal([escalated.unseen.status, escalated.unseen.data.resolutionCode, escalated.reversal, escalated.debit], ["closed", "condition_cleared", ["resolved", "canonical_provider_reference", true], reversed.debit], "the open exception closes when the payment arrives, which the reversal reverses");
   equal(resolutionCodesForException(adopted.unseen), ["provider_state_adopted", "platform_state_confirmed"], "the waiting reversal's exception offers only the two codes that decide it");
   // A resolution replaces the notes with its reason: the text the exception was raised with is read on the one left open.
@@ -911,7 +911,7 @@ section("a waiting reversal Finance resolved under an earlier build", () => {
   close(state, "2027-07-02T10:00:00");
   equal([live(state, reversal).status, exceptionsFor(state, reversal.id).filter(isOpen).length], ["unresolved", 0], "and an adopted reversal keeps waiting for its payment");
   const edit = request(state, () => { const input: any = structuredClone(live(state, unseen!)); input.data.resolutionRuleVersion = null; validateRecord(state, finance(wat("2027-07-02T11:00:00")), "exceptions", { ...input, data: { ...input.data, resolutionRuleVersion: undefined } }, true); });
-  check(!edit.ok && /rule version|completed exception/.test(edit.message), `the record API cannot remove it (${!edit.ok && edit.message})`);
+  check(!edit.ok && /rule version|This exception is resolved, so it cannot be edited\./.test(edit.message), `the record API cannot remove it (${!edit.ok && edit.message})`);
 });
 
 section("held evidence Finance resolved in one sitting", () => {
@@ -969,7 +969,7 @@ section("the same payment offered as the hold stands now", () => {
   const conflictCodes = ["confirmed_duplicate_refund", "distinct_payments", "applied_to_next", "not_money"];
   const copy = structuredClone(state);
   const refused = request(copy, () => executeAction(copy, finance(wat("2027-07-01T10:00:00")), { action: "resolve_exception", recordId: held!.id, reason: "Same payment?", data: { resolutionCode: "same_payment" } }));
-  check(!refused.ok && refused.message === `Resolution code must be one of: ${conflictCodes.join(", ")}.`, `resolving it reads the hold as it stands now and refuses the join (${!refused.ok && refused.message})`);
+  check(!refused.ok && refused.message === "This resolution is not available for this exception now. Choose one of these: ‘Duplicate confirmed; refund required’, ‘Distinct payments’, ‘Applied to the next instalment’ or ‘Not money; evidence set aside’.", `resolving it reads the hold as it stands now and refuses the join (${!refused.ok && refused.message})`);
   accepted(request(state, () => reconcile(state, finance(wat("2027-07-01T11:00:00")))), "the next reconciliation");
   const stood = live(state, held!);
   equal([stood.status, stood.data.condition, resolutionCodesForException(stood)], ["open", `suspected_duplicate:${clash.id}:${debit!.id}`, conflictCodes], "the reconciliation re-derives the stored condition, so the join is no longer offered");
@@ -1149,7 +1149,7 @@ section("amounts written in the payment's own currency", () => {
   close(state, "2027-07-02T10:00:00");
   const [card] = payment(state, "CARD-USD-9");
   const refund = accepted(request(state, () => executeAction(state, finance(wat("2027-07-02T11:00:00")), { action: "record_refund", recordId: card!.id, reason: "Card refund made outside Valo Pay.", data: { reference: "RF-***9" } })), "the USD refund");
-  equal([refund.message, refund.data.refundedKobo], ["External refund of USD 1,000.00 recorded: the money this payment had not applied. Valo Pay did not move funds.", 100_000], "the refund's answer writes its amount in dollars");
+  equal([refund.message, refund.data.refundedKobo], ["External refund of USD 1,000.00 recorded: the money this payment had not allocated. Valo Pay did not move any money.", 100_000], "the refund's answer writes its amount in dollars");
   const two = recordsOf(state, "settlement-batches").find((item) => item.reference === "B-U2")!;
   check(exceptionsFor(state, two.id, "settlement_variance").some((item) => String(item.data.notes).includes("Settlement line PSK-USD-9 (USD 1,000.00) is already counted in settlement batch B-U1")), "a USD line counted in two batches is reported in dollars");
 });

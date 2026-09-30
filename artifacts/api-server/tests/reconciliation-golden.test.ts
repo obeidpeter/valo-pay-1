@@ -259,9 +259,9 @@ function assertOnePayment(state: DomainState, due: ValopayRecord, label: string)
   const line = recordsOf(state, "observations").find((item) => item.reference === "EDIT-L1")!;
   const copied: [string, unknown][] = [["statementNetKobo", NET], ["statementObservationId", line.id], ["lineObservationIds", []], ["linePaymentIds", []], ["expectedFeeKobo", FEE + 20_000], ["feeVarianceKobo", 20_000], ["enteredTotals", { grossKobo: GROSS, feeKobo: FEE, netKobo: NET }]];
   for (const [key, value] of copied) {
-    assert.throws(() => validateRecord(state, ctx, "settlement-batches", patch({ [key]: value }), true), new RegExp(`Settlement batch ${key} is recorded by reconciliation`), `the record API cannot set ${key}`);
+    assert.throws(() => validateRecord(state, ctx, "settlement-batches", patch({ [key]: value }), true), /Reconciliation sets this detail of the settlement batch\. You cannot change it here\./, `the record API cannot set ${key}`);
   }
-  assert.throws(() => validateRecord(state, ctx, "settlement-batches", { name: "b", status: "pending", reference: "B-TYPED", data: { provider: "Sandbox Rail", grossKobo: GROSS, feeKobo: FEE, netKobo: NET, statementObservationId: credit.id, statementNetKobo: NET } }), /is recorded by reconciliation/, "nor give a new batch a statement credit");
+  assert.throws(() => validateRecord(state, ctx, "settlement-batches", { name: "b", status: "pending", reference: "B-TYPED", data: { provider: "Sandbox Rail", grossKobo: GROSS, feeKobo: FEE, netKobo: NET, statementObservationId: credit.id, statementNetKobo: NET } }), /Reconciliation sets this detail of the settlement batch/, "nor give a new batch a statement credit");
   // The console's edit dialog sends the stored data back with the fields it edits.
   assert.doesNotThrow(() => validateRecord(state, ctx, "settlement-batches", { ...patch({}), name: "Settlement batch B-EDIT (renamed)" }, true), "an edit that leaves them as stored is accepted");
   reconcile(state, finance(wat("2027-07-02T09:00:00")));
@@ -419,7 +419,7 @@ function assertOnePayment(state: DomainState, due: ValopayRecord, label: string)
     executeAction(state, ctx, input);
     assert.equal(proposal.status, action === 'confirm_allocation' ? 'confirmed' : 'superseded');
     const committed = structuredClone(state);
-    assert.throws(() => executeAction(state, ctx, input), /no proposed allocation/);
+    assert.throws(() => executeAction(state, ctx, input), /This payment has no proposed match to review\. Reload the page to see its current status\./);
     assert.deepEqual(state, committed, 'A repeated decision cannot apply the payment twice.');
     if (action === 'confirm_allocation') {
       assert.throws(() => applyConfirmedAllocation(state, ctx, proposal), /already applied/);

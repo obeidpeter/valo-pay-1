@@ -194,11 +194,11 @@ section("a batch Finance enters by hand", () => {
   reconciled(state, "2027-07-01T10:00:00");
   const built = batchOf(state, "B-LINES");
   const changed = edit(built, { currency: "USD" });
-  check(!changed.ok && /first line's currency, which reconciliation records/.test(changed.message), `the currency of a batch the lines build cannot be changed (${!changed.ok && changed.message})`);
+  check(!changed.ok && /so it is in its first line’s currency\. You cannot change the currency here\./.test(changed.message), `the currency of a batch the lines build cannot be changed (${!changed.ok && changed.message})`);
   check(edit(built, { currency: "ngn" }).ok, "the same currency is accepted");
   for (const [key, value] of [["otherCurrencyLineIds", ["x"]], ["statementOtherCurrencies", { USD: { count: 1, amount: 1 } }]] as const) {
     const refused = edit(built, { [key]: value });
-    check(!refused.ok && new RegExp(`Settlement batch ${key} is recorded by reconciliation`).test(refused.message), `${key} is reconciliation's to record (${!refused.ok && refused.message})`);
+    check(!refused.ok && /Reconciliation sets this detail of the settlement batch/.test(refused.message), `${key} is reconciliation's to record (${!refused.ok && refused.message})`);
   }
   // The provider's lines take over a hand-entered batch in their currency; the typed totals keep theirs.
   const typed = accepted(enter("B-HAND-TYPED", { currency: "NGN", grossKobo: GROSS, feeKobo: FEE, netKobo: NET }), "a naira batch typed by hand");

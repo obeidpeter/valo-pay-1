@@ -141,7 +141,7 @@ try {
     ]) {
       const forged = await billingCall(`/v1/records/commercial/${terms.id}`, "PATCH", { expectedUpdatedAt: terms.updatedAt, data: { ...dates, discountReview } });
       assert.equal(forged.status, 400, JSON.stringify(forged.data));
-      assert.match(forged.data.error, /Who proposed and who confirmed the discount dates is recorded by the service and cannot be supplied or edited/);
+      assert.match(forged.data.error, /Valo Pay records who proposed and who confirmed the discount dates\. Leave those details out\./);
     }
     // Dates saved without ticking the full-price terms: saved, not proposed, and the refusal and the report name the flag.
     terms = ok(await billingCall(`/v1/records/commercial/${terms.id}`, "PATCH", { expectedUpdatedAt: terms.updatedAt, data: { ...dates, signedFullPriceTerms: false } }));
@@ -166,7 +166,7 @@ try {
     ok(await billingAct("set_role", { role: "Admin" }));
     const self = await billingAct("confirm_discount_terms", dates, terms.id);
     assert.equal(self.status, 403, JSON.stringify(self.data));
-    assert.match(self.data.error, /switching demo roles does not provide independent confirmation/);
+    assert.match(self.data.error, /Switching demo roles is not a second person\./);
     terms = ok(await billingCall(`/v1/records/commercial/${terms.id}`, "PATCH", { expectedUpdatedAt: terms.updatedAt, name: "Reviewed contract fixture, renamed" }));
     assert.deepEqual(terms.data.discountReview, proposed, "PATCH without data keeps the recorded proposal");
     assert.deepEqual(ok(await billingCall("/v1/records/commercial")).items.find((row: any) => row.id === terms.id).data.discountReview, proposed,

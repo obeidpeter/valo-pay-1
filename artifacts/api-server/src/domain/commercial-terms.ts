@@ -33,15 +33,15 @@ export function designPartnerDiscount(data: Terms | undefined, period: string): 
  */
 export function confirmDiscountTerms(terms: TypedRecord<'commercial'>, ctx: Context, input: DiscountConfirmationData): NonNullable<Terms['discountReview']> {
   const status = discountTermsStatus(terms.data);
-  if (status.state === 'full_price') refuse('These terms are not a design partner\'s: they are billed at the full public price, so there are no discount dates to confirm.', 409);
-  if (status.state === 'confirmed') refuse(`These discount dates are already confirmed by ${status.confirmation!.by}. New invoices are priced from them.`, 409);
+  if (status.state === 'full_price') refuse('These terms are billed at the full public price, so there are no discount dates to confirm.', 409);
+  if (status.state === 'confirmed') refuse(`These discount dates are already confirmed by ${status.confirmation!.by}. Reload the page to see them.`, 409);
   if (status.state !== 'awaiting_confirmation') refuse(status.explanation, 409);
   const proposal = terms.data.discountReview!;
   if (input.discountStartDate !== proposal.discountStartDate || input.fullPriceStartDate !== proposal.fullPriceStartDate || input.discountTermsReference !== proposal.termsReference) {
-    refuse('The proposed discount dates or agreement reference changed since you read them. Refresh, and check the current proposal against the signed agreement.', 409);
+    refuse('The proposed discount dates changed after you opened them. Reload the page and check the new dates against the signed agreement.', 409);
   }
   if (discountProposedBy(proposal, { actor: ctx.actor, principal: principal(ctx) })) {
-    refuse('A different person must confirm these discount dates: the person who proposed them cannot confirm them, and switching demo roles does not provide independent confirmation.', 403);
+    refuse('A different person must confirm these discount dates. The person who proposed them cannot confirm them. Switching demo roles is not a second person.', 403);
   }
   terms.data.discountReview = { ...proposal, confirmedBy: ctx.actor, confirmedPrincipal: principal(ctx), confirmedAt: ctx.now };
   touch(terms, ctx.now);

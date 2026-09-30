@@ -145,7 +145,7 @@ try {
   assert.equal(asked.data.releaseRequested, true); checks += 1;
   let settings = ok(await call(`/v1/settings${lender}`, "adminB"));
   assert.deepEqual([settings.merchant.killSwitch, settings.settings.emergencyStopReleases.lender.requestedBy], [true, `Clerk:${people.adminA}`]); checks += 1;
-  refused(await call(`/v1/actions${lender}`, "adminA", "POST", { action: "approve_kill_switch_off", reason: "Approving my own request.", data: {} }), 403, /A different administrator must approve turning off the emergency stop/);
+  refused(await call(`/v1/actions${lender}`, "adminA", "POST", { action: "approve_kill_switch_off", reason: "Approving my own request.", data: {} }), 403, /^A different Admin must approve turning off the emergency stop\. If your pilot has only one Admin, ask the Valo Pay team to add a second\.$/);
   ok(await call(`/v1/actions${lender}`, "adminB", "POST", { action: "approve_kill_switch_off", reason: "Checked the incident notes.", data: {} }));
   settings = ok(await call(`/v1/settings${lender}`, "adminA"));
   assert.deepEqual([settings.merchant.killSwitch, settings.settings.emergencyStopReleases], [false, undefined]); checks += 1;
@@ -170,12 +170,12 @@ try {
   assert.equal(ok(await call(`/v1/lifecycle/runs/${run.id}/execute${lender}`, "adminA", "POST", { previewDigest: run.previewDigest })).status, "completed", "either administrator executes the approved run"); checks += 1;
 
   // ---- 6. Fortnightly reviews name their reviewer at the service's time; the calendar is Admin and Operations' ----
-  refused(await call(`/v1/records/reviews${lender}`, "finance", "POST", { name: "Fortnightly review", data: { reviewer: "Someone else", confirmedJobs: ["mandates", "retries", "reconciliation", "audit"], note: "Checked." } }), 400, /reviewer is the person recording the review/);
-  refused(await call(`/v1/records/reviews${lender}`, "finance", "POST", { name: "Fortnightly review", data: { reviewedAt: "2026-01-01", confirmedJobs: ["audit"], note: "Checked." } }), 400, /review time is recorded by the service/);
+  refused(await call(`/v1/records/reviews${lender}`, "finance", "POST", { name: "Fortnightly review", data: { reviewer: "Someone else", confirmedJobs: ["mandates", "retries", "reconciliation", "audit"], note: "Checked." } }), 400, /Valo Pay records you as the reviewer\. Leave the reviewer blank\./);
+  refused(await call(`/v1/records/reviews${lender}`, "finance", "POST", { name: "Fortnightly review", data: { reviewedAt: "2026-01-01", confirmedJobs: ["audit"], note: "Checked." } }), 400, /Valo Pay records the review time when you save\. Leave the review date blank\./);
   const before = Date.now();
   const review = ok(await call(`/v1/records/reviews${lender}`, "finance", "POST", { name: "Fortnightly review", data: { confirmedJobs: ["mandates", "retries", "reconciliation", "audit"], note: "Checked the four tasks." } }));
   assert.equal(review.data.reviewer, `Clerk:${people.finance}`); assert.ok(Math.abs(Date.parse(review.data.reviewedAt) - before) < 60_000); checks += 2;
-  refused(await call(`/v1/records/calendar${lender}`, "finance", "POST", { name: "Public holiday", status: "active", data: { date: "2027-12-24" } }), 403, /not permitted/);
+  refused(await call(`/v1/records/calendar${lender}`, "finance", "POST", { name: "Public holiday", status: "active", data: { date: "2027-12-24" } }), 403, /Only an Admin or Operations team member can add or edit calendar days\./);
   assert.equal(ok(await call(`/v1/records/calendar${lender}`, "idle", "POST", { name: "Public holiday", status: "active", data: { date: "2027-12-24" } })).data.date, "2027-12-24"); checks += 1;
   console.log(`Staff governance API/PostgreSQL checks passed (${checks} checks): second-administrator approval of Admin, Finance and Compliance reviewer grants (invitations, role changes and reactivations, with the operator's second administrator), directory scoping, sensitive exports, the emergency stop, retention approval and minimums, reviewer-bound reviews and the calendar's roles.`);
 } finally {

@@ -68,7 +68,7 @@ describe('reconciliation decisions', () => {
     await user.type(reason, 'Reviewed the payment and original proposal.');
     api.mutate(state => { state.records.find(record => record.id === proposal.id)!.updatedAt = '2027-12-01T12:00:00.000Z'; });
     await user.click(within(dialog).getByRole('button', { name: 'Confirm allocation' }));
-    expect(await within(dialog).findByText(/This proposed match has changed since you opened it/)).toBeTruthy();
+    expect(await within(dialog).findByText(/This proposed match changed after you opened it/)).toBeTruthy();
     expect((reason as HTMLTextAreaElement).value).toBe('Reviewed the payment and original proposal.');
     expect(api.state().records.find(record => record.id === proposal.id)?.status).toBe('proposed');
     expect(api.calls.find(call => (call.body as any)?.action === 'confirm_allocation')?.status).toBe(409);

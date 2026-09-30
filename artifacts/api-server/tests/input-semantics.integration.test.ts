@@ -152,7 +152,7 @@ try {
     const empty = await call(q("/v1/records/customers"), "POST", { name: "", data: { consentProvenance: "Synthetic fixture" } });
     assert.deepEqual([empty.status, (empty.data.details ?? []).map((detail: { field: string }) => detail.field)], [400, ["name"]], "an empty name is refused, naming name");
     const blank = await call(q("/v1/records/customers"), "POST", { name: "   ", data: { consentProvenance: "Synthetic fixture" } });
-    assert.deepEqual([blank.status, /name cannot be empty/.test(blank.data.error)], [400, true], "a blank name is refused");
+    assert.deepEqual([blank.status, /Enter a name for this record\./.test(blank.data.error)], [400, true], "a blank name is refused");
     const renamed = await call(q(`/v1/records/customers/${named.id}`), "PATCH", { name: "", expectedUpdatedAt: named.updatedAt });
     assert.deepEqual([renamed.status, (renamed.data.details ?? []).map((detail: { field: string }) => detail.field)], [400, ["name"]], "an edit cannot empty a name");
     checks += 7;
