@@ -134,6 +134,15 @@ it('names the amount unit of each sample file as Import batches offers it', asyn
   expect((await screen.findByText(/^In Import batches, choose the record type/)).textContent).toMatch(/^In Import batches, choose the record type that matches each file\. Under Amounts in the source file, choose Naira \(₦\)\. For Payment evidence, choose Major units \(₦, or the row's currency\)\. Use the source name/);
 });
 
+// The brief's answer to an investor's direct question claims only what exists: code, tested with local sample scenarios.
+it('answers whether Paystack is connected with what exists and no more', () => {
+  const brief = presenterBrief('2026-09-22');
+  expect(brief).toContain('- Is Paystack connected? No.');
+  expect(brief).toContain('No Paystack account or test key is set up');
+  expect(brief).toContain('external connection has not been verified');
+  expect(brief).not.toMatch(/has a Paystack test connection/);
+});
+
 // Dates as the console writes them, never ISO, in the brief and on the page; durations in numerals.
 it("writes the pack's dates and the talking points' durations as the rest of the console does", async () => {
   const brief = presenterBrief('2026-09-22');

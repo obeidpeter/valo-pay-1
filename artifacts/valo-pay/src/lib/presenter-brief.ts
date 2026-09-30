@@ -60,7 +60,7 @@ If something goes wrong: ${s.fallback}`).join('\n\n')}
 
 - Who is it for? Start with a lender’s Operations and Finance teams, who handle reconciliation and exceptions.
 - What works today? Show the saved records, checks, decisions and exports that this version really offers.
-- Is Paystack connected? Valo Pay has a Paystack test connection and local sample scenarios. An external connection has not been verified. Do not claim that Valo Pay accepts payments or offers direct debits.
+- Is Paystack connected? No. Valo Pay has code for a Paystack test account, tested only with local sample scenarios. No Paystack account or test key is set up, and an external connection has not been verified. Do not claim that Valo Pay accepts payments or offers direct debits.
 - Is it ready for live use? Not yet. Team member sign-in with two-step verification, managed keys, restricted database access, recovery and external services must still be checked where Valo Pay will run. They must also pass the agreed acceptance process.
 - Does this prove demand or better recoveries? No. Bring separate proof that has been checked: conversations with lenders, signed agreements and measured pilot results, if you have them.
 - What will investment pay for? Explain your real plans for hiring, setting up live services and running pilots. Do not invent an amount, a timeline, a number of lenders or a return.
