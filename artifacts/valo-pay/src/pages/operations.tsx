@@ -178,11 +178,11 @@ export default function OperationsPage() {
         </div>
       )}
       <p className="max-w-3xl text-xs text-muted-foreground">
-        Cancel if unfinished works only while a request has not finished, and
+        You can cancel a request only while it has not finished. Cancelling
         stops it from running later. If the request is being processed,
-        cancelling waits for that to end first. It does not undo a saved
-        financial record. Your permissions are checked again each time you
-        check or cancel a request.
+        cancelling waits for that to end first. Cancelling does not undo a
+        saved financial record. Your permissions are checked again each time
+        you check or cancel a request.
       </p>
     </div>
   );
