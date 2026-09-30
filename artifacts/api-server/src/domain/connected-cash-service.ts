@@ -758,7 +758,7 @@ export function runCashAction(
 ): ActionResult {
   if (state.settings.environment !== "sandbox")
     throw refusal(
-      "Cash Desk is not available in a pilot yet. It works only with sample data for now.",
+      "Cash Desk works only with sample data for now.",
       403,
     );
   if (!input.reason?.trim())
