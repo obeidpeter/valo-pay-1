@@ -114,7 +114,7 @@ it('imports the exact sample pack through batch validation, matches it automatic
   const allocations = state.records.filter(r => r.kind === 'allocations' && r.data.dueItemId === due.id);
   expect(allocations).toHaveLength(1);
   expect(allocations[0]).toMatchObject({ status: 'confirmed', amountKobo: 1_800_050, data: { rule: 'R1', confidence: 'certain', automatic: true } });
-  expect(String(allocations[0]!.data.explanation)).toContain('resolved to instalment PRES-D001');
+  expect(String(allocations[0]!.data.explanation)).toContain('matches instalment PRES-D001');
   const payment = state.records.find(r => r.kind === 'payments' && r.id === allocations[0]!.data.paymentId)!;
   expect(payment).toMatchObject({ status: 'allocated', amountKobo: 1_800_050, data: { allocatedKobo: 1_800_050 } });
   expect(due).toMatchObject({ status: 'paid', data: { outstandingKobo: 0 } });
@@ -151,7 +151,7 @@ it('opens the sample customer at step three, where the automatic R1 match and it
   await screen.findByRole('heading', { level: 1, name: 'Presentation customer' });
   const history = screen.getByRole('heading', { name: 'Customer history' }).closest('div.bg-card') as HTMLElement;
   const match = within(history).getByText(/^Matched automatically and with certainty by rule R1\./);
-  expect(match.textContent).toContain('Provider reference PRES-O001 resolved to instalment PRES-D001');
+  expect(match.textContent).toContain('Provider reference PRES-O001 matches instalment PRES-D001');
   expect(within(match.parentElement!).getByText('₦18,000.50')).toBeTruthy();
   expect(api.calls.filter(c => c.method !== 'GET')).toEqual([]);
 });

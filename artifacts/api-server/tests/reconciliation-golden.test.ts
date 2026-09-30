@@ -119,12 +119,12 @@ function assertOnePayment(state: DomainState, due: ValopayRecord, label: string)
   reconcile(state, finance(wat("2027-07-01T10:05:00")));
   const payment = recordsOf(state, "payments").find((item) => item.reference === "TRF-X")!;
   assert.equal(payment.status, "unallocated", "no rule matches a transfer with no reference, narration or window");
-  assert.throws(() => executeAction(state, finance(wat("2027-07-01T11:00:00")), { action: "manual_allocate", recordId: payment.id, reason: "r", data: { dueItemId: due.id, amountKobo: 2_600_000 } }), /outstanding instalment balance/);
+  assert.throws(() => executeAction(state, finance(wat("2027-07-01T11:00:00")), { action: "manual_allocate", recordId: payment.id, reason: "r", data: { dueItemId: due.id, amountKobo: 2_600_000 } }), /still owes\. Enter a lower amount\./);
   executeAction(state, finance(wat("2027-07-01T11:00:00")), { action: "manual_allocate", recordId: payment.id, reason: "r", data: { dueItemId: due.id, amountKobo: GROSS } });
   assert.equal(due.status, "paid");
   assert.equal(payment.status, "overpaid", "7.3: the excess is unapplied credit with an exception");
   assert.equal(recordsOf(state, "exceptions").find((item) => item.data.linkedRecordId === payment.id)!.data.type, "overpayment");
-  assert.throws(() => executeAction(state, finance(wat("2027-07-01T11:00:00")), { action: "manual_allocate", recordId: payment.id, reason: "r", data: { dueItemId: due.id, amountKobo: 1 } }), /outstanding instalment balance|payment has left to allocate/);
+  assert.throws(() => executeAction(state, finance(wat("2027-07-01T11:00:00")), { action: "manual_allocate", recordId: payment.id, reason: "r", data: { dueItemId: due.id, amountKobo: 1 } }), /still owes\. Enter a lower amount\.|already paid in full\. Choose another instalment\.|this payment has left to allocate/);
   invariant(state);
   checks += 5;
 }
@@ -187,12 +187,12 @@ function assertOnePayment(state: DomainState, due: ValopayRecord, label: string)
   const close = executeAction(state, finance(wat("2027-07-02T09:00:00")), { action: "daily_close" }).record!;
   assert.equal(batch.data.netKobo, NET + BIG_NET);
   assert.equal(batch.status, "reconciled", "the completed batch reconciles to the statement credit");
-  assert.equal(batch.data.explanation, "Statement credit matched the settlement batch net total; it was not allocated to a customer.", "and says so, not what the first half showed");
+  assert.equal(batch.data.explanation, "The statement credit equals the batch’s amount after fees. It was not allocated to a customer.", "and says so, not what the first half showed");
   assert.equal(close.data.report.variances.count, 0, "the close lists no settlement difference");
   // Second review decision 3: a batch's variance exception closes when its condition clears, as other exceptions do.
   assert.deepEqual(linked(batch.id).map((item) => [item.status, item.data.resolutionCode, item.data.conditionCleared?.reason]), [["closed", "condition_cleared", "settlement batch B-SPLIT is now reconciled"]], "the earlier exception closes as its condition cleared; nothing new is raised");
   const [earlier] = linked(batch.id);
-  assert.equal(earlier!.data.notes, "Statement credit differs from gross settlement lines less recorded fees.\nUpdate on 2027-07-02 (WAT): the batch is now reconciled. Statement credit matched the settlement batch net total; it was not allocated to a customer.\nCondition cleared on 2027-07-02 (WAT): settlement batch B-SPLIT is now reconciled, so this exception was closed.", "its notes say where the batch now stands and why it closed, after what the first half showed");
+  assert.equal(earlier!.data.notes, "The statement credit does not equal the batch’s amount after fees. Compare the provider’s settlement report with the bank statement.\nUpdate on 2 Jul 2027: the batch is now reconciled. The statement credit equals the batch’s amount after fees. It was not allocated to a customer.\nClosed automatically on 2 Jul 2027: settlement batch B-SPLIT is now reconciled.", "its notes say where the batch now stands and why it closed, after what the first half showed");
   assert.match(String(close.data.summary), / opened and 1 closed,/, "the close counts it as closed");
   // The API and the scheduler bind the review basis: the review asks for no explanation of a settlement difference, and has no open exception left for it.
   const issues = closeReviewIssues(bindCloseReviewBasis(state, close));
@@ -206,7 +206,7 @@ function assertOnePayment(state: DomainState, due: ValopayRecord, label: string)
   addObservation(state, { reference: "SPLIT-L3", amountKobo: 1_500_000 - 7_500, grossAmountKobo: 1_500_000, feeKobo: 7_500, batchReference: "B-SPLIT", source: "settlement", customerId: small.customerId, dueItemId: small.id, eventId: "split-l3", occurredAt: wat("2027-07-04T07:00:00") });
   reconcile(state, finance(wat("2027-07-04T09:00:00")));
   assert.equal(batch.status, "variance", "a reconciled batch that gains a line no longer matches its credit");
-  assert.equal(batch.data.explanation, "Statement credit differs from gross settlement lines less recorded fees.");
+  assert.equal(batch.data.explanation, "The statement credit does not equal the batch’s amount after fees. Compare the provider’s settlement report with the bank statement.");
   assert.deepEqual(linked(batch.id).map((item) => item.status), ["closed", "open"], "and that is new work");
   // A fee variance that a later line cancels out leaves the batch waiting for its statement credit.
   addObservation(state, { reference: "FEE-L1", amountKobo: GROSS - (FEE + 20_000), grossAmountKobo: GROSS, feeKobo: FEE + 20_000, batchReference: "B-FEES", source: "settlement", eventId: "fee-l1", occurredAt: wat("2027-07-05T07:00:00") });
@@ -216,7 +216,7 @@ function assertOnePayment(state: DomainState, due: ValopayRecord, label: string)
   addObservation(state, { reference: "FEE-L2", amountKobo: 6_000_000 - (BIG_FEE - 20_000), grossAmountKobo: 6_000_000, feeKobo: BIG_FEE - 20_000, batchReference: "B-FEES", source: "settlement", eventId: "fee-l2", occurredAt: wat("2027-07-06T07:00:00") });
   reconcile(state, finance(wat("2027-07-06T09:00:00")));
   assert.deepEqual([fees.data.feeVarianceKobo, fees.status, fees.data.explanation], [0, "pending", undefined], "fees that now match the schedule are no longer a variance");
-  assert.match(String(linked(fees.id)[0]!.data.notes), /\nUpdate on 2027-07-06 \(WAT\): the batch is now pending\. Its fees are within the schedule and it waits for its statement credit\.\nCondition cleared on 2027-07-06 \(WAT\): the fees of settlement batch B-FEES are now within the schedule, so this exception was closed\.$/, "and its exception says so and closes, as its condition cleared");
+  assert.match(String(linked(fees.id)[0]!.data.notes), /\nUpdate on 6 Jul 2027: the batch is now pending\. Its fees are within the schedule, and it waits for its statement credit\.\nClosed automatically on 6 Jul 2027: the fees of settlement batch B-FEES are now within the schedule\.$/, "and its exception says so and closes, as its condition cleared");
   assert.deepEqual([linked(fees.id)[0]!.status, linked(fees.id)[0]!.data.resolutionCode], ["closed", "condition_cleared"]);
   invariant(state);
   checks += 19;
@@ -265,14 +265,14 @@ function assertOnePayment(state: DomainState, due: ValopayRecord, label: string)
   // The console's edit dialog sends the stored data back with the fields it edits.
   assert.doesNotThrow(() => validateRecord(state, ctx, "settlement-batches", { ...patch({}), name: "Settlement batch B-EDIT (renamed)" }, true), "an edit that leaves them as stored is accepted");
   reconcile(state, finance(wat("2027-07-02T09:00:00")));
-  assert.deepEqual([batch.status, batch.data.explanation], ["variance", "Statement credit differs from gross settlement lines less recorded fees."], "the batch still follows its linked statement credit");
+  assert.deepEqual([batch.status, batch.data.explanation], ["variance", "The statement credit does not equal the batch’s amount after fees. Compare the provider’s settlement report with the bank statement."], "the batch still follows its linked statement credit");
   // Finance corrects the provider's fee: the next reconciliation recomputes the fee variance and names both differences.
   const edit = patch({ feeKobo: FEE + 20_000, netKobo: NET - 20_000 });
   validateRecord(state, ctx, "settlement-batches", edit, true);
   Object.assign(batch, edit);
   reconcile(state, finance(wat("2027-07-02T10:00:00")));
   assert.deepEqual([batch.status, batch.data.feeVarianceKobo], ["variance", 20_000], "the fee variance follows the edited fee");
-  assert.equal(batch.data.explanation, `Statement credit differs from gross settlement lines less recorded fees. Provider fees of ${FEE + 20_000} kobo differ from the schedule's ${FEE} kobo by 20000 kobo.`, "and the explanation names both differences");
+  assert.equal(batch.data.explanation, "The statement credit does not equal the batch’s amount after fees. Compare the provider’s settlement report with the bank statement. Provider fees of ₦325.00 differ from the expected ₦125.00 by ₦200.00.", "and the explanation names both differences");
   invariant(state);
   checks += copied.length + 6;
 }
@@ -506,7 +506,7 @@ for (const status of ['cancelled', 'closed', 'in_dispute', 'unpaid_final'] as co
     const payment = recordsOf(state, 'payments').find(item => item.reference === reference)!;
     assert.equal(blockedObservation.status, 'resolved', 'The receipt is still recorded as evidence.');
     assert.equal(payment.status, 'unallocated');
-    assert.match(String(payment.data.explanation), /unallocated for Finance review/);
+    assert.match(String(payment.data.explanation), /so this payment stays unallocated for Finance to review\./);
     assert.equal(recordsOf(state, 'allocations').filter(item => item.data.paymentId === payment.id).length, 0);
     assert.deepEqual(due, stopped, 'Matching cannot reopen a stopped instalment.');
     assert.equal(outstandingOf(alternative), GROSS, 'A strong reference is not redirected by a weaker rule.');

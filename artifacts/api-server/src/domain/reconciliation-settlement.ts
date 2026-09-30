@@ -3,11 +3,10 @@ import { type DomainState, type Context, type TypedRecord, type ValopayRecord } 
 import { identityHeld, currencyOf, connectionOf, namedConnection, connectionKey } from "./reconciliation-values";
 import { recordsWhere, recordsOfKind } from "./record-index";
 import { lineSchedule, lineTotals, countLine, type PaymentOf, madeItsPayment, totalsFromLines, lineAdded, feesChecked, takeLineCurrency, settlementIdentity, batchIdentity } from "./reconciliation-settlement-totals";
-import { isKobo, providerFeeKobo, sumMoney, isOpenException, resolveExceptionType, counted, moneyText, conditionClearedCode, providerIdentityConfirmedCode, providerIdentityCondition, hasFeeSchedule, SETTLEMENT_BATCH_TOLERANCE_KOBO, otherCurrenciesText } from "@workspace/valopay-schema";
+import { isKobo, providerFeeKobo, sumMoney, isOpenException, resolveExceptionType, counted, moneyText, conditionClearedCode, providerIdentityConfirmedCode, providerIdentityCondition, hasFeeSchedule, SETTLEMENT_BATCH_TOLERANCE_KOBO, otherCurrenciesText, valueWords } from "@workspace/valopay-schema";
 import { touch, makeRecord, recordsOf } from "./records";
-import { carriedReports, noteUpdate, raiseException, carryReport, countedTwiceReports } from "./reconciliation-exceptions";
+import { carriedReports, datedUpdate, noteUpdate, raiseException, carryReport, countedTwiceReports } from "./reconciliation-exceptions";
 import { IDENTITY_HOLD_EXPLANATION, stillReported, keepHoldException } from "./reconciliation-settlement-identity";
-import { watDate } from "./calendar";
 import { isDeepStrictEqual } from "node:util";
 
 /**
@@ -110,8 +109,8 @@ export function separateEarlierCurrencies(state: DomainState, ctx: Context): Sep
         if (!kept) batch.data.linePaymentIds = ((batch.data.linePaymentIds ?? []) as string[]).filter((id) => id !== line.data.paymentId);
         for (const key of ["countedGrossKobo", "assumedFeeKobo", "expectedFeeKobo", "feeVarianceKobo"]) delete line.data[key];
         separateOtherCurrencyLine(state, ctx, batch, line, payment?.amountKobo ?? line.amountKobo, fromLines
-          ? " An earlier build added it to the batch's totals; it is now taken out of them."
-          : " An earlier build added it to the batch's totals, which no longer show what its lines added (Finance may have typed them by hand), so they are left as they are: check that they leave this line out.");
+          ? " It had been added to the batch’s totals by mistake and is now taken out of them."
+          : " It had been added to the batch’s totals by mistake. The totals no longer show what its lines added, as Finance may have typed them by hand, so they were left as they are. Check that they leave this line out.");
         separated.push({ line, batch });
         if (!kept && payment) displaced.push(separated.at(-1)!);
       }
@@ -144,7 +143,7 @@ interface SeparatedLine { line: TypedRecord<"observations">; batch: TypedRecord<
  */
 function noteOpenReport(state: DomainState, ctx: Context, batch: ValopayRecord, condition: string, text: string, line?: ValopayRecord): void {
   const open = recordsWhere(state, "exceptions", "data.linkedRecordId", batch.id).find((item) => isOpenException(item.status) && resolveExceptionType(item.data.type) === "settlement_variance"
-    && (item.data.condition === condition || carriedReports(item).includes(condition) || (!!line && String(item.data.notes ?? "").includes(`(WAT): Settlement line ${line.reference} (`))));
+    && (item.data.condition === condition || carriedReports(item).includes(condition) || (!!line && String(item.data.notes ?? "").includes(`: Settlement line ${line.reference} (`))));
   if (open) noteUpdate(open, ctx, text);
 }
 
@@ -176,8 +175,8 @@ function countDisplacedLines(state: DomainState, ctx: Context, from: TypedRecord
     if (linePaymentIds.includes(payment.id)) now = "is still not counted in this batch, as this batch counts its collection in another line";
     else if (lineIds.length && currencyOf(line) !== currencyOf(batch)) {
       delete line.data.duplicateSettlementLine;
-      separateOtherCurrencyLine(state, ctx, batch, line, payment.amountKobo, ` An earlier build reported it as counted in settlement batch ${from.reference}, which no longer counts it.`);
-      now = "is reported as a line in another currency than this batch";
+      separateOtherCurrencyLine(state, ctx, batch, line, payment.amountKobo, ` It had been reported as counted in settlement batch ${from.reference}, which no longer counts it.`);
+      now = "is reported as a line in a different currency from this batch";
     } else if (counting) {
       line.data.countedInBatchId = counting.id;
       now = `is still not counted in this batch, as settlement batch ${counting.reference} now counts its collection`;
@@ -274,7 +273,7 @@ function separateOtherCurrencyLine(state: DomainState, ctx: Context, batch: Type
   if (!ids.includes(line.id)) batch.data.otherCurrencyLineIds = [...ids, line.id];
   touch(batch, ctx.now); touch(line, ctx.now);
   const currency = currencyOf(line), condition = otherCurrencyLineCondition(batch.id, line.id);
-  const notes = `Settlement line ${line.reference} (${moneyText(amount, currency)}) is in ${currency}, and settlement batch ${batch.reference} is in ${currencyOf(batch)}: a batch holds one currency, so the line is not counted in its totals.${note} Its payment is reconciled as any payment is. Check with the provider which batch pays it out, then resolve this exception.`;
+  const notes = `Settlement line ${line.reference} (${moneyText(amount, currency)}) is in ${currency}, but settlement batch ${batch.reference} is in ${currencyOf(batch)}. A batch holds one currency, so the line is not counted in its totals.${note} Its payment is reconciled like any other payment. Check with the provider which batch pays it out, then resolve this exception.`;
   const raised = raiseException(state, ctx, "settlement_variance", { linkedRecordId: batch.id, amountKobo: amount, notes, condition, currency });
   if (isOpenException(raised.status)) carryReport(raised, ctx, condition, notes);
 }
@@ -312,7 +311,8 @@ export function keepLinesCountedTwiceReported(state: DomainState, ctx: Context):
       && (item.data.condition === condition || countedTwiceReports(item).includes(condition) || String(item.data.notes ?? "").includes(`Settlement line ${line.reference} (`)));
     // An earlier build's carrier holds the report as a dated line; one this build raised for another line names it in its own text.
     const listed = reports.some((item) => item.data.condition === condition || countedTwiceReports(item).includes(condition));
-    const carrier = listed ? undefined : reports.find((item) => isOpenException(item.status) && String(item.data.notes ?? "").includes(`(WAT): Settlement line ${line.reference} (`));
+    // The dated line reads "(WAT): Settlement line …" in an earlier build's words and "Update on 29 Sept 2026: Settlement line …" in today's.
+    const carrier = listed ? undefined : reports.find((item) => isOpenException(item.status) && String(item.data.notes ?? "").includes(`: Settlement line ${line.reference} (`));
     if (carrier) { carrier.data.countedTwice = [...countedTwiceReports(carrier), condition]; touch(carrier, ctx.now); }
     // A report settles when Finance resolves it; closed as its condition cleared, or by confirming a held batch's identity, it does not.
     if (!reports.length || reports.some((item) => isOpenException(item.status) || ![conditionClearedCode, providerIdentityConfirmedCode].includes(String(item.data.resolutionCode)))) continue;
@@ -322,9 +322,9 @@ export function keepLinesCountedTwiceReported(state: DomainState, ctx: Context):
   }
 }
 
-const STATEMENT_DIFFERS = "Statement credit differs from gross settlement lines less recorded fees.";
+const STATEMENT_DIFFERS = "The statement credit does not equal the batch’s amount after fees. Compare the provider’s settlement report with the bank statement.";
 
-const STATEMENT_MATCHED = "Statement credit matched the settlement batch net total; it was not allocated to a customer.";
+const STATEMENT_MATCHED = "The statement credit equals the batch’s amount after fees. It was not allocated to a customer.";
 
 /**
  * ING-03 and ING-07: what a settlement batch's current lines and linked
@@ -345,15 +345,15 @@ export function settlementBatchState(batch: TypedRecord<"settlement-batches">, c
   const net = Number(batch.data.netKobo || 0), variance = checked ? Number(batch.data.feeVarianceKobo || 0) : 0;
   const feesDiffer = Math.abs(variance) > SETTLEMENT_BATCH_TOLERANCE_KOBO;
   const unchecked = checked ? "" : ` Its fees were not checked, because there is no fee schedule for ${currency}.`;
-  const feeText = `Provider fees of ${batch.data.feeKobo} kobo differ from the schedule's ${batch.data.expectedFeeKobo} kobo by ${variance} kobo.`;
+  const feeText = `Provider fees of ${moneyText(Number(batch.data.feeKobo), currency)} differ from the expected ${moneyText(Number(batch.data.expectedFeeKobo), currency)} by ${moneyText(Math.abs(variance), currency)}.`;
   const feeCondition = `settlement_variance:${batch.id}:fees:${batch.data.feeKobo}:${batch.data.expectedFeeKobo}`;
   const others = Object.entries((batch.data.statementOtherCurrencies ?? {}) as Record<string, { count: number; amount: number }>).sort(([a], [b]) => (a < b ? -1 : 1));
   const otherCredits = others.reduce((sum, [, row]) => sum + row.count, 0);
-  const otherText = otherCredits ? `${otherCredits === 1 ? "A statement credit" : `${otherCredits} statement credits`} of ${otherCurrenciesText(Object.fromEntries(others))} ${otherCredits === 1 ? "names" : "name"} the batch in another currency than its ${currency}, and a credit in another currency never matches its net total.` : "";
+  const otherText = otherCredits ? `${otherCredits === 1 ? "A statement credit" : `${otherCredits} statement credits`} for this batch ${otherCredits === 1 ? "is" : "are"} in another currency (${otherCurrenciesText(Object.fromEntries(others))}). A credit in another currency cannot match the batch’s amount after fees in ${currency}.` : "";
   const statement = typeof batch.data.statementObservationId === "string" && Number.isSafeInteger(batch.data.statementNetKobo) ? Number(batch.data.statementNetKobo) : null;
   if (statement === null && !otherCredits) return feesDiffer ? { status: "variance", explanation: feeText, condition: feeCondition } : { status: "pending", ...(unchecked ? { explanation: `It waits for its statement credit.${unchecked}` } : {}) };
   const statementCondition = `settlement_variance:${batch.id}:statement:${statement ?? "none"}:${batch.data.netKobo}:${batch.data.feeKobo}${others.map(([code, row]) => `:${code}=${row.amount}`).join("")}`;
-  const differs = statement === null || statement === net ? "" : credits > 1 ? `The batch's ${credits} statement credits together differ from gross settlement lines less recorded fees.` : STATEMENT_DIFFERS;
+  const differs = statement === null || statement === net ? "" : credits > 1 ? `The batch’s ${credits} statement credits together do not equal its amount after fees. Compare the provider’s settlement report with the bank statement.` : STATEMENT_DIFFERS;
   if (differs || otherCredits) return { status: "variance", explanation: [differs, otherText, feesDiffer ? feeText : ""].filter(Boolean).join(" ") + unchecked, condition: statementCondition };
   if (feesDiffer) return { status: "variance", explanation: feeText, condition: feeCondition, settledBy: [statementCondition] };
   return { status: "reconciled", explanation: STATEMENT_MATCHED + unchecked };
@@ -397,8 +397,8 @@ export function evaluateSettlementBatches(state: DomainState, ctx: Context, cred
     // why one that reports a collection counted in two batches, or a line in another currency, stays open once the batch leaves variance.
     const open = moved ? recordsOf(state, "exceptions").find((item) => isOpenException(item.status) && item.data.linkedRecordId === batch.id && resolveExceptionType(item.data.type) === "settlement_variance") : undefined;
     if (open) {
-      const current = `the batch is now ${next.status === "variance" ? "in variance" : next.status}. ${next.explanation ?? "Its fees are within the schedule and it waits for its statement credit."}${next.status !== "variance" ? stillReported(open) : ""}`;
-      open.data.notes = `${open.data.notes ? `${open.data.notes}\n` : ""}Update on ${watDate(Date.parse(ctx.now))} (WAT): ${current}`;
+      const current = `the batch ${next.status === "variance" ? "now has a difference" : `is now ${valueWords(next.status)}`}. ${next.explanation ?? "Its fees are within the schedule, and it waits for its statement credit."}${next.status !== "variance" ? stillReported(open) : ""}`;
+      open.data.notes = `${open.data.notes ? `${open.data.notes}\n` : ""}${datedUpdate(ctx, current)}`;
       touch(open, ctx.now);
     }
     if (next.status === "variance") {
@@ -414,7 +414,7 @@ export function evaluateSettlementBatches(state: DomainState, ctx: Context, cred
       if (!first) { countedIn.set(paymentId, batch); continue; }
       const payment = recordsWhere(state, "payments", "id", paymentId)[0];
       if (first.id === batch.id || !payment) continue;
-      const notes = `Settlement batch ${batch.reference} counts payment ${payment.reference} (${moneyText(payment.amountKobo, currencyOf(payment))}), which settlement batch ${first.reference} already counts: the same collection is in both batches' totals. Check both payouts with the provider.`;
+      const notes = `Settlement batch ${batch.reference} counts payment ${payment.reference} (${moneyText(payment.amountKobo, currencyOf(payment))}), which settlement batch ${first.reference} already counts: the same collection is in both batches’ totals. Check both payouts with the provider.`;
       const condition = `settlement_variance:${batch.id}:counted:${paymentId}`;
       const raised = raiseException(state, ctx, "settlement_variance", { linkedRecordId: batch.id, amountKobo: payment.amountKobo, notes, condition });
       // An exception already open for the batch carries it.
@@ -516,5 +516,5 @@ export function separatedLinesNote(separated: readonly SeparatedLine[]): string 
   if (!separated.length) return undefined;
   const named = separated.slice(0, 3).map(({ line, batch, countedIn }) => `${line.reference} (${currencyOf(line)}) from settlement batch ${batch.reference} (${currencyOf(batch)})${countedIn ? `, now counted in settlement batch ${countedIn.reference}, where the provider lists it too` : ""}`);
   const more = separated.length > 3 ? `; and ${counted(separated.length - 3, "more", "more")}` : "";
-  return `Took ${counted(separated.length, "settlement line")} in another currency than its batch out of the batch, as a batch holds one currency: ${named.join("; ")}${more}.`;
+  return `Moved ${counted(separated.length, "settlement line")} in another currency out of ${separated.length === 1 ? "its batch" : "their batches"}, because a batch holds one currency: ${named.join("; ")}${more}.`;
 }

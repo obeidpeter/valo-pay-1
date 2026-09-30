@@ -2,7 +2,7 @@ import {
   allocationDecisionDataSchema, counted, businessDateSchema, discountConfirmationDataSchema,
   DEFAULT_ACTIVATION_WINDOW_DAYS, PLATFORM_OWNER, activationReminderCaps, closeRules, failureCodeList, handBackFallbackOwner, isKnownFailureCode,
   heldEvidenceCodes, heldEvidenceOf, moneyText, nairaText, nextCloseInstant, normaliseFailureCode, otherCurrenciesText, passRuleText, paymentUnappliedKobo, providerIdentityConfirmedCode, providerIdentityOf, providerIdentityParts, resolutionCodesForException, resolutionRuleVersion, resolveExceptionType, unseenReversalCodes, unseenReversalOf, withinQuietHours, templateTextProblems,
-  changedText, dayText, durationText, instantText, listText, monthText, policyGuardrails, valueLabel, valueWords,
+  changedText, dayText, durationText, instantText, listText, monthText, optionText as option, policyGuardrails, valueLabel, valueWords,
   type CloseTrigger, type HandBackOwner,
 } from "@workspace/valopay-schema";
 import { findRecord, makeRecord, recordsOf, touch } from "./records";
@@ -35,8 +35,6 @@ const UNAVAILABLE_ACTION = "This action is not available. Reload the page and tr
 const QUIET_HOURS = "Customer messages cannot be sent during quiet hours, from 21:00 to 08:00 WAT. Try again after 08:00 WAT.";
 /** A mandate's retry policy changes only to an approved version of the same policy. */
 const SAME_POLICY = "Choose an approved version of this mandate’s retry policy.";
-/** A choice as the console's list names it, quoted inside a sentence: ‘Confirmed failed’. */
-const option = (code: string): string => `‘${valueLabel(code)}’`;
 /** Who collection is returned to, in a sentence, as the console's Settings names them. */
 const ownerPhrases: Record<HandBackOwner, string> = {
   lms: "the loan management system", merchant_manual: "the lender team", provider_auto: "the provider’s automatic collection",

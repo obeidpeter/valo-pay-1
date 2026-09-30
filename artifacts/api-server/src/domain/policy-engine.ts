@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import {
   ABSOLUTE_TICKET_FLOOR_KOBO, DEFAULT_MINIMUM_TICKET_KOBO, PLATFORM_OWNER, WAT_OFFSET_MS,
-  clampExecutionHour, counted as countedText, executionWindow, experimentRules, normaliseFailureCode, policyGuardrails, retryRuleFor,
+  clampExecutionHour, counted as countedText, executionWindow, experimentRules, nairaText, normaliseFailureCode, optionText, policyGuardrails, retryRuleFor, valueWords,
   type ExperimentArm, type FailureCode, type RetryDecisionKind,
 } from "@workspace/valopay-schema";
 import type { Context, DomainState, TypedRecord, ValopayRecord } from "./types";
@@ -48,7 +48,7 @@ export interface RetryDecision {
 /** The policy parameters as a sentence: what a consent record stores as the policy text as it stood (MAN-02, RET-07). */
 export function policySummary(policy: TypedRecord<"policies">): string {
   const d = policy.data;
-  return `Version ${d.version ?? 1}: up to ${countedText(Number(d.maxAttempts ?? policyGuardrails.defaultMaxAttempts), "attempt")} in total across all collection systems; at least ${d.spacingHours ?? policyGuardrails.defaultSpacingHours} hours between attempts; first notice ${d.firstNoticeHours ?? policyGuardrails.defaultFirstNoticeHours} hours before the first attempt; failed-debit notice ${d.retryNoticeHours ?? policyGuardrails.defaultRetryNoticeHours} hours before any retry; partial debits ${d.partialAllowed ? "allowed" : "not allowed"}.`;
+  return `Version ${d.version ?? 1}: up to ${countedText(Number(d.maxAttempts ?? policyGuardrails.defaultMaxAttempts), "attempt")} in total across all collection systems; at least ${d.spacingHours ?? policyGuardrails.defaultSpacingHours} hours between attempts; first notice ${d.firstNoticeHours ?? policyGuardrails.defaultFirstNoticeHours} hours before the first attempt; notice of a failed attempt ${d.retryNoticeHours ?? policyGuardrails.defaultRetryNoticeHours} hours before any retry; partial debits ${d.partialAllowed ? "allowed" : "not allowed"}.`;
 }
 
 /** Two policy records are versions of the same policy when their previousVersionId chains share a root, or they carry the same name. */
@@ -176,7 +176,7 @@ export function evaluateRetry(state: DomainState, ctx: Context, due: TypedRecord
     ...(noticeRequired ? { noticeRequired } : {}),
   });
   const finalNotice: NoticeRequirement = { purpose: "final_attempt", leadHours: 0, requiredBy: null, noticeId: null, acceptedAt: null, evidenced: false };
-  if (dueNeedsReversalReview(state, due)) return explain("blocked", "reversal_review", "Collection is paused for renewed Finance review of an earlier reversal decision. Resolve that review and run reconciliation before planning a retry.");
+  if (dueNeedsReversalReview(state, due)) return explain("blocked", "reversal_review", "Collection is paused while Finance reviews an earlier reversal decision again. Resolve that review and run reconciliation before a retry is planned.");
   if(recordsWhere(state,'connected-intents','data.dueItemId',due.id).some(r=>['authorised','pending','unknown'].includes(r.status))) return explain('blocked','in_flight','A pay-by-bank payment is pending or has an unknown outcome. Reconcile it before scheduling another collection.');
 
   // Row 1: settled by any channel, or the obligation is frozen or closed.
@@ -185,49 +185,49 @@ export function evaluateRetry(state: DomainState, ctx: Context, due: TypedRecord
   if (due.status === "in_dispute") return explain("stop", "disputed", "Collection is paused while the customer dispute is open.");
   if (due.status === "unpaid_final") return explain("stop", "final", "No attempts remain. Follow up through the exception and the loan management system.");
   // Row 2: kill switches.  No exception for the switch itself; the item waits for release.
-  if (state.merchant.killSwitch) return explain("blocked", "kill_switch", "The lender emergency stop is on. No collection instruction is planned.");
-  if (policyKillSwitchOn(state, policy.id)) return explain("blocked", "kill_switch", "The emergency stop for this policy version is on. No collection instruction is planned.");
+  if (state.merchant.killSwitch) return explain("blocked", "kill_switch", "The lender’s emergency stop is on. No collection instruction is planned.");
+  if (policyKillSwitchOn(state, policy.id)) return explain("blocked", "kill_switch", "The emergency stop for this retry policy version is on. No collection instruction is planned.");
   // Unknown or in-flight outcome: resolve by status query before anything else happens to the due item (DEB-04).
   if (attempts.some((attempt) => ["scheduled", "sent", "unknown"].includes(attempt.status))) {
     return explain("blocked", "in_flight", "An earlier attempt is still pending or has an unknown outcome. Check its status with the provider before taking further action on this instalment.");
   }
-  if (!last || last.status !== "failed" || !code) return explain("not_eligible", "no_failure", "There is no failed debit attempt to retry.");
+  if (!last || last.status !== "failed" || !code) return explain("not_eligible", "no_failure", "There is no failed collection attempt to retry.");
   inputs.rawCode = last.data.failureCode;
   inputs.attemptAt = attemptTime(last);
   const retry = retryRuleFor(code);
   // A disputed debit is never retried; once its dispute was not upheld or Finance released the instalment, it no longer freezes it.
   if (retry === "never") return due.data.disputeRelease?.attemptId === last.id
-    ? explain("stop", "dispute_released", "The customer's dispute of this debit was not upheld, or Finance released the instalment from dispute. A disputed debit is never retried automatically: collect the instalment through another channel.")
+    ? explain("stop", "dispute_released", "The customer’s dispute of this debit was not upheld, or Finance released the instalment from dispute. A disputed debit is never retried automatically: collect the instalment through another channel.")
     : explain("stop", "customer_disputed", "The customer disputed the debit. Collection is paused and a dispute exception is raised with a one-business-day deadline.");
   if (retry === "unresolved") return explain("blocked", "timeout_unknown", "The outcome is unknown. Check with the provider using the payment reference. An exception is raised after 24 hours without a confirmed outcome.");
   // Row 3: non-retryable code.
-  if (retry === "no") return explain("give_up", "non_retryable", `${code} does not allow a retry. Follow-up requires a final notice, an exception and an update to the loan management system.`, null, finalNotice);
+  if (retry === "no") return explain("give_up", "non_retryable", `${optionText(code)} cannot be retried. Follow-up needs a final notice, an exception and an update to the loan management system.`, null, finalNotice);
   // Row 4: attempt ceiling across every source.
   if (counted.length >= policyCeiling(policy)) return explain("give_up", "ceiling", `The limit of ${countedText(policyCeiling(policy), "attempt")} has been reached across all collection systems. Follow-up requires a final notice, an exception and an update to the loan management system.`, null, finalNotice);
   // Row 5: ACCOUNT_RESTRICTED is retried once only.
   if (retry === "once" && counted.filter((attempt) => attempt.status === "failed" && normaliseFailureCode(attempt.data.failureCode) === code).length >= 2) {
-    return explain("give_up", "restricted_once", `${code} has already had its one permitted retry. Follow-up requires a final notice, an exception and an update to the loan management system.`, null, finalNotice);
+    return explain("give_up", "restricted_once", `${optionText(code)} allows one retry, and it has been used. Follow-up needs a final notice, an exception and an update to the loan management system.`, null, finalNotice);
   }
   // RET-01: only an approved version by a reviewer who is not its author may plan a retry.
-  if (!options.simulation && (policy.status !== "approved" || !policy.data.reviewer || policy.data.reviewer === policy.data.author)) return explain("blocked", "unapproved_policy", "Independent compliance approval is required before a retry can be planned.");
+  if (!options.simulation && (policy.status !== "approved" || !policy.data.reviewer || policy.data.reviewer === policy.data.author)) return explain("blocked", "unapproved_policy", "A Compliance reviewer who is not the policy’s author must approve it before a retry can be planned.");
   const mandate = recordsWhere(state, "mandates", "id", due.data.mandateId)[0];
   // RET-07: the engine applies the version the consent covers until a notice, and fresh consent where required, moves the mandate to a newer one.
   if (!options.simulation && mandate?.data.consentPolicyId && mandate.data.consentPolicyId !== policy.id) {
     inputs.consentPolicyVersion = mandate.data.consentPolicyVersion;
-    return explain("blocked", "policy_version_not_consented", `The customer consent covers version ${mandate.data.consentPolicyVersion}. Before applying version ${policy.data.version ?? "?"}, record the required policy-change notice and any new consent required by the lender's terms.`);
+    return explain("blocked", "policy_version_not_consented", `The customer’s consent covers version ${mandate.data.consentPolicyVersion}. Before applying version ${policy.data.version ?? "?"}, record the policy change notice and any new consent the lender’s terms require.`);
   }
   // MAN-07: the absolute floor and the merchant minimum.
-  if (due.amountKobo < ABSOLUTE_TICKET_FLOOR_KOBO) return explain("stop", "floor", "The amount is below the ₦5,000 minimum debit. This limit cannot be overridden.");
-  if (due.amountKobo < minimumTicketKobo(state) && !overrideRecorded(due)) return explain("blocked", "minimum_ticket", "The amount is below the lender minimum. An Admin must record an override reason before it can proceed.");
+  if (due.amountKobo < ABSOLUTE_TICKET_FLOOR_KOBO) return explain("stop", "floor", `The amount is below the ${nairaText(ABSOLUTE_TICKET_FLOOR_KOBO)} minimum debit. This limit cannot be overridden.`);
+  if (due.amountKobo < minimumTicketKobo(state) && !overrideRecorded(due)) return explain("blocked", "minimum_ticket", "The amount is below the lender’s minimum. An Admin must record a reason to allow it before a retry can be planned.");
   // MAN-08, MAN-09, MAN-14: the mandate must be active, cover the amount and carry consent.
-  if (!mandate || mandate.status !== "active") return explain("blocked", "mandate_inactive", "Mandate is not active.");
+  if (!mandate || mandate.status !== "active") return explain("blocked", "mandate_inactive", "The mandate is not active. Resume or reissue it before a retry can be planned.");
   if (due.amountKobo > mandate.amountKobo) return explain("blocked", "mandate_limit", "The instalment exceeds the mandate limit. Do not retry a lower amount unless the consent covers it.");
   if (!mandate.data.consentEvidence || (Array.isArray(mandate.data.consentGaps) && mandate.data.consentGaps.length)) return explain("blocked", "consent_gap", "Consent evidence is missing or incomplete. Resolve the gaps before proceeding.");
   // Row 6: stable experiment assignment (RET-05).  A holdout item still receives the failed-debit notice.
-  if (arm === "holdout") return explain("holdout", "holdout", "This instalment is in the comparison group. The lender's documented manual process is responsible for collection; automated retries are not allowed.", null, { purpose: "failed_debit", leadHours: 0, requiredBy: null, noticeId: null, acceptedAt: null, evidenced: false });
+  if (arm === "holdout") return explain("holdout", "holdout", "This instalment is in the comparison group. The lender’s documented manual process is responsible for collection; automated retries are not allowed.", null, { purpose: "failed_debit", leadHours: 0, requiredBy: null, noticeId: null, acceptedAt: null, evidenced: false });
   // SCH-08 and DEB-10: only owner-valo obligations of a merchant in instruction mode are instructed.
-  if (due.data.owner !== PLATFORM_OWNER) return explain("observation_only", "ownership", `Another collection system is responsible for this instalment (${due.data.owner}). Valo Pay cannot send its collection instructions.`);
-  if (state.merchant.mode !== "instruction" || !state.merchant.preLiveReady) return explain("observation_only", "observation_mode", "The live instruction gate is closed. Sample data cannot be used to approve live collection instructions.");
+  if (due.data.owner !== PLATFORM_OWNER) return explain("observation_only", "ownership", `Another collection system is responsible for this instalment (${valueWords(due.data.owner)}). Valo Pay cannot send its collection instructions.`);
+  if (state.merchant.mode !== "instruction" || !state.merchant.preLiveReady) return explain("observation_only", "observation_mode", "Valo Pay only watches this lender’s collections, so no instruction can be sent. Sample data can never approve live collection instructions.");
   // Row 8: plan the earliest slot that satisfies spacing, the calendar and the window; the required notice must be evidenced the lead time before it.
   const spacingHours = Math.max(policyGuardrails.minSpacingHours, Number(policy.data.spacingHours) || policyGuardrails.defaultSpacingHours);
   const leadHours = Math.max(policyGuardrails.minRetryNoticeHours, Number(policy.data.retryNoticeHours) || policyGuardrails.defaultRetryNoticeHours);
@@ -258,7 +258,7 @@ export function evaluateRetry(state: DomainState, ctx: Context, due: TypedRecord
   const deadline = planned - leadHours * HOUR;
   if (now < deadline) {
     // The plan stands and the notice is scheduled; execution is refused unless the evidence arrives by the deadline (SCH-05).
-    return explain("would_schedule", "plan", "A retry can be planned if evidence of provider acceptance of the failed-debit notice arrives by the deadline. No instruction is sent.", iso(planned),
+    return explain("would_schedule", "plan", "A retry can be planned if the provider confirms, by the deadline, that it accepted the notice of the failed collection attempt. No instruction is sent.", iso(planned),
       { purpose: "failed_debit", leadHours, requiredBy: iso(deadline), noticeId: null, acceptedAt: null, evidenced: false });
   }
   // The deadline passed without provider acceptance: defer to the next compliant slot and raise the exception.
@@ -295,6 +295,17 @@ export function latestDecisionFor(state: DomainState, dueItemId: string): TypedR
   return recordsWhere(state, "retry-decisions", "data.dueItemId", dueItemId).sort((a, b) => String(a.data.evaluatedAt).localeCompare(String(b.data.evaluatedAt)) || a.createdAt.localeCompare(b.createdAt)).at(-1);
 }
 
+/** Why a retry decision was reached, in words for its record's name: "Retry decision · blocked (emergency stop on)". */
+const retryRuleWords: Record<string, string> = {
+  consent_gap: "consent evidence missing", in_flight: "attempt in progress", kill_switch: "emergency stop on", mandate_inactive: "mandate not active",
+  mandate_limit: "above the mandate limit", minimum_ticket: "below the lender’s minimum", policy_version_not_consented: "new policy version not consented",
+  reversal_review: "reversal review open", timeout_unknown: "outcome unknown", unapproved_policy: "policy not approved", window: "no collection time available",
+  notice_not_evidenced: "notice not confirmed", ceiling: "attempt limit reached", non_retryable: "cannot be retried", restricted_once: "one retry used",
+  holdout: "comparison group", no_failure: "no failed attempt", observation_mode: "watch only", ownership: "another collection system",
+  customer_disputed: "customer disputed", dispute_released: "dispute released", disputed: "in dispute", final: "no attempts left",
+  floor: "below the minimum debit", settled: "paid or closed", plan: "retry planned",
+};
+
 /**
  * RET-03: persist a decision as an immutable record on the customer's timeline.
  * A close that re-evaluates an item and reaches the same decision writes nothing;
@@ -306,9 +317,9 @@ export function recordRetryDecision(state: DomainState, ctx: Context, due: Typed
   const latest = latestDecisionFor(state, due.id);
   // Recomputed from the stored fields: a decision recorded before nested inputs counted carries an older fingerprint.
   if (latest && decisionFingerprint(latest.data as DecisionIdentity) === fingerprint) return undefined;
-  const rowLabel = decision.rule.replace(/_/g, " ");
+  const rowLabel = retryRuleWords[decision.rule] ?? decision.rule.replace(/_/g, " ");
   return makeRecord(state, "retry-decisions", {
-    name: `Retry decision · ${decision.decision.replace(/_/g, " ")} (${rowLabel})`, status: "recorded", customerId: due.customerId, amountKobo: due.amountKobo,
+    name: rowLabel === valueWords(decision.decision) ? `Retry decision · ${rowLabel}` : `Retry decision · ${valueWords(decision.decision)} (${rowLabel})`, status: "recorded", customerId: due.customerId, amountKobo: due.amountKobo,
     reference: `RD-${fingerprint.slice(0, 12)}`, createdAt: ctx.now, updatedAt: ctx.now,
     data: { ...decision, fingerprint, previousDecisionId: latest?.id ?? null, synthetic: true },
   });
@@ -317,7 +328,7 @@ export function recordRetryDecision(state: DomainState, ctx: Context, due: Typed
 /** Section 6.6 minimum sample per arm at 80% power for an 8-point difference, one-sided 5% (a 90% interval excluding zero). */
 export function preregisterSample(baseline: number, holdout: number) {
   if (!(baseline > 0 && baseline < 1 - experimentRules.effectPoints && holdout >= experimentRules.minimumHoldoutShare && holdout <= experimentRules.maximumHoldoutShare)) {
-    throw new Error("Enter a baseline recovery rate greater than 0 and below 0.92, and a comparison group share from 10% to 50%.");
+    throw new Error(`Enter a baseline recovery rate above 0% and below ${Math.round((1 - experimentRules.effectPoints) * 100)}%, and a comparison group of ${Math.round(experimentRules.minimumHoldoutShare * 100)}% to ${Math.round(experimentRules.maximumHoldoutShare * 100)}%.`);
   }
   const ratio = (1 - holdout) / holdout;
   const z = experimentRules.zScore + 0.8416212335729143;

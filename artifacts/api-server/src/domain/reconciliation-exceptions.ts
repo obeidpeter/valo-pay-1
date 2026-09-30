@@ -3,10 +3,10 @@
  * These functions mutate only the supplied domain records; persistence and
  * audit publication remain at the caller's transaction boundary.
  */
-import { conditionClearedCode, counted, exceptionCatalogue, hasFeeSchedule, isOpenException, paymentRefundedKobo, paymentUnappliedKobo, providerIdentityConfirmedCode, providerIdentityOf, resolveExceptionType, unseenReversalCondition, type ExceptionType } from "@workspace/valopay-schema";
+import { conditionClearedCode, counted, dayText, exceptionCatalogue, valueWords, hasFeeSchedule, isOpenException, paymentRefundedKobo, paymentUnappliedKobo, providerIdentityConfirmedCode, providerIdentityOf, resolveExceptionType, unseenReversalCondition, type ExceptionType } from "@workspace/valopay-schema";
 import { makeRecord, recordsOf, touch } from "./records";
 import { recordsOfKind, recordsWhere } from "./record-index";
-import { addBusinessDays, watDate } from "./calendar";
+import { addBusinessDays } from "./calendar";
 import { currencyOf, outstanding, paymentReversed } from "./reconciliation-values";
 import type { Context, DomainState, TypedRecord, ValopayRecord } from "./types";
 
@@ -113,10 +113,13 @@ export function raiseException(state: DomainState, ctx: Context, type: Exception
   });
 }
 
+/** A dated line for an exception's notes: "Update on 29 Sept 2026: …", the day in West Africa Time. */
+export const datedUpdate = (ctx: Context, text: string): string => `Update on ${dayText(ctx.now)}: ${text}`;
+
 /** Adds a dated line to an exception's notes, once, so what it was raised for is not read as the current state. */
 export function noteUpdate(exception: TypedRecord<"exceptions">, ctx: Context, text: string): void {
   if (String(exception.data.notes ?? "").includes(text)) return;
-  exception.data.notes = `${exception.data.notes ? `${exception.data.notes}\n` : ""}Update on ${watDate(Date.parse(ctx.now))} (WAT): ${text}`;
+  exception.data.notes = `${exception.data.notes ? `${exception.data.notes}\n` : ""}${datedUpdate(ctx, text)}`;
   touch(exception, ctx.now);
 }
 
@@ -157,7 +160,7 @@ export function closeClearedException(exception: TypedRecord<"exceptions">, ctx:
   exception.data.resolvedBy = ctx.actor;
   exception.data.resolvedAt = ctx.now;
   exception.data.conditionCleared = { at: ctx.now, by: ctx.actor, reason };
-  exception.data.notes = `${exception.data.notes ? `${exception.data.notes}\n` : ""}Condition cleared on ${watDate(Date.parse(ctx.now))} (WAT): ${reason}, so this exception was closed.`;
+  exception.data.notes = `${exception.data.notes ? `${exception.data.notes}\n` : ""}Closed automatically on ${dayText(ctx.now)}: ${reason}.`;
   touch(exception, ctx.now);
 }
 
@@ -187,11 +190,11 @@ function clearedCondition(exception: TypedRecord<"exceptions">, byId: ReadonlyMa
   if (linked.kind === "observations" && type === "suspected_duplicate") {
     if (linked.status !== "resolved") return undefined;
     const payment = byId.get(String(linked.data.paymentId ?? ""));
-    return `payment evidence ${linked.reference} is now resolved${payment ? ` to payment ${payment.reference}` : ""}`;
+    return `payment evidence ${linked.reference} is now ${payment ? `recorded against payment ${payment.reference}` : "dealt with"}`;
   }
   if (linked.kind === "observations" && type === "provider_status_mismatch" && exception.data.condition === unseenReversalCondition(linked.id)) {
     const payment = byId.get(String(linked.data.paymentId ?? ""));
-    if (linked.status === "resolved") return `reversal evidence ${linked.reference} is now resolved${payment ? ` to payment ${payment.reference}` : ""}`;
+    if (linked.status === "resolved") return `reversal evidence ${linked.reference} is now ${payment ? `applied to payment ${payment.reference}` : "dealt with"}`;
     return recorded(linked.reference) ? `a payment with reference ${linked.reference} is now recorded` : undefined;
   }
   if (linked.kind === "settlement-batches" && type === "settlement_variance") {
@@ -207,7 +210,7 @@ function clearedCondition(exception: TypedRecord<"exceptions">, byId: ReadonlyMa
     return `payment ${held.reference} is allocated in full`;
   }
   if (linked.kind === "due-items" && type === "unallocated_payment") return outstanding(linked as TypedRecord<"due-items">) === 0 ? `instalment ${linked.reference} is paid` : undefined;
-  if (type === "unknown_outcome" && (linked.kind === "attempts" || linked.kind === "connected-intents") && linked.status !== "unknown") return `the ${linked.kind === "attempts" ? "debit's" : "pay-by-bank payment's"} outcome is now recorded as ${linked.status}`;
+  if (type === "unknown_outcome" && (linked.kind === "attempts" || linked.kind === "connected-intents") && linked.status !== "unknown") return `the ${linked.kind === "attempts" ? "collection attempt’s" : "Pay by Bank payment’s"} outcome is now recorded as ${valueWords(linked.status)}`;
   return undefined;
 }
 
@@ -233,7 +236,7 @@ export function clearedExceptionsNote(cleared: readonly TypedRecord<"exceptions"
   if (!cleared.length) return undefined;
   const reasons = cleared.slice(0, 3).map((item) => `${exceptionCatalogue[resolveExceptionType(item.data.type)!]?.title.toLowerCase() ?? "exception"}: ${item.data.conditionCleared?.reason}`);
   const more = cleared.length > 3 ? `; and ${counted(cleared.length - 3, "more", "more")}` : "";
-  return `Closed ${counted(cleared.length, "exception")} whose condition cleared (${reasons.join("; ")}${more}).`;
+  return `Closed ${counted(cleared.length, "exception")} automatically, because ${cleared.length === 1 ? "its" : "their"} cause went away (${reasons.join("; ")}${more}).`;
 }
 
 /** An audit entry's summary: the reason, then what the action established (its answer's auditNote), such as the exceptions it closed. */

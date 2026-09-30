@@ -211,7 +211,7 @@ function secondInstalment(state: DomainState, due: TypedRecord<"due-items">, amo
   odd.amountKobo = 1.5;
   const run = reconcile(state, finance(wat("2027-07-01T09:10:00")));
   equal(run.data.paymentsSkipped, 1, "the close completes and counts the skipped payment");
-  check(String(odd.data.explanation).startsWith("Automatic matching left this payment for Finance: "), "the payment says why it was left");
+  check(String(odd.data.explanation).startsWith("Automatic matching could not allocate this payment, so it waits for Finance. "), "the payment says why it was left");
   const updatedAt = odd.updatedAt;
   reconcile(state, finance(wat("2027-07-02T09:05:00")));
   equal(odd.updatedAt, updatedAt, "an unchanged reason is not rewritten at every close");
@@ -460,7 +460,7 @@ function manualTransfer(state: DomainState, due: TypedRecord<"due-items">, refer
   equal([paid.status, paid.data.outstandingKobo], ["partially_paid", 500_000], "a paid instalment raised to ₦30,000 owes ₦5,000 again and is part-paid");
   edit(paid, { amountKobo: GROSS });
   equal([paid.status, paid.data.outstandingKobo], ["paid", 0], "reduced back to what was paid, it is paid");
-  refused(() => edit(paid, { amountKobo: 1_000_000 }), /below confirmed allocations/, undefined, "an amount below the confirmed allocations is still refused");
+  refused(() => edit(paid, { amountKobo: 1_000_000 }), /already allocated to this instalment\. Enter ₦[0-9,.]+ or more\./, undefined, "an amount below the confirmed allocations is still refused");
   edit(partPaid, { amountKobo: 1_000_000 });
   equal([partPaid.status, partPaid.data.outstandingKobo], ["paid", 0], "a part-paid instalment reduced to the amount paid is paid with nothing outstanding");
   equal(planned.status, "cancelled", "and its unsent attempt is cancelled, as when a payment settles it");

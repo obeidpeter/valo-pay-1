@@ -1,12 +1,12 @@
 /** Provider-identity holds, Finance confirmations and release evidence for settlement batches. */
 import { type TypedRecord, type ValopayRecord, type DomainState, type Context } from "./types";
-import { resolveExceptionType, providerIdentityOf, isOpenException, providerIdentityConfirmedCode, providerIdentityParts, counted, sumMoney, exceptionCatalogue, providerIdentityCondition, conditionClearedCode, providerIdentityReviewOf, providerIdentityReviewCondition } from "@workspace/valopay-schema";
+import { resolveExceptionType, providerIdentityOf, isOpenException, providerIdentityConfirmedCode, providerIdentityParts, counted, sumMoney, exceptionCatalogue, providerIdentityCondition, conditionClearedCode, providerIdentityReviewOf, providerIdentityReviewCondition, dayText, listText, optionText } from "@workspace/valopay-schema";
 import { recordsWhere } from "./record-index";
 import { identityHeld, connectionKey, namedConnection, connectionOf, currencyOf } from "./reconciliation-values";
 import { type PaymentOf, totalsFromLines, lineAdded } from "./reconciliation-settlement-totals";
 import { touch, makeRecord, recordsOf } from "./records";
 import { carriedReports, noteUpdate, closeClearedException, moneyCurrency, moneyIn, countedTwiceReports, otherCurrencyReports } from "./reconciliation-exceptions";
-import { addBusinessDays, watDate } from "./calendar";
+import { addBusinessDays } from "./calendar";
 import { isDeepStrictEqual } from "node:util";
 
 /**
@@ -61,7 +61,7 @@ export function identityExceptionHeld(state: DomainState, exception: TypedRecord
 /** Why a confirmation as an identity another batch records or claims is refused, and not applied: the collision is the data owner's to settle. */
 function collisionText(identity: string, others: readonly { reference: string; handEntered: boolean }[]): string {
   const connection = providerIdentityParts(identity)?.connection ?? identity;
-  return `${others.map(batchInWords).join(" and ")} also ${others.length === 1 ? "records or claims" : "record or claim"} the payout of ${connection} (${identity}). A confirmation settles which connection's payout a batch is, not a collision between two batches: the data owner corrects the duplicate batch's reference or provider, and the next reconciliation then releases the genuine batch.`;
+  return `${others.map(batchInWords).join(" and ")} also ${others.length === 1 ? "records or claims" : "record or claim"} the payout of ${connection}. Confirming whose payout a batch is does not settle two batches claiming the same payout: the lender’s data owner must correct the duplicate batch’s reference or provider. The next reconciliation then releases the right batch.`;
 }
 
 /**
@@ -74,10 +74,10 @@ function collisionText(identity: string, others: readonly { reference: string; h
 export function heldBatchToConfirm(state: DomainState, exception: TypedRecord<"exceptions">, identity: string | undefined): TypedRecord<"settlement-batches"> {
   const batchId = providerIdentityOf(exception.data.condition);
   const batch = batchId === undefined ? undefined : recordsWhere(state, "settlement-batches", "id", batchId)[0];
-  if (!batch || !identityHeld(batch)) throw Object.assign(new Error("This settlement batch is no longer held for its provider identity. Refresh the exception to see where it stands."), { status: 409 });
+  if (!batch || !identityHeld(batch)) throw Object.assign(new Error("This settlement batch is no longer on hold for its provider identity. Reload the page to see where it stands."), { status: 409 });
   const identities = (batch.data.providerIdentityReview as { identities?: string[] }).identities ?? [];
   const choices = batch.data.providerIdentityKey ? identities.filter((item) => item === batch.data.providerIdentityKey) : identities;
-  if (!identity || !choices.includes(identity)) throw new Error(`Choose one of the identities settlement batch ${batch.reference} was held for: ${choices.join(", ")}.`);
+  if (!identity || !choices.includes(identity)) throw new Error(`Choose one of the connections settlement batch ${batch.reference} was held for: ${listText(choices.map((choice) => providerIdentityParts(choice)?.connection ?? choice))}.`);
   const others = identityClaimedElsewhere(state, batch, identity);
   if (others.length) throw Object.assign(new Error(`Settlement batch ${batch.reference} cannot be confirmed as this payout: ${collisionText(identity, others.map((other) => ({ reference: other.reference, handEntered: enteredByHand(other) })))}`), { status: 409 });
   return batch;
@@ -203,7 +203,7 @@ export function keepHoldException(state: DomainState, ctx: Context, batch: Typed
     const claimed = ((batch.data.providerIdentityClaimedBy ?? []) as IdentityClaim[]).filter((claim) => claim.identity === identity);
     const applicable = identities.includes(identity) && (!batch.data.providerIdentityKey || batch.data.providerIdentityKey === identity);
     if (applicable && !claimed.length) return undefined;
-    const why = claimed.length ? collisionText(identity, claimed) : `it names no identity settlement batch ${batch.reference} can be confirmed as. Resolve this exception as provider identity confirmed, naming one of the connections the batch was held for.`;
+    const why = claimed.length ? collisionText(identity, claimed) : `that connection is not one the batch was held for. Resolve this exception as ${optionText(providerIdentityConfirmedCode)} and choose one of those connections.`;
     noteUpdate(raiseHoldException(state, ctx, batch), ctx, `the confirmation recorded on exception ${latest!.reference || latest!.id}, of settlement batch ${batch.reference} as the payout of ${providerIdentityParts(identity)?.connection ?? identity}, was not applied: ${why}`);
     return undefined;
   }
@@ -226,9 +226,14 @@ function reviewEarlierIdentityDecision(state: DomainState, ctx: Context, batch: 
   if (recordsWhere(state, "exceptions", "data.linkedRecordId", batch.id).some((item) => item.data.condition === condition)) return undefined;
   const code = earlier.data.resolutionCode ? String(earlier.data.resolutionCode) : undefined;
   const at = Date.parse(String(earlier.data.resolvedAt ?? ""));
-  const decided = `${code ? `resolved as ${code}` : "closed"}${earlier.data.resolvedBy ? ` by ${earlier.data.resolvedBy}` : ""}${Number.isFinite(at) ? ` on ${watDate(at)} (WAT)` : ""}`;
+  const decided = `${code ? `resolved as ${optionText(code)}` : "closed"}${earlier.data.resolvedBy ? ` by ${earlier.data.resolvedBy}` : ""}${Number.isFinite(at) ? ` on ${dayText(at)}` : ""}`;
   const definition = exceptionCatalogue.settlement_variance;
-  const notes = `Settlement batch ${batch.reference} is held for its provider identity: its evidence names more than one provider connection, or another batch claims its identity, so none of its evidence is counted and it cannot reconcile. Exception ${earlier.reference || earlier.id} was ${decided} without confirming whose payout the batch is. That resolution keeps its meaning, but the batch stays held until Finance or an administrator confirms whose payout it is. Once the providers have confirmed it, resolve this review as provider identity confirmed, naming that connection: the next reconciliation releases the batch as its payout and moves the evidence of other connections to their own batches. If the providers cannot attribute the payout to one connection, leave this review open until the data owner repairs the evidence; the next reconciliation then releases the batch and closes this review.`;
+  // The note in three parts: what happened, each choice on its own line, then what happens next.
+  const notes = [
+    `Settlement batch ${batch.reference} is on hold for its provider identity: its evidence names more than one provider connection, or another batch claims the same payout. None of its evidence is counted, and it cannot be reconciled. Exception ${earlier.reference || earlier.id} was ${decided} without confirming whose payout the batch is. That decision stands, but the batch stays on hold until Finance or an Admin confirms whose payout it is.`,
+    `${optionText(providerIdentityConfirmedCode)}: once the providers have confirmed whose payout it is, resolve this review with it and choose that connection. The next reconciliation releases the batch as its payout and moves other connections’ evidence to their own batches.`,
+    "If the providers cannot say which connection it belongs to, leave this review open until the data owner corrects the evidence. The next reconciliation then releases the batch and closes this review.",
+  ].join("\n");
   const currency = moneyCurrency({ linkedRecordId: batch.id, condition }, moneyIn(state));
   return makeRecord(state, "exceptions", {
     name: "Review earlier settlement identity decision", status: "open", customerId: "", amountKobo: 0, createdAt: ctx.now,
@@ -309,7 +314,7 @@ export function identityClaimedElsewhere(state: DomainState, batch: TypedRecord<
 interface IdentityClaim { identity: string; batchId: string; reference: string; handEntered: boolean }
 
 /** A batch in words, for a person telling two batches with one reference apart: its reference, and whether Finance entered it by hand. */
-const batchInWords = (batch: { reference: string; handEntered: boolean }): string => `settlement batch ${batch.reference}${batch.handEntered ? ", entered by hand" : ", built from the provider's lines"}`;
+const batchInWords = (batch: { reference: string; handEntered: boolean }): string => `settlement batch ${batch.reference}${batch.handEntered ? ", entered by hand" : ", built from the provider’s lines"}`;
 
 /** Whether Finance entered a batch by hand (the provider's lines never built it, or built it over totals Finance typed). */
 const enteredByHand = (batch: TypedRecord<"settlement-batches">): boolean => !Array.isArray(batch.data.lineObservationIds) || !!batch.data.enteredTotals;
@@ -386,7 +391,7 @@ export function holdEarlierSettlementIdentities(state: DomainState, ctx: Context
       const lines = linked.filter((item) => item.data.providerIdentityHeld === true);
       batch.data.providerIdentityRelease = { releasedAt: ctx.now, identity, heldLineIds: lines.map((item) => item.id).sort() };
       for (const line of lines) { delete line.data.providerIdentityHeld; delete line.data.settlementBatchId; touch(line, ctx.now); }
-      cleared.push(...closeIdentityExceptions(state, ctx, batch, `the evidence of settlement batch ${batch.reference} names one provider connection, ${connection}, which no other batch claims, so its provider identity hold is released`));
+      cleared.push(...closeIdentityExceptions(state, ctx, batch, `all the evidence of settlement batch ${batch.reference} now comes from ${connection}, and no other batch claims it, so its provider identity hold is released`));
       released.push({ batch, connection, held: lines });
       touch(batch, ctx.now);
     }
@@ -408,25 +413,30 @@ export function holdEarlierSettlementIdentities(state: DomainState, ctx: Context
 }
 
 /** Why a batch held for its provider identity is in variance, and the way out: its batch explanation and its hold's exception's notes. */
-export const IDENTITY_HOLD_EXPLANATION = "Historical settlement evidence mixes or conflicts with provider connections. Totals and prior links are preserved for Finance review and cannot certify a reconciled payout. Once the providers confirm whose payout this is, Finance or an administrator resolves its provider identity exception as provider identity confirmed, naming that connection: the next reconciliation keeps that connection's evidence in the batch and moves the evidence of other connections to their own batches. If the providers cannot attribute the payout to one connection, the exception stays open until the data owner repairs the evidence, and the next reconciliation then releases the batch. Rerunning reconciliation or reimporting the same batch does not clear this hold.";
+export const IDENTITY_HOLD_EXPLANATION = [
+  "This batch is on hold: its evidence mixes more than one provider connection, or another batch claims the same payout. Its totals and links are kept for Finance to review, but it cannot be reconciled yet.",
+  `${optionText(providerIdentityConfirmedCode)}: once the providers confirm whose payout this is, Finance or an Admin resolves its exception with it and chooses that connection. The next reconciliation keeps that connection’s evidence in the batch and moves other connections’ evidence to their own batches.`,
+  "If the providers cannot say which connection it belongs to, the exception stays open until the data owner corrects the evidence. The next reconciliation then releases the batch.",
+  "Running reconciliation again, or importing the batch again, does not lift this hold.",
+].join("\n");
 
 /** Why an open exception of a batch that left variance stays open: the reports it was raised for, or carries, that only Finance settles. */
 export function stillReported(exception: TypedRecord<"exceptions">): string {
   const [, , report] = String(exception.data.condition ?? "").split(":");
   const countedTwice = countedTwiceReports(exception).length > 0 || report === "line" || report === "counted", otherCurrency = otherCurrencyReports(exception).length > 0 || report === "currency";
-  return `${countedTwice ? " It stays open for the collection the provider reports in two batches: resolve it once you have checked both payouts with the provider." : ""}${otherCurrency ? " It stays open for the settlement line in another currency than the batch: resolve it once you have checked with the provider which batch pays it out." : ""}`;
+  return `${countedTwice ? " It stays open for the collection the provider reports in two batches: resolve it once you have checked both payouts with the provider." : ""}${otherCurrency ? " It stays open for the settlement line in a different currency from the batch: resolve it once you have checked with the provider which batch pays it out." : ""}`;
 }
 
 /** What the audit entry adds for settlement batches released from an earlier build's provider identity hold: each batch, its connection and the lines it held meanwhile. */
 export function releasedBatchesNote(released: readonly IdentityRelease[]): string | undefined {
   const automatic = released.filter((item) => item.confirmedBy === undefined);
   const notes = released.filter((item) => item.confirmedBy !== undefined).map(confirmedReleaseNote);
-  const lines = ({ held }: IdentityRelease) => held.length ? `; ${counted(held.length, "settlement line")} it held meanwhile, never counted, ${held.length === 1 ? "was" : "were"} read as new lines are` : "";
-  if (automatic.length === 1) notes.push(`Released settlement batch ${automatic[0]!.batch.reference} from its provider identity hold, as its evidence names one provider connection, ${automatic[0]!.connection}, which no other batch claims${lines(automatic[0]!)}.`);
+  const lines = ({ held }: IdentityRelease) => held.length ? `; ${counted(held.length, "settlement line")} held meanwhile ${held.length === 1 ? "is" : "are"} now counted as new lines` : "";
+  if (automatic.length === 1) notes.push(`Released settlement batch ${automatic[0]!.batch.reference} from its provider identity hold: all its evidence now comes from ${automatic[0]!.connection}, and no other batch claims it${lines(automatic[0]!)}.`);
   else if (automatic.length) {
     const named = automatic.slice(0, 3).map((item) => `${item.batch.reference} (${item.connection}${lines(item)})`);
     const more = automatic.length > 3 ? `; and ${counted(automatic.length - 3, "more", "more")}` : "";
-    notes.push(`Released ${counted(automatic.length, "settlement batch", "settlement batches")} from their provider identity hold, as each one's evidence names one provider connection, which no other batch claims: ${named.join("; ")}${more}.`);
+    notes.push(`Released ${counted(automatic.length, "settlement batch", "settlement batches")} from their provider identity holds: all the evidence of each now comes from one provider connection, and no other batch claims it: ${named.join("; ")}${more}.`);
   }
   return notes.join(" ") || undefined;
 }
@@ -437,10 +447,10 @@ export function identityReviewsNote(state: DomainState, reviews: readonly TypedR
   const named = reviews.slice(0, 3).map((review) => {
     const batch = recordsWhere(state, "settlement-batches", "id", String(review.data.linkedRecordId))[0];
     const earlier = recordsWhere(state, "exceptions", "id", String((review.data.legacyIdentityReview as { priorExceptionId?: string }).priorExceptionId))[0];
-    return `settlement batch ${batch?.reference ?? review.data.linkedRecordId} (exception ${earlier?.reference || earlier?.id} ${earlier?.data.resolutionCode ? `resolved as ${earlier.data.resolutionCode}` : "closed"})`;
+    return `settlement batch ${batch?.reference ?? review.data.linkedRecordId} (exception ${earlier?.reference || earlier?.id} ${earlier?.data.resolutionCode ? `resolved as ${optionText(earlier.data.resolutionCode)}` : "closed"})`;
   });
   const more = reviews.length > 3 ? `; and ${counted(reviews.length - 3, "more", "more")}` : "";
-  return `Raised a renewed Finance review for ${counted(reviews.length, "settlement batch", "settlement batches")} still held for ${reviews.length === 1 ? "its" : "their"} provider identity, whose hold's exception an earlier build closed without confirming whose payout the batch is; the earlier resolution keeps its meaning: ${named.join("; ")}${more}.`;
+  return `Raised a renewed Finance review for ${counted(reviews.length, "settlement batch", "settlement batches")} still on hold for ${reviews.length === 1 ? "its" : "their"} provider identity. Valo Pay had closed ${reviews.length === 1 ? "its hold’s exception" : "their holds’ exceptions"} earlier without confirming whose payout the batch is, and that decision stands: ${named.join("; ")}${more}.`;
 }
 
 /** What the audit entry says of a batch released as the identity Finance confirmed (confirmIdentity): the batch, the connection, who confirmed it and when, and the evidence of other connections it moved out. */
@@ -449,10 +459,10 @@ function confirmedReleaseNote(release: IdentityRelease): string {
   const was = (items: readonly unknown[]) => (items.length === 1 ? "was" : "were");
   const { detached = [], credits = [], held } = release;
   const moved = [
-    detached.length ? `${counted(detached.length, "settlement line")} of another connection (${references(detached)}) ${was(detached)} moved out, to be read as new lines are in its own connection's batch` : "",
-    credits.length ? `${counted(credits.length, "statement credit")} of another connection (${references(credits)}) ${was(credits)} left to link to its own` : "",
-    held.length ? `${counted(held.length, "settlement line")} it held meanwhile, never counted, ${was(held)} read as new lines are` : "",
+    detached.length ? `${counted(detached.length, "settlement line")} of another connection (${references(detached)}) ${was(detached)} moved out, to be counted as new lines in their own connection’s batch` : "",
+    credits.length ? `${counted(credits.length, "statement credit")} of another connection (${references(credits)}) ${was(credits)} left to link to their own batch` : "",
+    held.length ? `${counted(held.length, "settlement line")} held meanwhile ${held.length === 1 ? "is" : "are"} now counted as new lines` : "",
   ].filter(Boolean);
   const confirmedAt = Date.parse(String(release.confirmedAt));
-  return `Released settlement batch ${release.batch.reference} as the payout of ${release.connection}, which ${release.confirmedBy} confirmed${Number.isFinite(confirmedAt) ? ` on ${watDate(confirmedAt)} (WAT)` : ""}${moved.length ? `: ${moved.join(", and ")}` : ""}.${release.totalsKept ? " Its gross, fee and net were typed by hand, so they were left as typed and only the expected fee of the lines that moved was taken out: check that the typed totals leave those lines out too." : ""}`;
+  return `Released settlement batch ${release.batch.reference} as the payout of ${release.connection}, which ${release.confirmedBy} confirmed${Number.isFinite(confirmedAt) ? ` on ${dayText(confirmedAt)}` : ""}${moved.length ? `: ${moved.join(", and ")}` : ""}.${release.totalsKept ? " Its amounts before fees, fee and after fees were typed by hand, so they were left as typed. Only the expected fee of the lines that moved was taken out: check that the typed amounts leave those lines out too." : ""}`;
 }

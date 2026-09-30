@@ -84,7 +84,7 @@ function reconcileRecords(state: DomainState, ctx: Context) {
     } catch (error) {
       // A payment the ladder cannot apply is held for Finance with the reason and an exception; one record never stops the close.
       if (!(error instanceof Error) || error.constructor !== Error) throw error;
-      const explanation = `Automatic matching left this payment for Finance: ${error.message}`;
+      const explanation = `Automatic matching could not allocate this payment, so it waits for Finance. ${error.message}`;
       if (payment.data.explanation !== explanation) { payment.data.explanation = explanation; touch(payment, ctx.now); }
       raiseException(state, ctx, "unallocated_payment", { linkedRecordId: payment.id, customerId: payment.customerId, amountKobo: paymentUnappliedKobo(payment), notes: explanation, condition: identityCondition("unallocated_payment", payment.id) });
       paymentsSkipped += 1;
@@ -98,7 +98,7 @@ function reconcileRecords(state: DomainState, ctx: Context) {
     const left = paymentUnappliedKobo(payment), rest = payment.status === "partial";
     raiseException(state, ctx, "unallocated_payment", {
       linkedRecordId: payment.id, customerId: payment.customerId, amountKobo: left,
-      notes: rest ? `${moneyText(left, currencyOf(payment))} of this payment is still not applied to an instalment after 24 hours.` : "No certain or confirmed allocation after 24 hours.",
+      notes: rest ? `${moneyText(left, currencyOf(payment))} of this payment is still not allocated to an instalment after 24 hours.` : "This payment has not been allocated to an instalment after 24 hours.",
       condition: rest ? `unallocated_payment:${payment.id}:unapplied:${left}` : identityCondition("unallocated_payment", payment.id),
     });
   });
@@ -112,10 +112,10 @@ function reconcileRecords(state: DomainState, ctx: Context) {
     .filter((item) => confirmAttemptOutcome(state, ctx, item)).length;
   const giveUps = applyDecisions(state, ctx);
   const unknownOutcomes = recordsOf(state, "attempts").filter((attempt) => attempt.status === "unknown" && now - Date.parse(attemptTime(attempt)) >= UNKNOWN_OUTCOME_AGE_MS);
-  unknownOutcomes.forEach((attempt) => raiseException(state, ctx, "unknown_outcome", { linkedRecordId: attempt.id, customerId: attempt.customerId, amountKobo: attempt.amountKobo, notes: "TIMEOUT_UNKNOWN unresolved for 24 hours; the provider must confirm the outcome by reference.", condition: identityCondition("unknown_outcome", attempt.id) }));
+  unknownOutcomes.forEach((attempt) => raiseException(state, ctx, "unknown_outcome", { linkedRecordId: attempt.id, customerId: attempt.customerId, amountKobo: attempt.amountKobo, notes: "The collection attempt’s outcome has been unknown for 24 hours. Ask the provider to confirm it, using the payment reference.", condition: identityCondition("unknown_outcome", attempt.id) }));
   const checkoutsUnknown = ageUnknownCheckouts(state, ctx, now);
   const mappingNeeded = recordsOf(state, "attempts").filter((attempt) => attempt.status === "failed" && normaliseFailureCode(attempt.data.failureCode) === "UNKNOWN" && attempt.data.rawFailureCode);
-  mappingNeeded.forEach((attempt) => raiseException(state, ctx, "mapping_needed", { linkedRecordId: attempt.id, customerId: attempt.customerId, amountKobo: attempt.amountKobo, notes: `Provider code "${attempt.data.rawFailureCode}" is not in the failure-code mapping.`, condition: `mapping_needed:${attempt.id}:${attempt.data.rawFailureCode}` }));
+  mappingNeeded.forEach((attempt) => raiseException(state, ctx, "mapping_needed", { linkedRecordId: attempt.id, customerId: attempt.customerId, amountKobo: attempt.amountKobo, notes: `The provider’s failure code “${attempt.data.rawFailureCode}” is not recognised. Classify it, so Valo Pay knows whether to retry.`, condition: `mapping_needed:${attempt.id}:${attempt.data.rawFailureCode}` }));
   // Matching may have tied a payment a hold names to an instalment: the holds are re-derived as the payments now stand.
   refreshHeldEvidence(state, ctx);
   // Last, so nothing raised above is left open once its condition cleared.
@@ -142,7 +142,7 @@ function reconcileRecords(state: DomainState, ctx: Context) {
       ...(legacyReviews.some((item) => isOpenException(item.status)) ? { legacyReversalReviewsPending: legacyReviews.filter((item) => isOpenException(item.status)).length } : {}),
       ...(holdsRestored.length ? { legacyReversalStatusesRestored: holdsRestored.length } : {}),
       ...(separated.length ? { settlementLinesSeparated: separated.length } : {}),
-      ...(cleared.length || legacyReviews.length || separated.length || identities.released.length || identityReviews.length ? { auditNote: [releasedBatchesNote(identities.released), identityReviewsNote(state, identityReviews), separatedLinesNote(separated), clearedExceptionsNote(cleared), legacyReviews.some((item) => isOpenException(item.status)) ? "Earlier unversioned reversal decisions are held for renewed Finance review; historical decisions and financial activity were not reinterpreted." : undefined, restoredStatusesNote(holdsRestored)].filter(Boolean).join(" ") } : {}),
+      ...(cleared.length || legacyReviews.length || separated.length || identities.released.length || identityReviews.length ? { auditNote: [releasedBatchesNote(identities.released), identityReviewsNote(state, identityReviews), separatedLinesNote(separated), clearedExceptionsNote(cleared), legacyReviews.some((item) => isOpenException(item.status)) ? "Some earlier reversal decisions need a fresh Finance review. Past decisions and payments were left as they were." : undefined, restoredStatusesNote(holdsRestored)].filter(Boolean).join(" ") } : {}),
     },
   };
 }

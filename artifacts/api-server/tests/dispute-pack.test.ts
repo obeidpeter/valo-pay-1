@@ -38,7 +38,7 @@ const decisionEvents = pack.timeline.filter((event) => event.kind === "retry-dec
 assert.ok(decisionEvents.length >= 2, "both decisions are on the timeline");
 assert.match(decisionEvents[0]!.detail, /Next attempt 2027-06-30 06:16:00 WAT/, "the planned time is spelled out");
 assert.match(decisionEvents.at(-1)!.event, /give up/, "the give-up after ACCOUNT_CLOSED is on the timeline");
-assert.match(decisionEvents.at(-1)!.detail, /INVALID_ACCOUNT does not allow a retry/, "the raw code was normalised to the catalogue");
+assert.match(decisionEvents.at(-1)!.detail, /‘Invalid or closed account’ cannot be retried/, "the raw code was normalised to the catalogue");
 assert.equal(pack.summary.dueItems && (pack.summary as any).dueItems.unpaidFinal, 1);
 assert.equal((pack.summary as any).exceptions.open, 1, "the unpaid-after-final-attempt exception is counted");
 assert.equal((pack.summary as any).retryDecisions, decisionEvents.length);

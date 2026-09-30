@@ -310,7 +310,7 @@ const check = (condition: unknown, message: string) => { assert.ok(condition, me
   assert.deepEqual(preregisterSample(0.4, 0.5), { holdoutMinimum: 473, engineMinimum: 473, confidence: 0.9, power: 0.8, effect: 0.08 });
   const twenty = preregisterSample(0.4, 0.2);
   assert.equal(twenty.holdoutMinimum, 293); assert.equal(twenty.engineMinimum, 1172);
-  assert.throws(() => preregisterSample(0.4, 0.05), /comparison group share from 10% to 50%/);
+  assert.throws(() => preregisterSample(0.4, 0.05), /and a comparison group of 10% to 50%\./);
   checks += 3;
 }
 

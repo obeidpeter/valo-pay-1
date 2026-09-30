@@ -283,7 +283,7 @@ export function validateRecord(
     link("customerId", input.customerId, "customers");
     attempt("amountKobo", () => positiveInteger(input.amountKobo, "Amount"), () => ({ type: "amount" }));
     const amount = Number(input.amountKobo);
-    if (amount < ABSOLUTE_TICKET_FLOOR_KOBO) refuse("amountKobo", "The minimum debit is ₦5,000. Amounts below this cannot be approved.");
+    if (amount < ABSOLUTE_TICKET_FLOOR_KOBO) refuse("amountKobo", `The minimum debit is ${nairaText(ABSOLUTE_TICKET_FLOOR_KOBO)}. Amounts below this cannot be approved.`);
     const minimum = minimumTicketKobo(state);
     if (amount < minimum) {
       const override = data.overrideReason || data.adminOverrideReason;

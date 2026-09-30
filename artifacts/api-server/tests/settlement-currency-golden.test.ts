@@ -83,13 +83,13 @@ section("a dollar line in a naira batch", () => {
   equal([dollars.data.currency, dollars.amountKobo, dollars.data.settlementStatus], ["USD", USD_GROSS, "settled"], "its payment is reconciled as a payment: settled in dollars");
   const [report] = exceptionsOn(state, batch.id);
   equal([report?.data.condition, report?.amountKobo, report?.data.currency, report?.status], [`settlement_variance:${batch.id}:currency:${u1.id}`, USD_GROSS, "USD", "open"], "Finance is told with a settlement_variance of its own, in dollars");
-  check(String(report?.data.notes).startsWith("Settlement line PSK-U (USD 1,000.00) is in USD, and settlement batch B-MIX-1 is in NGN: a batch holds one currency, so the line is not counted in its totals."), `the exception names the batch, the line and both currencies (${report?.data.notes})`);
+  check(String(report?.data.notes).startsWith("Settlement line PSK-U (USD 1,000.00) is in USD, but settlement batch B-MIX-1 is in NGN. A batch holds one currency, so the line is not counted in its totals."), `the exception names the batch, the line and both currencies (${report?.data.notes})`);
   // The batch's statement credit reconciles it; the report stays open until Finance resolves it.
   addObservation(state, { reference: "STMT-MIX-1", amountKobo: NET, batchReference: "B-MIX-1", source: "statement", eventId: "st1", occurredAt: wat("2027-07-01T09:00:00") });
   closeAnswer(state, "2027-07-01T10:00:00");
   closeAnswer(state, "2027-07-02T08:00:00");
   equal([batch.status, report!.status, exceptionsOn(state, batch.id).length], ["reconciled", "open", 1], "the batch reconciles on its naira, and the report stays open");
-  check(/the batch is now reconciled\..*It stays open for the settlement line in another currency than the batch: resolve it once you have checked with the provider which batch pays it out\./.test(String(report!.data.notes)), `its notes say why it stays open (${report!.data.notes})`);
+  check(/the batch is now reconciled\..*It stays open for the settlement line in a different currency from the batch: resolve it once you have checked with the provider which batch pays it out\./.test(String(report!.data.notes)), `its notes say why it stays open (${report!.data.notes})`);
   accepted(request(state, () => executeAction(state, finance(wat("2027-07-02T09:00:00")), { action: "resolve_exception", recordId: report!.id, reason: "The provider paid the dollar collection out in its dollar batch.", data: { resolutionCode: "provider_corrected" } })), "Finance's resolution");
   closeAnswer(state, "2027-07-03T08:00:00");
   equal(exceptionsOn(state, batch.id).map((item) => item.status), ["resolved"], "Finance's resolution settles it: nothing is raised again");
@@ -111,7 +111,7 @@ section("a naira line in a dollar batch", () => {
   equal([batch.data.otherCurrencyLineIds, n2.data.otherCurrencyLine, n2.data.settlementBatchId], [[n2.id], true, batch.id], "the naira line is linked and marked, not counted");
   const [report] = exceptionsOn(state, batch.id);
   equal([report?.data.condition, report?.amountKobo, "currency" in (report?.data ?? {})], [`settlement_variance:${batch.id}:currency:${n2.id}`, GROSS, false], "the report of the naira line is in naira");
-  check(String(report?.data.notes).startsWith("Settlement line PSK-N (₦25,000.00) is in NGN, and settlement batch B-MIX-2 is in USD"), `and names both currencies (${report?.data.notes})`);
+  check(String(report?.data.notes).startsWith("Settlement line PSK-N (₦25,000.00) is in NGN, but settlement batch B-MIX-2 is in USD"), `and names both currencies (${report?.data.notes})`);
   equal([naira.data.settlementStatus, naira.status, due.status, outstandingOf(due)], ["settled", "allocated", "paid", 0], "the naira collection is still reconciled and matched to its instalment");
   // Its line records no expected fee either.
   const u2 = lineOf(state, "u2");
@@ -130,12 +130,12 @@ section("a dollar batch", () => {
   // A statement credit in dollars for its net reconciles it.
   addObservation(state, { reference: "STMT-USD", amountKobo: 2 * USD_GROSS - 50_000, batchReference: "B-USD", source: "statement", eventId: "st-usd", occurredAt: wat("2027-07-01T09:00:00"), currency: "USD" } as any);
   reconciled(state, "2027-07-01T10:00:00");
-  equal([batch.status, batch.data.explanation, batch.data.statementNetKobo, exceptionsOn(state, batch.id).length], ["reconciled", `Statement credit matched the settlement batch net total; it was not allocated to a customer. ${UNCHECKED}`, 2 * USD_GROSS - 50_000, 0], "its statement check still runs, and its state says the fees were not checked");
+  equal([batch.status, batch.data.explanation, batch.data.statementNetKobo, exceptionsOn(state, batch.id).length], ["reconciled", `The statement credit equals the batch’s amount after fees. It was not allocated to a customer. ${UNCHECKED}`, 2 * USD_GROSS - 50_000, 0], "its statement check still runs, and its state says the fees were not checked");
   // A credit that does not match is a statement variance, never a fee variance.
   addObservation(state, { reference: "STMT-USD-2", amountKobo: 1_000, batchReference: "B-USD", source: "statement", eventId: "st-usd-2", occurredAt: wat("2027-07-01T11:00:00"), currency: "USD" } as any);
   reconciled(state, "2027-07-01T12:00:00");
   const [variance] = exceptionsOn(state, batch.id);
-  equal([batch.status, batch.data.explanation, String(variance?.data.condition).split(":").slice(2, 3)], ["variance", `The batch's 2 statement credits together differ from gross settlement lines less recorded fees. ${UNCHECKED}`, ["statement"]], "a credit that differs is a statement variance");
+  equal([batch.status, batch.data.explanation, String(variance?.data.condition).split(":").slice(2, 3)], ["variance", `The batch’s 2 statement credits together do not equal its amount after fees. Compare the provider’s settlement report with the bank statement. ${UNCHECKED}`, ["statement"]], "a credit that differs is a statement variance");
 });
 
 // ---------- A statement credit in another currency than its batch ----------
@@ -146,7 +146,7 @@ section("a statement credit in another currency", () => {
   const dollars = addObservation(state, { reference: "STMT-CR-USD", amountKobo: NET, batchReference: "B-CR", source: "statement", eventId: "st-cr-usd", occurredAt: wat("2027-07-01T09:00:00"), currency: "USD" } as any);
   reconciled(state, "2027-07-01T10:00:00");
   const batch = batchOf(state, "B-CR");
-  const otherText = "A statement credit of USD 24,875.00 names the batch in another currency than its NGN, and a credit in another currency never matches its net total.";
+  const otherText = "A statement credit for this batch is in another currency (USD 24,875.00). A credit in another currency cannot match the batch’s amount after fees in NGN.";
   equal([batch.status, batch.data.explanation, batch.data.statementObservationId, batch.data.statementNetKobo, batch.data.statementOtherCurrencies], ["variance", otherText, undefined, undefined, { USD: { count: 1, amount: NET } }], "the batch is in variance, and lists the credit in its own currency");
   equal([dollars.status, dollars.data.resolvedTo, dollars.data.otherCurrencyCredit, recordsOf(state, "payments").some((item) => item.reference === "STMT-CR-USD")], ["resolved", `batch:${batch.id}`, true, false], "the credit is linked to the batch, marked, and never a customer's payment");
   const [variance] = exceptionsOn(state, batch.id);
@@ -182,7 +182,7 @@ section("a batch Finance enters by hand", () => {
   // Its statement credit in its own currency reconciles it; its fees are not checked in dollars.
   addObservation(state, { reference: "STMT-HAND-USD", amountKobo: USD_NET, batchReference: "B-HAND-USD", source: "statement", eventId: "st-hand-usd", occurredAt: wat("2027-07-01T07:00:00"), currency: "USD" } as any);
   reconciled(state, "2027-07-01T08:00:00");
-  equal([dollars.status, dollars.data.explanation], ["reconciled", `Statement credit matched the settlement batch net total; it was not allocated to a customer. ${UNCHECKED}`], "a hand-entered dollar batch reconciles to its dollar credit");
+  equal([dollars.status, dollars.data.explanation], ["reconciled", `The statement credit equals the batch’s amount after fees. It was not allocated to a customer. ${UNCHECKED}`], "a hand-entered dollar batch reconciles to its dollar credit");
   // Finance may correct the currency of a batch it entered, never one the provider's lines build.
   const edit = (batch: ValopayRecord, data: Record<string, unknown>) => request(state, () => validateRecord(state, finance(wat("2027-07-01T09:00:00")), "settlement-batches", { ...structuredClone(batch), data: { ...structuredClone(batch.data), ...data } }, true));
   accepted(edit(naira, { currency: "jpy" }), "correcting a hand-entered batch's currency");
@@ -235,8 +235,8 @@ section("a batch an earlier build saved in several currencies", () => {
   equal([nairaFirst.other.data.otherCurrencyLine, nairaFirst.other.data.countedGrossKobo], [true, undefined], "the line is marked, and no longer records what it adds");
   const [report] = exceptionsOn(nairaFirst.state, nairaFirst.batch.id);
   equal([report?.data.condition, report?.data.currency, report?.status], [`settlement_variance:${nairaFirst.batch.id}:currency:${nairaFirst.other.id}`, "USD", "open"], "and it is reported as a line in another currency is");
-  check(/An earlier build added it to the batch's totals; it is now taken out of them\./.test(String(report?.data.notes)), `its report says what the earlier build did (${report?.data.notes})`);
-  equal([corrected.data.settlementLinesSeparated, corrected.data.auditNote], [1, "Took 1 settlement line in another currency than its batch out of the batch, as a batch holds one currency: PSK-U (USD) from settlement batch B-OLD (NGN)."], "the reconciliation counts it, and its audit entry names it");
+  check(/It had been added to the batch’s totals by mistake and is now taken out of them\./.test(String(report?.data.notes)), `its report says what the earlier build did (${report?.data.notes})`);
+  equal([corrected.data.settlementLinesSeparated, corrected.data.auditNote], [1, "Moved 1 settlement line in another currency out of its batch, because a batch holds one currency: PSK-U (USD) from settlement batch B-OLD (NGN)."], "the reconciliation counts it, and its audit entry names it");
   const after = JSON.stringify(recordsOf(nairaFirst.state, "settlement-batches").concat(recordsOf(nairaFirst.state, "observations") as any, recordsOf(nairaFirst.state, "exceptions") as any));
   const again = reconciled(nairaFirst.state, "2027-07-02T09:00:00");
   equal(["settlementLinesSeparated" in again.data, JSON.stringify(recordsOf(nairaFirst.state, "settlement-batches").concat(recordsOf(nairaFirst.state, "observations") as any, recordsOf(nairaFirst.state, "exceptions") as any))], [false, after], "once: a later reconciliation changes nothing");
@@ -251,7 +251,7 @@ section("a batch an earlier build saved in several currencies", () => {
   Object.assign(byHand.batch.data, { grossKobo: GROSS, feeKobo: FEE, netKobo: NET });
   reconciled(byHand.state, "2027-07-02T08:00:00");
   equal([byHand.batch.data.grossKobo, byHand.batch.data.lineObservationIds, byHand.batch.data.otherCurrencyLineIds], [GROSS, [byHand.first.id], [byHand.other.id]], "a batch whose totals Finance typed keeps them, and the dollar line still comes out");
-  check(/which no longer show what its lines added \(Finance may have typed them by hand\), so they are left as they are: check that they leave this line out\./.test(String(exceptionsOn(byHand.state, byHand.batch.id)[0]?.data.notes)), "and its report says so");
+  check(/The totals no longer show what its lines added, as Finance may have typed them by hand, so they were left as they are\. Check that they leave this line out\./.test(String(exceptionsOn(byHand.state, byHand.batch.id)[0]?.data.notes)), "and its report says so");
   // A batch an earlier build saved in dollars alone names its currency and drops the naira fee check.
   const { state, due } = lender("earlier-dollars-only");
   dollarLine(state, due.customerId, "B-OLD-USD", "old-usd");
@@ -311,10 +311,10 @@ section("an earlier mixed batch whose collection the provider lists in other bat
   equal([naira.data.otherCurrencyLineIds, lineOf(state, "u-ngn").data.otherCurrencyLine, "countedInBatchId" in lineOf(state, "u-ngn").data, "duplicateSettlementLine" in lineOf(state, "u-ngn").data], [[lineOf(state, "u-ngn").id], true, false, false], "a line in a naira batch of naira lines is a line in another currency there");
   const reports = (batch: ValopayRecord) => exceptionsOn(state, batch.id).filter(isOpen).map((item) => String(item.data.notes)).join("\n");
   const moved = "settlement batch B-MIX no longer counts its collection, as its line there is in USD and the batch in NGN, so settlement line PSK-U";
-  check(reports(usd).includes(`(WAT): ${moved} is now counted in this batch.`), `the dollar batch's open report says the line is now counted there (${reports(usd)})`);
-  check(reports(usd2).includes(`(WAT): ${moved} is still not counted in this batch, as settlement batch B-USD now counts its collection.`), `the later dollar batch's report names the batch that now counts it (${reports(usd2)})`);
-  check(reports(naira).includes(`(WAT): ${moved} is reported as a line in another currency than this batch.`) && /is in USD, and settlement batch B-NAIRA is in NGN/.test(reports(naira)), `the naira batch's report says the line is now one in another currency (${reports(naira)})`);
-  check(reports(mix).includes("(WAT): its collection is now counted in settlement batch B-USD, where the provider lists it too."), `the report of the line taken out says where its collection is now counted (${reports(mix)})`);
+  check(reports(usd).includes(`: ${moved} is now counted in this batch.`), `the dollar batch's open report says the line is now counted there (${reports(usd)})`);
+  check(reports(usd2).includes(`: ${moved} is still not counted in this batch, as settlement batch B-USD now counts its collection.`), `the later dollar batch's report names the batch that now counts it (${reports(usd2)})`);
+  check(reports(naira).includes(`: ${moved} is reported as a line in a different currency from this batch.`) && /is in USD, but settlement batch B-NAIRA is in NGN/.test(reports(naira)), `the naira batch's report says the line is now one in another currency (${reports(naira)})`);
+  check(reports(mix).includes(": its collection is now counted in settlement batch B-USD, where the provider lists it too."), `the report of the line taken out says where its collection is now counted (${reports(mix)})`);
   check(String(answer.data.auditNote).includes("PSK-U (USD) from settlement batch B-MIX (NGN), now counted in settlement batch B-USD, where the provider lists it too."), `the audit entry names the batch that now counts it (${answer.data.auditNote})`);
   // This build reading the same evidence from the start ends in the same place.
   const shape = (at: DomainState) => ({

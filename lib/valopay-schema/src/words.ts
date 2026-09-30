@@ -102,6 +102,34 @@ export function rolesText(roles: readonly string[]): string {
   return `${/^(Admin|Operations)/.test(names[0]!) ? "an" : "a"} ${listed}${person}`;
 }
 
+/**
+ * The reason an accuracy review records when it takes a match out of use. It is stored, and code recognises such
+ * matches by it, so it never changes; supersededReasonText shows it in today's words.
+ */
+export const REVIEW_SUPERSESSION = "Precision audit marked this allocation wrong";
+
+/** Why a match is no longer applied, as people read it: a review's stored reason in today's words, and an earlier "Superseded:" as "No longer applied:". */
+export function supersededReasonText(reason: unknown): string {
+  const text = String(reason ?? "");
+  if (text.startsWith(REVIEW_SUPERSESSION)) return `An accuracy review marked this allocation wrong${text.slice(REVIEW_SUPERSESSION.length)}`;
+  return text.replace(/^Superseded: /, "No longer applied: ");
+}
+
+/** A choice as the console's lists name it, quoted inside a sentence: ‘Confirmed failed’. */
+export function optionText(code: unknown): string {
+  return `‘${valueLabel(code)}’`;
+}
+
+/** Where payment evidence came from, inside a sentence: "a provider notification", "a bank statement". */
+export function evidenceSourceText(source: unknown): string {
+  const phrases: Record<string, string> = {
+    webhook: "a provider notification", settlement: "a settlement report", statement: "a bank statement",
+    transfer: "a bank transfer", card: "a card payment", manual: "an entry made by hand",
+  };
+  const code = String(source ?? "");
+  return Object.hasOwn(phrases, code) ? phrases[code]! : valueWords(code);
+}
+
 /** Items in a sentence: "A, B or C", or with "and": "A, B and C". */
 export function listText(items: readonly string[], joiner: "or" | "and" = "or"): string {
   return items.length < 2 ? items.join("") : `${items.slice(0, -1).join(", ")} ${joiner} ${items.at(-1)}`;

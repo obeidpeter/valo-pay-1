@@ -128,7 +128,7 @@ for (const record of beforeProviderIdentity) if (record.kind === "settlement-bat
   assert.equal(record.data.providerIdentityKey, JSON.stringify([String(record.data.providerConnection).trim().toLowerCase(), record.reference]));
   delete record.data.providerIdentityKey;
 }
-assert.equal(digest([state.merchant, state.settings, beforeProviderIdentity.sort(byId)]), "65ac12409648fa5e615b0a71bd75e20dc6b44d64ea2fad67de7581c663585459", "only the new provider identity changes the earlier golden records (reworded as the language pass below says)");
+assert.equal(digest([state.merchant, state.settings, beforeProviderIdentity.sort(byId)]), "15202fa7d9d7cf1a30090f96c67ee6d46073bfda338356e7c420ddd27668b22b", "only the new provider identity changes the earlier golden records (reworded as the language pass below says)");
 if (process.env.VALOPAY_GOLDEN_PRINT === "1") console.log(JSON.stringify({ outcome, records, visits: [first.visits, second.visits] }, null, 2));
 /**
  * Computed for this scenario by the code before its lookups were indexed: first at c22c229, then again by the dispute
@@ -138,12 +138,14 @@ if (process.env.VALOPAY_GOLDEN_PRINT === "1") console.log(JSON.stringify({ outco
  * settlement lines recorded the gross they add to their batch, and once a settlement batch recorded its currency, the
  * records' only change, checked by leaving that field out (VALOPAY_GOLDEN_PRINT=1 prints the current values). The
  * language pass then changed only words: exception names from the catalogue ("Possible duplicate", "Outcome unknown"),
- * the owner of a failure code to classify ("Valo Pay team"), money in notes ("₦10,000.00"), and a daily close's name and
- * summary ("Daily close 1 Jul 2027", "payment evidence records received", "older than 24 hours"), checked field by field
+ * the owner of a failure code to classify ("Valo Pay team"), money in notes ("₦10,000.00"), a daily close's name and
+ * summary ("Daily close 1 Jul 2027", "payment evidence records received", "older than 24 hours"), and the names,
+ * explanations, notes, reasons and cancellation reasons reconciliation and the retry rules write ("Payment PSK-1",
+ * "Allocation of PSK-1 to DEMO-1", "Retry decision · retry postponed (notice not confirmed)"), checked field by field
  * against the records the earlier code wrote; the close answers' data are unchanged.
  */
 const golden = {
-  records: "b21e642ddfa35a1838dc79bca267601890da0b7ebf4c29fee3c69761811c3a28",
+  records: "e47e55ca9a940b81527ab757bac685ffaaa8ae0329a8c878a4cec6cea2f97b60",
   monthEnd: "dff97eb6d50336fb650cf48652975f842fd2b85f14df835eb535a7dbb4a35a7d",
   nextDay: "1a88e829ce6bd3940c6a5248e5bbdfddc0a7786480202fc138aca0a834c4a798",
 };

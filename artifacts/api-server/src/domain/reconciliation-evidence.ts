@@ -2,9 +2,9 @@
 import { type TypedRecord, type DomainState, type Context } from "./types";
 import { evidenceConflict as conflictOf, statedGross } from "./evidence-agreement";
 import { connectionOf, currencyOf, UNSEEN_REVERSAL_AGE_MS, channelFor, connectionKey } from "./reconciliation-values";
-import { moneyText, heldEvidenceCondition, isOpenException, resolveExceptionType, heldEvidenceOf, WAT_OFFSET_MS, unseenReversalCondition, unseenReversalCodes, heldEvidenceCodes } from "@workspace/valopay-schema";
-import { raiseException } from "./reconciliation-exceptions";
-import { watDate, addBusinessDays } from "./calendar";
+import { moneyText, heldEvidenceCondition, isOpenException, resolveExceptionType, heldEvidenceOf, unseenReversalCondition, unseenReversalCodes, heldEvidenceCodes, evidenceSourceText, instantText, optionText } from "@workspace/valopay-schema";
+import { datedUpdate, raiseException } from "./reconciliation-exceptions";
+import { addBusinessDays } from "./calendar";
 import { touch, recordsOf, makeRecord } from "./records";
 import { indexedPass, recordsWhere, recordsOfKind } from "./record-index";
 import { latestEvidenceResolution } from "./reversal-review";
@@ -43,24 +43,30 @@ function holdForReview(state: DomainState, ctx: Context, observation: TypedRecor
   const ref = observation.reference, source = String(observation.data.source), reversal = reportsReversal(observation);
   const conflict = evidenceConflict(other, observation, payments), connectionOnly = !candidates.length && !conflict;
   const through = connectionOf(state, observation), otherThrough = connectionOf(state, other);
-  const what = `${reversal ? "Reversal evidence" : "Payment evidence"} ${ref} (${source}, ${moneyText(gross, currencyOf(observation))})`;
-  const lead = candidates.length
-    ? `${what} shares its provider reference with payment ${other.reference}, but ${conflict}. It was not ${reversal ? "applied to" : "merged into"} that payment.`
-    : `${what} came through ${through}, where no payment has its reference, but payment ${other.reference} was observed through ${otherThrough}${conflict ? `, and ${conflict}` : ""}. It was not ${reversal ? "applied to" : "merged into"} that payment, and no payment was made for it.`;
-  const join = connectionOnly
-    ? reversal
-      ? ` Resolve this exception as the same payment if it reverses payment ${other.reference}: the next reconciliation applies it to that payment, which is reversed, and keys the payment under ${through} too.`
-      : ` Resolve this exception as the same payment if it is more evidence of payment ${other.reference} under another spelling of its connection: the next reconciliation joins it to that payment and keys the payment under ${through} too, so later evidence through either finds it.`
-    : "";
+  const what = `${reversal ? "Reversal evidence" : "Payment evidence"} ${ref} (${moneyText(gross, currencyOf(observation))}, from ${evidenceSourceText(source)})`;
   // A reversal never becomes a payment of its own, which would only be reversed at once.
-  const next = reversal
-    ? `It reports a reversal, so no payment is made from it only to be reversed.${join} ${connectionOnly ? "Resolve it any other way" : "Resolve this exception"} once you have checked it, and the next reconciliation sets it aside: it then reverses nothing, whatever payment it later finds.`
-    : `${join.trim()}${join ? " " : ""}Resolve ${join ? "it" : "this exception"} as not money if it records no money: the next reconciliation sets it aside and makes no payment from it, nor merges it into one. Resolve it as distinct payments if it is money of its own${candidates.length ? "" : ` through ${through}`}: the next reconciliation records it as a separate payment. Resolve it as a confirmed duplicate if the payer was charged twice: it is recorded as a separate payment held for its refund.`;
+  const kept = reversal ? "It was not applied to that payment. It reports a reversal, so no payment is made from it." : `It was not added to that payment${candidates.length ? "" : ", and no payment was made from it"}.`;
+  const lead = candidates.length
+    ? `${what} shares its provider reference with payment ${other.reference}, but ${conflict}. ${kept}`
+    : `${what} came through ${through}. No payment there has its reference, but payment ${other.reference} came through ${otherThrough}${conflict ? `, and ${conflict}` : ""}. ${kept}`;
+  // The note in three parts: what happened, each choice on its own line, then what happens next.
+  const choices = reversal
+    ? [
+      ...(connectionOnly ? [`${optionText(heldEvidenceCodes.samePayment)}: it reverses payment ${other.reference}. It is applied to that payment, which is reversed, and later evidence through ${through} finds that payment too.`] : []),
+      `${connectionOnly ? "Any other resolution" : "Any resolution, once you have checked it"}: it is set aside and reverses nothing, even if its payment appears later.`,
+    ]
+    : [
+      ...(connectionOnly ? [`${optionText(heldEvidenceCodes.samePayment)}: it is more evidence of payment ${other.reference}, with its connection spelled another way. It is added to that payment, and later evidence through ${through} finds that payment too.`] : []),
+      `${optionText(heldEvidenceCodes.notMoney)}: it records no money. It is set aside, and no payment is made from it.`,
+      `${optionText("distinct_payments")}: it is money of its own${candidates.length ? "" : ` through ${through}`}. It is recorded as a separate payment.`,
+      `${optionText("confirmed_duplicate_refund")}: the payer was charged twice. It is recorded as a separate payment, held until its refund is recorded.`,
+    ];
+  const notes = [lead, "Resolve this exception as one of these:", ...choices, "The next reconciliation carries out your choice."].join("\n");
   const condition = heldEvidenceCondition(observation.id, other.id, connectionOnly);
-  const exception = raiseException(state, ctx, "suspected_duplicate", { linkedRecordId: observation.id, customerId: observation.customerId, amountKobo: gross, notes: `${lead} ${next}`, condition });
+  const exception = raiseException(state, ctx, "suspected_duplicate", { linkedRecordId: observation.id, customerId: observation.customerId, amountKobo: gross, notes, condition });
   if (isOpenException(exception.status) && exception.data.condition !== condition) {
     exception.data.condition = condition;
-    exception.data.notes = `${exception.data.notes ? `${exception.data.notes}\n` : ""}Update on ${watDate(Date.parse(ctx.now))} (WAT): the hold now stands as follows. ${lead} ${next}`;
+    exception.data.notes = `${exception.data.notes ? `${exception.data.notes}\n` : ""}${datedUpdate(ctx, `the hold now stands as follows.\n${notes}`)}`;
     touch(exception, ctx.now);
   }
   return { exception, other, connectionOnly };
@@ -92,7 +98,7 @@ export function refreshHeldEvidence(state: DomainState, ctx: Context, only?: Typ
       const conflict = named ? evidenceConflict(named, observation, payments) : "that payment is no longer recorded";
       if (!held.connectionOnly || !conflict) continue;
       exception.data.condition = heldEvidenceCondition(observation.id, held.paymentId, false);
-      exception.data.notes = `${exception.data.notes ? `${exception.data.notes}\n` : ""}Update on ${watDate(Date.parse(ctx.now))} (WAT): the hold now stands as follows. Payment evidence ${observation.reference} no longer agrees with payment ${named?.reference ?? observation.reference}: ${conflict}, so it cannot be joined to it. The next reconciliation resolves it to payment ${own.reference}, which has its reference through ${connectionOf(state, own)}, unless you resolve this exception first.`;
+      exception.data.notes = `${exception.data.notes ? `${exception.data.notes}\n` : ""}${datedUpdate(ctx, `the hold now stands as follows. Payment evidence ${observation.reference} no longer agrees with payment ${named?.reference ?? observation.reference}: ${conflict}. It cannot be added to that payment. The next reconciliation records it as evidence of payment ${own.reference}, which has its reference through ${connectionOf(state, own)}, unless you resolve this exception first.`)}`;
       touch(exception, ctx.now);
     }
   });
@@ -112,10 +118,17 @@ function awaitReversedPayment(state: DomainState, ctx: Context, observation: Typ
   // The time its evidence gives, else when it was recorded; a time that does not read as one never stops the close.
   const since = [observation.data.occurredAt, observation.createdAt].map((value) => Date.parse(String(value))).find(Number.isFinite) ?? Date.parse(ctx.now);
   if (Date.parse(ctx.now) - since < UNSEEN_REVERSAL_AGE_MS) return;
-  const received = new Date(since + WAT_OFFSET_MS).toISOString().slice(0, 16).replace("T", " ");
+  // The note in three parts: what happened, each choice on its own line, then what happens next.
   raiseException(state, ctx, "provider_status_mismatch", {
     linkedRecordId: observation.id, customerId: observation.customerId, amountKobo: gross, owner: "Finance", linkedKind: "observations", condition: unseenReversalCondition(observation.id),
-    notes: `The provider reported a reversal of payment ${observation.reference} (${String(observation.data.source)}, ${moneyText(gross, currencyOf(observation))}) through ${connectionOf(state, observation)} at ${received} WAT, but no payment with that reference has been seen through any connection, so there is nothing to reverse. No payment is made from it only to be reversed: it waits for its payment, and the reconciliation that sees that payment reverses it through the same connection, or holds it for you when the payment came through another. Check with the provider which collection it reverses. Leave this exception open while you check: if the payment arrives meanwhile, the reversal applies to it as above and this exception closes. Resolve it as platform state confirmed if the provider says it reverses nothing of this lender's: the next reconciliation sets the reversal aside, and it reverses nothing, even if its payment arrives later. Resolve it as provider state adopted if the provider confirms the reversal: it keeps waiting for its payment with no new exception, and the reconciliation that records that payment reverses it, whichever spelling of the connection the payment comes through.`,
+    notes: [
+      `The provider reported a reversal of payment ${observation.reference} (${moneyText(gross, currencyOf(observation))}, from ${evidenceSourceText(observation.data.source)}) through ${connectionOf(state, observation)} on ${instantText(since)}. No payment with that reference has come through any connection, so there is nothing to reverse yet, and no payment is made from it. The reconciliation that records the payment reverses it through the same connection, or holds it for you if the payment came through another.`,
+      "Ask the provider which collection it reverses, and leave this exception open while you check. If the payment arrives meanwhile, the reversal is applied and this exception closes.",
+      "Resolve this exception as one of these:",
+      `${optionText(unseenReversalCodes.setAside)}: the provider says it reverses nothing of this lender’s. It is set aside and reverses nothing, even if its payment arrives later.`,
+      `${optionText(unseenReversalCodes.adopted)}: the provider confirms the reversal. It keeps waiting for its payment, with no new exception, and reverses the payment when it arrives, whichever way its connection is spelled.`,
+      "The next reconciliation carries out your choice.",
+    ].join("\n"),
   });
 }
 
@@ -191,7 +204,13 @@ export function reviewEarlierReversalDecisions(state: DomainState, ctx: Context)
     const condition = `${unseenReversalCondition(observation.id)}:review:${decision.exception.id}`;
     let review = recordsWhere(state, "exceptions", "data.linkedRecordId", observation.id).find((item) => item.data.condition === condition);
     if (review) continue;
-    const notes = `Earlier decision ${decision.exception.id} recorded ${decision.exception.data.resolutionCode} without a rule version. Releases used different meanings for that code, so Valo Pay cannot infer whether reversal ${observation.reference} should be adopted or set aside. Its earlier decision and evidence disposition are preserved. Finance must check the provider evidence and record a new explicit decision: provider state adopted applies the reversal to its payment; platform state confirmed sets unprocessed reversal evidence aside. Existing allocations and previously applied reversals are not changed until reviewed. ${REVERSAL_HOLD_RULE} After that reconciliation, review any historical effects.`;
+    const notes = [
+      `An earlier decision on reversal ${observation.reference} (exception ${decision.exception.reference || decision.exception.id}) was recorded as ${optionText(decision.exception.data.resolutionCode)} without a rule version. Earlier releases gave that choice different meanings, so Valo Pay cannot tell whether to apply the reversal or set it aside. The earlier decision, and what happened to the evidence, stay on record.`,
+      "Check the provider’s evidence, then resolve this review as one of these:",
+      `${optionText(unseenReversalCodes.adopted)}: the reversal is applied to its payment.`,
+      `${optionText(unseenReversalCodes.setAside)}: reversal evidence not yet applied is set aside.`,
+      `Allocations and reversals already applied do not change until you decide. ${REVERSAL_HOLD_RULE} After that reconciliation, check any earlier effects.`,
+    ].join("\n");
     // Do not let an old resolution without a condition suppress this new review.
     review = recordsWhere(state, "exceptions", "data.linkedRecordId", observation.id).find((item) => isOpenException(item.status) && resolveExceptionType(item.data.type) === "provider_status_mismatch")
       ?? makeRecord(state, "exceptions", { name: "Review earlier reversal decision", status: "open", customerId: observation.customerId, amountKobo: statedGross(observation).kobo, createdAt: ctx.now, data: { type: "provider_status_mismatch", owner: "Finance", severity: "high", slaBusinessDays: 1, dueBy: addBusinessDays(state, ctx.now, 1), linkedRecordId: observation.id, linkedKind: "observations", ...(currencyOf(observation) !== "NGN" ? { currency: currencyOf(observation) } : {}) } });
@@ -258,7 +277,7 @@ export function canonicalPayment(state: DomainState, ctx: Context, observation: 
   if (prior && key) payments.addConnection(prior, connectionOf(state, observation));
   const observedAt = String(observation.data.occurredAt || observation.createdAt);
   const payment = prior || makeRecord(state, "payments", {
-    name: "Canonical payment", status: "unallocated", reference: ref, customerId: observation.customerId, createdAt: ctx.now,
+    name: `Payment ${ref}`, status: "unallocated", reference: ref, customerId: observation.customerId, createdAt: ctx.now,
     amountKobo: gross,
     data: {
       providerReference: ref, providerConnection: connectionOf(state, observation), currency: currencyOf(observation), channel: channelFor(source),
@@ -270,7 +289,7 @@ export function canonicalPayment(state: DomainState, ctx: Context, observation: 
   if (!prior) payments.add(payment);
   if (separate?.resolutionCode === "confirmed_duplicate_refund") {
     payment.status = "possible_duplicate";
-    payment.data.explanation = `Finance confirmed this evidence duplicates payment ${payments.payment(separate.paymentId)?.reference ?? ref}; it is held until its refund is recorded.`;
+    payment.data.explanation = `Finance confirmed this evidence duplicates payment ${payments.payment(separate.paymentId)?.reference ?? ref}. It is held until its refund is recorded.`;
   }
   paymentDimensions(payment);
   // A settlement line's net made this payment; the debit's own gross completes it. What the gross adds to money

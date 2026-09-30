@@ -155,8 +155,8 @@ section("Finance releases an instalment from dispute with a reason", () => {
   equal([due.status, outstandingOf(due)], ["in_collection", 2_500_000], "the instalment leaves dispute and its status follows its balance");
   equal([due.data.disputeRelease?.via, due.data.disputeRelease?.releasedBy, due.data.disputeRelease?.reason], ["finance_release", "Sandbox Finance", "The provider withdrew the chargeback; the lender collects the instalment again."], "the release is recorded with who and why");
   equal([dispute!.status, dispute!.data.resolutionCode, dispute!.data.conditionCleared?.by], ["closed", "condition_cleared", "Sandbox Finance"], "the open dispute exception is closed because its condition cleared");
-  check(/left dispute/.test(String(dispute!.data.conditionCleared?.reason)) && /Condition cleared/.test(String(dispute!.data.notes)), `the exception says why it closed (${dispute!.data.conditionCleared?.reason})`);
-  check(/released from dispute/.test(String(released.data.auditNote)) && /condition cleared/i.test(String(released.data.auditNote)), `the audit entry records the release and the closed exception (${released.data.auditNote})`);
+  check(/left dispute/.test(String(dispute!.data.conditionCleared?.reason)) && /Closed automatically on /.test(String(dispute!.data.notes)), `the exception says why it closed (${dispute!.data.conditionCleared?.reason})`);
+  check(/released from dispute/.test(String(released.data.auditNote)) && /Closed 1 exception automatically, because its cause went away/.test(String(released.data.auditNote)), `the audit entry records the release and the closed exception (${released.data.auditNote})`);
   equal(released.data.dueStatus, "in_collection", "the answer carries the new status");
   refused(act(state, finance(at), "release_dispute", due.id, "Again"), /not in dispute/, 409, "an instalment not in dispute cannot be released");
   // Collection resumes: pay-by-bank takes a checkout, and Finance can apply a payment by hand.
@@ -212,7 +212,7 @@ section("an edit cannot rewrite a release", () => {
   accepted(act(state, operations(wat("2027-07-04T09:00:00")), "resolve_exception", dispute!.id, "Not upheld after review.", { resolutionCode: "not_upheld" }), "the resolution");
   const edited = structuredClone(due);
   (edited.data as any).disputeRelease = { ...(due.data.disputeRelease as object), attemptId: "someone-else" };
-  refused(request(state, () => amendDueItem(state, ctxAt(wat("2027-07-04T10:00:00"), "Admin"), due, edited)), /release from dispute/, undefined, "a direct edit of the recorded release is refused");
+  refused(request(state, () => amendDueItem(state, ctxAt(wat("2027-07-04T10:00:00"), "Admin"), due, edited)), /Use Release from dispute to take an instalment out of dispute\./, undefined, "a direct edit of the recorded release is refused");
   const renamed = structuredClone(due);
   renamed.name = "Ngozi Eze · instalment 5 (renamed)";
   accepted(request(state, () => amendDueItem(state, ctxAt(wat("2027-07-04T10:00:00"), "Admin"), due, renamed)), "an edit that leaves the release alone");
@@ -257,7 +257,7 @@ section("pay-by-bank refunds and reversals", () => {
   equal([lateDue.status, exceptionsFor(late, lateDue.id, "customer_dispute").length], ["paid", 0], "the paid instalment is not put in dispute by a receipt that never paid it");
   equal([lateException!.status, lateException!.data.resolutionCode], ["closed", "condition_cleared"], "and the late receipt's exception closes because its money went back");
   // The review of these fixes: the step's audit entry names the exception it closed, and a step that closes none adds nothing.
-  equal(reversal.auditNote, `Closed 1 exception whose condition cleared (unallocated payment: payment ${lateReceipt.reference} was reversed).`, "the reversal's audit entry names it");
+  equal(reversal.auditNote, `Closed 1 exception automatically, because its cause went away (unallocated payment: payment ${lateReceipt.reference} was reversed).`, "the reversal's audit entry names it");
   const open = recordsOf(late, "due-items").find((item) => item.status === "scheduled" && item.id !== lateDue.id)!;
   equal(accepted(connectedWithNote(late, ctx, "payment.create", undefined, { dueItemId: open.id, amountKobo: open.amountKobo }), "a new checkout").auditNote, undefined, "a checkout that closes no exception adds no note");
 });
@@ -321,7 +321,7 @@ section("a late sample outcome closes the unknown-outcome exception", () => {
   const answer = accepted(connectedWithNote(state, operations(wat("2027-07-02T11:00:00")), "payment.outcome", intent.id, { outcome: "failed" }), "the provider's late answer");
   equal([intent.status, unknown!.status, unknown!.data.resolutionCode], ["failed", "closed", "condition_cleared"], "the exception closes because the outcome is now known");
   // The review of these fixes: the step's audit entry names the exception it closed.
-  equal([answer.result.id, answer.auditNote], [intent.id, "Closed 1 exception whose condition cleared (outcome unknown: the pay-by-bank payment's outcome is now recorded as failed)."], "and the step's audit entry names it");
+  equal([answer.result.id, answer.auditNote], [intent.id, "Closed 1 exception automatically, because its cause went away (outcome unknown: the Pay by Bank payment’s outcome is now recorded as failed)."], "and the step's audit entry names it");
   close(state, "2027-07-03T07:00:00");
   equal(exceptionsFor(state, intent.id, "unknown_outcome").length, 1, "and is never raised again");
 });
@@ -337,7 +337,7 @@ section("exceptions whose payment is settled", () => {
   const confirmed = accepted(act(state, finance(at), "confirm_allocation", pay1003.id, "The payer and amount match this instalment.", { proposalId: proposal.id, proposalUpdatedAt: proposal.updatedAt }), "the confirmation of SBX-PAY-1003") as any;
   equal([confirmation!.status, confirmation!.data.resolutionCode, confirmation!.data.conditionCleared?.by, confirmation!.data.resolvedAt], ["closed", "condition_cleared", "Sandbox Finance", at], "the exception closes in the same action");
   check(/DEMO-LOAN-1003/.test(String(confirmation!.data.conditionCleared?.reason)) && /paid/.test(String(confirmation!.data.conditionCleared?.reason)), `with the reason (${confirmation!.data.conditionCleared?.reason})`);
-  check(/condition cleared/i.test(String(confirmed.data.auditNote)), `and the audit entry names it (${confirmed.data.auditNote})`);
+  check(/because its cause went away/.test(String(confirmed.data.auditNote)), `and the audit entry names it (${confirmed.data.auditNote})`);
   // Refunding SBX-UNIDENTIFIED-001: its exception closes.
   const unidentified = payment(state, "SBX-UNIDENTIFIED-001");
   const [noReference] = exceptionsFor(state, unidentified.id, "unallocated_payment");

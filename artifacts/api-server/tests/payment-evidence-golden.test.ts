@@ -126,7 +126,7 @@ section("the seeded unidentified transfer", () => {
   // The payer is now known: another customer's instalment is refused with a reason, not by the repository.
   const other = recordsOf(state, "due-items").find((item) => item.customerId !== due.customerId && item.status === "scheduled")!;
   const refused = request(state, () => executeAction(state, finance(wat("2027-07-01T11:00:00")), { action: "manual_allocate", recordId: unidentified!.id, reason: "Wrong payer", data: { dueItemId: other.id, amountKobo: 100_000 } }));
-  check(!refused.ok && refused.status === 409 && /another customer/.test(refused.message), `another customer's instalment is refused with a reason (${!refused.ok && refused.message})`);
+  check(!refused.ok && refused.status === 409 && /belong to different customers/.test(refused.message), `another customer's instalment is refused with a reason (${!refused.ok && refused.message})`);
   // Automatic matching never identifies a payer.
   addObservation(state, { reference: "TRF-NOBODY", amountKobo: due.amountKobo, source: "transfer", eventId: "nobody", occurredAt: wat("2027-07-01T12:00:00") });
   reconcile(state, finance(wat("2027-07-01T12:05:00")));
@@ -189,7 +189,7 @@ section("evidence names the provider connection it came through", () => {
   // The review of these fixes: evidence through a connection where no payment has its reference, while another connection's payment does, waits for Finance.
   equal([payment(state, "REF-SHARED").map((item) => [item.data.providerConnection, item.customerId, item.amountKobo]), otherRail.status], [[["Sandbox Rail", a!.customerId, 1_111_100]], "unresolved"], "the reference through another connection is neither merged nor made a payment on its own");
   const [otherHeld] = exceptionsFor(state, otherRail.id, "suspected_duplicate");
-  check(otherHeld && otherHeld.status === "open" && /came through Other Rail, where no payment has its reference/.test(String(otherHeld.data.notes)) && /observed through Sandbox Rail, and it names another payer\./.test(String(otherHeld.data.notes)), `Finance is asked about it, with both connections and the conflict named (${otherHeld?.data.notes})`);
+  check(otherHeld && otherHeld.status === "open" && /came through Other Rail\. No payment there has its reference/.test(String(otherHeld.data.notes)) && /came through Sandbox Rail, and it names another payer\./.test(String(otherHeld.data.notes)), `Finance is asked about it, with both connections and the conflict named (${otherHeld?.data.notes})`);
   accepted(request(state, () => executeAction(state, finance(wat("2027-07-01T09:07:00")), { action: "resolve_exception", recordId: otherHeld!.id, reason: "B paid through the other rail.", data: { resolutionCode: "distinct_payments" } })), "Finance's resolution");
   accepted(request(state, () => reconcile(state, finance(wat("2027-07-01T09:08:00")))), "the reconciliation after it");
   equal(payment(state, "REF-SHARED").map((item) => [item.data.providerConnection, item.customerId, item.amountKobo]).sort(), [["Other Rail", b!.customerId, 2_222_200], ["Sandbox Rail", a!.customerId, 1_111_100]].sort(), "once Finance says it is money of its own, the same reference through another connection is another payment");
@@ -383,7 +383,7 @@ section("reversal evidence through another connection name", () => {
   equal(payment(state, "PSK-REV-9").map((item) => item.id), [debit!.id], "no second payment is made and reversed");
   equal([reversal.status, debit!.data.reversalStatus, debit!.status, due.status], ["unresolved", "none", "allocated", "paid"], "the reversal is held, and the payment is not reversed on a guess");
   const [held] = exceptionsFor(state, reversal.id, "suspected_duplicate");
-  check(held && held.status === "open" && held.data.owner === "Finance" && /came through Sandbox Rail Disputes, where no payment has its reference/.test(String(held.data.notes)) && /observed through Sandbox Rail\./.test(String(held.data.notes)), `Finance has an exception that names both connections (${held?.data.notes})`);
+  check(held && held.status === "open" && held.data.owner === "Finance" && /came through Sandbox Rail Disputes\. No payment there has its reference/.test(String(held.data.notes)) && /but payment .* came through Sandbox Rail\./.test(String(held.data.notes)), `Finance has an exception that names both connections (${held?.data.notes})`);
   close(state, "2027-07-03T07:00:00");
   equal([reversal.status, exceptionsFor(state, reversal.id).length], ["unresolved", 1], "the next close keeps it held and raises nothing new");
   // Whatever Finance decides, reversal evidence never becomes a payment: once resolved, it is set aside.
@@ -403,7 +403,7 @@ section("reversal evidence through another connection name", () => {
   const part = addObservation(other, { reference: "PSK-REV-10", amountKobo: 1_000_000, source: "webhook", customerId: otherDue.customerId, eventId: "rev1", reversed: true, occurredAt: wat("2027-07-02T06:00:00") });
   accepted(request(other, () => reconcile(other, finance(wat("2027-07-02T07:00:00")))), "the reversal of another amount");
   const [partHeld] = exceptionsFor(other, part.id, "suspected_duplicate");
-  check(partHeld && partHeld.status === "open" && /reports a reversal/.test(String(partHeld.data.notes)) && /sets it aside/.test(String(partHeld.data.notes)), `its exception says it is set aside once resolved (${partHeld?.data.notes})`);
+  check(partHeld && partHeld.status === "open" && /reports a reversal/.test(String(partHeld.data.notes)) && /it is set aside and reverses nothing/.test(String(partHeld.data.notes)), `its exception says it is set aside once resolved (${partHeld?.data.notes})`);
   accepted(request(other, () => executeAction(other, finance(wat("2027-07-02T09:00:00")), { action: "resolve_exception", recordId: partHeld!.id, reason: "Checked with the provider.", data: { resolutionCode: "confirmed_duplicate_refund" } })), "its resolution");
   accepted(request(other, () => reconcile(other, finance(wat("2027-07-02T10:00:00")))), "the reconciliation after it");
   equal([part.status, part.data.resolutionKey, payment(other, "PSK-REV-10").length, otherDue.status], ["resolved", "reversal_set_aside_after_review", 1, "paid"], "it is set aside and no payment is made from it");
@@ -519,7 +519,7 @@ section("a net-only line applied before the debit's gross", () => {
   const cleared = accepted(request(earlier, () => executeAction(earlier, finance(wat("2027-07-03T07:00:00")), { action: "daily_close" })), "the close after the rule changed");
   equal([heldEarlier.status, heldEarlier.data.paymentId, third!.amountKobo], ["resolved", third!.id, 2_500_000], "the held gross joins its payment");
   equal([stale.status, stale.data.resolutionCode], ["closed", "condition_cleared"], "its exception closes as its condition cleared");
-  check(/possible duplicate: payment evidence PSK-NET-3 is now resolved/.test(String(cleared.data.auditNote)), `and the close's audit entry names it (${cleared.data.auditNote})`);
+  check(/possible duplicate: payment evidence PSK-NET-3 is now (recorded against payment|dealt with)/.test(String(cleared.data.auditNote)), `and the close's audit entry names it (${cleared.data.auditNote})`);
 });
 
 // ---------- Review finding 4: a gross below the amount received ----------
@@ -605,7 +605,7 @@ section("a reversal reported before its payment", () => {
   close(state, "2027-07-03T07:30:00");
   const [unseen] = exceptionsFor(state, reversal.id, "provider_status_mismatch");
   check(unseen && unseen.status === "open" && unseen.data.owner === "Finance" && unseen.data.linkedKind === "observations" && unseen.amountKobo === 2_500_000 && unseen.data.condition === `provider_status_mismatch:${reversal.id}:unseen`
-    && /reported a reversal of payment PSK-REV-7/.test(String(unseen.data.notes)) && /no payment with that reference has been seen through any connection/.test(String(unseen.data.notes)), `after 24 hours Finance has an exception saying the platform has not seen the payment (${unseen?.data.notes})`);
+    && /reported a reversal of payment PSK-REV-7/.test(String(unseen.data.notes)) && /No payment with that reference has come through any connection/.test(String(unseen.data.notes)), `after 24 hours Finance has an exception saying the platform has not seen the payment (${unseen?.data.notes})`);
   close(state, "2027-07-04T07:30:00");
   equal([exceptionsFor(state, reversal.id).length, payment(state, "PSK-REV-7").length], [1, 0], "the next close raises nothing new and still makes no payment");
   // The debit's own settlement file arrives through the lender's connection.
@@ -617,7 +617,7 @@ section("a reversal reported before its payment", () => {
   equal([payment(state, "PSK-REV-7").length, debit!.data.providerConnection, debit!.status, due.status], [1, "Sandbox Rail", "allocated", "paid"], "the debit becomes the only payment with the reference, and pays its instalment");
   const [held] = exceptionsFor(state, reversal.id, "suspected_duplicate");
   equal([reversal.status, held?.status, held?.data.condition], ["unresolved", "open", `suspected_duplicate:${reversal.id}:connection:${debit!.id}`], "the reversal is held for the debit's connection, not applied on a guess");
-  check(/Resolve this exception as the same payment if it reverses payment PSK-REV-7: the next reconciliation applies it to that payment, which is reversed/.test(String(held?.data.notes)) && /Resolve it any other way once you have checked it, and the next reconciliation sets it aside/.test(String(held?.data.notes)), `its exception says what each resolution does (${held?.data.notes})`);
+  check(/‘Same payment; evidence joined to it’: it reverses payment PSK-REV-7\. It is applied to that payment, which is reversed/.test(String(held?.data.notes)) && /Any other resolution: it is set aside and reverses nothing/.test(String(held?.data.notes)), `its exception says what each resolution does (${held?.data.notes})`);
   equal(resolutionCodesForException(held), ["confirmed_duplicate_refund", "distinct_payments", "applied_to_next", "same_payment", "not_money"], "the same payment is offered for a hold made for the connection alone");
   equal([byId(unseen!).status, byId(unseen!).data.resolutionCode], ["closed", "condition_cleared"], "the exception for the unseen payment closes once the payment is recorded");
   check(/provider status mismatch: a payment with reference PSK-REV-7 is now recorded/.test(String(cleared.data.auditNote)), `and the close's audit entry names it (${cleared.data.auditNote})`);
@@ -682,8 +682,8 @@ section("evidence held for its connection alone", () => {
   const joined = settle("held-line-joined");
   check(joined.held.status === "open" && joined.held.data.condition === `suspected_duplicate:${joined.line.id}:connection:${joined.debit.id}`, "the line is held for its connection alone");
   const notes = String(joined.held.data.notes);
-  check(/Resolve this exception as the same payment if it is more evidence of payment PSK-SET-1 under another spelling of its connection: the next reconciliation joins it to that payment and keys the payment under Sandbox Rail Settlements too/.test(notes)
-    && /Resolve it as not money if it records no money: the next reconciliation sets it aside and makes no payment from it/.test(notes) && /distinct payments/.test(notes) && /confirmed duplicate if the payer was charged twice/.test(notes), `its exception says what each resolution does (${notes})`);
+  check(/‘Same payment; evidence joined to it’: it is more evidence of payment PSK-SET-1, with its connection spelled another way\. It is added to that payment, and later evidence through Sandbox Rail Settlements finds that payment too\./.test(notes)
+    && /‘Not money; evidence set aside’: it records no money\. It is set aside, and no payment is made from it\./.test(notes) && /‘Distinct payments’: it is money of its own/.test(notes) && /‘Duplicate confirmed; refund required’: the payer was charged twice\./.test(notes), `its exception says what each resolution does (${notes})`);
   const answer = accepted(request(joined.state, () => executeAction(joined.state, finance(wat("2027-07-01T10:00:00")), { action: "resolve_exception", recordId: joined.held.id, reason: "The settlement file spells the connection its own way.", data: { resolutionCode: "same_payment" } })), "Finance's resolution as the same payment");
   check(/joins this payment evidence to payment PSK-SET-1 as more evidence of it: no second payment is made/.test(answer.message), `the answer says so (${answer.message})`);
   const report = close(joined.state, "2027-07-02T07:30:00").data.report;
@@ -730,7 +730,7 @@ section("the same payment is offered only where it applies", () => {
     const refused = request(copy, () => executeAction(copy, finance(wat("2027-07-01T10:00:00")), { action: "resolve_exception", recordId: held!.id, reason: "Same payment?", data: { resolutionCode: "same_payment" } }));
     check(!refused.ok && /^This resolution is not available for this exception now\. Choose one of these: ‘Duplicate confirmed; refund required’, ‘Distinct payments’, ‘Applied to the next instalment’ or ‘Not money; evidence set aside’\.$/.test(refused.message), `joining it is refused (${!refused.ok && refused.message})`);
   }
-  check(/and it names another payer\. It was not merged into that payment, and no payment was made for it\./.test(String(exceptionsFor(state, elsewhere.id)[0]?.data.notes)), "the other connection's hold names its conflict too");
+  check(/and it names another payer\. It was not added to that payment, and no payment was made from it\./.test(String(exceptionsFor(state, elsewhere.id)[0]?.data.notes)), "the other connection's hold names its conflict too");
   // A payment held by the ladder, not evidence, offers neither.
   addObservation(state, { reference: "PSK-CLASH-2", amountKobo: due.amountKobo, source: "webhook", customerId: due.customerId, dueItemId: due.id, eventId: "w2", occurredAt: wat("2027-07-01T11:00:00") });
   accepted(request(state, () => reconcile(state, finance(wat("2027-07-01T11:05:00")))), "a second payment for the paid instalment");
@@ -868,7 +868,7 @@ section("a waiting reversal Finance resolved before its payment arrived", () => 
   equal(resolutionCodesForException(adopted.unseen), ["provider_state_adopted", "platform_state_confirmed"], "the waiting reversal's exception offers only the two codes that decide it");
   // A resolution replaces the notes with its reason: the text the exception was raised with is read on the one left open.
   const notes = String(escalated.unseen.data.notes);
-  check(/Resolve it as platform state confirmed if .*: the next reconciliation sets the reversal aside, and it reverses nothing, even if its payment arrives later/.test(notes) && /Resolve it as provider state adopted if .*: it keeps waiting for its payment with no new exception, and the reconciliation that records that payment reverses it/.test(notes) && /Leave this exception open while you check/.test(notes), `the exception says what each resolution does (${notes})`);
+  check(/‘Platform state confirmed’: the provider says it reverses nothing of this lender’s\. It is set aside and reverses nothing, even if its payment arrives later\./.test(notes) && /‘Provider state adopted’: the provider confirms the reversal\. It keeps waiting for its payment, with no new exception, and reverses the payment when it arrives/.test(notes) && /leave this exception open while you check/.test(notes), `the exception says what each resolution does (${notes})`);
 });
 
 // ---------- FIN-02: several releases omitted rule versions while assigning different meanings ----------
@@ -899,7 +899,7 @@ section("a waiting reversal Finance resolved under an earlier build", () => {
     const outcome = run(code);
     equal([outcome.reversal, outcome.debit, outcome.due, outcome.raised], [["unresolved", null, false], ["unallocated", "none"], ["in_dispute", 2_500_000], ["provider_status_mismatch"]], `${code}: ambiguity holds the reversal, receipt and instalment instead of inferring a decision`);
     equal([outcome.historicalUnchanged, outcome.reviews, outcome.upgraded.data.legacyReversalReviewsPending, outcome.later.data.legacyReversalReviewsPending], [true, 1, 1, 1], `${code}: history is unchanged and reruns retain one explicit review`);
-    check(/held for renewed Finance review/.test(String(outcome.upgraded.data.auditNote)), `${code}: the audit explains the hold`);
+    check(/Some earlier reversal decisions need a fresh Finance review\./.test(String(outcome.upgraded.data.auditNote)), `${code}: the audit explains the hold`);
   }
   // A resolution this build records carries its rule version, and follows the codes as they are now.
   const { state, due } = liveFixture({ withFailure: false, merchantId: "unseen-marked" });
@@ -973,7 +973,7 @@ section("the same payment offered as the hold stands now", () => {
   accepted(request(state, () => reconcile(state, finance(wat("2027-07-01T11:00:00")))), "the next reconciliation");
   const stood = live(state, held!);
   equal([stood.status, stood.data.condition, resolutionCodesForException(stood)], ["open", `suspected_duplicate:${clash.id}:${debit!.id}`, conflictCodes], "the reconciliation re-derives the stored condition, so the join is no longer offered");
-  check(/Update on .*: the hold now stands as follows\. .*and it names another payer\./.test(String(stood.data.notes)), `its notes say where the hold now stands (${stood.data.notes})`);
+  check(/Update on [^:\n]*: the hold now stands as follows\.\n[^]*it names another payer\./.test(String(stood.data.notes)), `its notes say where the hold now stands (${stood.data.notes})`);
   // A hold for the connection alone that stops being one when its payment's payer is identified as another customer.
   const { state: payerless, due: owed } = liveFixture({ withFailure: false, merchantId: "hold-stops-being-connection" });
   const third = recordsOf(payerless, "due-items").find((item) => item.customerId !== owed.customerId && item.status === "scheduled")!;
@@ -1002,7 +1002,7 @@ section("the same payment offered as the hold stands now", () => {
   accepted(request(beside, () => executeAction(beside, finance(wat("2027-07-01T09:30:00")), { action: "manual_allocate", recordId: unnamed!.id, reason: "The narration names this customer.", data: { dueItemId: another.id, amountKobo: 1_000_000 } })), "Finance identifying another customer as the transfer's payer");
   const downgraded = live(beside, firstHold!);
   equal([downgraded.data.condition, resolutionCodesForException(downgraded).includes("same_payment")], [`suspected_duplicate:${first.id}:${unnamed!.id}`, false], "once it no longer agrees with the transfer, the join is no longer offered");
-  check(/no longer agrees with payment TRF-NOPAYER-6: it names another payer, so it cannot be joined to it\. The next reconciliation resolves it to payment TRF-NOPAYER-6, which has its reference through Bank Statement Feed/.test(String(downgraded.data.notes)), `its notes say so (${downgraded.data.notes})`);
+  check(/no longer agrees with payment TRF-NOPAYER-6: it names another payer\. It cannot be added to that payment\. The next reconciliation records it as evidence of payment TRF-NOPAYER-6, which has its reference through Bank Statement Feed/.test(String(downgraded.data.notes)), `its notes say so (${downgraded.data.notes})`);
   const joinCopy = structuredClone(beside);
   check(!request(joinCopy, () => executeAction(joinCopy, finance(wat("2027-07-01T10:00:00")), { action: "resolve_exception", recordId: firstHold!.id, reason: "Same payment?", data: { resolutionCode: "same_payment" } })).ok, "and resolving it as the same payment is refused");
 });
