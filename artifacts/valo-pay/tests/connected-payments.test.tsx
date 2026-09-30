@@ -68,7 +68,7 @@ it("walks through authorisation, an unconfirmed return from the bank and a confi
     api.state().records.find((r) => r.id === due.id)!.data.outstandingKobo,
   ).toBe(0);
 });
-it("records and revokes one purpose without pretending to connect a bank", async () => {
+it("records and withdraws one purpose without pretending to connect a bank", async () => {
   const user = userEvent.setup();
   renderApp("/connections");
   await screen.findByRole("heading", {
@@ -76,7 +76,7 @@ it("records and revokes one purpose without pretending to connect a bank", async
     level: 1,
   });
   await user.selectOptions(
-    screen.getByLabelText("Subject"),
+    screen.getByLabelText("Who it covers"),
     api.state().records.find((r) => r.kind === "customers")!.id,
   );
   await user.type(
@@ -84,23 +84,23 @@ it("records and revokes one purpose without pretending to connect a bank", async
     "Review a sample credit application",
   );
   await user.click(
-    screen.getByRole("button", { name: "Grant sample permission" }),
+    screen.getByRole("button", { name: "Grant permission" }),
   );
   const revoke = await screen.findByRole("button", {
-    name: "Review revocation",
+    name: "Withdraw",
   });
   await user.click(revoke);
-  const review = screen.getByRole("region", { name: "Permission to revoke" });
+  const review = screen.getByRole("region", { name: "Permission to withdraw" });
   expect(review.textContent).toContain("Read applicant accounts");
   expect(review.textContent).toContain("Other purposes stay unchanged");
   expect(document.activeElement).toBe(
-    screen.getByLabelText("Reason for revoking permission"),
+    screen.getByLabelText("Reason for withdrawing permission"),
   );
   await user.type(
-    screen.getByLabelText("Reason for revoking permission"),
+    screen.getByLabelText("Reason for withdrawing permission"),
     "Applicant withdrew this sample permission",
   );
-  await user.click(screen.getByRole("button", { name: "Revoke permission" }));
+  await user.click(screen.getByRole("button", { name: "Withdraw permission" }));
   await waitFor(() =>
     expect(
       api.state().records.find((r) => r.kind === "connected-consents")?.status,

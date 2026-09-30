@@ -62,7 +62,7 @@ describe("connected page drafts", () => {
     expect(confirm).not.toHaveBeenCalled();
   });
 
-  it("releases a revocation reason the person cancelled, and a sent grant", async () => {
+  it("releases a withdrawal reason the person set aside, and a sent grant", async () => {
     api.role = "Operations";
     api.mutate((state) =>
       makeRecord(state, "connected-consents", {
@@ -75,13 +75,13 @@ describe("connected page drafts", () => {
     const user = userEvent.setup();
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
     renderApp("/connections");
-    await user.click(await screen.findByRole("button", { name: "Review revocation" }));
-    await user.type(screen.getByLabelText("Reason for revoking permission"), "The SME withdrew this sample permission");
-    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await user.click(await screen.findByRole("button", { name: "Withdraw" }));
+    await user.type(screen.getByLabelText("Reason for withdrawing permission"), "The SME withdrew this sample permission");
+    await user.click(screen.getByRole("button", { name: "Keep permission" }));
     await user.selectOptions(screen.getByLabelText("Purpose"), "erp_draft");
     await user.type(screen.getByLabelText("Reason for granting permission"), "Prepare sample accounting drafts for the SME");
-    await user.click(screen.getByRole("button", { name: "Grant sample permission" }));
-    await screen.findByText("Sample permission recorded.");
+    await user.click(screen.getByRole("button", { name: "Grant permission" }));
+    await screen.findByText("Sample permission granted. The pages that need it can use it now.");
     await waitFor(() => expect(api.state().records.filter((r) => r.kind === "connected-consents")).toHaveLength(2));
     await leave(user);
     await screen.findByRole("heading", { name: "Audit log", level: 1 });

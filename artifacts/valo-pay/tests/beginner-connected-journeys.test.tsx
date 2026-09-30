@@ -26,7 +26,7 @@ async function grant(user: User, purpose: string, subject?: string) {
   );
   if (subject)
     await user.selectOptions(
-      screen.getByLabelText("Subject", { exact: true }),
+      screen.getByLabelText("Who it covers", { exact: true }),
       subject,
     );
   await user.type(
@@ -34,7 +34,7 @@ async function grant(user: User, purpose: string, subject?: string) {
     "Authorise this purpose for the synthetic journey",
   );
   await user.click(
-    screen.getByRole("button", { name: "Grant sample permission" }),
+    screen.getByRole("button", { name: "Grant permission" }),
   );
   await waitFor(() =>
     expect(
@@ -43,7 +43,7 @@ async function grant(user: User, purpose: string, subject?: string) {
         .records.filter((record) => record.kind === "connected-consents"),
     ).toHaveLength(before + 1),
   );
-  await screen.findByText("Sample permission recorded.");
+  await screen.findByText("Sample permission granted. The pages that need it can use it now.");
 }
 
 /** A second synthetic identity in the test service, not a real authentication or MFA rehearsal. */

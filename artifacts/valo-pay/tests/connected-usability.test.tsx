@@ -12,14 +12,14 @@ afterEach(() => api.uninstall());
 it("requires an explicit applicant before granting authority", async () => {
   const user = userEvent.setup();
   renderApp("/connections");
-  const subject = await screen.findByLabelText("Subject");
+  const subject = await screen.findByLabelText("Who it covers");
   expect((subject as HTMLSelectElement).value).toBe("");
   await user.type(
     screen.getByLabelText("Reason for granting permission"),
     "Review the sample applicant permission",
   );
   await user.click(
-    screen.getByRole("button", { name: "Grant sample permission" }),
+    screen.getByRole("button", { name: "Grant permission" }),
   );
   expect(
     api.calls.filter(
@@ -29,17 +29,20 @@ it("requires an explicit applicant before granting authority", async () => {
   expect(
     api.state().records.filter((r) => r.kind === "connected-consents"),
   ).toHaveLength(0);
+  // The page says what is missing in its own words, beside the field.
+  expect(screen.getByText("Choose who the permission covers.")).toBeTruthy();
+  expect(subject.getAttribute("aria-invalid")).toBe("true");
 });
 
-it("shows a Finance viewer why granting and revoking permissions are unavailable", async () => {
+it("shows a Finance viewer why granting and withdrawing permissions are unavailable", async () => {
   api.role = "Finance";
   renderApp("/connections");
   const grant = await screen.findByRole("button", {
-    name: "Grant sample permission",
+    name: "Grant permission",
   });
   expect((grant as HTMLButtonElement).disabled).toBe(true);
-  expect(screen.getByText(/Your role: Finance/).textContent).toContain(
-    "Compliance reviewer can revoke",
+  expect(screen.getByText(/Your role is Finance\./).textContent).toContain(
+    "Compliance reviewer can withdraw one",
   );
 });
 
@@ -63,25 +66,25 @@ it("allows Compliance to review revocation while keeping permission grants unava
   const user = userEvent.setup();
   renderApp("/connections");
   const trigger = await screen.findByRole("button", {
-    name: "Review revocation",
+    name: "Withdraw",
   });
   expect((trigger as HTMLButtonElement).disabled).toBe(false);
   expect(
     (
       screen.getByRole("button", {
-        name: "Grant sample permission",
+        name: "Grant permission",
       }) as HTMLButtonElement
     ).disabled,
   ).toBe(true);
   await user.click(trigger);
   expect(
-    screen.getByRole("region", { name: "Permission to revoke" }).textContent,
-  ).toContain("Sample SME · separate legal entity");
+    screen.getByRole("region", { name: "Permission to withdraw" }).textContent,
+  ).toContain("Sample business (separate from the lender)");
   await user.type(
-    screen.getByLabelText("Reason for revoking permission"),
+    screen.getByLabelText("Reason for withdrawing permission"),
     "Do not reuse this as a grant reason",
   );
-  await user.click(screen.getByRole("button", { name: "Cancel" }));
+  await user.click(screen.getByRole("button", { name: "Keep permission" }));
   expect(document.activeElement).toBe(trigger);
   expect(
     (

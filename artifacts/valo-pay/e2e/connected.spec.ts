@@ -91,7 +91,7 @@ test("a bank return stays pending until the sample provider confirms payment", a
     page.getByRole("link", { name: "Open Reconciliation", exact: true }),
   ).toBeVisible();
 });
-test("permissions can be granted and revoked with an explicit explanation", async ({
+test("permissions can be granted and withdrawn with an explicit explanation", async ({
   page,
 }) => {
   await page.goto("/connections");
@@ -101,15 +101,15 @@ test("permissions can be granted and revoked with an explicit explanation", asyn
   await page
     .getByLabel("Reason for granting permission")
     .fill("Review SME sample account balances");
-  await page.getByRole("button", { name: "Grant sample permission" }).click();
-  await page.getByRole("button", { name: "Review revocation" }).click();
+  await page.getByRole("button", { name: "Grant permission" }).click();
+  await page.getByRole("button", { name: "Withdraw", exact: true }).click();
   await page
-    .getByLabel("Reason for revoking permission")
+    .getByLabel("Reason for withdrawing permission")
     .fill("The SME withdrew sample account permission");
-  await page.getByRole("button", { name: "Revoke permission" }).click();
+  await page.getByRole("button", { name: "Withdraw permission" }).click();
   await expect(
     page.getByText(
-      "Permission revoked. New dependent work is blocked; historical evidence is retained.",
+      "Permission withdrawn. New work that needs it is now blocked. Records made earlier are kept.",
     ),
   ).toBeVisible();
   await page.goto("/cash-desk");
