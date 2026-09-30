@@ -278,7 +278,7 @@ describe('evidence register and operational reviews', () => {
     await user.click(within(dialog).getByRole('button', { name: /Save/ }));
     expect(await within(register).findByText('Updated recovery evidence')).toBeTruthy();
     expect(api.state().records.find(record => record.name === 'Updated recovery evidence')?.data.gateId).toBe('T2');
-    expect(screen.getByText('Requirements missing')).toBeTruthy();
+    expect(screen.getByText('Not ready to go live')).toBeTruthy();
   });
 
   it('takes the commercial terms money in naira and the usage fee rate in per cent, saves them exactly and shows them back', async () => {

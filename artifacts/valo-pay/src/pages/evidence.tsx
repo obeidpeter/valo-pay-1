@@ -53,8 +53,8 @@ const gateOptions = [
   { value: 'P5', label: 'P5 · Two design-partner lenders' },
   { value: 'F1', label: 'Stage 2 funding: both lenders pass the operational test' },
   { value: 'F2', label: 'Stage 2 funding: signed prices meet the list-price test' },
-  { value: 'F3', label: 'Stage 2 funding: cost of ₦15 or less per collection' },
-  { value: 'F4', label: 'Stage 2 funding: at least three months of running costs' },
+  { value: 'F3', label: 'Stage 2 funding: variable cost of ₦15 or less per collection' },
+  { value: 'F4', label: 'Stage 2 funding: money for at least three months of running costs' },
   { value: 'T1b', label: 'Provider choice at setup' },
   { value: 'T2', label: 'Recovery fee' },
 ];
@@ -135,7 +135,7 @@ export default function EvidencePage() {
           </div>
           {gates?.limitations.length ? (
             <span className="text-xs font-medium bg-destructive/10 text-destructive px-2 py-1 rounded border border-destructive/20 flex items-center gap-1">
-              <AlertTriangle className="h-3 w-3" /> Requirements missing
+              <AlertTriangle className="h-3 w-3" /> Not ready to go live
             </span>
           ) : (
             <span className="text-xs font-medium bg-success/10 text-success px-2 py-1 rounded border border-success/20 flex items-center gap-1">
