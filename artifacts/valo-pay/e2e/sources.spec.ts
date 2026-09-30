@@ -44,9 +44,9 @@ test("source schedules and signed fixture receipts stay clear and usable on smal
   expect(await firstDelivery.evaluate((input:HTMLInputElement)=>input.validity.valid)).toBeTruthy();
   await page.getByRole("button",{name:"Save source profile",exact:true}).click();
   await expect(page.getByRole("button",{name:"Edit Scheduled loan feed",exact:true})).toBeVisible();
-  await page.getByRole("button",{name:"Send a sample payment",exact:true}).click();
+  await page.getByRole("button",{name:"Simulate a Paystack payment",exact:true}).click();
   await expect(page.getByText(/Practice message.*Waiting for a Paystack check/i)).toBeVisible();
-  await page.getByRole("button",{name:"Send the same payment with a different amount",exact:true}).click();
+  await page.getByRole("button",{name:"Simulate the same payment with a different amount",exact:true}).click();
   await expect(page.getByText(/Practice message.*Held for review/i)).toBeVisible();
   await expect(page.getByText("Not connected",{exact:true})).toBeVisible();
   await page.reload();

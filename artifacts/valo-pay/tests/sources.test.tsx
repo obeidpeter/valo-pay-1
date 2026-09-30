@@ -18,7 +18,7 @@ it("keeps loading and failed source reads distinct from empty profiles, batches 
   expect(screen.queryByText(/No source profiles yet/)).toBeNull();
   expect(screen.queryByText(/No saved batches yet/)).toBeNull();
   expect(screen.queryByText("Not connected")).toBeNull();
-  expect(screen.queryByRole("button",{name:"Send a sample payment"})).toBeNull();
+  expect(screen.queryByRole("button",{name:"Simulate a Paystack payment"})).toBeNull();
   release();
   await screen.findByText("We could not load source profiles. Select Try again above.");
   expect(screen.getByRole("alert").textContent).toMatch(/could not be loaded.*try again/i);
@@ -186,11 +186,11 @@ it("labels offline Paystack fixtures and preserves conflicting receipts without 
   const user=userEvent.setup();renderApp("/sources");
   await screen.findByText("Not connected");
   const count=api.state().records.filter(r=>r.kind==='payments').length;
-  await user.click(screen.getByRole("button",{name:"Send a sample payment"}));
+  await user.click(screen.getByRole("button",{name:"Simulate a Paystack payment"}));
   await screen.findAllByText(/Practice message/);
-  await user.click(screen.getByRole("button",{name:"Send the same payment again"}));
+  await user.click(screen.getByRole("button",{name:"Simulate the same payment again"}));
   await waitFor(()=>expect(api.state().records.filter(r=>r.kind==='provider-events')).toHaveLength(1));
-  await user.click(screen.getByRole("button",{name:"Send the same payment with a different amount"}));
+  await user.click(screen.getByRole("button",{name:"Simulate the same payment with a different amount"}));
   await screen.findByText(/Practice message.*Held for review/i);
   expect(api.state().records.filter(r=>r.kind==='payments')).toHaveLength(count);
   expect(screen.getByText(/do not contact Paystack/)).toBeTruthy();
@@ -231,6 +231,22 @@ it("shows missing feeds and omits change controls for a read-only user",async()=
   api.role='Read-only';renderApp("/sources");
   await screen.findByRole("heading",{name:"Overdue feed"});
   expect(screen.queryByRole("button",{name:"Save source profile"})).toBeNull();
-  expect(screen.queryByRole("button",{name:"Send a sample payment"})).toBeNull();
+  expect(screen.queryByRole("button",{name:"Simulate a Paystack payment"})).toBeNull();
   expect(screen.getByText("Late",{exact:true})).toBeTruthy();
+});
+
+it("tells every role to check a Paystack test payment before using it as evidence, and keeps the set-up steps for Admins",async()=>{
+  const warning="Before you use a Paystack test payment as evidence, check it with Paystack yourself.";
+  api.role='Finance';renderApp("/sources");
+  await screen.findByText("Not connected");
+  expect(screen.getByText(warning)).toBeTruthy();
+  expect(screen.getByText("The practice buttons simulate messages from Paystack, signed the way Paystack signs them. They do not contact Paystack, activate mandates or create payments.")).toBeTruthy();
+  expect(screen.queryByText("Technical setup")).toBeNull();
+  cleanup(); queryClient.clear();
+  api.role='Admin';renderApp("/sources");
+  await screen.findByText("Not connected");
+  expect(screen.getByText(warning).closest("details")).toBeNull();
+  const setup=screen.getByText("Technical setup").closest("details")!;
+  expect(setup.open).toBe(false);
+  expect(within(setup).getAllByRole("listitem")).toHaveLength(2);
 });
