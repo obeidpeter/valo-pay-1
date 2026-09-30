@@ -150,7 +150,7 @@ assert.equal(payroll.data.revisions.length, 1);
 checks += 3;
 assert.throws(
   () => act("cash.payroll.export", laterFinance, payroll.id),
-  /Finance must approve this before the export file/,
+  /A different Finance reviewer must approve this before the export file/,
 );
 checks++;
 act("cash.payroll.approve", laterFinance, payroll.id);
@@ -192,7 +192,7 @@ assert.equal(payroll.data.plan.fundingStatus, "shortfall");
 assert.equal(payroll.data.plan.approvalStatus, "draft");
 assert.throws(
   () => act("cash.payroll.export", laterFinance, payroll.id),
-  /Finance must approve this before the export file/,
+  /A different Finance reviewer must approve this before the export file/,
 );
 checks += 3;
 act("cash.payroll.reconcile", laterFinance, payroll.id, {

@@ -714,7 +714,7 @@ export function guardErpDispatch(
     draft.review?.approvedHash !== cashEvidenceHash(draft.input) ||
     draft.requestHash !== cashEvidenceHash(draft.input)
   )
-    reasons.push("Finance has not approved this draft, or it changed after approval.");
+    reasons.push("A different Finance reviewer must approve the current version of this draft.");
   if (
     cashEvidenceHash(current.mapping) !== cashEvidenceHash(draft.input.mapping)
   )
@@ -1244,7 +1244,7 @@ export function refreshPayrollFundingPlan(
   if (sourceAccount.id !== plan.sourceAccountId)
     fail(
       "account_mismatch",
-      "To pay from a different account, prepare a correction and get it approved.",
+      "To pay from a different account, prepare a correction and have a different person approve it.",
     );
   const at = instant(asOf, "As-of time"),
     balanceAt = instant(sourceAccount.balanceAsOf, "Balance time"),
@@ -1333,7 +1333,7 @@ export function transitionPayrollItem(
   )
     fail(
       "payroll_approval_changed",
-      "This payroll funding plan is not approved, or it changed after approval. Ask Finance to approve it again.",
+      "This payroll funding plan is not approved, or it changed after approval. Ask a different Finance reviewer to approve it again.",
     );
   const found = plan.items.find((i) => i.id === itemId);
   if (!found)
@@ -1383,7 +1383,7 @@ export function transitionPayrollItem(
   if (!allowed[item.status].includes(evidence.status))
     fail(
       "invalid_payroll_transition",
-      "This payment cannot be retried or changed to that outcome. After review, prepare a correction and get it approved.",
+      "This payment cannot be retried or changed to that outcome. After review, prepare a correction and have a different person approve it.",
     );
   const copy = structuredClone(plan);
   const updated = copy.items.find((i) => i.id === itemId)!;
@@ -1436,7 +1436,7 @@ export function exportPayrollManifest(plan: PayrollPlan) {
   )
     fail(
       "payroll_approval_changed",
-      "Finance must approve the current version of this plan before the export file can be prepared.",
+      "A different Finance reviewer must approve the current version of this plan before the export file can be prepared.",
     );
   const items = plan.items
     .filter((i) => i.status === "planned" || i.status === "exported")

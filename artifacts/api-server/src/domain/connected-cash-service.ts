@@ -124,12 +124,12 @@ function requireBoundAuthority(
 ): void {
   if (key === "reviewAuthority" && !record.data[key])
     throw refusal(
-      "Finance must approve this before the export file can be prepared.",
+      "A different Finance reviewer must approve this before the export file can be prepared.",
       409,
     );
   if (!authorityCurrent(state, record.data[key], purposes, now))
     throw refusal(
-      "The permission used for this review changed or expired. Refresh the review, then ask Finance to approve it again.",
+      "The permission used for this review changed or expired. Refresh the review, then ask a different Finance reviewer to approve it again.",
       409,
     );
 }
@@ -872,7 +872,7 @@ export function runCashAction(
         },
       );
       message =
-        "Accounting draft prepared. The receipt, fee and credit note match. Next, Finance must approve it.";
+        "Accounting draft prepared. The receipt, fee and credit note match. Next, a different Finance reviewer must approve it.";
     } else if (input.action === "cash.erp.refresh") {
       requireRole(ctx, ["Admin", "Operations"], "refresh an accounting review");
       requirePermission(state, "erp_draft", ctx.now);
@@ -906,7 +906,7 @@ export function runCashAction(
       record.status = draft.status;
       touch(record, ctx.now);
       message =
-        "Accounting review refreshed. The receipt is the same. Finance must approve the draft again.";
+        "Accounting review refreshed. The receipt is the same. A different Finance reviewer must approve the draft again.";
     } else if (
       input.action === "cash.erp.review" ||
       input.action === "cash.erp.export"
@@ -1032,7 +1032,7 @@ export function runCashAction(
         },
       );
       message =
-        "Payroll funding plan prepared from the approved net pay. Next, Finance must approve it. No one has been paid.";
+        "Payroll funding plan prepared from the approved net pay. Next, a different Finance reviewer must approve it. No one has been paid.";
     } else if (input.action === "cash.payroll.refresh") {
       requireRole(ctx, ["Admin", "Operations"], "refresh a payroll funding review");
       requirePermission(state, "payroll_prepare", ctx.now);
@@ -1069,7 +1069,7 @@ export function runCashAction(
       record.status = revised.fundingStatus;
       touch(record, ctx.now);
       message =
-        "Payroll funding review refreshed. Outcomes already recorded are unchanged. Finance must approve this version.";
+        "Payroll funding review refreshed. Outcomes already recorded are unchanged. A different Finance reviewer must approve this version.";
     } else if (
       input.action === "cash.payroll.approve" ||
       input.action === "cash.payroll.export" ||
@@ -1083,7 +1083,7 @@ export function runCashAction(
       const checkCurrentFunding = () => {
         if (!payrollFundingCurrent(data.accounts, plan, ctx.now))
           throw new Error(
-            "The balances this plan was checked against are out of date or have changed. Refresh sample balances and the payroll funding review, then ask Finance to approve it again.",
+            "The balances this plan was checked against are out of date or have changed. Refresh sample balances and the payroll funding review, then ask a different Finance reviewer to approve it again.",
           );
       };
       if (input.action === "cash.payroll.approve") {
