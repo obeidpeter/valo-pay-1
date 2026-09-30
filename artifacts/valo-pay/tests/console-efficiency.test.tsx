@@ -92,7 +92,7 @@ describe('console efficiency', () => {
   it('shows report actions in their relevant view and validates a bookmarked date range', async () => {
     const user = userEvent.setup();
     renderApp('/reports?from=2026-10-01&to=2026-09-01');
-    await screen.findByText('The start date must be on or before the end date.');
+    await screen.findByText('The From date must be on or before the To date.');
     expect(screen.getByRole('button', { name: 'Run daily close' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Issue invoice' })).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Billing' }));
@@ -104,12 +104,12 @@ describe('console efficiency', () => {
     expect(screen.queryByRole('heading', { name: 'Billing statement · current period' })).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Operations' }));
     await user.click(screen.getByRole('button', { name: 'Clear dates' }));
-    expect(await screen.findByText('No daily close yet')).toBeTruthy();
+    expect(await screen.findByText('No daily closes yet')).toBeTruthy();
     fireEvent.change(screen.getByLabelText('From date (WAT)'), { target: { value: '2026-09-01' } });
     fireEvent.change(screen.getByLabelText('To date (WAT)'), { target: { value: '2026-09-19' } });
     expect(new URLSearchParams(window.location.search).has('from')).toBe(false);
     await user.click(screen.getByRole('button', { name: 'Apply dates' }));
-    expect(await screen.findByText(/Showing 0 recorded closes from 2026-09-01 through 2026-09-19/)).toBeTruthy();
+    expect(await screen.findByText(/Showing 0 recorded closes from 1 Sept 2026 to 19 Sept 2026/)).toBeTruthy();
   });
 });
 
@@ -121,7 +121,7 @@ describe('recorded closing positions', () => {
     expect(result.items.map(row => row.id)).toEqual(['3', '2']);
     expect(result.metrics.map(metric => metric.change)).toEqual([-3000, -2]);
     // The close list carries naira only, and the label says so: money in another currency is in each close's details.
-    expect(result.metrics[0]!.label).toBe('Unmatched value in naira at close');
+    expect(result.metrics[0]!.label).toBe('Unallocated payments at close (naira only)');
   });
   it('does not invent missing measurements or compare a single snapshot', () => {
     const first = close('1', '2026-09-18T12:00:00Z');

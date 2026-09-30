@@ -24,7 +24,7 @@ const routes: Array<[string, string | RegExp]> = [
   ["/reconciliation?view=review", "Reconciliation"],
   ["/collections", "Collections"],
   ["/imports", "Import batches"],
-  ["/close-review", "Finance close review"],
+  ["/close-review", "Close review"],
   ["/customers", "Customers"],
   ["/mandates", "Mandates"],
   ["/policies", "Policies and templates"],

@@ -14,7 +14,7 @@ export const valueLabels: Readonly<Record<string, string>> = {
   resolved: "Resolved", condition_cleared: "Closed automatically", suspected_duplicate: "Possible duplicate", unknown_outcome: "Outcome unknown",
   settlement_variance: "Settlement difference", accepted_variance: "Difference accepted", distinct_payments: "Separate payments",
   provider_state_adopted: "Provider status accepted", platform_state_confirmed: "Valo Pay status kept", provider_identity_confirmed: "Connection confirmed",
-  info: "Information",
+  info: "Information", awaiting_review: "Waiting for review", fortnightly: "Every two weeks",
   in_collection: "Collection in progress", in_flight: "Awaiting an outcome",
   not_proven: "Not yet proven", not_eligible: "Not eligible for a retry",
   would_schedule: "Would schedule a retry", observation_only: "Watch only",

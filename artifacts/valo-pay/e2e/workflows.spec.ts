@@ -106,7 +106,7 @@ test("close range uses native date fields, pages summaries and loads evidence on
   await page.getByRole("button", { name: "Apply dates" }).click();
   await expect(
     page.getByText(
-      /Showing 2 recorded closes from 2026-08-02 through 2026-08-03/,
+      /Showing 2 recorded closes from 2 Aug 2026 to 3 Aug 2026/,
     ),
   ).toBeVisible();
   await page
@@ -115,7 +115,7 @@ test("close range uses native date fields, pages summaries and loads evidence on
     .first()
     .click();
   await expect(
-    page.getByText("Unmatched at start", { exact: true }),
+    page.getByText("Unallocated at start", { exact: true }),
   ).toBeVisible();
   expect(detailRequests).toHaveLength(1);
   const width = await page.evaluate(() => ({
@@ -152,7 +152,7 @@ test("a close's money in another currency is listed in that currency beside its 
   // The sample closes are dated around the fixed clock; this close is the one they do not name.
   const latest = page.getByRole("list", { name: "Recorded daily closes" }).locator("li").filter({ hasNotText: "Recorded sample close" }).first();
   await latest.getByText("View close details").click();
-  for (const label of ["Unmatched at start", "Unmatched at close"]) {
+  for (const label of ["Unallocated at start", "Unallocated at close"]) {
     await expect(latest.locator("dt", { hasText: label }).locator("xpath=following-sibling::dd")).toContainText(/and USD\u00a01,000\.00 \(1 payment\)/);
   }
 });
@@ -172,7 +172,7 @@ test("the API and the browser print a close's money in another currency with the
   // The close's own line, which the API wrote, and its details, which the browser writes.
   await expect(latest).toContainText("including COP 1,000.00, HUF 1,234.56 and RSD 50.00 in other currencies");
   await latest.getByText("View close details").click();
-  await expect(latest.locator("dt", { hasText: "Unmatched at close" }).locator("xpath=following-sibling::dd")).toContainText(/COP\u00a01,000\.00 \(1 payment\), HUF\u00a01,234\.56 \(1 payment\) and RSD\u00a050\.00 \(1 payment\)/);
+  await expect(latest.locator("dt", { hasText: "Unallocated at close" }).locator("xpath=following-sibling::dd")).toContainText(/COP\u00a01,000\.00 \(1 payment\), HUF\u00a01,234\.56 \(1 payment\) and RSD\u00a050\.00 \(1 payment\)/);
 });
 test("arriving at the accuracy review scrolls there once; paging a table keeps the view on that table", async ({
   page,

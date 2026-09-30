@@ -92,20 +92,20 @@ for (const [how, said] of [
 for (const theme of ['light', 'dark'] as const) test(`new operations pages expose bounded state and clear setup controls in ${theme}`, async ({ page }, info) => {
   await page.emulateMedia({ colorScheme: theme });
   await page.addInitScript(value => localStorage.setItem('valopay-theme', value), theme);
-  for (const [route, title] of [['/work', 'My work'], ['/close-review', 'Finance close review'], ['/lifecycle', 'Data retention'], ['/team', 'Team & access']]) {
+  for (const [route, title] of [['/work', 'My work'], ['/close-review', 'Close review'], ['/lifecycle', 'Data retention'], ['/team', 'Team & access']]) {
     await page.goto(route);
     await expect(page.getByRole('heading', { name: title, exact: true })).toBeVisible();
     if (route === '/work') await expect(page.getByText('No work assigned yet', { exact: true })).toBeVisible();
     if (route === '/close-review') {
       await expect(page.getByText('Independent approval needs two people', { exact: true })).toBeVisible();
-      const history = page.getByRole('navigation', { name: 'Close snapshots' });
+      const history = page.getByRole('navigation', { name: 'Daily closes' });
       await expect(history).toHaveAttribute('tabindex', '0');
       const bounds = await history.boundingBox();
       // Firefox can report fractional layout units just above the CSS maximum.
       const maximumHeight = (page.viewportSize()?.width || 1280) < 1024 ? 320 : 768;
       expect(bounds!.height).toBeLessThanOrEqual(maximumHeight + 0.5);
-      await page.getByRole('heading', { name: '1. Saved close evidence', exact: true }).scrollIntoViewIfNeeded();
-      await expect(page.getByRole('heading', { name: '1. Saved close evidence', exact: true })).toBeVisible();
+      await page.getByRole('heading', { name: 'Saved close evidence', exact: true }).scrollIntoViewIfNeeded();
+      await expect(page.getByRole('heading', { name: 'Saved close evidence', exact: true })).toBeVisible();
     }
     if (route === '/lifecycle') {
       await expect(page.getByRole('button', { name: 'Prepare deletion preview' })).toBeDisabled();

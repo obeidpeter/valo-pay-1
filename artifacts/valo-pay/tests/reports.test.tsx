@@ -115,7 +115,7 @@ describe("reports", () => {
   it('checks a selected source business date without backdating the financial close', async () => {
     const user = userEvent.setup();
     renderApp('/reports');
-    await screen.findByText('No daily close yet');
+    await screen.findByText('No daily closes yet');
     fireEvent.change(screen.getByLabelText('Source business date (optional)'), { target: { value: '2020-01-02' } });
     await user.click(screen.getByRole('button', { name: 'Run daily close' }));
     await screen.findByText('Daily close completed');
@@ -127,24 +127,24 @@ describe("reports", () => {
   it("runs a daily close from the page and shows the REC-07 chips, the trigger and the schedule", async () => {
     const user = userEvent.setup();
     renderApp("/reports");
-    expect(await screen.findByText("No daily close yet")).toBeTruthy();
+    expect(await screen.findByText("No daily closes yet")).toBeTruthy();
     expect(screen.getByText(/^Next daily close: .+ WAT, then every day at this time\.$/)).toBeTruthy();
     expect(screen.getByText("Counts from the first daily close.")).toBeTruthy();
 
     await user.click(screen.getByRole("button", { name: "Run daily close" }));
     // The close is written by the real domain and read back through the reports contract.
     await user.click(await screen.findByText('View close details'));
-    expect(await screen.findByText(/^manual$/)).toBeTruthy();
+    expect(await screen.findByText(/^Run by hand$/)).toBeTruthy();
     const action = api.calls.find((call) => call.method === "POST" && call.path === "/v1/actions");
     expect(action?.body).toMatchObject({ action: "daily_close" });
     expect(action?.status).toBe(200);
     const closes = api.state().records.filter((record) => record.kind === "closes");
     expect(closes).toHaveLength(1);
     expect(closes[0]!.data.schedule.trigger).toBe("manual");
-    for (const label of ["Unmatched at start", "Payment records received", "Exceptions", "Retry decisions"]) expect(within(screen.getByRole("list", { name: "Recorded daily closes" })).getByText(label)).toBeTruthy();
+    for (const label of ["Unallocated at start", "Payment evidence received", "Exceptions", "Retry decisions"]) expect(within(screen.getByRole("list", { name: "Recorded daily closes" })).getByText(label)).toBeTruthy();
     expect(screen.getByText(String(closes[0]!.data.summary))).toBeTruthy();
     expect(screen.getByText(/Since the first daily close on/)).toBeTruthy();
-    expect(screen.queryByText("No daily close yet")).toBeNull();
+    expect(screen.queryByText("No daily closes yet")).toBeNull();
   });
 
   // Second review of the audit fixes, console finding 1: a close's money in another currency is listed in that currency.
@@ -157,7 +157,7 @@ describe("reports", () => {
   /** The recorded close's measures, by label, as View close details shows them. */
   async function closeDetails(user: ReturnType<typeof userEvent.setup>) {
     await user.click(await screen.findByText("View close details"));
-    const list = await screen.findByText("Unmatched at start");
+    const list = await screen.findByText("Unallocated at start");
     const measures = list.closest("dl")!;
     return (label: string) => within(measures).getByText(label, { selector: "dt" }).nextElementSibling!.textContent;
   }
@@ -178,8 +178,8 @@ describe("reports", () => {
       expect(money.otherCurrencies).toEqual({ USD: { count: 1, amount: 100_000 } });
     }
     const measure = await closeDetails(user);
-    expect(measure("Unmatched at start")).toBe(usd(`${formatNumber(report.openingUnallocated.count)} · ${formatKobo(report.openingUnallocated.kobo)} and USD 1,000.00 (1 payment)`));
-    expect(measure("Unmatched at close")).toBe(usd(`${formatNumber(report.unallocated.count)} · ${formatKobo(report.unallocated.kobo)} and USD 1,000.00 (1 payment) · ${formatNumber(report.unallocated.olderThan24Hours)} older than 24 hours`));
+    expect(measure("Unallocated at start")).toBe(usd(`${formatNumber(report.openingUnallocated.count)} · ${formatKobo(report.openingUnallocated.kobo)} and USD 1,000.00 (1 payment)`));
+    expect(measure("Unallocated at close")).toBe(usd(`${formatNumber(report.unallocated.count)} · ${formatKobo(report.unallocated.kobo)} and USD 1,000.00 (1 payment) · ${formatNumber(report.unallocated.olderThan24Hours)} older than 24 hours`));
   });
 
   it("never shows a lone payment in another currency as nothing waiting", async () => {
@@ -191,8 +191,8 @@ describe("reports", () => {
     const usdOnly = { count: 1, kobo: 0, otherCurrencies: { USD: { count: 1, amount: 100_000 } } };
     api.mutate(state => { const report = state.records.find(record => record.kind === "closes")!.data.report; report.openingUnallocated = usdOnly; report.unallocated = { ...usdOnly, olderThan24Hours: 1 }; });
     const measure = await closeDetails(user);
-    expect(measure("Unmatched at start")).toBe(usd("1 · ₦0.00 and USD 1,000.00 (1 payment)"));
-    expect(measure("Unmatched at close")).toBe(usd("1 · ₦0.00 and USD 1,000.00 (1 payment) · 1 older than 24 hours"));
+    expect(measure("Unallocated at start")).toBe(usd("1 · ₦0.00 and USD 1,000.00 (1 payment)"));
+    expect(measure("Unallocated at close")).toBe(usd("1 · ₦0.00 and USD 1,000.00 (1 payment) · 1 older than 24 hours"));
   });
 
   // Decision on currencies in settlement batches: a close sums the naira batches' fee differences only, and lists a batch
