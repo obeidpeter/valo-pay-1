@@ -107,9 +107,9 @@ const navGroups: Array<{ id: string; label: string; items: NavItem[] }> = [
 ];
 const navItems = navGroups.flatMap(group => group.items);
 
-/** A page's one name, as the navigation, the browser title and the breadcrumb show it; a record page is named for what it shows. */
-function pageName(location: string): string {
-  return navItems.find(item => item.href === location)?.label || (location.startsWith('/cases/') ? 'Case' : 'Customer history');
+/** A listed page's one name, as the navigation, the browser title and the breadcrumb show it. */
+function pageName(location: string): string | undefined {
+  return navItems.find(item => item.href === location)?.label;
 }
 
 /**
@@ -261,7 +261,7 @@ export function Layout({ children }: { children: ReactNode }) {
 
   // The title names the page, or says the page stopped working while the boundary below shows its notice.
   const [pageError,setPageError]=useState<Error|null>(null);
-  useEffect(()=>{document.title=`${pageError?"Page error":pageName(location)} · Valo Pay`;},[location,pageError]);
+  useEffect(()=>{document.title=`${pageError?"Page error":navItems.find(n=>n.href===location)?.label||(location.startsWith("/cases/")?"Case":"Customer history")} · Valo Pay`;},[location,pageError]);
 
   // The phone drawer. It opens with focus on the first page, closes when a page is chosen in it or the
   // address changes (the browser's back), and then focus goes to the page content as it does after the
@@ -299,7 +299,7 @@ export function Layout({ children }: { children: ReactNode }) {
   // Only a staff pilot's administrator can be warned that administrator access ends: never the sandbox, whatever its role.
   const staffAdministrator = workspace?.accessMode === 'staff' && workspace.role === 'Admin';
   const lenderName = lender?.name;
-  const pageTitle = pageName(location);
+  const pageTitle = navItems.find(n => n.href === location)?.label || (location.startsWith('/cases/') ? 'Case' : 'Customer history');
   const baseRoute = location.startsWith('/cases/') ? '/exceptions' : location.startsWith('/customers/') ? '/customers' : location;
   // A record page sits under its list: Exceptions, then Case; Customers, then Customer history.
   const parentTitle = baseRoute !== location ? pageName(baseRoute) : null;
