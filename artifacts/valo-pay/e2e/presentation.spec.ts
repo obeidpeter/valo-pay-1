@@ -17,7 +17,7 @@ test('presentation preparation, downloads and guide are usable on desktop and ph
   expect(brief.suggestedFilename()).toBe('valo-pay-presenter-brief.md');
   expect(await readFile((await brief.path())!, 'utf8')).toContain('external connection has not been verified');
   const csvEvent = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Download payment evidence CSV' }).click();
+  await page.getByRole('button', { name: 'Download CSV of payment evidence' }).click();
   const csv = await csvEvent;
   expect(await readFile((await csv.path())!, 'utf8')).toContain('18000.50,statement,PRES-D001');
   await page.addScriptTag({ path: path.resolve('node_modules/axe-core/axe.min.js') });

@@ -158,6 +158,8 @@ it("writes the pack's dates and the talking points' durations as the rest of the
   const pack = (await screen.findByRole('heading', { name: 'A repeatable sample import' })).closest('section')!;
   expect(within(pack).getByText(/^Import the customer and instalment files/).textContent).toMatch(/The files’ business date is \d{1,2} \w{3,4} \d{4} \(WAT\)\.$/);
   expect(pack.textContent).not.toMatch(/\d{4}-\d{2}-\d{2}/);
+  // Each download's name starts with its visible label, then says which file.
+  for (const kind of ['customers', 'instalments', 'payment evidence']) expect(within(pack).getByRole('button', { name: `Download CSV of ${kind}` })).toBeTruthy();
   expect(screen.getAllByText('45 seconds')).toHaveLength(2);
 });
 

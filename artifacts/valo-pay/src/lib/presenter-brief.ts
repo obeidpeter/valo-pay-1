@@ -42,7 +42,7 @@ ${presentationChecks.map(c => `- [ ] ${c.label}`).join('\n')}
 
 Use one sample lender, in a sandbox you keep for rehearsals. Import Customers, then Instalments, before the meeting. Import Payment evidence during the demonstration. ${sampleImportSteps} Set the business date to ${day}. For each file, select Save and check batch, check the amount, then select Import checked batch once. The instalment and the payment are exactly ₦18,000.50 each. Reconciliation is a separate step. Once it runs, rule R1 matches the payment to ${PRESENTATION_INSTALMENT} automatically and with certainty, because the payment names that instalment and the amounts are equal. The match never appears in Matches to review. Its rule and explanation are in the sample customer’s history: open Customers, search for ${PRESENTATION_CUSTOMER} and open its history.
 
-Importing the same file again does not start over. Its rows keep their source row IDs, so they are reported as duplicates. For a fresh rehearsal, use a private browser window or a new, empty sample lender, if your role allows you to add one. A new lender has no ready-made exceptions. Prepare a case, or say honestly that there are none. Never clear an existing workspace.
+Importing the same file again does not start over. Its rows keep their source row IDs, so they may be reported as duplicates. For a fresh rehearsal, use a private browser window or a new, empty sample lender, if your role allows you to create one. A new lender has no ready-made exceptions. Prepare a case, or say honestly that there are none. Never clear an existing workspace.
 
 ## Demonstration
 
@@ -62,7 +62,7 @@ If something goes wrong: ${s.fallback}`).join('\n\n')}
 - What works today? Show the saved records, checks, decisions and exports that this version really offers.
 - Is Paystack connected? No. Valo Pay has code for a Paystack test account, tested only with local sample scenarios. No Paystack account or test key is set up, and an external connection has not been verified. Do not claim that Valo Pay accepts payments or offers direct debits.
 - Is it ready for live use? Not yet. Team member sign-in with two-step verification, managed keys, restricted database access, recovery and external services must still be checked where Valo Pay will run. They must also pass the agreed acceptance process.
-- Does this prove demand or better recoveries? No. Bring separate proof that has been checked: conversations with lenders, signed agreements and measured pilot results, if you have them.
+- Does this prove growth or better recoveries? No. Bring separate proof that has been checked: conversations with lenders, signed agreements and measured pilot results, if you have them.
 - What will investment pay for? Explain your real plans for hiring, setting up live services and running pilots. Do not invent an amount, a timeline, a number of lenders or a return.
 
 ## If something fails
