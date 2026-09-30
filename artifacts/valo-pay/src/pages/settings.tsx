@@ -397,7 +397,7 @@ export default function SettingsPage() {
                     aria-describedby="settings-executionWindowStart-help"
                     onChange={(e) => setExecSettings({...execSettings, executionStart: Number(e.target.value)})}
                   />
-                  <p id="settings-executionWindowStart-help" className="mt-1 text-xs text-muted-foreground">A whole hour. The window must fall between {watHour(executionWindow.earliestHour)} and {watHour(executionWindow.latestHour)}.</p>
+                  <p id="settings-executionWindowStart-help" className="mt-1 text-xs text-muted-foreground">A whole hour, from {watHour(executionWindow.earliestHour)}. The window must end by {watHour(executionWindow.latestHour)}.</p>
                 </>) : (
                   <div className="font-mono text-sm p-2 bg-secondary/50 rounded border">
                     {watHour(settings.settings?.executionStart ?? executionWindow.defaultStartHour)}

@@ -89,7 +89,7 @@ describe("settings", () => {
     // The format and the limits sit under each time field, not in its label.
     const help = (label: string) => document.getElementById(screen.getByLabelText(label).getAttribute("aria-describedby")!)?.textContent;
     expect(help("Daily close time (WAT)")).toBe("24-hour time, for example 07:00.");
-    expect(help("Collection window starts (WAT)")).toBe("A whole hour. The window must fall between 06:00 WAT and 20:00 WAT.");
+    expect(help("Collection window starts (WAT)")).toBe("A whole hour, from 06:00 WAT. The window must end by 20:00 WAT.");
     expect(help("Collection window ends (WAT)")).toBe("A whole hour, no later than 20:00 WAT.");
   });
 
