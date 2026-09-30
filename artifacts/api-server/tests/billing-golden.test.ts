@@ -244,9 +244,9 @@ checks += 5;
   const statement = () => buildReports(state, wat('2027-05-02T09:00:00')).billing;
   const listed = () => (statement().rateDiscrepancies as Array<Record<string, any>> | undefined)?.map((line) => [line.invoiceId, line.invoiceReference, line.period, line.chargedRate, line.agreedRate]);
   assert.deepEqual(listed(), [[issued[0]!.id, 'INV-2027-01-001', '2027-01', 0.5, 0], [issued[1]!.id, 'INV-2027-02-002', '2027-02', 0.5, 0]], 'each month charged at another rate than the confirmed agreement gives is listed; March agrees');
-  assert.equal(statement().rateDiscrepancies[0].explanation, `INV-2027-01-001 for 2027-01 charged the 50% design-partner discount. A month takes the terms in effect by its end: for 2027-01 those are “${terms.name}”, design-partner terms in effect from 2027-01-01, whose confirmed agreement synthetic-agreement gives the full public price.`);
-  assert.match(statement().rateDiscrepancyGuidance, /An issued invoice is never changed, and Valo Pay has no way to correct an issued invoice's discount/);
-  assert.match(statement().rateDiscrepancyGuidance, /Adjustment lines on later invoices for a listed invoice's collections, such as a re-allocation debit or a reversal credit, carry that invoice's rate too, so include them in what you agree\./);
+  assert.equal(statement().rateDiscrepancies[0].explanation, `INV-2027-01-001 for January 2027 charged the 50% design-partner discount. A month uses the terms in effect at its end: for January 2027 those are “${terms.name}”, design-partner terms in effect from 1 Jan 2027, whose confirmed agreement synthetic-agreement gives the full public price.`);
+  assert.match(statement().rateDiscrepancyGuidance, /An issued invoice never changes, and Valo Pay cannot correct an issued invoice’s discount/);
+  assert.match(statement().rateDiscrepancyGuidance, /Adjustment lines on later invoices for a listed invoice’s collections, such as a re-allocation charge or a reversal credit, carry that invoice’s rate too\. Include them in what you agree\./);
   assert.match(statement().rateDiscrepancyGuidance, /Agree any difference with the lender outside Valo Pay/);
   assert.deepEqual(state.records, before, 'reporting a difference changes no invoice and creates no money');
   assert.equal(statement().pendingAdjustmentsKobo, 0, 'nothing is added to the next invoice automatically');
@@ -290,8 +290,8 @@ checks += 5;
   executeAction(state, staffAt('fixture_admin', 'Admin', wat('2027-04-21T09:00:00')), { action: 'confirm_discount_terms', recordId: replacement.id, reason: 'Checked against the signed agreement', data: { discountStartDate: '2027-03-01', fullPriceStartDate: '2028-03-01', discountTermsReference: 'SYN-REPLACEMENT' } });
   // January and February were billed by the old terms, which are not confirmed: the confirmed replacement, now in effect for those months, gives the full price. March agrees.
   assert.deepEqual(listed(), [[issued[0]!.id, '2027-01', 0.5, 0, replacement.id], [issued[1]!.id, '2027-02', 0.5, 0, replacement.id]], 'the months the replaced terms billed are compared with the confirmed terms now in effect');
-  assert.equal(statement().rateDiscrepancies[0].explanation, 'INV-2027-01-001 for 2027-01 charged the 50% design-partner discount. A month takes the terms in effect by its end: for 2027-01 those are “Replacement terms”, design-partner terms in effect from 2027-01-01, whose confirmed agreement SYN-REPLACEMENT gives the full public price.');
-  assert.match(statement().rateDiscrepancyGuidance, /Each invoice is compared with the terms in effect for its month now, as billing reads them: a month takes the terms in effect by its end, and ordinary terms give the full public price\. While the design-partner terms in effect for a month are not confirmed, its invoices are not compared; confirming their discount dates compares them\./);
+  assert.equal(statement().rateDiscrepancies[0].explanation, 'INV-2027-01-001 for January 2027 charged the 50% design-partner discount. A month uses the terms in effect at its end: for January 2027 those are “Replacement terms”, design-partner terms in effect from 1 Jan 2027, whose confirmed agreement SYN-REPLACEMENT gives the full public price.');
+  assert.match(statement().rateDiscrepancyGuidance, /Each invoice is compared with the terms in effect for its month now\. A month uses the terms in effect at its end, and ordinary terms give the full public price\. Invoices for a month whose design-partner terms are not confirmed yet are compared once their discount dates are confirmed\./);
   // Replacement terms that take effect later govern only their own months: January stays with the old terms, uncompared.
   replacement.data.effectiveDate = '2027-02-01';
   assert.deepEqual(listed(), [[issued[1]!.id, '2027-02', 0.5, 0, replacement.id]], 'a month the replacement does not govern is not compared');
@@ -386,7 +386,7 @@ const firstHalf = ['2027-01', '2027-02', '2027-03', '2027-04', '2027-05', '2027-
   assert.deepEqual(listed(), [], 'design-partner terms with no dates give no rate to compare with');
   const ordinary = addTerms(state, 'Ordinary terms', { designPartner: false, effectiveDate: '2027-01-01' }, '2027-04-10T09:00:00', false);
   assert.deepEqual(listed(), [['2027-01', 0.5, 0, ordinary.id], ['2027-02', 0.5, 0, ordinary.id], ['2027-03', 0.5, 0, ordinary.id]], 'each month is compared with the ordinary terms in effect, which have nothing to confirm');
-  assert.equal(discrepancies()[0]!.explanation, 'INV-2027-01-001 for 2027-01 charged the 50% design-partner discount. A month takes the terms in effect by its end: for 2027-01 those are “Ordinary terms”, ordinary terms in effect from 2027-01-01, which give the full public price.');
+  assert.equal(discrepancies()[0]!.explanation, 'INV-2027-01-001 for January 2027 charged the 50% design-partner discount. A month uses the terms in effect at its end: for January 2027 those are “Ordinary terms”, ordinary terms in effect from 1 Jan 2027, which give the full public price.');
   checks += 3;
 }
 
@@ -396,7 +396,7 @@ const firstHalf = ['2027-01', '2027-02', '2027-03', '2027-04', '2027-05', '2027-
   const { state, listed, discrepancies } = billedUnder('partway-bridge', { designPartner: true }, firstHalf, 0.5);
   const bridge = addTerms(state, 'Bridge signed 15 June', { designPartner: true, effectiveDate: '2027-06-15', discountStartDate: '2027-07-01', fullPriceStartDate: '2028-01-01', discountTermsReference: 'SYN-BRIDGE' }, '2027-08-10T09:00:00');
   assert.deepEqual(listed(), [['2027-06', 0.5, 0, bridge.id]], 'June takes the bridge, in effect by its end; January to May keep the pilot terms, which cannot be compared');
-  assert.equal(discrepancies()[0]!.explanation, 'INV-2027-06-006 for 2027-06 charged the 50% design-partner discount. A month takes the terms in effect by its end: for 2027-06 those are “Bridge signed 15 June”, design-partner terms in effect from 2027-06-15, whose confirmed agreement SYN-BRIDGE gives the full public price.');
+  assert.equal(discrepancies()[0]!.explanation, 'INV-2027-06-006 for June 2027 charged the 50% design-partner discount. A month uses the terms in effect at its end: for June 2027 those are “Bridge signed 15 June”, design-partner terms in effect from 15 Jun 2027, whose confirmed agreement SYN-BRIDGE gives the full public price.');
   checks += 2;
 }
 
@@ -561,8 +561,8 @@ const firstHalf = ['2027-01', '2027-02', '2027-03', '2027-04', '2027-05', '2027-
   assert.equal(invoice.data.recoveryFee.enabled, false, "BIL-03: the recovery fee is gated off");
   assert.match(invoice.data.recoveryFee.note, /recorded as proven/);
   assert.throws(() => invoiceFor(state, "2027-06", wat("2027-07-02T09:00:00")), /already been issued/, "one invoice per period; corrections are adjustment lines");
-  assert.throws(() => invoiceFor(state, "2027-05", wat("2027-07-02T09:00:00")), /period order/);
-  assert.throws(() => issueInvoice(state, finance(wat("2027-07-02T09:00:00")), { period: "2027-08" }), /future period/);
+  assert.throws(() => invoiceFor(state, "2027-05", wat("2027-07-02T09:00:00")), /Invoices are issued month by month\./);
+  assert.throws(() => issueInvoice(state, finance(wat("2027-07-02T09:00:00")), { period: "2027-08" }), /You cannot issue an invoice for a future month\./);
   assert.throws(() => issueInvoice(state, finance(wat("2027-07-02T09:00:00")), { period: "June" }), /YYYY-MM/);
   assert.throws(() => executeAction(state, ctxAt(wat("2027-07-02T09:00:00"), "Operations"), { action: "issue_invoice", reason: "x", data: { period: "2027-07" } }), /Only an Admin or Finance team member can issue an invoice\./);
   assert.throws(() => invoiceFor(state, "2027-07", wat("2027-07-31T23:30:00")), /once the month has ended/, "a month is invoiced only after it has ended");
@@ -603,7 +603,7 @@ const firstHalf = ['2027-01', '2027-02', '2027-03', '2027-04', '2027-05', '2027-
   // PSK-F's refund was recorded without an amount, as refunds were before refundedKobo existed: it is read as the whole payment.
   assert.deepEqual(pending.map((line) => [line.paymentReference, line.reason, line.kobo]), [["PSK-D", "confirmed_duplicate", -3_750], ["PSK-F", "refund", -3_750], ["PSK-R", "reversal", -3_750], ["PSK-W", "wrong_allocation", -3_750]], "one credit per affected collection, the untouched one is not adjusted");
   assert.ok(pending.every((line) => line.originalInvoiceId === first.id && line.originalInvoiceReference === first.reference), "every line references the invoice it corrects");
-  assert.match(pending[2]!.explanation, /PSK-R .*at the 50% design-partner discount.*reversed by the provider.*credit of ₦37\.50/);
+  assert.match(pending[2]!.explanation, /Collection PSK-R was reversed by the provider after invoice .* billed it\. That invoice charged .* at the 50% design-partner discount\. This line credits ₦37\.50\./);
   assert.deepEqual([pending[2]!.feeDeltaKobo, pending[2]!.discountRate, pending[2]!.billedChargedKobo], [-7_500, 0.5, 3_750], "the line shows the public fee it takes off and the rate it was billed at");
   assert.ok(pending[3]!.allocationIds.length >= 1, "the superseded allocation is referenced");
   assert.equal(buildReports(state, wat("2027-07-15T09:00:00")).billing.pendingAdjustmentsKobo, -15_000, "the statement shows what the next invoice will carry");
@@ -686,7 +686,7 @@ const firstHalf = ['2027-01', '2027-02', '2027-03', '2027-04', '2027-05', '2027-
   assert.deepEqual([december2026.data.usageLines[0].feeKobo, december2026.data.usageLines[0].discountRate, december2026.data.usageLines[0].chargedKobo], [15_000, 0, 15_000]);
   assert.deepEqual(december2027.data.usageLines.map((line: any) => [line.paymentReference, line.feeKobo, line.discountRate, line.chargedKobo]), [["PSK-2027", 15_000, 0.5, 7_500], ["PSK-UP", 7_500, 0.5, 3_750]]);
   assert.deepEqual(january2028.data.adjustments.map((line: any) => [line.feeDeltaKobo, line.discountRate, line.billedChargedKobo]), [[-15_000, 0.5, 7_500], [4_500, 0.5, 3_750]]);
-  assert.match(january2028.data.adjustments[0].explanation, /billed ₦75\.00 on INV-2027-12-013 at the 50% design-partner discount\) was reversed by the provider after it was billed; credit of ₦75\.00\./);
+  assert.match(january2028.data.adjustments[0].explanation, /was reversed by the provider after invoice INV-2027-12-013 billed it\. That invoice charged ₦75\.00 on .* at the 50% design-partner discount\. This line credits ₦75\.00\./);
   assert.match(january2028.data.designPartnerDiscount.note, /Adjustment lines carry the rate of the invoice that first billed each collection/);
   assert.deepEqual(pendingAdjustments(state), [], "each correction is billed once");
   checks += 12;
@@ -776,11 +776,11 @@ const firstHalf = ['2027-01', '2027-02', '2027-03', '2027-04', '2027-05', '2027-
 {
   const { state, collection } = fixture("sequence", "2027-01-01");
   const statement = (now: string) => buildReports(state, now).billing;
-  assert.throws(() => invoiceFor(state, "2027-03", wat("2027-04-03T10:00:00")), /issue the invoice for 2027-01 first/, "the first invoice is for the month the signed terms took effect, so no licensed month is passed over");
+  assert.throws(() => invoiceFor(state, "2027-03", wat("2027-04-03T10:00:00")), /Issue the invoice for January 2027 first: the month the signed terms took effect\./, "the first invoice is for the month the signed terms took effect, so no licensed month is passed over");
   assert.equal(statement(wat("2027-04-03T10:00:00")).nextInvoicePeriod, "2027-01", "the statement names the month the first invoice covers");
   collection("PSK-JAN", wat("2027-01-10T06:20:00"));
   const january = invoiceFor(state, "2027-01", wat("2027-02-03T10:00:00"));
-  assert.throws(() => invoiceFor(state, "2027-03", wat("2027-04-03T10:00:00")), /issue the invoice for 2027-02 first/, "March after January is refused, so February is never left behind");
+  assert.throws(() => invoiceFor(state, "2027-03", wat("2027-04-03T10:00:00")), /Issue the invoice for February 2027 first\./, "March after January is refused, so February is never left behind");
   assert.equal(statement(wat("2027-04-03T10:00:00")).nextInvoicePeriod, "2027-02");
   const february = invoiceFor(state, "2027-02", wat("2027-04-03T10:00:00"));
   assert.deepEqual([february.data.collectionsCounted, february.data.licence.kobo, february.data.totals.netKobo], [0, LICENCE, LICENCE / 2], "a month with no collections still bills its licence");
@@ -795,7 +795,7 @@ const firstHalf = ['2027-01', '2027-02', '2027-03', '2027-04', '2027-05', '2027-
   recordsOf(quiet, "commercial")[0]!.data.signed = false;
   const zero = invoiceFor(quiet, "2027-06", wat("2027-07-01T09:00:00"));
   assert.deepEqual([zero.data.collectionsCounted, zero.data.licence.kobo, zero.data.totals.netKobo, zero.data.totals.vatKobo, zero.data.totals.totalKobo, zero.amountKobo], [0, 0, 0, 0, 0, 0], "a quiet month gets an explicit zero invoice");
-  assert.throws(() => invoiceFor(quiet, "2027-08", wat("2027-09-01T09:00:00")), /issue the invoice for 2027-07 first/);
+  assert.throws(() => invoiceFor(quiet, "2027-08", wat("2027-09-01T09:00:00")), /Issue the invoice for July 2027 first\./);
   checks += 2;
 }
 

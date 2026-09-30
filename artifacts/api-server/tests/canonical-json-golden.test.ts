@@ -66,6 +66,9 @@ bindCloseReviewBasis(state, close);
 values.closeInput = close.data.reviewBasis.inputDigest;
 values.closeSourceBasis = close.data.reviewBasis.sourceCompleteness.basisDigest;
 const review = prepareCloseReview(state, ops, { closeId: close.id, expectedUpdatedAt: close.updatedAt, reviewer: finance.actor, preparationNote: "Compared the close against the original source controls.", discrepancyResponses: closeReviewIssues(close).map((issue) => ({ issueId: issue.id, explanation: "The source owner is investigating and Finance must review the gap." })), unresolvedAcceptance: "The source owner will deliver the missing evidence tomorrow." }, [finance]);
+// Earlier builds named a close review "Finance review · {close}", and a comparison lists each review by its stored
+// name, so the review keeps the name they stored (the language pass names new reviews "Close review · {close}").
+review.name = `Finance review · ${close.name}`;
 values.closeSnapshot = review.data.snapshotDigest;
 assert.equal(reviewIsCurrent(state, review), true);
 assert.equal(closeReviewBasis(state), close.data.reviewBasis.inputDigest);
@@ -88,9 +91,13 @@ const { proposalDigest: storedDigest, proposedRole, impactVersion, ...earlierPro
 assert.equal(proposedRole, ops.role);
 assert.equal(impactVersion, 2);
 assert.equal(storedDigest, canonicalDigest({ ...earlierProposal, proposedRole, impactVersion }, "legacy-en-us-replacer"));
-values.correctionVersion2 = { preview: preview.previewDigest, impact: proposal.data.impactDigest, proposal: storedDigest };
+// A proposal stores its comparison's consequence, which the language pass words differently: the proposals pinned
+// here are the ones those builds stored, with the consequence they wrote.
+const earlierConsequence = "Approval changes the current record only. The committed file, original source identity and before/after evidence remain unchanged. Close approvals recorded before this comparison must be refreshed; a close recorded afterwards does not change the comparison.";
+const asStored = { ...earlierProposal, preview: { ...earlierProposal.preview, consequence: earlierConsequence } };
+values.correctionVersion2 = { preview: preview.previewDigest, impact: proposal.data.impactDigest, proposal: canonicalDigest({ ...asStored, proposedRole, impactVersion }, "legacy-en-us-replacer") };
 const earlier = importCorrectionComparison(state, finance, { ...proposal, data: earlierProposal });
-const earlierData = { ...earlierProposal, impactDigest: earlier.impactDigest, preview: { ...earlierProposal.preview, previewDigest: earlier.preview.previewDigest } };
+const earlierData = { ...asStored, impactDigest: earlier.impactDigest, preview: { ...asStored.preview, previewDigest: earlier.preview.previewDigest } };
 proposal.data = { ...earlierData, proposalDigest: canonicalDigest(earlierData, "legacy-en-us-replacer") };
 values.correction = { preview: earlier.preview.previewDigest, impact: earlier.impactDigest, proposal: proposal.data.proposalDigest };
 

@@ -117,6 +117,6 @@ it("points from Pay-by-bank and the overview to an outcome that stayed unknown",
   expect(new URLSearchParams(link.getAttribute("href")!.split("?")[1]).get("record")).toBe(exceptionId);
   expect(link.closest("p")!.textContent).toContain("the daily close raises an unknown-outcome exception for Finance");
   switchTo("Admin", "/overview");
-  const alert = (await screen.findByRole("heading", { name: "Pay-by-bank outcomes unknown for over 24 hours" })).closest("li")!;
+  const alert = (await screen.findByRole("heading", { name: "Pay by Bank outcomes unknown for over 24 hours" })).closest("li")!;
   expect(within(alert).getByRole("link", { name: /Review pay-by-bank checkouts/ }).getAttribute("href")).toBe("/pay-by-bank");
 });

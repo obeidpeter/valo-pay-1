@@ -164,7 +164,7 @@ try {
   const run = ok(await call(`/v1/lifecycle/runs${lender}`, "adminA", "POST", { expectedPolicyRevision: lifecycle.policyRevision }));
   assert.deepEqual([run.preparedBy, run.candidates.map((item: any) => item.sourceId)], [`Clerk:${people.adminA}`, [batch.id]]); checks += 1;
   const approveRun = { expectedUpdatedAt: run.updatedAt, previewDigest: run.previewDigest, reason: "Reviewed the exact eligible source file." };
-  refused(await call(`/v1/lifecycle/runs/${run.id}/approve${lender}`, "adminA", "POST", approveRun), 403, /A different administrator must approve this deletion run/);
+  refused(await call(`/v1/lifecycle/runs/${run.id}/approve${lender}`, "adminA", "POST", approveRun), 403, /A different Admin must approve this deletion run/);
   const approvedRun = ok(await call(`/v1/lifecycle/runs/${run.id}/approve${lender}`, "adminB", "POST", approveRun));
   assert.equal(approvedRun.approvedBy, `Clerk:${people.adminB}`); checks += 1;
   assert.equal(ok(await call(`/v1/lifecycle/runs/${run.id}/execute${lender}`, "adminA", "POST", { previewDigest: run.previewDigest })).status, "completed", "either administrator executes the approved run"); checks += 1;

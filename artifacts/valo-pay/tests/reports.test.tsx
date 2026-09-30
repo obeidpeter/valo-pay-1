@@ -68,11 +68,11 @@ describe("reports", () => {
     const rows = within(within(box).getByRole('table')).getAllByRole('row').map(row => Array.from(row.querySelectorAll('th,td')).map(cell => cell.textContent));
     const name = api.state().records.find(record => record.kind === 'commercial')!.name;
     // Each difference says why, in the service's words: the terms compared with, when they took effect, and the whole-month rule.
-    const why = (reference: string, month: string) => `${reference} for ${month} charged the 50% design-partner discount. A month takes the terms in effect by its end: for ${month} those are “${name}”, design-partner terms in effect from 2027-01-01, whose confirmed agreement SYN-AGREEMENT gives the full public price.`;
+    const why = (reference: string, month: string) => `${reference} for ${month} charged the 50% design-partner discount. A month uses the terms in effect at its end: for ${month} those are “${name}”, design-partner terms in effect from 1 Jan 2027, whose confirmed agreement SYN-AGREEMENT gives the full public price.`;
     expect(rows).toEqual([['Invoice', 'Month', 'Rate charged', 'Rate in the terms in effect'],
-      ['INV-2027-01-001', '2027-01', '50% discount', 'Full public price'], [why('INV-2027-01-001', '2027-01')],
-      ['INV-2027-02-002', '2027-02', '50% discount', 'Full public price'], [why('INV-2027-02-002', '2027-02')]]);
-    expect(box.textContent).toContain("An issued invoice is never changed, and Valo Pay has no way to correct an issued invoice's discount");
+      ['INV-2027-01-001', '2027-01', '50% discount', 'Full public price'], [why('INV-2027-01-001', 'January 2027')],
+      ['INV-2027-02-002', '2027-02', '50% discount', 'Full public price'], [why('INV-2027-02-002', 'February 2027')]]);
+    expect(box.textContent).toContain("An issued invoice never changes, and Valo Pay cannot correct an issued invoice’s discount");
     expect(box.textContent).toContain('Agree any difference with the lender outside Valo Pay');
     expect((screen.getByRole('button', { name: 'Issue invoice' }) as HTMLButtonElement).disabled).toBe(false);
     expect(screen.queryByText('Commercial terms need review')).toBeNull();
@@ -94,8 +94,8 @@ describe("reports", () => {
     const box = (await screen.findByText('Issued invoices that differ from the terms in effect')).parentElement!;
     const rows = within(within(box).getByRole('table')).getAllByRole('row').map(row => Array.from(row.querySelectorAll('th,td')).map(cell => cell.textContent));
     expect(rows.slice(1)).toEqual([['INV-2027-06-001', '2027-06', '50% discount', 'Full public price'],
-      ['INV-2027-06-001 for 2027-06 charged the 50% design-partner discount. A month takes the terms in effect by its end: for 2027-06 those are “Bridge signed 15 June”, design-partner terms in effect from 2027-06-15, whose confirmed agreement SYN-BRIDGE gives the full public price.']]);
-    expect(box.textContent).toContain('While the design-partner terms in effect for a month are not confirmed, its invoices are not compared; confirming their discount dates compares them.');
+      ['INV-2027-06-001 for June 2027 charged the 50% design-partner discount. A month uses the terms in effect at its end: for June 2027 those are “Bridge signed 15 June”, design-partner terms in effect from 15 Jun 2027, whose confirmed agreement SYN-BRIDGE gives the full public price.']]);
+    expect(box.textContent).toContain('Invoices for a month whose design-partner terms are not confirmed yet are compared once their discount dates are confirmed.');
   });
 
   it('keeps older report responses without pricing metadata usable', async () => {
@@ -273,7 +273,7 @@ describe("reports", () => {
     await user.type(within(dialog).getByLabelText(/^Invoice month/), '2027-03');
     await user.type(within(dialog).getByLabelText('Reason *'), 'Month-end invoice');
     await user.click(within(dialog).getByRole('button', { name: 'Issue invoice' }));
-    expect(await within(dialog).findByText(/issue the invoice for 2027-01 first, the month the signed terms took effect\.$/)).toBeTruthy();
+    expect(await within(dialog).findByText(/Issue the invoice for January 2027 first: the month the signed terms took effect\.$/)).toBeTruthy();
     expect(api.state().records.some(record => record.kind === 'invoices')).toBe(false);
   });
 

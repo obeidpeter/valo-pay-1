@@ -27,7 +27,7 @@ const step = (state: DomainState, id: string) => pilotProgress(state).steps.find
   makeRecord(state, "exports", { status: "ready", data: { checksum: "a".repeat(64) } });
   assert.equal(step(state, "export").state, "blocked", "An unrelated ready export cannot satisfy reviewed evidence.");
   delete first.data.reviewBasis;
-  assert.match(closeReviewCurrentProblem(state, first)!, /older close/);
+  assert.match(closeReviewCurrentProblem(state, first)!, /recorded before close reviews were available/);
 }
 {
   const state = empty(), first = close(state), snapshot = JSON.stringify(first), input = prepareInput(first);
@@ -41,7 +41,7 @@ const step = (state: DomainState, id: string) => pilotProgress(state).steps.find
   assert.equal(step(state, "close").state, "awaiting_review");
   assert.throws(() => prepareCloseReview(state, ops, input, reviewers), /already/);
   const decision = { action: "approve" as const, expectedUpdatedAt: review.updatedAt, note: "Independently checked and accepted this exact snapshot.", sourceExceptions: first.data.reviewBasis.sourceCompleteness.issues.map((issue:any)=>({issueId:issue.id,reason:"This synthetic rehearsal has no external source contract yet.",evidence:"Synthetic rehearsal scope, case TEST-1."})) };
-  assert.throws(() => decideCloseReview(state, finance, review.id, {...decision,sourceExceptions:[]}), /explicitly accept every source/);
+  assert.throws(() => decideCloseReview(state, finance, review.id, {...decision,sourceExceptions:[]}), /Accept each missing or incomplete source file with its own reason and evidence/);
   assert.throws(() => decideCloseReview(state, { ...finance, actor: "Clerk:other" }, review.id, decision), /named Finance/);
   assert.throws(() => decideCloseReview(state, { ...finance, role: "Admin" }, review.id, decision), /named Finance/);
   assert.throws(() => decideCloseReview(state, { ...finance, principalId: ops.principalId }, review.id, decision), /different person/);
@@ -57,7 +57,7 @@ const step = (state: DomainState, id: string) => pilotProgress(state).steps.find
   assert.equal(step(state, "export").state, "completed");
   evidenceExport.data.fileDeletedAt = "2026-09-22T10:06:00.000Z";
   assert.equal(step(state, "export").state, "in_progress", "An expired export receipt cannot satisfy downloadable reviewed evidence.");
-  assert.match(step(state, "export").missing[0]!, /Generate an evidence export/);
+  assert.match(step(state, "export").missing[0]!, /Export the evidence for this approved close/);
   delete evidenceExport.data.fileDeletedAt;
   makeRecord(state, "customers", { status: "active", name: "Later correction" });
   assert.equal(reviewIsCurrent(state, review), false);
@@ -157,13 +157,13 @@ function ofKind(state: DomainState, kind: string) { return state.records.filter(
   const input = { expectedUpdatedAt: review.updatedAt, reviewer: replacement.actor, reason: "The original reviewer is unavailable during leave." };
   const roster = [...reviewers, replacement, { ...ops, role: "Finance" }, { actor: "Sandbox Finance", role: "Finance" }];
   const snapshot = JSON.stringify(review.data.snapshot), digest = review.data.snapshotDigest;
-  assert.throws(() => reassignCloseReview(state, finance, review.id, input, roster), /administrator/);
+  assert.throws(() => reassignCloseReview(state, finance, review.id, input, roster), /Only an Admin can reassign a close review/);
   assert.throws(() => reassignCloseReview(state, admin, "other-lender-review", input, roster), /not found/);
   assert.throws(() => reassignCloseReview(state, admin, review.id, { ...input, expectedUpdatedAt: "2026-09-21T10:00:00.000Z" }, roster), /changed/);
   assert.throws(() => reassignCloseReview(state, admin, review.id, input, reviewers), /active Finance/);
   assert.throws(() => reassignCloseReview(state, admin, review.id, { ...input, reviewer: finance.actor }, roster), /different Finance/);
-  assert.throws(() => reassignCloseReview(state, admin, review.id, { ...input, reviewer: ops.actor }, roster), /different staff/);
-  assert.throws(() => reassignCloseReview(state, admin, review.id, { ...input, reviewer: "Sandbox Finance" }, roster), /independent review/);
+  assert.throws(() => reassignCloseReview(state, admin, review.id, { ...input, reviewer: ops.actor }, roster), /Choose a team member who did not prepare this close/);
+  assert.throws(() => reassignCloseReview(state, admin, review.id, { ...input, reviewer: "Sandbox Finance" }, roster), /Switching demo roles is not a second person/);
   reassignCloseReview(state, admin, review.id, input, roster);
   assert.equal(review.status, "awaiting_review");
   assert.equal(review.data.preparedBy, ops.actor);
@@ -174,7 +174,7 @@ function ofKind(state: DomainState, kind: string) { return state.records.filter(
   close(state, "2026-09-22T11:00:00.000Z");
   assert.throws(() => decideCloseReview(state, replacement, review.id, { action: "approve", expectedUpdatedAt: review.updatedAt, note: "Reassignment must never make old evidence current." }), /no longer current/);
   decideCloseReview(state, replacement, review.id, { action: "return", expectedUpdatedAt: review.updatedAt, note: "Prepare the newer evidence before an independent approval." });
-  assert.throws(() => reassignCloseReview(state, admin, review.id, { ...input, expectedUpdatedAt: review.updatedAt }, roster), /pending review/);
+  assert.throws(() => reassignCloseReview(state, admin, review.id, { ...input, expectedUpdatedAt: review.updatedAt }, roster), /waiting for a decision/);
 }
 {
   const state = empty(), record = close(state);

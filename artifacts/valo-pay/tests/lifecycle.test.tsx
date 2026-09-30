@@ -56,7 +56,7 @@ it('blocks approval after another administrator places a hold on the previewed s
   await prepare(user);
   api.mutate((state, ctx) => setLifecycleHold(state, ctx, { kind: 'raw_csv', sourceId: batchId, held: true, expectedHoldRevision: lifecycleHolds(state).revision, reason: 'This source is needed for a new sample investigation.' }));
   await approve(user);
-  await screen.findByText(/A previewed source changed, is held or is no longer eligible/);
+  await screen.findByText(/A file in this preview has changed, is on hold or can no longer be deleted/);
   expect(api.state().records.find(record => record.id === batchId)!.data.csv).toContain('SAMPLE-ROW');
   expect(api.state().records.filter(record => record.kind === 'retention-receipts')).toHaveLength(0);
   expect(screen.queryByRole('button', { name: 'Execute approved run' })).toBeNull();
@@ -148,7 +148,7 @@ it('stops the run at a blocked source and says why', async () => {
   await prepare(user); await approve(user);
   api.mutate((state, ctx) => setLifecycleHold(state, ctx, { kind: 'raw_csv', sourceId: ids[1]!, held: true, expectedHoldRevision: lifecycleHolds(state).revision, reason: 'A new sample case needs this source after all.' }));
   await user.click(await screen.findByRole('button', { name: 'Execute approved run' }));
-  await screen.findByText(`The run stopped at Raw import CSV ${ids[1]}, which is blocked: This source changed, is held or no longer meets the approved policy. Review the source and prepare a fresh preview. Removed so far: 1 of 3 sources.`);
+  await screen.findByText(`The run stopped at Raw import CSV ${ids[1]}, which is blocked: This file has changed, is on hold or no longer meets the approved policy. Review it and prepare a new preview. Removed so far: 1 of 3 sources.`);
   expect(api.calls.filter(call => call.path.endsWith('/execute'))).toHaveLength(2);
   expect(csvLeft(ids)).toBe(2);
   expect(api.state().records.find(record => record.id === ids[2])!.data.csv).toContain('SAMPLE-ROW-3');

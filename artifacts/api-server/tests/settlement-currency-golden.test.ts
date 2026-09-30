@@ -341,7 +341,7 @@ section("the close's settlement differences", () => {
   equal([variances.count, variances.feeVarianceKobo, variances.otherCurrencies], [2, 50_000 - FEE, { USD: { count: 1, amount: 0 } }], "the fee variances are summed in naira only, and the dollar batch is listed apart");
   equal(variances.batches.map((item: any) => [item.reference, item.currency, item.netKobo, item.statementNetKobo]), [["B-FEE", "NGN", GROSS - 50_000, null], ["B-DOLLAR", "USD", USD_NET, 1_000]], "each batch in its own currency");
   const issues = closeReviewIssues(close);
-  equal([issues.find((item) => item.id === `variance:${fee.id}`)?.detail, issues.find((item) => item.id === `variance:${dollar.id}`)?.detail], [`Fee difference: ${50_000 - FEE} kobo. Compare the provider and statement totals.`, "Fees not checked: there is no fee schedule for USD. Net total: USD 995.00. Compare the provider and statement totals."], "the close review writes each batch in its own currency");
+  equal([issues.find((item) => item.id === `variance:${fee.id}`)?.detail, issues.find((item) => item.id === `variance:${dollar.id}`)?.detail], ["Fee difference: ₦375.00. Compare the provider and statement totals.", "Fees not checked: there is no fee schedule for USD. Amount after fees: USD 995.00. Compare the provider and statement totals."], "the close review writes each batch in its own currency");
   // What the console's reconciliation page reads carries the currency.
   const page = pageReconciliation(state, "batches", {} as any, wat("2027-07-01T11:00:00")) as { items: ValopayRecord[] };
   equal(page.items.map((item) => [item.reference, item.data.currency]).sort(), [["B-DOLLAR", "USD"], ["B-FEE", "NGN"]], "the reconciliation page's batches name their currency");

@@ -23,7 +23,7 @@ const empty = (id: string) => { const state = seedMerchant(id, true); state.reco
   const state = empty("counted-sources"), ctx = { actor: "Sandbox Admin", role: "Admin", now: "2026-09-22T08:00:00.000Z" };
   saveSourceProfile(state, ctx, { name: "Daily customers", source: "count-lms", kind: "customers", mapping: {}, identityColumn: "source_row_id", amountUnit: "naira", firstExpectedAt: "2026-09-22T09:00:00.000Z", cadenceHours: 24, graceMinutes: 60, expectedRows: 1, expectedAmountKobo: 0, status: "active", syntheticOnly: true });
   const batch = saveImportBatch(state, ctx, { name: "Two customers", source: "count-lms", sourceBatchId: "count-1", kind: "customers", csv: "source_row_id,name,reference,consentProvenance\nc-1,First customer,COUNT-C-1,Synthetic consent\nc-2,Second customer,COUNT-C-2,", mapping: {}, identityColumn: "source_row_id", amountUnit: "naira", syntheticOnly: true });
-  assert.deepEqual(batchSourceQuality(state, batch).issues, ["Expected 1 source row; this batch contains 2.", "1 source row still needs correction."]);
+  assert.deepEqual(batchSourceQuality(state, batch).issues, ["Expected 1 row; this batch has 2 rows.", "1 row still needs correcting."]);
   checks += 1;
 }
 
@@ -52,11 +52,11 @@ const empty = (id: string) => { const state = seedMerchant(id, true); state.reco
   makeRecord(state, "exceptions", { name: "Open exception", status: "open", data: { type: "unmatched_payment" } });
   makeRecord(state, "exceptions", { name: "Resolved exception", status: "resolved", data: { type: "unmatched_payment" } });
   const step = (id: string) => pilotProgress(state).steps.find((item) => item.id === id)!;
-  assert.deepEqual(step("ingest").evidence, ["1 committed import batch; 1 customer record."]);
+  assert.deepEqual(step("ingest").evidence, ["1 imported batch; 1 customer record."]);
   assert.deepEqual(step("reconcile").evidence, ["1 confirmed allocation; 1 payment record.", "1 payment needs a match; 1 evidence record remains unresolved."]);
-  assert.deepEqual(step("resolve").evidence, ["1 resolved case; 1 open; 1 without an assignee."]);
-  assert.deepEqual(step("resolve").missing, ["Resolve 1 open case; a handover alone does not resolve a case."]);
-  assert.deepEqual(step("export").evidence, ["0 ready exports reference the current approved close and its exact snapshot."]);
+  assert.deepEqual(step("resolve").evidence, ["1 exception resolved; 1 open; 1 with no owner."]);
+  assert.deepEqual(step("resolve").missing, ["Resolve 1 open exception. A handover alone does not resolve an exception."]);
+  assert.deepEqual(step("export").evidence, ["0 ready exports contain the current approved close."]);
   checks += 5;
 }
 
@@ -101,10 +101,10 @@ const empty = (id: string) => { const state = seedMerchant(id, true); state.reco
   const paid = makeRecord(reports, "payments", { name: "Only payment", status: "allocated", amountKobo: 1_000_000, data: {} });
   makeRecord(reports, "allocations", { name: "R1", status: "confirmed", amountKobo: 1_000_000, data: { paymentId: paid.id, reviewed: true } });
   const detail = (key: string) => buildReports(reports, "2027-07-01T09:00:00.000Z").metrics.find((metric) => metric.key === key)!.detail;
-  assert.equal(detail("allocation_rate"), "1 of 1 payment is fully or partly allocated, or exceeds the amount due.");
+  assert.equal(detail("allocation_rate"), "1 of 1 payment is allocated in full or in part, including overpayments.");
   assert.equal(detail("allocation_precision"), "1 allocation reviewed. Unreviewed allocations are excluded from this accuracy measure.");
   makeRecord(reports, "payments", { name: "Second payment", status: "unallocated", amountKobo: 1_000_000, data: {} });
-  assert.equal(detail("allocation_rate"), "1 of 2 payments is fully or partly allocated, or exceeds the amount due.");
+  assert.equal(detail("allocation_rate"), "1 of 2 payments is allocated in full or in part, including overpayments.");
   checks += 4;
 }
 

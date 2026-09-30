@@ -13,6 +13,10 @@ const moneyFormat = new Intl.NumberFormat(MARKET_LOCALE, { minimumFractionDigits
 const moneyLayout = { positive: moneyFormat.formatToParts(1) };
 const pluralRules = new Intl.PluralRules(MARKET_LOCALE);
 
+/** A number as people read it, with thousands separators: "1,016". */
+export function numberText(value: number): string {
+  return numberFormat.format(value);
+}
 /** A count with its noun in the right number: "1 item", "0 items", "1,234 records". An irregular plural is passed in. */
 export function counted(count: number, singular: string, plural = `${singular}s`): string {
   return `${numberFormat.format(count)} ${pluralRules.select(count) === "one" ? singular : plural}`;

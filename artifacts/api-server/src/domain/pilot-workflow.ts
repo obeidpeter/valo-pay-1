@@ -2,9 +2,12 @@ import { parse } from "csv-parse/sync";
 import {
   batchInputSchema,
   caseInputSchema,
+  changedText,
+  notFoundText,
   type BatchInput,
   type CaseInput,
 } from "@workspace/valopay-schema";
+import { roleRefusal } from "./validation";
 import type { Context, DomainState, ValopayRecord } from "./types";
 import { makeRecord, assertNoRealBankDetails, assertSourceOpened, isSealedPayload } from "./records";
 import { assertRecordVersion } from "../lib/edit-versions";
@@ -15,9 +18,9 @@ import { assertSourceExpectation } from './source-completeness';
 function refuse(message: string, status = 400): never {
   throw Object.assign(new Error(message), { status });
 }
-function writer(ctx: Context, allowed = ["Admin", "Operations", "Finance"]) {
+function writer(ctx: Context, allowed = ["Admin", "Operations", "Finance"], action = "save or import a batch") {
   if (!allowed.includes(ctx.role))
-    refuse("Your role is not permitted to change this workflow.", 403);
+    refuse(roleRefusal(ctx, allowed, action), 403);
 }
 /** The check's counts, stored in plaintext beside the protected check so the batch list never opens it. */
 const checkSummaryOf = (check: { valid: number; invalid: number; imported: number; skipped: number }) => ({
@@ -74,21 +77,21 @@ function rowIdentities(input: BatchInput): string[] {
       max_record_size: 20000,
     });
   } catch {
-    refuse("The CSV could not be read. Check its headers and row lengths.");
+    refuse("Valo Pay could not read this CSV file. Use a header row, the same number of columns on every row, and quotes around values that contain commas.");
   }
   // The rows are screened here, where every batch is saved, not only where a
   // recoverable request carries a key.
   try {
     assertNoRealBankDetails(rows);
   } catch (error) {
-    refuse(error instanceof Error ? error.message : "The source rows could not be checked.");
+    refuse(error instanceof Error ? error.message : "Valo Pay could not check the rows in this file.");
   }
   if (
     !rows.length ||
     rows.length > 500 ||
     Buffer.byteLength(input.csv) > 1500000
   )
-    refuse("Use between 1 and 500 rows, up to 1.5 MB.");
+    refuse("A file must have between 1 and 500 rows and be no larger than 1.5 MB.");
   // The quick import's rule: a different, non-empty ID on every row, up to 160 characters.
   return sourceRowIds(rows, input.identityColumn, Object.keys(rows[0]!));
 }
@@ -104,14 +107,14 @@ export function saveImportBatch(
   const old = id
     ? state.records.find((r) => r.id === id && r.kind === "import-batches")
     : undefined;
-  if (id && !old) refuse("Import batch not found in this lender.", 404);
+  if (id && !old) refuse(notFoundText("import batch"), 404);
   if (old) {
     if (!input.expectedUpdatedAt)
-      refuse("Refresh the saved batch before correcting it.", 409);
+      refuse(changedText("import batch"), 409);
     assertRecordVersion(old, input.expectedUpdatedAt);
     if (old.status === "committed")
       refuse(
-        "This batch is already committed. Start a new source batch for new records.",
+        "This batch is already imported. Start a new batch for new records.",
         409,
       );
     if (
@@ -119,7 +122,7 @@ export function saveImportBatch(
       old.data.sourceBatchId !== input.sourceBatchId ||
       old.data.kind !== input.kind
     )
-      refuse("Keep the source, source batch ID and record type of this batch.");
+      refuse("Keep this batch’s data source, source batch ID and record type.");
   }
   const existing = state.records.find(
     (r) =>
@@ -131,7 +134,7 @@ export function saveImportBatch(
   );
   if (existing)
     refuse(
-      "This source batch is already saved. Open it from Import batches to continue.",
+      "This batch is already saved. Open it from Import batches to continue.",
       409,
     );
   const ids = rowIdentities(input);
@@ -141,7 +144,7 @@ export function saveImportBatch(
       JSON.stringify([...ids].sort())
   )
     refuse(
-      "Keep the original source row IDs when correcting this batch. Use a new batch for additional records.",
+      "Keep the original source row IDs when you correct this batch. Use a new batch for new records.",
     );
   // The identity column is metadata. It must not become arbitrary record data.
   const mapping = {
@@ -182,7 +185,7 @@ export function saveImportBatch(
   delete current.data.expectedUpdatedAt;
   current.data.sourceQuality = batchSourceQuality(state, current);
   makeRecord(state, "import-revisions", {
-    name: `Import revision ${revision}`,
+    name: `Import batch version ${revision}`,
     status: "recorded",
     createdAt: ctx.now,
     data: {
@@ -208,7 +211,7 @@ export function commitImportBatch(
   const batch = state.records.find(
     (r) => r.id === id && r.kind === "import-batches",
   );
-  if (!batch) refuse("Import batch not found in this lender.", 404);
+  if (!batch) refuse(notFoundText("import batch"), 404);
   assertRecordVersion(batch, expectedUpdatedAt);
   if (batch.status === "committed") return batch;
   assertSourceOpened(batch, ["csv", "check"]);
@@ -264,22 +267,22 @@ export function coordinateCase(
   input: CaseInput,
   assignees: Array<{ actor: string; name: string; role: string }>,
 ) {
-  writer(ctx, ["Admin", "Operations", "Finance", "Compliance reviewer"]);
+  writer(ctx, ["Admin", "Operations", "Finance", "Compliance reviewer"], "work on cases");
   input = caseInputSchema.parse(input);
   const record = state.records.find(
     (r) => r.id === id && r.kind === "exceptions",
   );
-  if (!record) refuse("Exception not found in this lender.", 404);
+  if (!record) refuse(notFoundText("exception"), 404);
   assertRecordVersion(record, input.expectedUpdatedAt);
   if (["resolved", "closed"].includes(record.status))
     refuse(
-      "This exception is already resolved. Its handover history is retained.",
+      "This exception is already resolved. Its handover history is kept.",
       409,
     );
   const prior = record.data.case || {};
   if (prior.assignee && prior.assignee !== ctx.actor && ctx.role !== "Admin")
     refuse(
-      "This case is assigned to someone else. Ask them or an administrator to hand it over.",
+      "This case is assigned to someone else. Ask them or an Admin to hand it over.",
       409,
     );
   const target =
@@ -289,12 +292,12 @@ export function coordinateCase(
         ? input.assignee
         : prior.assignee;
   if (input.action === "update" && !prior.assignee)
-    refuse("Claim this case before recording its next action.", 409);
+    refuse("Claim this case before you record its next step.", 409);
   const assignee = assignees.find((person) => person.actor === target);
-  if (!assignee) refuse("Choose an active staff member who can work on cases.");
+  if (!assignee) refuse("Choose an active team member who can work on cases.");
   if (Date.parse(input.nextActionAt) <= Date.parse(ctx.now))
     refuse(
-      "Set the next action for a future time. The original exception deadline stays visible.",
+      "Set the next step for a future time. The exception’s original deadline stays visible.",
     );
   const evidence = [...new Set(input.evidenceIds)];
   for (const evidenceId of evidence) {
@@ -320,7 +323,7 @@ export function coordinateCase(
       ].includes(linked.kind)
     )
       refuse(
-        "Every evidence link must reference an eligible record in this lender.",
+        "Link evidence only to this lender’s records.",
       );
     const linkedCustomer = linked.kind === 'customers' ? linked.id : linked.customerId;
     if (record.customerId && linkedCustomer && record.customerId !== linkedCustomer)

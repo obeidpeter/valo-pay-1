@@ -37,7 +37,7 @@ it("keeps preparation notes and the selected snapshot when discarding is cancell
   renderApp(`/close-review?close=${latest.id}`);
   await user.selectOptions(await screen.findByLabelText("Finance reviewer"), "Sandbox Finance");
   await user.type(screen.getByLabelText("Preparation summary"), "These checks still need the provider statement.");
-  await user.type(screen.getByLabelText(/Expected source files have not been declared/), "The source delivery is still being checked.");
+  await user.type(screen.getByLabelText(/Expected files have not been declared/), "The source delivery is still being checked.");
   await user.type(screen.getByLabelText(/Why the unresolved items may remain open/), "Finance will inspect the final statement tomorrow.");
   const olderLink = screen.getByRole("link", { name: /Earlier close/ });
   await user.click(olderLink);
@@ -45,7 +45,7 @@ it("keeps preparation notes and the selected snapshot when discarding is cancell
   expect(window.location.search).toBe(`?close=${latest.id}`);
   expect(screen.getByLabelText("Preparation summary")).toHaveProperty("value", "These checks still need the provider statement.");
   expect(screen.getByLabelText("Finance reviewer")).toHaveProperty("value", "Sandbox Finance");
-  expect(screen.getByLabelText(/Expected source files have not been declared/)).toHaveProperty("value", "The source delivery is still being checked.");
+  expect(screen.getByLabelText(/Expected files have not been declared/)).toHaveProperty("value", "The source delivery is still being checked.");
   expect(screen.getByLabelText(/Why the unresolved items may remain open/)).toHaveProperty("value", "Finance will inspect the final statement tomorrow.");
   confirm.mockReturnValue(true);
   await user.click(olderLink);
@@ -165,7 +165,7 @@ it("shows evidence-led journey states instead of treating a payment or close as 
   expect(screen.getByText(/Records changed after this close/)).toBeTruthy();
   const exceptions = screen.getByRole("link", { name: /Resolve exceptions/ });
   expect(within(exceptions).getByText(/Not started/)).toBeTruthy();
-  expect(screen.getByText(/Real staff access is not enabled/)).toBeTruthy();
+  expect(screen.getByText(/Staff sign-in is not switched on/)).toBeTruthy();
 });
 
 it("prepares an exact close snapshot and prevents approving it by switching demo roles", async () => {
@@ -174,7 +174,7 @@ it("prepares an exact close snapshot and prevents approving it by switching demo
   renderApp("/close-review");
   await user.selectOptions(await screen.findByLabelText("Finance reviewer"), "Sandbox Finance");
   await user.type(screen.getByLabelText("Preparation summary"), "Checked the source records and synthetic zero-activity close.");
-  await user.type(screen.getByLabelText(/Expected source files have not been declared/),"This synthetic rehearsal has no external delivery set yet.");
+  await user.type(screen.getByLabelText(/Expected files have not been declared/),"This synthetic rehearsal has no external delivery set yet.");
   await user.type(screen.getByLabelText(/Why the unresolved items may remain open/),"Finance must confirm the limited synthetic source scope.");
   await user.click(screen.getByRole("button", { name: "Submit for Finance review" }));
   await screen.findByText(/Waiting for the named Finance reviewer/);
@@ -195,7 +195,7 @@ it("requires an independent reviewer acknowledgement and preserves the recorded 
   emptyClose(); const user = userEvent.setup(); renderApp("/close-review");
   await user.selectOptions(await screen.findByLabelText("Finance reviewer"), "Sandbox Finance");
   await user.type(screen.getByLabelText("Preparation summary"), "Checked the complete synthetic closing report.");
-  await user.type(screen.getByLabelText(/Expected source files have not been declared/),"This synthetic rehearsal has no external delivery set yet.");
+  await user.type(screen.getByLabelText(/Expected files have not been declared/),"This synthetic rehearsal has no external delivery set yet.");
   await user.type(screen.getByLabelText(/Why the unresolved items may remain open/),"Finance must confirm the limited synthetic source scope.");
   await user.click(screen.getByRole("button", { name: "Submit for Finance review" }));
   await screen.findByText(/Waiting for the named Finance reviewer/);
@@ -248,7 +248,7 @@ it("shows recorded amounts and supporting links without presenting technical JSO
 
 it("does not show another lender's directly requested close", async () => {
   emptyClose(); renderApp("/close-review?close=other-lender-record");
-  await screen.findByText("Close not found in this lender.");
+  await screen.findByText("Daily close not found. It may have been deleted, or it belongs to another lender.");
   expect(screen.queryByRole("region", { name: "Recorded close statement" })).toBeNull();
 });
 

@@ -128,7 +128,7 @@ for (const record of beforeProviderIdentity) if (record.kind === "settlement-bat
   assert.equal(record.data.providerIdentityKey, JSON.stringify([String(record.data.providerConnection).trim().toLowerCase(), record.reference]));
   delete record.data.providerIdentityKey;
 }
-assert.equal(digest([state.merchant, state.settings, beforeProviderIdentity.sort(byId)]), "15202fa7d9d7cf1a30090f96c67ee6d46073bfda338356e7c420ddd27668b22b", "only the new provider identity changes the earlier golden records (reworded as the language pass below says)");
+assert.equal(digest([state.merchant, state.settings, beforeProviderIdentity.sort(byId)]), "38ea938b448a236bb1204e742d50320f8de4d80b0ab5dc04d4a65be7ec1b0dbd", "only the new provider identity changes the earlier golden records (reworded as the language pass below says)");
 if (process.env.VALOPAY_GOLDEN_PRINT === "1") console.log(JSON.stringify({ outcome, records, visits: [first.visits, second.visits] }, null, 2));
 /**
  * Computed for this scenario by the code before its lookups were indexed: first at c22c229, then again by the dispute
@@ -141,11 +141,12 @@ if (process.env.VALOPAY_GOLDEN_PRINT === "1") console.log(JSON.stringify({ outco
  * the owner of a failure code to classify ("Valo Pay team"), money in notes ("₦10,000.00"), a daily close's name and
  * summary ("Daily close 1 Jul 2027", "payment evidence records received", "older than 24 hours"), and the names,
  * explanations, notes, reasons and cancellation reasons reconciliation and the retry rules write ("Payment PSK-1",
- * "Allocation of PSK-1 to DEMO-1", "Retry decision · retry postponed (notice not confirmed)"), checked field by field
+ * "Allocation of PSK-1 to DEMO-1", "Retry decision · retry postponed (notice not confirmed)"), and the details of the
+ * measurements a close records ("1,016 of 1,089 payments are allocated in full or in part"), checked field by field
  * against the records the earlier code wrote; the close answers' data are unchanged.
  */
 const golden = {
-  records: "e47e55ca9a940b81527ab757bac685ffaaa8ae0329a8c878a4cec6cea2f97b60",
+  records: "b344e492f5d9f761f0406c3ee4fcf50346d347bb3377568a6a9622950ab6f4a8",
   monthEnd: "dff97eb6d50336fb650cf48652975f842fd2b85f14df835eb535a7dbb4a35a7d",
   nextDay: "1a88e829ce6bd3940c6a5248e5bbdfddc0a7786480202fc138aca0a834c4a798",
 };

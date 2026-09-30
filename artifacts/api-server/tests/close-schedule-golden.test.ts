@@ -44,7 +44,7 @@ let checks = 0;
   {
     const overview = S.GetOverviewResponse.parse(buildConsoleOverview(state, now, audit, { ...runtime, state: 'external' }));
     assert.deepEqual([overview.closeSchedule?.runtimeState, overview.closeSchedule?.serviceIssue, overview.closeSchedule?.missed, overview.closeSchedule?.overdueMinutes], ['external', null, true, 60]);
-    assert.match(overview.alerts.find((alert) => alert.key === 'close_missed')?.detail ?? '', /Business date still to close: 2027-06-27\./, 'the missed-close alert names the date owed');
+    assert.match(overview.alerts.find((alert) => alert.key === 'close_missed')?.detail ?? '', /Business date still to close: 27 Jun 2027\./, 'the missed-close alert names the date owed');
     assert.equal((S.GetReportsResponse.parse(buildConsoleReports(state, now, { ...runtime, state: 'external' })).operational.closeSchedule as any).missed, true);
     assert.equal(S.GetSettingsResponse.parse(buildConsoleSettings(state, 'Admin', now, { ...runtime, state: 'external' })).closeSchedule?.missed, true);
     const off = S.GetOverviewResponse.parse(buildConsoleOverview(state, now, audit, { ...runtime, state: 'off' }));
@@ -172,7 +172,7 @@ const quietDeadlines = (state: ReturnType<typeof seedMerchant>) => { for (const 
   assert.deepEqual(owedCloseDates(state, back), { dates: ["2027-06-27", "2027-06-28", "2027-06-29", "2027-06-30"], total: 4 }, "the closes of 28, 29 and 30 June and 1 July are owed");
   const missed = buildAlerts(state, back).find((alert) => alert.key === "close_missed")!;
   assert.equal(missed.count, 4);
-  assert.match(missed.detail, /Business dates still to close: 2027-06-27, 2027-06-28, 2027-06-29 and 2027-06-30\./, "the alert names the dates still owed");
+  assert.match(missed.detail, /Business dates still to close: 27 Jun 2027, 28 Jun 2027, 29 Jun 2027 and 30 Jun 2027\./, "the alert names the dates still owed");
   const closes = [0, 1, 2, 3].map((minute) => {
     const at = new Date(Date.parse(back) + minute * 60_000).toISOString();
     assert.equal(scheduledCloseDue(state, at), true, "still due until every owed date is closed");
@@ -244,7 +244,7 @@ const quietDeadlines = (state: ReturnType<typeof seedMerchant>) => { for (const 
   assert.deepEqual(keys(wat("2027-06-28T07:30:00")), ["close_overdue"], "30 minutes past its time is not yet missed");
   assert.deepEqual(keys(wat("2027-06-28T07:31:00")), ["close_missed", "close_overdue"], "31 minutes past: missed, high before medium");
   const alert = buildAlerts(state, wat("2027-06-28T09:00:00")).find((item) => item.key === "close_missed")!;
-  assert.equal(alert.severity, "high"); assert.equal(alert.since, wat("2027-06-28T07:00:00")); assert.match(alert.detail, /07:00 WAT is 120 minutes late/);
+  assert.equal(alert.severity, "high"); assert.equal(alert.since, wat("2027-06-28T07:00:00")); assert.match(alert.detail, /07:00 WAT is 2 hours late/);
   checks += 5;
   state.settings.scheduledCloseEnabled = false;
   assert.deepEqual(keys(wat("2027-06-28T09:00:00")), ["close_overdue"], "no missed-close alert when the automatic close is off");

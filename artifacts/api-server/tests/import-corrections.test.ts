@@ -183,7 +183,7 @@ assert.throws(
 );
 assert.throws(
   () => decideImportCorrection(s, ctx, proposal.id, decision, reviewers),
-  /named active Finance/,
+  /Only the named Finance reviewer can decide this correction\./,
 );
 const snapshot = structuredClone(s);
 const approved = decideImportCorrection(
@@ -205,7 +205,7 @@ assert.doesNotThrow(() =>
 );
 assert.throws(
   () => assertNoDirectImportedCorrection(originalTarget, target),
-  /independent Finance/,
+  /propose a correction for a Finance team member to review/,
 );
 for (const patch of [
   { reference: "CHANGED-SOURCE" },
@@ -242,11 +242,11 @@ assert.throws(
       snapshot,
       forged,
     ),
-  /independently approved/,
+  /through an import correction that a different person approves/,
 );
 assert.throws(
   () => assertImportedCorrectionChange(originalTarget, target, s, s),
-  /independently approved/,
+  /through an import correction that a different person approves/,
 );
 assert.throws(
   () =>
@@ -255,7 +255,7 @@ assert.throws(
       ctx,
       input,
     ),
-  /committed import batch/,
+  /Import batch not found\. It may have been deleted, or it belongs to another lender\./,
 );
 
 const financial = fresh();
@@ -343,7 +343,7 @@ assert.throws(
       dueSnapshot,
       financial,
     ),
-  /dependencies changed/,
+  /Records this correction depends on have changed/,
 );
 const blocked = previewImportCorrection(financial, ctx, {
   ...dueInput,
@@ -351,7 +351,7 @@ const blocked = previewImportCorrection(financial, ctx, {
   changes: { amountKobo: 3500000 },
 });
 assert.ok(
-  blocked.blockers.some((b) => /payment or collection history/.test(b)),
+  blocked.blockers.some((b) => /has payments or collection attempts/.test(b)),
 );
 assert.ok(blocked.affected.some((r) => r.kind === "payments"));
 
@@ -369,7 +369,7 @@ assert.throws(
       dueDecision,
       reviewers,
     ),
-  /evidence changed/,
+  /the evidence it affects, changed/,
 );
 assert.equal(
   listImportCorrections(stale, ctx, instalment.batch.id).proposals[0]?.current,
@@ -384,7 +384,7 @@ assert.throws(
       { ...dueDecision, action: "withdraw" },
       reviewers,
     ),
-  /Only the proposer/,
+  /Only the person who proposed this correction can withdraw it\./,
 );
 assert.equal(
   decideImportCorrection(
@@ -490,7 +490,7 @@ assert.equal(
         },
         reviewers,
       ),
-    /prepare a fresh comparison/,
+    /Reject this proposal and propose the correction again\./,
   );
 }
 {
@@ -506,10 +506,10 @@ assert.equal(
   assert.match(unavailable.items[0]!.escalationReason!, /no longer available/);
   assert.ok(unavailable.items[0]!.href.includes(`batch=${batch.id}&correction=${proposal.id}`));
   assert.equal(derivePersonalWork(state, replacement, people).total, 0, 'new reviewer cannot see another person’s assignment in their own queue');
-  assert.throws(() => reassignImportCorrection(state, ctx, proposal.id, request, people), /Only an administrator/);
-  assert.throws(() => reassignImportCorrection(state, admin, proposal.id, { ...request, reviewer: ctx.actor }, [...people, { actor: ctx.actor, role: 'Finance' }]), /independent of the proposer/);
+  assert.throws(() => reassignImportCorrection(state, ctx, proposal.id, request, people), /Only an Admin can reassign an import correction\./);
+  assert.throws(() => reassignImportCorrection(state, admin, proposal.id, { ...request, reviewer: ctx.actor }, [...people, { actor: ctx.actor, role: 'Finance' }]), /who did not propose it\./);
   assert.throws(() => reassignImportCorrection(state, admin, proposal.id, request, []), /active Finance/);
-  assert.throws(() => reassignImportCorrection({ ...state, merchant: { ...state.merchant, id: 'other-lender' } }, admin, proposal.id, request, people), /not found in this lender/);
+  assert.throws(() => reassignImportCorrection({ ...state, merchant: { ...state.merchant, id: 'other-lender' } }, admin, proposal.id, request, people), /Import correction not found\. It may have been deleted, or it belongs to another lender\./);
   const recovered = reassignImportCorrection(state, admin, proposal.id, request, people);
   assert.equal(recovered.status, 'awaiting_review', 'assignment is not a decision');
   assert.equal(recovered.reviewer, replacement.actor);
@@ -518,9 +518,9 @@ assert.equal(
   assert.equal(recovered.assignmentHistory[0]?.reason, request.reason);
   assert.deepEqual(state.records.find(r => r.id === proposal.id), originalProposal, 'original proposal and its digest remain immutable');
   assert.deepEqual(state.records.find(r => r.id === target.id), originalTarget, 'assignment never changes imported values');
-  assert.throws(() => reassignImportCorrection(state, admin, proposal.id, request, people), /assignment changed/);
+  assert.throws(() => reassignImportCorrection(state, admin, proposal.id, request, people), /This correction or its reviewer changed after you opened it/);
   assert.throws(() => decideImportCorrection(state, replacement, proposal.id, decision, people), /reassigned/);
-  assert.throws(() => decideImportCorrection(state, finance, proposal.id, { ...decision, assignmentEventId: recovered.assignmentEventId }, reviewers), /named active Finance/);
+  assert.throws(() => decideImportCorrection(state, finance, proposal.id, { ...decision, assignmentEventId: recovered.assignmentEventId }, reviewers), /Only the named Finance reviewer can decide this correction\./);
   assert.throws(() => decideImportCorrection(state, { ...replacement, principalId: ctx.principalId }, proposal.id, { ...decision, assignmentEventId: recovered.assignmentEventId }, people), /different person/);
   const queue = derivePersonalWork(state, replacement, people, { filter: 'review' });
   assert.equal(queue.items.length, 1);
@@ -530,7 +530,7 @@ assert.equal(
   recordWorkReceipt(state, replacement, people, 'read', receipt);
   assert.equal(derivePersonalWork(state, replacement, people).items[0]?.readAt, replacement.now);
   assert.equal(listImportCorrections(state, replacement, batch.id).proposals[0]?.status, 'awaiting_review', 'marking read never decides the correction');
-  assert.throws(() => recordWorkReceipt(state, finance, [...people, { ...finance, name: 'Former reviewer' }], 'read', receipt), /currently assigned/);
+  assert.throws(() => recordWorkReceipt(state, finance, [...people, { ...finance, name: 'Former reviewer' }], 'read', receipt), /Only the team member this work is assigned to/);
   const before = structuredClone(state);
   const applied = decideImportCorrection(state, replacement, proposal.id, { ...decision, assignmentEventId: recovered.assignmentEventId }, people);
   assert.equal(applied.status, 'approved');
@@ -547,7 +547,7 @@ assert.equal(
   assert.equal(second.assignmentHistory.length, 2, 'same-timestamp reassignments follow explicit versions, not an arbitrary sort');
   assert.throws(() => decideImportCorrection(state, finance, proposal.id, decision, reviewers), /reassigned/, 'old browser cannot approve even after assignment returns to the same person');
   state.records.find(r => r.id === target.id)!.name = 'Changed upstream record';
-  assert.throws(() => decideImportCorrection(state, finance, proposal.id, { ...decision, assignmentEventId: second.assignmentEventId }, reviewers), /evidence changed/);
+  assert.throws(() => decideImportCorrection(state, finance, proposal.id, { ...decision, assignmentEventId: second.assignmentEventId }, reviewers), /the evidence it affects, changed/);
   assert.equal(decideImportCorrection(state, finance, proposal.id, { ...decision, action: 'reject', assignmentEventId: second.assignmentEventId }, reviewers).status, 'rejected', 'new reviewer can close stale work without applying it');
 }
 {
@@ -660,7 +660,7 @@ assert.equal(
     const lender = structuredClone(state);
     change(lender);
     assert.equal(listImportCorrections(lender, finance, batch.id).proposals[0]?.current, false, `an earlier close review ${label} after the proposal makes it stale`);
-    assert.throws(() => decideImportCorrection(lender, finance, proposal.id, approve, reviewers), (error: any) => error.status === 409 && /evidence changed/.test(error.message), `and its approval is refused once that review is ${label}`);
+    assert.throws(() => decideImportCorrection(lender, finance, proposal.id, approve, reviewers), (error: any) => error.status === 409 && /the evidence it affects, changed/.test(error.message), `and its approval is refused once that review is ${label}`);
   }
 }
 {
@@ -678,13 +678,13 @@ assert.equal(
   const own = derivePersonalWork(state, finance, people);
   const healthyItem = own.items.find((item) => item.sourceId === healthy.id)!, forkedItem = own.items.find((item) => item.sourceId === forked.id)!;
   assert.equal(healthyItem.notice, null, "the other correction is listed as before");
-  assert.match(forkedItem.notice!, /inconsistent assignment history/, "the forked one is listed with what is wrong");
+  assert.match(forkedItem.notice!, /assignment history is inconsistent/, "the forked one is listed with what is wrong");
   assert.equal(derivePersonalWork(state, admin, people, { scope: "team" }).items.find((item) => item.sourceId === forked.id)?.escalated, true, "and escalated to the administrator");
   const read = (item: typeof healthyItem) => recordWorkReceipt(state, finance, people, "read", { sourceId: item.sourceId, eventId: item.eventId, expectedUpdatedAt: item.sourceVersion, expectedDigest: item.sourceDigest });
   assert.equal(read(healthyItem).sourceId, healthy.id, "Mark as read works for the rest of the lender");
   assert.deepEqual(listImportCorrections(state, finance, batch.id).proposals.map((proposal) => proposal.id).sort(), [forked.id, healthy.id].sort(), "the batch's list still answers");
-  assert.throws(() => decideImportCorrection(state, finance, forked.id, { proposalDigest: forked.proposalDigest, action: "reject", reason: "Synthetic decision on bad history" }, reviewers), /inconsistent assignment history/, "a decision on the forked proposal still fails closed");
-  assert.throws(() => reassignImportCorrection(state, admin, forked.id, { proposalDigest: forked.proposalDigest, expectedAssignmentEventId: null, reviewer: "Clerk:another", reason: "Synthetic recovery on bad history" }, [{ actor: "Clerk:another", role: "Finance" }]), /inconsistent assignment history/);
+  assert.throws(() => decideImportCorrection(state, finance, forked.id, { proposalDigest: forked.proposalDigest, action: "reject", reason: "Synthetic decision on bad history" }, reviewers), /assignment history is inconsistent/, "a decision on the forked proposal still fails closed");
+  assert.throws(() => reassignImportCorrection(state, admin, forked.id, { proposalDigest: forked.proposalDigest, expectedAssignmentEventId: null, reviewer: "Clerk:another", reason: "Synthetic recovery on bad history" }, [{ actor: "Clerk:another", role: "Finance" }]), /assignment history is inconsistent/);
 }
 {
   // Review of PR #71: reassignment compared the new reviewer, an actor, with `Clerk:<the proposer's principal>`; a
@@ -697,7 +697,7 @@ assert.equal(
   const proposal = proposeImportCorrection(state, ctx, { ...input, previewDigest: previewImportCorrection(state, ctx, input).previewDigest, reviewer: finance.actor, reason: "Correct the misspelled source name", evidence: "SYNTHETIC-ASSIGN-EVIDENCE" }, reviewers);
   const request = { proposalDigest: proposal.proposalDigest, expectedAssignmentEventId: null, reason: "The named reviewer is away this week." };
   const demo = { actor: "Sandbox Finance", role: "Finance" };
-  assert.throws(() => reassignImportCorrection(state, admin, proposal.id, { ...request, reviewer: demo.actor }, [demo]), (error: any) => error.status === 403 && /Demo roles cannot provide independent review/.test(error.message));
+  assert.throws(() => reassignImportCorrection(state, admin, proposal.id, { ...request, reviewer: demo.actor }, [demo]), (error: any) => error.status === 403 && /Switching demo roles is not a second person\./.test(error.message));
   const colleague = { actor: `Clerk:${ctx.principalId}`, role: "Finance" };
   assert.equal(reassignImportCorrection(state, admin, proposal.id, { ...request, reviewer: colleague.actor }, [colleague]).reviewer, colleague.actor, "a colleague is judged by their own actor");
 }

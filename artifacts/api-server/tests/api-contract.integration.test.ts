@@ -613,7 +613,7 @@ try {
     ok(await staffAct("finance", "confirm_discount_terms", corrected, terms.id));
     const differences = (await billing()).rateDiscrepancies.map((line: any) => [line.invoiceId, line.period, line.chargedRate, line.agreedRate]);
     assert.deepEqual(differences, [[firstInvoice.id, first, 0.5, 0], [secondInvoice.id, second, 0, 0.5]], "each issued month the confirmed agreement prices differently is reported");
-    assert.match((await billing()).rateDiscrepancyGuidance, /Valo Pay has no way to correct an issued invoice's discount/);
+    assert.match((await billing()).rateDiscrepancyGuidance, /Valo Pay cannot correct an issued invoice’s discount/);
     const thirdInvoice = ok(await staffAct("finance", "issue_invoice", { period: third })).record;
     assert.equal(thirdInvoice.data.designPartnerDiscount.rate, 0.5, "new invoices are priced from the confirmed dates");
     assert.equal((await billing()).rateDiscrepancies.length, 2, "the new invoice agrees with the agreement");

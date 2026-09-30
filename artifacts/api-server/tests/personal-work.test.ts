@@ -113,7 +113,7 @@ function asLoaded(state: DomainState): DomainState {
   delete record.data.case.handoverEventId; delete record.data.case.eventId;
   makeRecord(legacy, 'case-events', { ...event, id: 'second-same-instant', data: structuredClone(event.data) });
   const ambiguous = personalWorkItems(legacy, ctx, people)[0]!;
-  check(!ambiguous.canAcknowledge && !!ambiguous.notice?.includes('ambiguous'), 'ambiguous same-time legacy assignment does not guess acknowledgement ownership');
+  check(!ambiguous.canAcknowledge && !!ambiguous.notice?.includes('history is unclear'), 'ambiguous same-time legacy assignment does not guess acknowledgement ownership');
   refuses(() => recordWorkReceipt(legacy, ctx, people, 'acknowledge', request(ambiguous)), 409);
 }
 {

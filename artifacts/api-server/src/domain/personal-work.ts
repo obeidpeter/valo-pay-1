@@ -1,4 +1,5 @@
-import { personalWorkQuerySchema, personalWorkViewSchema, workReceiptInputSchema, workReceiptSchema, type PersonalWorkItem, type PersonalWorkQuery, type WorkReceiptInput } from '@workspace/valopay-schema';
+import { changedText, notFoundText, personalWorkQuerySchema, personalWorkViewSchema, workReceiptInputSchema, workReceiptSchema, type PersonalWorkItem, type PersonalWorkQuery, type WorkReceiptInput } from '@workspace/valopay-schema';
+import { roleRefusal } from './validation';
 import type { Context, DomainState, ValopayRecord } from './types';
 import { makeRecord } from './records';
 import { closeReviewBasisOnce, reviewIsCurrent } from './close-review';
@@ -9,7 +10,7 @@ import { followImportCorrectionAssignment, importCorrectionView, inconsistentAss
 export type WorkAssignee = { actor: string; name: string; role: string };
 const workRoles = ['Admin', 'Operations', 'Finance', 'Compliance reviewer'];
 const DAY = 24 * 60 * 60 * 1000;
-const rule = 'Follow-ups are overdue at their saved due time. Follow-ups, unacknowledged handovers and pending reviews are escalated in this lender’s administrator workload after 24 hours. Escalation is an in-app flag; it does not send a message or change financial records.';
+const rule = 'Follow-ups are overdue at their saved due time. Follow-ups, handovers not yet acknowledged and reviews still waiting are escalated to this lender’s Admins after 24 hours. Escalation only flags the item in Valo Pay: it does not send a message or change financial records.';
 function refuse(message: string, status = 409): never { throw Object.assign(new Error(message), { status }); }
 // A receipt stores the source digest it acknowledged and a repeated receipt is found by it: its first form.
 function digest(value: unknown): string { return canonicalDigest(value, 'legacy-en-us-replacer'); }
@@ -57,11 +58,11 @@ export function personalWorkItems(state: DomainState, ctx: Context, people: Work
       const eventId = `case:${record.id}:${sourceEvent}:${handover ? 'handover' : 'followup'}:${phase}`;
       result.push({ id: `case:${record.id}`, eventId, sourceId: record.id, sourceVersion: record.updatedAt,
         sourceDigest: digest({ merchantId: state.merchant.id, id: record.id, updatedAt: record.updatedAt, status: record.status, assignment, assignmentEventId: event?.id || null }),
-        type: handover ? 'handover' : 'case', title: record.name || 'Assigned case', nextAction: String(assignment.nextAction || 'Open the case and record the next action.'), assignee: assignment.assignee, assigneeName: name(assignment.assignee, assignment.assigneeName), dueAt, overdue, escalated,
-        escalationReason: handoverLate ? 'Handover has waited at least 24 hours for acknowledgement.' : followupLate ? 'The saved follow-up is at least 24 hours overdue.' : null,
+        type: handover ? 'handover' : 'case', title: record.name || 'Assigned case', nextAction: String(assignment.nextAction || 'Open the case and record the next step.'), assignee: assignment.assignee, assigneeName: name(assignment.assignee, assignment.assigneeName), dueAt, overdue, escalated,
+        escalationReason: handoverLate ? 'This handover has waited at least 24 hours to be acknowledged.' : followupLate ? 'The saved follow-up is at least 24 hours overdue.' : null,
         reviewCurrent: null, href: `/cases/${encodeURIComponent(record.id)}`, readAt: events.find(saved => saved.data.action === 'read' && saved.data.eventId === eventId && saved.data.actor === assignment.assignee)?.createdAt || null,
         canAcknowledge: Boolean(handover && assignment.assignee === ctx.actor && eligible(ctx, people)), assignmentEventId: event?.id || null,
-        notice: ambiguous ? 'This older assignment has ambiguous history. Ask the case owner or administrator to record a fresh handover before acknowledging it.' : !people.some(person => person.actor === assignment.assignee) ? 'The assigned staff member is no longer available. An administrator should arrange a handover.' : null,
+        notice: ambiguous ? 'This older assignment’s history is unclear. Ask the case owner or an Admin to record a new handover before you acknowledge it.' : !people.some(person => person.actor === assignment.assignee) ? 'The team member it is assigned to is no longer available. An Admin should arrange a handover.' : null,
       });
     }
     if (record.kind === 'close-reviews' && record.status === 'awaiting_review' && typeof record.data.reviewer === 'string' && record.data.reviewer) {
@@ -71,7 +72,7 @@ export function personalWorkItems(state: DomainState, ctx: Context, people: Work
       const samePerson = record.data.reviewer === ctx.actor && (record.data.preparedBy === ctx.actor || record.data.preparedPrincipal === principal);
       const escalated = now - Date.parse(dueAt) >= DAY;
       const eventId = `review:${record.id}:${record.updatedAt}:${current ? 'current' : 'stale'}:${escalated ? 'escalated' : 'pending'}`;
-      result.push({ id: `review:${record.id}`, eventId, sourceId: record.id, sourceVersion: record.updatedAt, sourceDigest: digest({ merchantId: state.merchant.id, id: record.id, updatedAt: record.updatedAt, status: record.status, data: record.data, current }), type: 'review', title: 'Daily close awaiting review', nextAction: samePerson ? 'A different person must review this close. Open the review to inspect its assignment.' : current ? 'Open the close, inspect the evidence and record your decision.' : 'The close evidence has changed. Open the review to see what must be prepared again.', assignee: record.data.reviewer, assigneeName: name(record.data.reviewer), dueAt: null, overdue: false, escalated, escalationReason: escalated ? 'This review has waited at least 24 hours for a decision.' : null, reviewCurrent: current, href: `/close-review?close=${encodeURIComponent(String(record.data.closeId))}`, readAt: events.find(saved => saved.data.action === 'read' && saved.data.eventId === eventId && saved.data.actor === record.data.reviewer)?.createdAt || null, canAcknowledge: false, assignmentEventId: null, notice: samePerson ? 'Changing demo roles is not independent review. The preparer cannot approve their own work.' : current ? null : 'A fresh close and review are required; this reminder does not approve the old evidence.' });
+      result.push({ id: `review:${record.id}`, eventId, sourceId: record.id, sourceVersion: record.updatedAt, sourceDigest: digest({ merchantId: state.merchant.id, id: record.id, updatedAt: record.updatedAt, status: record.status, data: record.data, current }), type: 'review', title: 'Daily close waiting for review', nextAction: samePerson ? 'A different person must review this close. Open the review to see who it is assigned to.' : current ? 'Open the close, check the evidence and record your decision.' : 'The close’s records have changed. Open the review to see what must be prepared again.', assignee: record.data.reviewer, assigneeName: name(record.data.reviewer), dueAt: null, overdue: false, escalated, escalationReason: escalated ? 'This review has waited at least 24 hours for a decision.' : null, reviewCurrent: current, href: `/close-review?close=${encodeURIComponent(String(record.data.closeId))}`, readAt: events.find(saved => saved.data.action === 'read' && saved.data.eventId === eventId && saved.data.actor === record.data.reviewer)?.createdAt || null, canAcknowledge: false, assignmentEventId: null, notice: samePerson ? 'A different person must review this close. Switching demo roles is not a second person.' : current ? null : 'A new daily close and review are needed. This reminder does not approve the earlier close.' });
     }
     if (record.kind === 'import-corrections' && !decided.has(record.id)) {
       // Its assignment is followed once. History that only bad data forks is this item's notice, not the queue's failure.
@@ -84,13 +85,13 @@ export function personalWorkItems(state: DomainState, ctx: Context, people: Work
       const eventId = `correction:${record.id}:${assignment.eventId || 'original'}:${current ? 'current' : 'stale'}:${escalated ? 'escalated' : 'pending'}`;
       result.push({ id: `correction:${record.id}`, eventId, sourceId: record.id, sourceVersion: assignment.updatedAt,
         sourceDigest: digest({ merchantId: state.merchant.id, id: record.id, proposalDigest: proposal.proposalDigest, assignment, current, unavailable, ...(consistent ? {} : { consistent }) }),
-        type: 'correction', title: 'Import correction awaiting review', nextAction: `${targetLabel}. ${!consistent ? 'Ask an administrator to investigate its recorded reviewer assignments.' : unavailable ? 'Ask an administrator to assign an active independent Finance reviewer.' : samePerson ? 'A different person must review this correction.' : current ? 'Compare the imported value with the proposed correction and its evidence, then record your decision.' : 'The source or related evidence changed. Reject or withdraw this proposal, then prepare a fresh comparison.'}`,
+        type: 'correction', title: 'Import correction waiting for review', nextAction: `${targetLabel}. ${!consistent ? 'Ask an Admin to check who it is assigned to.' : unavailable ? 'Ask an Admin to assign a Finance team member who did not propose it.' : samePerson ? 'A different person must review this correction.' : current ? 'Compare the imported value with the proposed correction and its evidence, then record your decision.' : 'The import or related evidence changed. Reject or withdraw this proposal, then propose the correction again.'}`,
         assignee: assignment.reviewer, assigneeName: name(assignment.reviewer), waitingSince: record.createdAt, dueAt: null, overdue: false, escalated,
-        escalationReason: !consistent ? 'The recorded reviewer assignments for this correction disagree.' : unavailable ? 'The assigned Finance reviewer is no longer available in this lender.' : escalated ? 'This correction has waited at least 24 hours for a decision.' : null,
+        escalationReason: !consistent ? 'The saved reviewer assignments for this correction disagree.' : unavailable ? 'The Finance reviewer it is assigned to is no longer available for this lender.' : escalated ? 'This correction has waited at least 24 hours for a decision.' : null,
         reviewCurrent: current, href: `/imports?batch=${encodeURIComponent(proposal.preview.batchId)}&correction=${encodeURIComponent(record.id)}`,
         readAt: events.find(saved => saved.data.action === 'read' && saved.data.eventId === eventId && saved.data.actor === assignment.reviewer)?.createdAt || null,
         canAcknowledge: false, assignmentEventId: assignment.eventId,
-        notice: !consistent ? inconsistentAssignment : samePerson ? 'Changing demo roles is not independent review. The proposer cannot approve their own correction.' : proposal.preview.financial ? 'This pending instalment correction blocks Finance preparation, approval and evidence export for the daily close.' : null,
+        notice: !consistent ? inconsistentAssignment : samePerson ? 'A different person must review this correction. Switching demo roles is not a second person.' : proposal.preview.financial ? 'Until this instalment correction is decided, the daily close cannot be prepared, approved or exported.' : null,
       });
     }
   }
@@ -99,8 +100,8 @@ export function personalWorkItems(state: DomainState, ctx: Context, people: Work
 
 export function derivePersonalWork(state: DomainState, ctx: Context, people: WorkAssignee[], input: Partial<PersonalWorkQuery> = {}) {
   const q = personalWorkQuerySchema.parse({ merchantId: state.merchant.id, ...input });
-  if (q.merchantId !== state.merchant.id) refuse('This work queue belongs to another lender.', 403);
-  if (q.scope === 'team' && ctx.role !== 'Admin') refuse('Only an administrator can view this lender’s team workload.', 403);
+  if (q.merchantId !== state.merchant.id) refuse('This work belongs to another lender. Switch to that lender to see it.', 403);
+  if (q.scope === 'team' && ctx.role !== 'Admin') refuse(roleRefusal(ctx, ['Admin'], 'view this lender’s team workload'), 403);
   const canWork = eligible(ctx, people);
   const all = personalWorkItems(state, ctx, people).filter(item => q.scope === 'team' || item.assignee === ctx.actor);
   const counts = { all: all.length, overdue: all.filter(item => item.overdue).length, handover: all.filter(item => item.type === 'handover').length, review: all.filter(item => ['review', 'correction'].includes(item.type)).length, unread: all.filter(item => !item.readAt).length, escalated: all.filter(item => item.escalated).length };
@@ -116,18 +117,18 @@ export function derivePersonalWork(state: DomainState, ctx: Context, people: Wor
 /** Append a recipient-owned read/ack receipt. No case, allocation, review decision or financial status is changed. */
 export function recordWorkReceipt(state: DomainState, ctx: Context, people: WorkAssignee[], action: 'read' | 'acknowledge', raw: WorkReceiptInput) {
   const input = workReceiptInputSchema.parse(raw);
-  if (!eligible(ctx, people)) refuse('Your current staff role cannot acknowledge work. Ask an administrator to check your access.', 403);
+  if (!eligible(ctx, people)) refuse('Your role cannot acknowledge work. Ask an Admin to check your access.', 403);
   const source = localRecords(state).find(record => record.id === input.sourceId);
-  if (!source) refuse('This work item was not found in the selected lender.', 404);
+  if (!source) refuse(notFoundText('work item'), 404);
   const intended = source.kind === 'exceptions' ? source.data.case?.assignee : source.kind === 'close-reviews' ? source.data.reviewer : source.kind === 'import-corrections' ? followImportCorrectionAssignment(state, source).reviewer : undefined;
-  if (intended !== ctx.actor) refuse('Only the currently assigned staff member can acknowledge or mark this work as read.', 403);
+  if (intended !== ctx.actor) refuse('Only the team member this work is assigned to can acknowledge it or mark it as read.', 403);
   // A source has one item: only it is derived, once, so a receipt compares nothing else under the lender's write lock.
   const item = personalWorkItems(state, ctx, people, source.id)[0];
-  if (!item || item.sourceVersion !== input.expectedUpdatedAt || item.sourceDigest !== input.expectedDigest) refuse('This work item changed. Refresh My work and review the current assignment before continuing.');
+  if (!item || item.sourceVersion !== input.expectedUpdatedAt || item.sourceDigest !== input.expectedDigest) refuse(changedText('work item'));
   const prior = localRecords(state).find(record => record.kind === 'work-events' && record.data.action === action && record.data.sourceId === input.sourceId && record.data.eventId === input.eventId && record.data.actor === ctx.actor && record.data.sourceDigest === input.expectedDigest);
   if (prior) return receiptView(prior, true);
-  if (item.eventId !== input.eventId) refuse('This work item changed. Refresh My work and review the current assignment before continuing.');
-  if (action === 'acknowledge' && (!item.canAcknowledge || !item.assignmentEventId)) refuse('There is no current handover for you to acknowledge. Open the case to review its assignment.');
+  if (item.eventId !== input.eventId) refuse(changedText('work item'));
+  if (action === 'acknowledge' && (!item.canAcknowledge || !item.assignmentEventId)) refuse('There is no current handover for you to acknowledge. Open the case to see who it is assigned to.');
   const record = makeRecord(state, 'work-events', { name: action === 'read' ? 'Work notification read' : 'Handover acknowledged', status: 'recorded', createdAt: ctx.now, updatedAt: ctx.now, data: { action, sourceId: item.sourceId, eventId: item.eventId, assignmentEventId: item.assignmentEventId, sourceVersion: item.sourceVersion, sourceDigest: item.sourceDigest, actor: ctx.actor, summary: item.title, href: item.href, synthetic: true } });
   return receiptView(record, false);
 }

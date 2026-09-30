@@ -14,8 +14,8 @@ import { seedMerchant } from "../src/lib/valopay-seed.js";
 
 let checks = 0;
 // The audit_chain_broken detail for entry 4: once the lender has recorded the break, and while only a check has found it.
-const keptBreak = "The check stopped at entry 4: it is missing, or its order or verification hash does not match. Ask an administrator to investigate. The lender has recorded this break, so the alert stays until a check of the whole audit log finds every entry intact: Check audit log, on the Audit log page, or the daily check after the lender's daily close.";
-const foundBreak = "The check stopped at entry 4: it is missing, or its order or verification hash does not match. Ask an administrator to investigate. The next completed change, Check audit log or the daily check after the lender's daily close records the break for the lender, and the alert then stays until a check of the whole audit log finds every entry intact. Until then it clears if the chain is repaired.";
+const keptBreak = "Entry 4 of the audit log is missing, out of order or changed. Ask an Admin to investigate. This alert stays until a full check finds every entry intact: select Check audit log on the Audit log page, or wait for the daily check after the daily close.";
+const foundBreak = "Entry 4 of the audit log is missing, out of order or changed. Ask an Admin to investigate. The next change, Check audit log or the daily check after the daily close will record this break. After that, the alert stays until a full check finds every entry intact. Until then, it clears if the log is repaired.";
 const admin = (now: string) => ctxAt(now, "Admin");
 const reviewer = (now: string) => ctxAt(now, "Compliance reviewer");
 

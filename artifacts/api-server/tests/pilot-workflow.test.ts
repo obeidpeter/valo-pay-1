@@ -269,7 +269,7 @@ assert.throws(
       },
       assignees,
     ),
-  /eligible record/,
+  /Link evidence only to this lender’s records/,
 );
 assert.throws(
   () =>

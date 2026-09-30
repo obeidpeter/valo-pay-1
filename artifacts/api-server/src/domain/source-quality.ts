@@ -1,16 +1,17 @@
 import { parse } from "csv-parse/sync";
-import { counted, csvAmountToKobo, importFieldsOf, otherCurrenciesText, sourceProfileInputSchema, type SourceProfileInput, type SourceBatchQuality } from "@workspace/valopay-schema";
+import { counted, csvAmountToKobo, importFieldsOf, nairaText, notFoundText, otherCurrenciesText, sourceProfileInputSchema, type SourceProfileInput, type SourceBatchQuality } from "@workspace/valopay-schema";
+import { roleRefusal } from "./validation";
 import type { Context, DomainState, ValopayRecord } from "./types";
 import { makeRecord, assertSourceOpened, recordsOf } from "./records";
 import { assertRecordVersion } from "../lib/edit-versions";
 import { sourceCompleteness, watBusinessDate } from "./source-completeness";
 
 function refuse(message: string, status = 400): never { throw Object.assign(new Error(message), { status }); }
-const writer = (ctx: Context) => { if (!["Admin", "Operations", "Finance"].includes(ctx.role)) refuse("Your role cannot change source controls.", 403); };
+const writer = (ctx: Context) => { if (!["Admin", "Operations", "Finance"].includes(ctx.role)) refuse(roleRefusal(ctx, ["Admin", "Operations", "Finance"], "change data source settings"), 403); };
 const safeSum = (values: number[]) => {
   let result = 0n;
-  for (const value of values) { if (!Number.isSafeInteger(value) || value < 0) throw new Error("A source amount is invalid."); result += BigInt(value); }
-  if (result > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error("The total exceeds the supported amount. Split this source batch.");
+  for (const value of values) { if (!Number.isSafeInteger(value) || value < 0) throw new Error("An amount in this file is not valid. Correct the file and save it again."); result += BigInt(value); }
+  if (result > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error("The file’s total is larger than Valo Pay supports. Split the file into smaller batches.");
   return Number(result);
 };
 /**
@@ -33,13 +34,13 @@ const elsewhereText = (other: Record<string, { amount: number }>) => `${otherCur
 export function saveSourceProfile(state: DomainState, ctx: Context, raw: SourceProfileInput, id?: string) {
   writer(ctx);
   const input = sourceProfileInputSchema.parse(raw);
-  if (Object.entries(input.mapping).some(([key, value]) => ["__proto__", "constructor", "prototype"].includes(key) || ["__proto__", "constructor", "prototype"].includes(value))) refuse("Reserved field names cannot be mapped.");
+  if (Object.entries(input.mapping).some(([key, value]) => ["__proto__", "constructor", "prototype"].includes(key) || ["__proto__", "constructor", "prototype"].includes(value))) refuse("One of these column names cannot be used. Rename the column and try again.");
   const old = id ? state.records.find(r => r.kind === "source-profiles" && r.id === id) : undefined;
-  if (id && !old) refuse("Source profile not found in this lender.", 404);
+  if (id && !old) refuse(notFoundText("source profile"), 404);
   if (old) {
-    if (!input.expectedUpdatedAt) refuse("Refresh the source profile before changing it.", 409);
+    if (!input.expectedUpdatedAt) refuse("Reload the page before you change this source profile.", 409);
     assertRecordVersion(old, input.expectedUpdatedAt);
-    if (old.data.source !== input.source || old.data.kind !== input.kind) refuse("Create a separate profile for a different source or record type.");
+    if (old.data.source !== input.source || old.data.kind !== input.kind) refuse("Add a separate source profile for a different data source or record type.");
   }
   if (state.records.some(r => r.kind === "source-profiles" && r.id !== id && r.data.source === input.source && r.data.kind === input.kind)) refuse("This source and record type already have a profile. Edit the existing profile.", 409);
   const record = old || makeRecord(state, "source-profiles", { createdAt: ctx.now });
@@ -76,28 +77,28 @@ export function batchSourceQuality(state: DomainState, batch: ValopayRecord): So
       if (source.other) quality.sourceOtherCurrencies = source.other;
     }
     else if (batch.data.kind === "customers") quality.sourceAmountKobo = 0;
-    else issues.push("Map an amount column to compare source and imported totals.");
+    else issues.push("Map an amount column to compare the file’s total with what was imported.");
     const imported = state.records.filter(r => r.kind === batch.data.kind && r.data.importIdentity?.batchId === batch.id);
     quality.importedRows = imported.length;
     const saved = byCurrency(imported.map(r => ({ currency: ownCurrency ? r.data.currency : undefined, amount: r.amountKobo })));
     quality.importedAmountKobo = saved.kobo;
     if (saved.other) quality.importedOtherCurrencies = saved.other;
     if (profile) {
-      if (profile.data.expectedRows != null && profile.data.expectedRows !== rows.length) issues.push(`Expected ${counted(profile.data.expectedRows, "source row")}; this batch contains ${rows.length}.`);
-      if (profile.data.expectedAmountKobo != null && profile.data.expectedAmountKobo !== quality.sourceAmountKobo) issues.push("The source total does not match the expected amount in the source profile.");
+      if (profile.data.expectedRows != null && profile.data.expectedRows !== rows.length) issues.push(`Expected ${counted(profile.data.expectedRows, "row")}; this batch has ${counted(rows.length, "row")}.`);
+      if (profile.data.expectedAmountKobo != null && profile.data.expectedAmountKobo !== quality.sourceAmountKobo) issues.push(`The file’s total (${quality.sourceAmountKobo === undefined || quality.sourceAmountKobo === null ? "none" : nairaText(quality.sourceAmountKobo)}) does not match the source profile’s expected total (${nairaText(Number(profile.data.expectedAmountKobo))}). Check the file, or update the profile.`);
       // The expected amount is in naira: rows in another currency are compared with nothing, so the batch says so.
-      if (profile.data.expectedAmountKobo != null && quality.sourceOtherCurrencies) issues.push(`The source profile's expected amount is in naira, so it is compared with the naira rows only; this batch also has ${elsewhereText(quality.sourceOtherCurrencies)}, which it does not cover.`);
-      if (profile.data.identityColumn !== batch.data.identityColumn || profile.data.amountUnit !== batch.data.amountUnit || JSON.stringify(Object.entries(profile.data.mapping || {}).sort()) !== JSON.stringify(Object.entries(batch.data.mapping || {}).filter(([key, value]) => !(key === batch.data.identityColumn && value === "" && !Object.hasOwn(profile.data.mapping || {}, key))).sort())) issues.push("This batch uses different mapping, row identity or amount units from its active source profile. Review the mapping or update the profile first.");
+      if (profile.data.expectedAmountKobo != null && quality.sourceOtherCurrencies) issues.push(`The source profile’s expected total is in naira, so it is compared with the naira rows only. This batch also has ${elsewhereText(quality.sourceOtherCurrencies)}, which it does not cover.`);
+      if (profile.data.identityColumn !== batch.data.identityColumn || profile.data.amountUnit !== batch.data.amountUnit || JSON.stringify(Object.entries(profile.data.mapping || {}).sort()) !== JSON.stringify(Object.entries(batch.data.mapping || {}).filter(([key, value]) => !(key === batch.data.identityColumn && value === "" && !Object.hasOwn(profile.data.mapping || {}, key))).sort())) issues.push("This batch uses a different column mapping, source row ID column or amount unit from its active source profile. Review the mapping, or update the profile first.");
     }
   } catch (error) { quality.status = "unavailable"; issues.push(error instanceof Error ? error.message : "The source totals could not be checked."); }
-  if (quality.invalidRows) issues.push(`${counted(quality.invalidRows, "source row still needs", "source rows still need")} correction.`);
+  if (quality.invalidRows) issues.push(`${counted(quality.invalidRows, "row still needs", "rows still need")} correcting.`);
   if (quality.status !== "unavailable" && issues.length) quality.status = "needs_review";
   return quality;
 }
 
 export function assertSourceBatchReady(state: DomainState, batch: ValopayRecord): SourceBatchQuality {
   const quality = batchSourceQuality(state, batch);
-  if (quality.status !== "checked") refuse(`Source checks need review: ${quality.issues.join(" ")}`, 409);
+  if (quality.status !== "checked") refuse(`Resolve the file’s checks before you import this batch. ${quality.issues.join(" ")}`, 409);
   return quality;
 }
 

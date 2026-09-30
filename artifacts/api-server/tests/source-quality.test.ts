@@ -28,7 +28,7 @@ advanceRecordVersions(before, state, ctx.now);
 assert.equal(batchSourceQuality(state, batch).status, "checked");
 assert.equal(assertSourceBatchReady(state, batch).profileId, profile.id);
 profile.data.expectedRows = 2;
-assert.throws(() => assertSourceBatchReady(state, batch), /Expected 2 source rows/);
+assert.throws(() => assertSourceBatchReady(state, batch), /Expected 2 rows; this batch has 1 row/);
 profile.data.expectedRows = 1;
 const committed = commitImportBatch(state, ctx, batch.id, batch.updatedAt);
 assert.equal(committed.status, "committed");
@@ -55,7 +55,7 @@ assert.equal(batchSourceQuality(state, amountBatch).sourceAmountKobo, 30);
 amountBatch.data.csv = "row,amount\n1,9007199254740991\n2,1"; amountBatch.data.amountUnit = "kobo";
 assert.equal(batchSourceQuality(state, amountBatch).status, "unavailable");
 assert.equal(batchSourceQuality(state, amountBatch).sourceAmountKobo, null);
-assert.throws(() => assertSourceBatchReady(state, amountBatch), /exceeds/);
+assert.throws(() => assertSourceBatchReady(state, amountBatch), /larger than Valo Pay supports/);
 amountBatch.data.csv = "row,amount\n1,not-money";
 assert.equal(batchSourceQuality(state, amountBatch).status, "unavailable");
 // As in the import, a blank amount counts for nothing on a customer row, and stays an error where the kind needs an amount.
@@ -83,7 +83,7 @@ assert.equal("sourceOtherCurrencies" in batchSourceQuality(state, amountBatch), 
   const cardProfile = saveSourceProfile(evidence, ctx, { ...profileInput, name: "Card feed", source: "card-feed", kind: "observations", expectedRows: 3, expectedAmountKobo: 1000 });
   const held = saveImportBatch(evidence, ctx, input);
   assert.equal(held.data.sourceQuality.status, "needs_review");
-  assert.deepEqual(held.data.sourceQuality.issues, ["The source profile's expected amount is in naira, so it is compared with the naira rows only; this batch also has JPY 1,000 and USD 10.00 in other currencies, which it does not cover."]);
+  assert.deepEqual(held.data.sourceQuality.issues, ["The source profile’s expected total is in naira, so it is compared with the naira rows only. This batch also has JPY 1,000 and USD 10.00 in other currencies, which it does not cover."]);
   assert.throws(() => assertSourceBatchReady(evidence, held), /in other currencies, which it does not cover/);
   cardProfile.data.expectedAmountKobo = null;
   const batch = saveImportBatch(evidence, ctx, { ...input, expectedUpdatedAt: held.updatedAt }, held.id);

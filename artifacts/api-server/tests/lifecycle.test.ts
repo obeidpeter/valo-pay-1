@@ -249,15 +249,15 @@ function counted(state: DomainState) {
   const { state, batch } = fixture('staff-approval');
   batch.data.committedAt = '2019-09-01T10:00:00.000Z';
   const save = (actor: typeof first, days: RetentionPolicy) => saveLifecyclePolicy(state, actor, { policy: days, expectedRevision: lifecyclePolicy(state).revision, reason: 'Agreed source retention for the staff rehearsal.' });
-  assert.throws(() => save(first, policy), (error: any) => error.status === 400 && /original source files and export files for at least 2,192 days \(six years\)/.test(error.message)); checks += 1;
-  assert.throws(() => save(first, { ...policy, rawCsvDays: 2192, exportFileDays: 2192 }), (error: any) => error.status === 400 && /recovery payloads for at least 366 days/.test(error.message)); checks += 1;
+  assert.throws(() => save(first, policy), (error: any) => error.status === 400 && /original import files and export files for at least 2,192 days \(six years\)/.test(error.message)); checks += 1;
+  assert.throws(() => save(first, { ...policy, rawCsvDays: 2192, exportFileDays: 2192 }), (error: any) => error.status === 400 && /saved request details for at least 366 days/.test(error.message)); checks += 1;
   save(first, { rawCsvDays: 2192, journalPayloadDays: 366, exportFileDays: null, auditTrail: 'retain' });
   const view = lifecycleView(state, first);
   check(view.secondApprover === true && view.minimumDays?.rawCsvDays === 2192 && view.minimumDays?.journalPayloadDays === 366 && view.minimumDays?.exportFileDays === 2192, 'the view names the staff minimums and the second approver');
   const run = lifecyclePreview(state, first, { expectedPolicyRevision: lifecyclePolicy(state).revision });
   check(run.preparedBy === 'Clerk:admin', 'the run names who prepared it');
   const approval = { expectedUpdatedAt: run.updatedAt, previewDigest: run.previewDigest, reason: 'Reviewed the exact eligible sample source artifacts.' };
-  assert.throws(() => approveLifecycleRun(state, first, run.id, approval), (error: any) => error.status === 403 && /A different administrator must approve this deletion run/.test(error.message)); checks += 1;
+  assert.throws(() => approveLifecycleRun(state, first, run.id, approval), (error: any) => error.status === 403 && /A different Admin must approve this deletion run/.test(error.message)); checks += 1;
   // The same person in another session is still the preparer: the verified staff actor decides.
   refuses(() => approveLifecycleRun(state, { ...first, principalId: 'principal:another-session' }, run.id, approval), 403);
   check(approveLifecycleRun(state, second, run.id, approval).approvedBy === 'Clerk:second', 'a second administrator approves it');

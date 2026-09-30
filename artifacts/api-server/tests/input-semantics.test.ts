@@ -110,7 +110,7 @@ const refused = (run: () => unknown, pattern: RegExp, message: string) => { asse
   state.settings.unallocatedAlertThreshold = before + 1;
   const alert = buildAlerts(state, now).find((item) => item.key === "unallocated_over_threshold");
   eq(alert?.count, before + 2, "the alert counts the same payments, so the rests take it over the lender's limit");
-  eq(/applied in part/.test(String(alert?.detail)), true, "and says a payment applied in part is waiting too");
+  eq(/allocated in part/.test(String(alert?.detail)), true, "and says a payment applied in part is waiting too");
 }
 
 console.log(`Input semantics checks passed (${checks}): dates are real calendar dates, a date-only deadline lasts its whole WAT day in the queues, the alerts and the overview, an incremental sync names an instant with its offset, a search reads values only, a name is never empty, indexed text is bounded and money waiting for Finance counts the same in the alert, the reports and the close.`);
