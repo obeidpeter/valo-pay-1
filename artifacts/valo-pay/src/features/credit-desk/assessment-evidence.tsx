@@ -86,7 +86,7 @@ export function AssessmentEvidence({
           )}
         </>
       )}
-      <EvidenceDisclosure title="Evidence reference (for audit)">
+      <EvidenceDisclosure title="Technical details">
         <p className="mt-2 text-xs text-muted-foreground">
           This reference identifies the exact evidence this assessment used. It
           cannot be changed.

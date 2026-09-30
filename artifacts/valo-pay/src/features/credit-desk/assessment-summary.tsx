@@ -66,11 +66,11 @@ export function AssessmentSummary({ assessment }: { assessment: Assessment }) {
           <h3 className="font-semibold mb-3">Affordability check</h3>
           <dl className="space-y-3 text-sm mb-5">
             <Amount
-              label={`Monthly income after a ${incomeCut} cut`}
+              label={`Regular income after a ${incomeCut} cut`}
               value={result.affordability.stressedMonthlyIncomeKobo}
             />
             <Amount
-              label="Largest monthly repayment the applicant can afford"
+              label="Largest new monthly repayment the applicant can afford"
               value={result.affordability.monthlyCapacityKobo}
               strong
             />

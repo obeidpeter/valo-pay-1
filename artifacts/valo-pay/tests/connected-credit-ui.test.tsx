@@ -145,7 +145,7 @@ describe("Credit Desk synthetic journeys", () => {
     expect(screen.getByRole("tabpanel").getAttribute("aria-labelledby")).toBe(
       screen.getByRole("tab", { name: "Evidence" }).id,
     );
-    expect(screen.getByText("Evidence reference (for audit)")).toBeTruthy();
+    expect(screen.getByText("Technical details")).toBeTruthy();
     expect(screen.getByText("90 days")).toBeTruthy();
   });
   it("does not translate thin history into a zero score or an enabled approval", () => {
@@ -290,7 +290,7 @@ describe("Credit Desk synthetic journeys", () => {
       ).toBe("true"),
     );
     expect(screen.getByRole("tabpanel").textContent).toContain(
-      "Evidence reference (for audit)",
+      "Technical details",
     );
     await user.keyboard("{End}");
     await waitFor(() =>
