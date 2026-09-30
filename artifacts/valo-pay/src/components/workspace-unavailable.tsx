@@ -39,12 +39,12 @@ function serviceWords(error: unknown): string {
 export function explainWorkspaceError(error: unknown): WorkspaceExplanation {
   const status = (error as { status?: unknown } | null)?.status;
   const message = serviceWords(error);
-  if (typeof status !== 'number') return { title: 'Could not connect to Valo Pay', lines: ['Check your connection and try again.'] };
+  if (typeof status !== 'number') return { title: 'We could not load your workspace', lines: ['Valo Pay could not be reached. Check your connection and try again.'] };
   if (status === 429) return { title: 'Please wait before trying again', lines: [message || 'Too many requests were sent from your connection. Try again shortly.'] };
-  if (status >= 500) return { title: 'Your workspace is temporarily unavailable', lines: ['We could not load your workspace. Try again in a moment.'], reportTime: true, reference: referenceOf(error) };
+  if (status >= 500) return { title: 'We could not load your workspace', lines: ['Valo Pay is not available at the moment. Try again in a moment.'], reportTime: true, reference: referenceOf(error) };
   if (status === 401) return { title: 'Sign in to open this workspace', lines: [message || 'Your sign-in session is missing or has ended.', 'Sign in with the account your organisation invited. Then check access again.'] };
-  if (status === 403) return { title: 'Your account cannot open this workspace', lines: [message || 'Your current account does not have the required access.', 'Check the selected organisation. Ask its administrator to review your invitation and lender access. Choosing a workspace does not grant permission.'] };
-  return { title: 'Could not load your workspace', lines: [message || 'We could not open your workspace. Try again.'] };
+  if (status === 403) return { title: 'Your account cannot open this workspace', lines: [message || 'Your account does not have access to this workspace.', 'Check that you chose the right organisation. If you did, ask an Admin there to check your invitation and lender access. Choosing an organisation does not give you access.'] };
+  return { title: 'We could not load your workspace', lines: [message || 'Try again.'] };
 }
 
 /** Where a person checks a change whose answer they did not see: Request history lists every request that reached Valo Pay, with its outcome. */
@@ -83,13 +83,13 @@ export function WorkspaceUnavailable({ error, retry, busy }: { error: unknown; r
 function refreshReason(error: unknown): string {
   const status = (error as { status?: unknown } | null)?.status;
   const message = serviceWords(error);
-  if (typeof status !== 'number') return 'The service could not be reached.';
+  if (typeof status !== 'number') return 'Valo Pay could not be reached.';
   if (status >= 500) {
     const reference = referenceOf(error);
-    return `The service could not answer.${reference ? ` Support reference: ${reference}.` : ''}`;
+    return `Valo Pay could not answer.${reference ? ` Support reference: ${reference}.` : ''}`;
   }
   if (status === 429) return message || 'Too many requests were sent from your connection.';
-  return message || 'The service refused the request.';
+  return message || 'Valo Pay refused the request.';
 }
 
 /**
@@ -108,7 +108,7 @@ export function WorkspaceRefreshProblem({ failure, staff = false }: { failure: W
   return (
     <div role="status" className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-warning-border bg-warning px-4 py-3 text-xs text-warning-foreground print:hidden">
       <div className="min-w-[min(100%,16rem)] flex-1 space-y-1">
-        <p><span className="font-semibold">Your workspace could not be refreshed.</span> {refreshReason(failure.error)} {updated ? <>Showing the workspace loaded <time dateTime={updated}>{formatDate(updated)}</time>.</> : <>Showing the workspace loaded earlier.</>}{next && <> As the service asked, the next automatic refresh is after <time dateTime={next}>{formatDate(next)}</time>.</>}</p>
+        <p><span className="font-semibold">Your workspace could not be refreshed.</span> {refreshReason(failure.error)} {updated ? <>Showing the workspace loaded <time dateTime={updated}>{formatDate(updated)}</time>.</> : <>Showing the workspace loaded earlier.</>}{next && <> The next automatic refresh is after <time dateTime={next}>{formatDate(next)}</time>.</>}</p>
         <p>Open pages and forms are kept. If a save was not confirmed, check it in <Link href="/operations" className="font-medium underline underline-offset-2">Request history</Link> before you send it again.</p>
         {staff && [401, 403].includes(status) && <StaffSession />}
       </div>

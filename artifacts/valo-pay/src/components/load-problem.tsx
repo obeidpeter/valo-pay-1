@@ -13,8 +13,8 @@ export function LoadProblem({ what, error, retry, busy = false, pager }: { what:
   const again = usePageProblemFocus(notice, pager);
   return (
     <div ref={notice} role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-5 text-sm">
-      <p className="font-semibold">Unable to load {what}</p>
-      <p className="mt-2 text-muted-foreground">{saidBy(error, 'The service could not be reached. Check your connection and try again.')}</p>
+      <p className="font-semibold">We could not load {what}</p>
+      <p className="mt-2 text-muted-foreground">{saidBy(error, 'Valo Pay could not be reached. Check your connection and try again.')}</p>
       <Button variant="outline" size="sm" className="mt-3" onClick={() => { again(); retry(); }} busy={busy} busyLabel="Trying again…">Try again</Button>
     </div>
   );

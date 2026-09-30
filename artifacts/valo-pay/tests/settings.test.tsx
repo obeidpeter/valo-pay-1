@@ -28,10 +28,10 @@ describe("settings", () => {
     const user = userEvent.setup();
     api.failNext(/^\/v1\/settings$/, 'offline');
     renderApp('/settings');
-    const error = await screen.findByText('Unable to load collection settings');
+    const error = await screen.findByText('We could not load collection settings');
     await user.click(within(error.closest('[role="alert"]')!).getByRole('button', { name: 'Try again' }));
     expect(await screen.findByText('07:00 WAT')).toBeTruthy();
-    expect(screen.queryByText('Unable to load collection settings')).toBeNull();
+    expect(screen.queryByText('We could not load collection settings')).toBeNull();
   });
 
   it("edits the daily close time, and shows the server's rejection of an invalid one", async () => {

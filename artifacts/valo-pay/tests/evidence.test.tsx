@@ -299,13 +299,13 @@ describe('evidence register and operational reviews', () => {
     api.failNext(/^\/v1\/records\/commercial$/, { status: 503, error: 'Service temporarily unavailable.' });
     api.failNext(/^\/v1\/records\/reviews$/, 'offline');
     renderApp('/evidence');
-    const commercial = await screen.findByText('Unable to load commercial commitments');
-    const reviews = await screen.findByText('Unable to load reviews');
+    const commercial = await screen.findByText('We could not load commercial commitments');
+    const reviews = await screen.findByText('We could not load reviews');
     expect(screen.queryByText('No commercial commitments')).toBeNull();
     expect(screen.queryByText('No reviews logged')).toBeNull();
     await user.click(within(commercial.closest('[role="alert"]')!).getByRole('button', { name: 'Try again' }));
     await user.click(within(reviews.closest('[role="alert"]')!).getByRole('button', { name: 'Try again' }));
-    await waitFor(() => expect(screen.queryByText('Unable to load commercial commitments')).toBeNull());
+    await waitFor(() => expect(screen.queryByText('We could not load commercial commitments')).toBeNull());
     expect(await screen.findByText('No reviews logged')).toBeTruthy();
   });
 

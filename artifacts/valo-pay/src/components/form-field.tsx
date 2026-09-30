@@ -87,7 +87,7 @@ export function formErrorMessage(message: string, fields: Array<{ name: string; 
 export function serverFieldErrors(error: unknown, resolve: (path: string) => string | null): { fields: Record<string, string>; general: string[] } {
   const data = (error as { data?: { error?: unknown; details?: unknown; detailCount?: unknown } } | null)?.data;
   // Without the service's words, plain ones: never the browser's own error text ("Failed to fetch") or an HTTP status line.
-  const said = typeof data?.error === 'string' ? data.error : errorWords(error, 'The service did not confirm the result.');
+  const said = typeof data?.error === 'string' ? data.error : errorWords(error, 'Valo Pay did not confirm the result.');
   const details = Array.isArray(data?.details) ? (data.details as Detail[]) : [];
   const fields: Record<string, string> = {};
   const general: string[] = [];

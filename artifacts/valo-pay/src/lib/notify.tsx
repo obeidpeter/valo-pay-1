@@ -44,7 +44,7 @@ export function referenceOf(error: unknown): string | undefined {
 }
 
 /** Said when no answer came back at all: the browser's own words for that ("Failed to fetch", "signal timed out") mean nothing to the reader. */
-export const NO_ANSWER = 'No answer arrived from the service.';
+export const NO_ANSWER = 'No answer came back from Valo Pay.';
 
 /**
  * An error in words for the reader: the service's own (`data.error`), plain

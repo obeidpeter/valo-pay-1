@@ -43,15 +43,15 @@ describe("workspace", () => {
   it("says when the service could not be reached at all", async () => {
     api.failNext(workspace, "offline");
     renderApp("/overview");
-    expect(await screen.findByRole("heading", { level: 1, name: "Could not connect to Valo Pay" })).toBeTruthy();
-    expect(screen.getByText("Check your connection and try again.")).toBeTruthy();
+    expect(await screen.findByRole("heading", { level: 1, name: "We could not load your workspace" })).toBeTruthy();
+    expect(screen.getByText("Valo Pay could not be reached. Check your connection and try again.")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy();
   });
 
   it("keeps a service error's internals to itself and gives the time for a report", async () => {
     api.failNext(workspace, { status: 500, error: "relation \"valopay_workspaces\" does not exist" });
     renderApp("/overview");
-    expect(await screen.findByRole("heading", { level: 1, name: "Your workspace is temporarily unavailable" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { level: 1, name: "We could not load your workspace" })).toBeTruthy();
     expect(screen.getByText(/When reporting the problem, include this time and support reference:/)).toBeTruthy();
     expect(screen.getByText(/^fake-[0-9a-f]{4}$/)).toBeTruthy();
     expect(screen.queryByText(/valopay_workspaces/)).toBeNull();
@@ -75,12 +75,12 @@ describe("a failed background refresh of the workspace", () => {
     api.failNext(workspace, "offline");
     await refreshWorkspace();
     const notice = await waitFor(() => { const found = refreshNotice(); expect(found).toBeTruthy(); return found!; });
-    expect(notice.textContent).toMatch(/The service could not be reached\. Showing the workspace loaded \d{1,2} \w{3,4} \d{4}, \d{2}:\d{2} WAT\./);
+    expect(notice.textContent).toMatch(/Valo Pay could not be reached\. Showing the workspace loaded \d{1,2} \w{3,4} \d{4}, \d{2}:\d{2} WAT\./);
     expect(within(notice).getByRole("link", { name: "Request history" }).getAttribute("href")).toBe("/operations");
     // The dialog and its draft are the same elements as before the refresh.
     expect(screen.getByRole("dialog")).toBe(dialog);
     expect((within(dialog).getByLabelText(/^Full name/) as HTMLInputElement).value).toBe("Draft customer");
-    expect(screen.queryByRole("heading", { name: "Could not connect to Valo Pay" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "We could not load your workspace" })).toBeNull();
     expect(screen.queryByText(/No lender data has been changed/)).toBeNull();
     // The dialog is modal, so the notice's Try again waits behind it; the next automatic refresh clears the notice.
     await refreshWorkspace();
@@ -104,7 +104,7 @@ describe("a failed background refresh of the workspace", () => {
     api.failNext(workspace, { status: 502, error: "Bad gateway" });
     await refreshWorkspace();
     await waitFor(() => expect(refreshNotice()).toBeTruthy());
-    expect(refreshNotice()!.textContent).toMatch(/The service could not answer\. Support reference: fake-\w+\./);
+    expect(refreshNotice()!.textContent).toMatch(/Valo Pay could not answer\. Support reference: fake-\w+\./);
     expect(screen.getByRole("dialog")).toBe(dialog);
     expect(within(dialog).getByText("Request not confirmed")).toBeTruthy();
     expect(within(dialog).getByRole("button", { name: "Check original request" })).toBeTruthy();
@@ -118,7 +118,7 @@ describe("a failed background refresh of the workspace", () => {
     await refreshWorkspace();
     await waitFor(() => expect(refreshNotice()).toBeTruthy());
     expect(refreshNotice()!.textContent).toContain("Request limit reached. Please try again in one minute.");
-    expect(refreshNotice()!.textContent).toMatch(/As the service asked, the next automatic refresh is after \d{1,2} \w{3,4} \d{4}, \d{2}:\d{2} WAT\./);
+    expect(refreshNotice()!.textContent).toMatch(/The next automatic refresh is after \d{1,2} \w{3,4} \d{4}, \d{2}:\d{2} WAT\./);
     expect(screen.getByRole("heading", { name: "Operations overview" })).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Please wait before trying again" })).toBeNull();
     await user.click(within(refreshNotice()!).getByRole("button", { name: "Try again" }));

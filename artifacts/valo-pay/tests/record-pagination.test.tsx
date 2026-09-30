@@ -61,7 +61,7 @@ describe('large customer directory', () => {
     api.failNext(/^\/v1\/records\/customers$/, { status: 503, error: 'Directory temporarily unavailable.' });
     renderApp('/customers');
     const alert = await screen.findByRole('alert');
-    expect(alert.textContent).toContain('Unable to load customers');
+    expect(alert.textContent).toContain('We could not load customers');
     expect(screen.queryByText('No customers yet')).toBeNull();
     await user.click(within(alert).getByRole('button', { name: 'Try again' }));
     await screen.findByText('Ada Okonkwo');
@@ -357,11 +357,11 @@ describe('a page that fails to load', () => {
     await screen.findByText('Pager customer 59');
     api.failNext(/^\/v1\/records\/customers$/, unavailable);
     await press(user, screen.getByRole('button', { name: 'Next page of customers' }));
-    expect(await screen.findByText('Unable to load customers')).toBeTruthy();
+    expect(await screen.findByText('We could not load customers')).toBeTruthy();
     // Fetched again, as a refresh or a return to the tab does: the page waits as a page of its own, with none of page 1's rows.
     const release = api.hold(/^\/v1\/records\/customers$/);
     const again = queryClient.refetchQueries({ type: 'active' });
-    await waitFor(() => expect(screen.queryByText('Unable to load customers')).toBeNull());
+    await waitFor(() => expect(screen.queryByText('We could not load customers')).toBeNull());
     expect(screen.queryByText('Pager customer 59')).toBeNull();
     expect(screen.queryByText(/^26–50 of 60 customers$/)).toBeNull();
     release();
@@ -387,7 +387,7 @@ describe('a page that fails to load', () => {
     sixty('exceptions', record => record.status === 'open');
     sixty('payments', record => record.reference === 'SBX-UNIDENTIFIED-001');
     const { unmount } = renderApp('/customers');
-    await failingNext(user, await screen.findByRole('button', { name: 'Next page of customers' }), /^\/v1\/records\/customers$/, /^Unable to load customers/);
+    await failingNext(user, await screen.findByRole('button', { name: 'Next page of customers' }), /^\/v1\/records\/customers$/, /^We could not load customers/);
     unmount();
     const exceptions = renderApp('/exceptions');
     await failingNext(user, await screen.findByRole('button', { name: 'Next page of exceptions' }), /^\/v1\/queues\/exceptions$/, /^Exceptions could not be loaded/);
@@ -413,7 +413,7 @@ describe('a page that fails to load', () => {
     await user.click(within(row).getByRole('button', { name: 'Allocate' }));
     const dialog = await screen.findByRole('dialog', { name: 'Allocate payment' });
     await within(dialog).findByText(/^1–25 of \d+ instalment choices$/);
-    await failingNext(user, within(dialog).getByRole('button', { name: 'Next page of instalment choices' }), /^\/v1\/records\/due-items$/, /^Unable to load instalment choices/);
+    await failingNext(user, within(dialog).getByRole('button', { name: 'Next page of instalment choices' }), /^\/v1\/records\/due-items$/, /^We could not load instalment choices/);
     expect(dialog.contains(document.activeElement)).toBe(true);
   });
 });
@@ -445,7 +445,7 @@ describe('the notice of the list whose page failed', () => {
     const user = userEvent.setup();
     render(<Lists />);
     await press(user, screen.getByRole('button', { name: 'Next' }));
-    const notice = (await screen.findByText('Unable to load things')).parentElement!;
+    const notice = (await screen.findByText('We could not load things')).parentElement!;
     await waitFor(() => expect(document.activeElement).toBe(within(notice).getByRole('button', { name: 'Try again' })));
   });
 
@@ -466,7 +466,7 @@ describe('the notice of the list whose page failed', () => {
     await within(dialog).findByText(/^1–25 of \d+ instalment choices$/);
     api.failNext(/^\/v1\/records\/due-items$/, unavailable);
     await press(user, within(dialog).getByRole('button', { name: 'Next page of instalment choices' }));
-    const notice = (await within(dialog).findByText('Unable to load instalment choices')).parentElement!;
+    const notice = (await within(dialog).findByText('We could not load instalment choices')).parentElement!;
     await waitFor(() => expect(document.activeElement).toBe(within(notice).getByRole('button', { name: 'Try again' })));
     expect(dialog.contains(document.activeElement)).toBe(true);
   }, 30_000);
@@ -524,7 +524,7 @@ describe('the notice of the list whose page failed', () => {
     });
     renderApp('/customers');
     await screen.findByText('Pager customer 59');
-    await tryAgain(user, screen.getByRole('button', { name: 'Next page of customers' }), /^\/v1\/records\/customers$/, /^Unable to load customers/, () => screen.findByText('Pager customer 34'));
+    await tryAgain(user, screen.getByRole('button', { name: 'Next page of customers' }), /^\/v1\/records\/customers$/, /^We could not load customers/, () => screen.findByText('Pager customer 34'));
   }, 30_000);
 
   it('keeps the focus through Try again on the Exceptions queue', async () => {

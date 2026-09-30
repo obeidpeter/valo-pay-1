@@ -112,7 +112,7 @@ it("shows request failures and keeps read-only actions disabled", async () => {
     error: "Temporary connection failure",
   });
   renderApp("/pay-by-bank");
-  expect(await screen.findByText("Unable to load pay-by-bank")).toBeTruthy();
+  expect(await screen.findByText("We could not load pay-by-bank")).toBeTruthy();
   await userEvent.click(screen.getByRole("button", { name: "Try again" }));
   expect(
     await screen.findByRole("heading", { name: "Pay-by-bank", level: 1 }),

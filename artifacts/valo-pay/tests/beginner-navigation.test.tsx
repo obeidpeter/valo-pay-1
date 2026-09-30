@@ -106,7 +106,7 @@ describe('beginner navigation and access recovery', () => {
     api.failNext(/^\/v1\/workspace$/, { status: 403, error: 'Your membership is not active.' });
     renderApp('/overview');
     await screen.findByRole('heading', { name: 'Your account cannot open this workspace' });
-    expect(screen.getByText(/Ask its administrator to review your invitation/)).toBeTruthy();
+    expect(screen.getByText(/ask an Admin there to check your invitation/)).toBeTruthy();
     const help = screen.getByRole('link', { name: /^Help: Sign in/ });
     expect(help.getAttribute('href')).toContain('topic=access');
     expect(screen.queryByRole('link', { name: 'Reconciliation' })).toBeNull();

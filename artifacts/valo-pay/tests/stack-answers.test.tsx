@@ -46,7 +46,7 @@ it("shows a problem instead of a team directory when the answer is incomplete", 
 it("shows a problem instead of the Credit Desk when the connected answer is incomplete", async () => {
   answerWith("GET", /\/v1\/connected$/, (original) => ({ ...original, credit: { mode: "synthetic", customers: "none" } }));
   renderApp("/credit-desk");
-  await screen.findByText("Unable to load Credit Desk");
+  await screen.findByText("We could not load Credit Desk");
   screen.getByText(/Valo Pay’s answer was incomplete/);
 });
 

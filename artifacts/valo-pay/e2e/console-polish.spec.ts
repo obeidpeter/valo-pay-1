@@ -149,10 +149,10 @@ test("loading and error states keep an h1", async ({ page }) => {
   // A page whose first load failed, with nothing to show.
   for (const [route, api, problem] of [
     ["/overview", "**/api/v1/overview?*", "Unable to load the overview"],
-    ["/pay-by-bank", "**/api/v1/connected?*", "Unable to load pay-by-bank"],
-    ["/credit-desk", "**/api/v1/connected?*", "Unable to load Credit Desk"],
-    ["/cash-desk", "**/api/v1/connected?*", "Unable to load Cash Desk"],
-    ["/connections", "**/api/v1/connected?*", "Unable to load permissions"],
+    ["/pay-by-bank", "**/api/v1/connected?*", "We could not load pay-by-bank"],
+    ["/credit-desk", "**/api/v1/connected?*", "We could not load Credit Desk"],
+    ["/cash-desk", "**/api/v1/connected?*", "We could not load Cash Desk"],
+    ["/connections", "**/api/v1/connected?*", "We could not load permissions"],
   ] as const) {
     await page.route(api, (request) => request.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ error: "Lender not found in this workspace.", requestId: "browser-missing" }) }));
     await page.goto(route);
@@ -443,7 +443,7 @@ const badGateway = { status: 502, contentType: "text/html", body: "<html>Bad gat
 async function tryAgainKeepsFocus(page: Page, scope: Page | Locator, label: string, answer: { failing: boolean }) {
   await scope.getByRole("button", { name: `Next page of ${label}` }).focus();
   await page.keyboard.press("Enter");
-  const retry = scope.getByRole("alert").filter({ hasText: `Unable to load ${label}` }).getByRole("button", { name: "Try again" });
+  const retry = scope.getByRole("alert").filter({ hasText: `We could not load ${label}` }).getByRole("button", { name: "Try again" });
   await expect(retry).toBeFocused({ timeout: 15_000 });
   await page.keyboard.press("Enter");
   await expect(retry).toHaveCount(0);
