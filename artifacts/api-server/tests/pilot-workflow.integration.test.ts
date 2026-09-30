@@ -526,7 +526,7 @@ try {
     assert.equal(again.status, 409, JSON.stringify(again.data));
     assert.equal(
       again.data.error,
-      'A lender named "Empty pilot lender" already exists in this workspace. Select it in the lender list, or choose another name.',
+      'A lender named “Empty pilot lender” already exists in this workspace. Choose it from the lender list, or use another name.',
     );
   }
   assert.equal(
@@ -552,7 +552,7 @@ try {
     [200, 200, 409, 409],
   );
   for (const refused of concurrent.filter((result) => result.status === 409))
-    assert.match(String((refused.data as { error?: unknown }).error), /most a sandbox can have/);
+    assert.match(String((refused.data as { error?: unknown }).error), /the most it can hold/);
   assert.equal(
     ok(
       await call(
@@ -856,7 +856,7 @@ try {
   );
   assert.deepEqual(
     [repeatedStaff.status, repeatedStaff.data.error],
-    [409, 'A lender named "Staff pilot 6" already exists in this workspace. Select it in the lender list, or choose another name.'],
+    [409, 'A lender named “Staff pilot 6” already exists in this workspace. Choose it from the lender list, or use another name.'],
   );
   assert.equal(
     ok(await call("/v1/workspace", "GET", undefined, undefined, "admin"))

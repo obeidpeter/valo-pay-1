@@ -114,7 +114,7 @@ for (const theme of ['light', 'dark'] as const) test(`new operations pages expos
     }
     if (route === '/team') {
       await expect(page.getByRole('heading', { name: 'Staff pilot setup' })).toBeVisible();
-      await expect(page.getByText('No external wrapping key is configured in this offline test.', { exact: true })).toBeVisible();
+      await expect(page.getByText('Not set up. The Valo Pay team sets up an encryption key. No key is stored on this page.', { exact: true })).toBeVisible();
       await expect(page.getByRole('button', { name: 'Verify encryption access' })).toHaveCount(0);
     }
     await audit(page);

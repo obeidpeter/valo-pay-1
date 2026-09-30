@@ -49,3 +49,6 @@ export function notFound(thing: string): string {
 
 /** A demo role the sandbox does not have. */
 export const UNKNOWN_DEMO_ROLE = "Choose one of the demo roles.";
+
+/** How a pilot with one Admin gets the second one that a second-person approval needs. */
+export const ONE_ADMIN = "If your pilot has only one Admin, ask the Valo Pay team to add a second.";

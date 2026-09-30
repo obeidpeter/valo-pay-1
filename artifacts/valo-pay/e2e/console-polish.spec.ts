@@ -77,7 +77,7 @@ test("a decision on Team & access moves focus to what it did, and a staff admini
     if (kind === "invitations") { invitations = []; return route.fulfill({ json: { message: "Invitation approved: finance.new@example.test can now accept it as Finance." } }); }
     const request = changes.find((item) => item.id === id)!;
     changes = changes.filter((item) => item !== request);
-    if (decision === "decline") return route.fulfill({ json: { message: "Change request declined. The membership is unchanged." } });
+    if (decision === "decline") return route.fulfill({ json: { message: "Change request declined. Their access has not changed." } });
     return route.fulfill({ json: { id: request.memberId, actor: `Clerk:user_${request.memberId}`, name: request.name, role: request.to.role, status: "active", expiresAt: inDays(80), updatedAt: new Date().toISOString(), message: `Change approved: ${request.name} is now ${request.to.role} (active).`, pendingChange: null } });
   });
   await page.goto("/team");
@@ -528,7 +528,7 @@ test("an invitation's answer takes the focus, not a member's Save lender access 
   });
   await page.route(/\/api\/v1\/team\/invitations$/, async (route) => {
     await slowly();
-    return route.fulfill({ status: 201, json: { id: "inv-1", token: "a".repeat(64), approval: "not_required", message: "Invitation created. Share the link directly with this person; no email has been sent. It expires in seven days." } });
+    return route.fulfill({ status: 201, json: { id: "inv-1", token: "a".repeat(64), approval: "not_required", message: "Invitation created. No email has been sent, so share the link with this person yourself. It expires in 7 days." } });
   });
   await page.goto("/team");
   const card = page.locator("article").filter({ has: page.getByRole("heading", { name: "Chidi Ops" }) });
@@ -550,5 +550,5 @@ test("an invitation's answer takes the focus, not a member's Save lender access 
   // The button waits disabled for the answer; a browser that leaves the focus on it is made to drop it to the page body.
   await expect(create).toBeDisabled();
   await page.evaluate(() => { const active = document.activeElement as HTMLElement | null; if (active?.matches(":disabled")) active.blur(); });
-  await expect.poll(() => focused(page)).toMatchObject({ tag: "p", text: expect.stringMatching(/^Invitation created\. Share the link directly/) });
+  await expect.poll(() => focused(page)).toMatchObject({ tag: "p", text: expect.stringMatching(/^Invitation created\. No email has been sent, so share the link with this person yourself\./) });
 });

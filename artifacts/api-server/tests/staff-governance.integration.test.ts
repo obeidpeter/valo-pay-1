@@ -44,10 +44,10 @@ try {
   // One administrator alone: the invitation is created, waits, and says how to get a second administrator.
   const financeInvite = ok(await call("/v1/team/invitations", "adminA", "POST", { email: "finance@example.test", role: "Finance" }));
   assert.equal(financeInvite.approval, "awaiting"); checks += 1;
-  assert.match(financeInvite.message, /waits for a second administrator's approval/); assert.match(financeInvite.message, /one active administrator: ask the operator to add a second with the provisioning command's --add-administrator mode/); checks += 2;
+  assert.match(financeInvite.message, /A second Admin must approve it before it can be accepted/); assert.match(financeInvite.message, /If your pilot has only one Admin, ask the Valo Pay team to add a second\./); assert.doesNotMatch(financeInvite.message, /--add-administrator/); checks += 3;
   verified("finance@example.test");
-  refused(await call("/v1/team/accept", "finance", "POST", { token: financeInvite.token }), 403, /waiting for a second administrator's approval/);
-  refused(await call(`/v1/team/invitations/${financeInvite.id}/approve`, "adminA", "POST"), 403, /A different administrator must approve this invitation.*--add-administrator/);
+  refused(await call("/v1/team/accept", "finance", "POST", { token: financeInvite.token }), 403, /waiting for a second Admin’s approval/);
+  refused(await call(`/v1/team/invitations/${financeInvite.id}/approve`, "adminA", "POST"), 403, /^A different Admin must approve this invitation\. The Admin who sent it cannot approve it\. If your pilot has only one Admin, ask the Valo Pay team to add a second\.$/);
   let directory = await team();
   assert.deepEqual(pick(directory.invitations.find((item: any) => item.id === financeInvite.id), ["approval", "invitedBy", "approvedBy"]), { approval: "awaiting", invitedBy: `Clerk:${people.adminA}`, approvedBy: null }); checks += 1;
   // The operator adds the second administrator (provision-pilot --add-administrator), who approves.
@@ -71,11 +71,11 @@ try {
   let member = memberOf(await team(), "operations");
   const request = ok(await call(`/v1/team/members/${member.id}`, "adminA", "PATCH", { role: "Compliance reviewer", status: "active", expectedUpdatedAt: member.updatedAt, reason: "Move to compliance reviews." }));
   assert.deepEqual([request.role, request.updatedAt, request.pendingChange?.to], ["Operations", member.updatedAt, { role: "Compliance reviewer", status: "active" }]); checks += 1;
-  assert.match(request.message, /waits for a second administrator/); checks += 1;
+  assert.match(request.message, /^This change needs a second Admin\./); checks += 1;
   assert.equal((await pool.query("SELECT role FROM valopay_staff_memberships WHERE id=$1", [member.id])).rows[0].role, "Operations"); checks += 1;
   directory = await team();
   assert.deepEqual(directory.changes.map((change: any) => [change.id, change.memberId, change.requestedBy]), [[request.pendingChange.id, member.id, `Clerk:${people.adminA}`]]); checks += 1;
-  refused(await call(`/v1/team/changes/${request.pendingChange.id}/approve`, "adminA", "POST"), 403, /A different administrator must approve this change/);
+  refused(await call(`/v1/team/changes/${request.pendingChange.id}/approve`, "adminA", "POST"), 403, /^A different Admin must approve this change\./);
   refused(await call(`/v1/team/changes/${request.pendingChange.id}/approve`, "finance", "POST"), 403, /^Only an Admin can manage the team\.$/);
   const approved = ok(await call(`/v1/team/changes/${request.pendingChange.id}/approve`, "adminB", "POST"));
   assert.deepEqual([approved.role, approved.status, approved.pendingChange], ["Compliance reviewer", "active", null]); checks += 1;
@@ -103,8 +103,8 @@ try {
   // way (declining it would keep them Admin), and it still waits for the asker to withdraw it.
   const adminBMember = memberOf(await team(), "adminB");
   const demotion = ok(await call(`/v1/team/members/${adminBMember.id}`, "adminA", "PATCH", { role: "Finance", status: "active", expectedUpdatedAt: adminBMember.updatedAt, reason: "Move to Finance reviews." }));
-  refused(await call(`/v1/team/changes/${demotion.pendingChange.id}/approve`, "adminB", "POST"), 403, /your own membership/);
-  refused(await call(`/v1/team/changes/${demotion.pendingChange.id}/decline`, "adminB", "POST"), 403, /Ask another administrator to decline a change to your own membership/);
+  refused(await call(`/v1/team/changes/${demotion.pendingChange.id}/approve`, "adminB", "POST"), 403, /your own access/);
+  refused(await call(`/v1/team/changes/${demotion.pendingChange.id}/decline`, "adminB", "POST"), 403, /Ask another Admin to decline a change to your own access/);
   assert.deepEqual([(await team()).changes.map((change: any) => change.id), (await events()).filter(event => event.action === "staff.change_declined" && event.detail.requestId === demotion.pendingChange.id).length], [[demotion.pendingChange.id], 0], "the refused decline recorded nothing"); checks += 1;
   ok(await call(`/v1/team/changes/${demotion.pendingChange.id}/decline`, "adminA", "POST"));
 

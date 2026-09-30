@@ -248,7 +248,7 @@ export function createBoundedClerkProxy(secretKey: string, options: { target?: s
   }) as RequestHandler;
   return (req, res, next) => {
     if (!originFor(req)) {
-      res.status(503).json({ error: 'Sign-in is not available on this host.', requestId: req.id });
+      res.status(503).json({ error: 'Sign-in is not available at this address.', requestId: req.id });
       return;
     }
     // httpxy skips its proxyReq event for Expect requests. That would bypass
@@ -256,7 +256,7 @@ export function createBoundedClerkProxy(secretKey: string, options: { target?: s
     // this unsupported handshake before any upstream request exists.
     if (req.headers.expect !== undefined) {
       res.setHeader('Connection', 'close');
-      res.status(417).json({ error: 'This sign-in request uses an unsupported handshake.', requestId: req.id });
+      res.status(417).json({ error: 'Sign-in could not start. Reload the page and try again.', requestId: req.id });
       return;
     }
     const network = clientNetwork(req.ip ?? req.socket.remoteAddress);

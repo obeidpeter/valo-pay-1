@@ -253,7 +253,7 @@ function principalFor(req: Request, res: Response) {
   const userId = signedInUser(req);
   if (staffMode() && !userId)
     fail(
-      "Sign in with your pilot staff account. Anonymous access is unavailable in this environment.",
+      "Sign in with your team member account to continue. This address is for team members only.",
       401,
     );
   if (userId)
@@ -304,7 +304,7 @@ export async function verifyWorkspaceEncryption(context: StoreContext) {
   const session = teamAdmin(context);
   if (!payloadEncryptionKey())
     fail(
-      "Configure managed payload encryption before running this check.",
+      "Data encryption is not set up yet. Contact the Valo Pay team.",
       503,
     );
   const scope = {
@@ -315,7 +315,8 @@ export async function verifyWorkspaceEncryption(context: StoreContext) {
     value = { synthetic: true, nonce: randomUUID() };
   const sealed = await protectStored(value, scope),
     opened = await revealStored(sealed, scope);
-  if (!sameJson(value, opened)) fail("The encryption check failed.", 503);
+  if (!sameJson(value, opened))
+    fail("The encryption check failed. Contact the Valo Pay team.", 503);
   await staffEvent(
     session.client,
     session.workspace.id,
@@ -326,7 +327,7 @@ export async function verifyWorkspaceEncryption(context: StoreContext) {
   );
   return {
     message:
-      "Managed encryption and decryption succeeded for a synthetic payload.",
+      "Encryption works: a sample value was encrypted and read back.",
     checkedAt: context.now,
     verified: true,
   };
@@ -336,7 +337,7 @@ export async function verifyWorkspaceEncryption(context: StoreContext) {
 export async function protectWorkspacePayloads(context: StoreContext) {
   const session = teamAdmin(context);
   if (!payloadEncryptionKey())
-    fail("Configure managed payload encryption first.", 503);
+    fail("Data encryption is not set up yet. Contact the Valo Pay team.", 503);
   // One record per request bounds managed-key calls and keeps progress restartable.
   const batch = 1;
   let protectedCount = 0;
@@ -413,8 +414,8 @@ export async function protectWorkspacePayloads(context: StoreContext) {
   );
   return {
     message: protectedCount
-      ? "Protected another batch of stored payloads. Run again until no payloads remain."
-      : "No unprotected import or recovery payloads remain in this workspace.",
+      ? "Encrypted another batch of saved import files and requests. Run it again until none remain."
+      : "Every saved import file and request in this workspace is encrypted.",
     protectedCount,
     mayHaveMore: protectedCount > 0,
   };
@@ -562,7 +563,7 @@ export async function inWorkspace<T>(
         auth = getAuth(req) as unknown as VerifiedClerkSession;
         if (access === "persona")
           fail(
-            "Staff roles are assigned by an administrator. Demo role switching is unavailable.",
+            "Your role is set by an Admin in Team and access.",
             403,
           );
         // Lock the organisation before its membership, consistently with team
@@ -575,7 +576,7 @@ export async function inWorkspace<T>(
         ).rows[0];
         if (!found)
           fail(
-            "This organisation has not been provisioned for the pilot.",
+            "Your organisation is not set up for a pilot yet. Contact the Valo Pay team.",
             403,
           );
         await lockWorkspace(client, found.id, lockMode, write);
@@ -587,7 +588,7 @@ export async function inWorkspace<T>(
         ).rows[0];
         if (!workspace)
           fail(
-            "This organisation has not been provisioned for the pilot.",
+            "Your organisation is not set up for a pilot yet. Contact the Valo Pay team.",
             403,
           );
         try {
@@ -613,7 +614,7 @@ export async function inWorkspace<T>(
         }
         if (!staff)
           fail(
-            "An active staff membership is required. Accept an invitation or contact your administrator.",
+            "You are not a team member of this organisation yet. Accept your invitation, or ask an Admin for one.",
             403,
           );
         now = (
@@ -677,7 +678,7 @@ export async function inWorkspace<T>(
       if (inserted) await lockWorkspace(client, inserted.id, lockMode, write);
       workspace = inserted || (await lockedSandbox());
       if (!workspace)
-        throw new Error("Workspace bootstrap could not be completed.");
+        throw new Error("We could not open your sandbox. Reload the page and try again.");
       if (inserted) {
         await seedWorkspace(
           client,
@@ -1551,7 +1552,7 @@ export function auditObject(
 export async function changeRole(context: StoreContext, role: string) {
   const session = sessionFor(context);
   if (context.accessMode === "staff")
-    fail("Staff cannot switch demo personas.", 403);
+    fail("Your role is set by an Admin in Team and access.", 403);
   if (session.access !== "persona")
     conflict("A persona change requires an exclusive workspace transaction.");
   if (!roles.includes(role)) fail(UNKNOWN_DEMO_ROLE);
@@ -1740,7 +1741,7 @@ async function seedWorkspace(
       { actor: `${SYSTEM_ACTOR_PREFIX}sandbox seed`, role: "Admin", now },
       "sandbox.created",
       "workspace",
-      "Created an isolated synthetic lender. Not live evidence.",
+      "Created a sample lender. Sample data only.",
     );
     const merchant = await client.query(
       `INSERT INTO valopay_merchants(id,workspace_id,info,settings)

@@ -181,7 +181,7 @@ try {
     delete process.env["CLERK_SECRET_KEY"];
     try {
       const refused = await get("/api/v1/workspace", "192.0.2.30");
-      assert.deepEqual([refused.status, ((await refused.json()) as { error: string }).error], [503, "Staff sign-in is not configured on this host."]);
+      assert.deepEqual([refused.status, ((await refused.json()) as { error: string }).error], [503, "Team member sign-in is not set up at this address. Contact the Valo Pay team."]);
       assert.equal((await drain(await get("/api/healthz", "192.0.2.30"))).status, 200);
     } finally {
       process.env["CLERK_SECRET_KEY"] = savedKey;

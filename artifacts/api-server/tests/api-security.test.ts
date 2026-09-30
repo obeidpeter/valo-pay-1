@@ -459,7 +459,7 @@ try {
     for (const origin of [undefined, "https://pilot.example"]) {
       const refused = await fetch(`${base}/api/v1/webhooks/test`, { method: "POST", headers: { "Content-Type": "application/json", ...(origin ? { Origin: origin } : {}) }, body: "{}" });
       assert.equal(refused.status, 403);
-      assert.equal(await errorOf(refused), "Use the configured pilot origin for staff changes.", `refused from ${origin ?? "no origin"}`);
+      assert.equal(await errorOf(refused), "Open Valo Pay from your pilot’s usual address to make changes.", `refused from ${origin ?? "no origin"}`);
     }
     const configured = await fetch(`${base}/api/v1/webhooks/test`, { method: "POST", headers: { "Content-Type": "application/json", Origin: base }, body: "{}" });
     assert.match(await errorOf(configured), /ingress is disabled/, "a change from the configured origin reaches its route");

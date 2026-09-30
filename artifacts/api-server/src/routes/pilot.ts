@@ -61,12 +61,13 @@ import { notFound, onlyRoles } from "../lib/refusal-words";
 const router: IRouter = Router(routerOptions);
 const idOf = pathId;
 router.post("/v1/team/verify", async (req, res) => {
-  if (!staffMode()) fail("Staff access is not enabled on this host.", 403);
+  if (!staffMode())
+    fail("Team member sign-in is not switched on at this address. Use the address your Admin gave you.", 403);
   const auth = getAuth(req, { acceptsToken: "session_token" });
-  if (!auth.userId) fail("Sign in to verify your identity.", 401);
+  if (!auth.userId) fail("Sign in first, then confirm your identity.", 401);
   if (!auth.factorVerificationAge || auth.factorVerificationAge[1] < 0)
     fail(
-      "Enrol and verify a second authentication factor in Account security first.",
+      "Set up two-step verification in Account security first.",
       403,
     );
   if (!auth.has({ reverification: "strict_mfa" })) {
