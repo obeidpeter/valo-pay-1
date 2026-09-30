@@ -77,7 +77,7 @@ const quick = (state: ReturnType<typeof seedMerchant>, kind: string, csv: string
   assert.equal(noConsent.rows[0]!.message, "No column is mapped to Consent source or reference. Map the column that holds it."); checks += 1;
 
   const mandates = quick(state, "mandates", "row_id,name,customer,amount,workflow,consentEvidence,consentGiven\nr1,Paper mandate,NOPE-1,5000000,paper,SYNTHETIC-CONSENT,yes", { commit: false, mapping: { customer: "customerId" } });
-  assert.equal(mandates.rows[0]!.message, "Consent given (column consentGiven): Use true or false. Activation workflow (column workflow): “paper” is not one of the choices. Use Activate with a bank transfer (transfer_to_activate) or Consent through the provider (hosted_consent). Customer reference or ID (column customer): No customer has the reference or ID “NOPE-1” in this lender."); checks += 1;
+  assert.equal(mandates.rows[0]!.message, "Consent given (column consentGiven): Use true or false. Activation method (column workflow): “paper” is not one of the choices. Use Activate with a bank transfer (transfer_to_activate) or Consent through the provider (hosted_consent). Customer reference or ID (column customer): No customer has the reference or ID “NOPE-1” in this lender."); checks += 1;
 
   const dueFile = "row_id,name,customerId,amount,dueDate,owner,status\nr1,Zero instalment,DEMO-C1001,0,2028-12-01,lms,scheduled";
   assert.equal(quick(state, "due-items", dueFile, { commit: false, amountUnit: "naira" }).rows[0]!.message, "Amount: Enter an amount above ₦0 in naira, for example 1,000.50."); checks += 1;

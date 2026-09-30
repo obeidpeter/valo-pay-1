@@ -339,7 +339,7 @@ export function coordinateCase(
   record.data.case = next;
   record.status = "in_progress";
   const event = makeRecord(state, "case-events", {
-    name: `${input.action === "claim" ? "Case claimed" : input.action === "handover" ? "Case handed over" : "Next action updated"}`,
+    name: `${input.action === "claim" ? "Case claimed" : input.action === "handover" ? "Case handed over" : "Next step updated"}`,
     status: "recorded",
     customerId: record.customerId,
     createdAt: ctx.now,

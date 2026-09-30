@@ -83,9 +83,9 @@ const noLongerApplied = (reason: unknown): string => {
   return /^(No longer applied|An accuracy review)/.test(why) ? why : `No longer applied: ${why}`;
 };
 const yesNo = (value: unknown): string => value ? "yes" : "no";
-/** How a mandate is activated, after "Activation:". */
+/** How a mandate is activated, after "Activation method:". */
 const activationText = (workflow: unknown): string => {
-  const phrases: Record<string, string> = { transfer_to_activate: "by bank transfer", hosted_consent: "consent through the provider", paper_mandate: "paper mandate" };
+  const phrases: Record<string, string> = { transfer_to_activate: "bank transfer", hosted_consent: "consent through the provider", paper_mandate: "paper mandate" };
   const code = String(workflow ?? "");
   return Object.hasOwn(phrases, code) ? phrases[code]! : valueWords(code);
 };
@@ -139,7 +139,7 @@ function describe(record: ValopayRecord): { event: string; detail: string } {
   const status = valueWords(record.status);
   switch (record.kind) {
     case "customers": return { event: "Customer record", detail: `Consent source: ${text(d.consentProvenance) || "not recorded"}.` };
-    case "mandates": return { event: `Mandate: ${status}`, detail: `Activation: ${activationText(d.workflow)}; origin: ${valueWords(d.origin)}; consent evidence: ${text(d.consentEvidence) || "none"}${Array.isArray(d.consentGaps) && d.consentGaps.length ? `; missing consent evidence: ${d.consentGaps.join(", ")}` : ""}; debit limit ${kobo(record.amountKobo)}.` };
+    case "mandates": return { event: `Mandate: ${status}`, detail: `Activation method: ${activationText(d.workflow)}; origin: ${valueWords(d.origin)}; consent evidence: ${text(d.consentEvidence) || "none"}${Array.isArray(d.consentGaps) && d.consentGaps.length ? `; missing consent evidence: ${d.consentGaps.join(", ")}` : ""}; debit limit ${kobo(record.amountKobo)}.` };
     case "due-items": return { event: `Instalment ${record.reference}: ${status}`, detail: `Due ${d.dueDate ? dayText(d.dueDate) : "date not recorded"}; collected by ${collectionOwnerText(d.owner)}; outstanding ${kobo(Number(d.outstandingKobo ?? record.amountKobo))}${d.experimentArm ? `; recovery test: ${valueWords(d.experimentArm)}` : ""}${d.amendedAt ? `; corrected ${when(d.amendedAt)}` : ""}.` };
     case "attempts": return { event: `Collection attempt${d.number ? ` ${text(d.number)}` : ""}: ${status}`, detail: `${d.source === "external" ? "Recorded from another collection system" : `Source: ${valueWords(d.source)}`}${d.failureCode ? `; failure: ${valueLabel(d.failureCode)} (${d.failureCode})` : ""}${d.rawFailureCode && d.rawFailureCode !== d.failureCode ? `; code as received: ${d.rawFailureCode}` : ""}${d.providerReference ? `; provider reference ${d.providerReference}` : ""}${d.cancellationReason ? `; ${d.cancellationReason}` : ""}.` };
     case "observations": return { event: `Payment evidence from ${evidenceSourceText(d.source)}`, detail: `${valueLabel(record.status)}${d.resolutionKey ? `, matched by ${valueWords(d.resolutionKey)}` : ""}${d.paymentId ? `; linked to payment record ${d.paymentId}` : ""}${d.resolvedTo ? `; resolved to ${text(d.resolvedTo)}` : ""}${d.batchReference ? `; settlement batch ${d.batchReference}` : ""}.` };
