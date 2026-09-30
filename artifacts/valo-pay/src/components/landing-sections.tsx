@@ -104,7 +104,7 @@ const questions = [
   {
     question: "Can I use Cash Desk without being a lender?",
     answer:
-      "Yes. Cash Desk is for business finance teams as well as lenders. Its sample business is kept separate from the lender’s customer records. A pilot covers your business and only the products you choose. It does not have to include Collections.",
+      "Yes. Cash Desk is for business finance teams as well as lenders. Its sample business is kept separate from the sample lenders’ customer records. A pilot covers your business and only the products you choose. It does not have to include Collections.",
   },
   {
     question: "What happens before a pilot goes live?",
