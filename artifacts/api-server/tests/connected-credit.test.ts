@@ -136,6 +136,22 @@ test("account-read never substitutes credit purpose", () => {
   input.grants = input.grants.slice(0, 1);
   blocked(input, "AUTHORITY_MISSING");
 });
+test("only a refused permission says a refusal is not a credit-risk penalty", () => {
+  const penalty = "Refusal is not a credit-risk penalty.";
+  const said = (input: CreditAssessmentInput, code: string) =>
+    assessCredit(input, ctx).evidence.issues.find((issue) => issue.code === code)?.message ?? "";
+  const refused = said(fixture("refused"), "AUTHORITY_REFUSED");
+  assert.ok(refused.includes(penalty), refused);
+  const expired = fixture();
+  expired.grants[0]!.expiresAt = now;
+  const missing = fixture();
+  missing.grants = missing.grants.slice(0, 1);
+  for (const [input, code] of [[expired, "AUTHORITY_EXPIRED"], [missing, "AUTHORITY_MISSING"]] as const) {
+    const message = said(input, code);
+    assert.ok(message, `${code} has a message`);
+    assert.ok(!message.includes(penalty), message);
+  }
+});
 test("same-tenant applicant binding is enforced", () => {
   const input = fixture();
   input.grants[1]!.applicantId = "other";

@@ -296,6 +296,11 @@ try {
   const keyed = key();
   const record = ok(await call(q("/v1/records/customers"), "POST", customerBody, { key: keyed }));
   ok(await call(q("/v1/records/customers"), "POST", { ...customerBody, reference: `CONTRACT-${randomUUID()}` }));
+  // An audit entry is named in words when an answer shows it, while its stored row keeps the route's code as its name and action.
+  const listed = ok(await call(q(`/v1/records/audit?search=${encodeURIComponent(record.id)}&limit=50`))).items.find((item: any) => item.data?.action === "post.records.customers");
+  assert.equal(listed?.name, "Customer added", "the audit list names the entry in words");
+  const stored = (await pool.query("SELECT name, data->>'action' AS action FROM valopay_records WHERE merchant_id=$1 AND kind='audit' AND data->>'objectId'=$2 AND data->>'action'='post.records.customers'", [lender, record.id])).rows;
+  assert.deepEqual(stored, [{ name: "post.records.customers", action: "post.records.customers" }], "and its stored row keeps the route's code");
   const renamed = ok(await call(q(`/v1/records/customers/${record.id}`), "PATCH", { name: "Contract customer, renamed", data: { phoneMasked: "+234 ••• ••31" }, expectedUpdatedAt: record.updatedAt }, { key: key() }));
   assert.equal(renamed.data.phoneMasked, "+234 ••• ••31");
   // An edit clears an optional data field by sending it as null (a merge patch); the fields it leaves out keep their values.

@@ -371,7 +371,7 @@ try {
     } finally {
       await pool.query("DELETE FROM valopay_records WHERE merchant_id=$1 AND id LIKE $2", [indexLender, `${filler}-record-%`]);
       await pool.query("ANALYZE valopay_records");
-      await pool.query("DELETE FROM valopay_operations WHERE merchant_id=$1 AND (id LIKE $2 OR label='Save records customers')", [indexLender, `${filler}-%`]);
+      await pool.query("DELETE FROM valopay_operations WHERE merchant_id=$1 AND (id LIKE $2 OR label IN ('Save records customers','Add a record'))", [indexLender, `${filler}-%`]);
       await pool.query("DELETE FROM valopay_merchants WHERE id LIKE $1", [`${filler}-lender-%`]);
       await pool.query("DELETE FROM valopay_workspaces WHERE id LIKE $1", [`${filler}-%`]);
       await pool.query("ANALYZE valopay_operations"); await pool.query("ANALYZE valopay_merchants");
