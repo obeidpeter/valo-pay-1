@@ -21,7 +21,7 @@ export function owned<K extends string>(
     (r) => r.id === id && r.kind === kind && r.merchantId === state.merchant.id,
   ) ?? reject(notFound("Record"), 404)) as RecordOf<K>;
 }
-/** Refuses a role the action does not allow: "Only an Admin or Operations can grant permissions." */
+/** Refuses a role the action does not allow: "Only Admin or Operations can grant permissions." */
 export function allow(ctx: Context, roles: string[], action: string) {
   if (!roles.includes(ctx.role))
     reject(onlyRoles(roles, action, ctx.accessMode), 403);

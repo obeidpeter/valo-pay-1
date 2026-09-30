@@ -4,17 +4,15 @@
  * told where to change their demo role; a team member never reads sandbox or demo wording.
  */
 
-/** One role as a sentence names it: "an Admin", "a Compliance reviewer", "Finance". */
-const oneRole = (role: string) => role === "Admin" ? "an Admin" : role === "Compliance reviewer" ? "a Compliance reviewer" : role;
-
 /**
- * Roles as a sentence lists them, as the shared export refusal does: "an Admin", "an Admin or Finance", "an Admin,
- * Operations or Finance".
+ * Roles as a refusal lists them: exactly as the role chip shows them, with no article, as the console's refusals do.
+ * "Admin", "Admin or Finance", "Admin, Operations or Finance". A sentence about one person keeps its article ("a
+ * second Admin").
  */
 export function roleList(roles: readonly string[]): string {
   const [first = "", ...rest] = roles;
-  if (!rest.length) return oneRole(first);
-  return `${[oneRole(first), ...rest.slice(0, -1)].join(", ")} or ${rest.at(-1)}`;
+  if (!rest.length) return first;
+  return `${[first, ...rest.slice(0, -1)].join(", ")} or ${rest.at(-1)}`;
 }
 
 /** Where a person in the sandbox changes their demo role, as a sentence to add; nothing for a team member. */
@@ -23,7 +21,7 @@ export function demoRoleHint(accessMode: string | undefined): string {
 }
 
 /**
- * A role refusal: "Only an Admin or Operations can grant permissions." with the specific reason, when there is one, and
+ * A role refusal: "Only Admin or Operations can grant permissions." with the specific reason, when there is one, and
  * in the sandbox where to change the demo role.
  */
 export function onlyRoles(roles: readonly string[], action: string, accessMode: string | undefined, reason = ""): string {

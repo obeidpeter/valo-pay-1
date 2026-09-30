@@ -70,7 +70,7 @@ const rolesForAction: Record<PilotAction, readonly PilotRole[]> = {
   // Dispute packs, the customer register and the audit trail (sensitiveExportKinds): lib/export-jobs.ts checks it when one is queued, retried or downloaded.
   export_sensitive: sensitiveExportRoles,
 };
-/** Each action as a role refusal names it: "Only an Admin can change lender settings." */
+/** Each action as a role refusal names it: "Only Admin can change lender settings." */
 const actionWords: Record<PilotAction, string> = {
   read: 'use this lender', record_operations: 'record collection work', confirm_match: 'confirm matches',
   approve_policy: 'approve retry policies', manage_settings: 'change lender settings', export_sensitive: 'export sensitive records',

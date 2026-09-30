@@ -171,7 +171,7 @@ function ownRecord(
   if (!record) throw refusal(notFound("Cash Desk record"), 404);
   return record;
 }
-/** Refuses a role the action does not allow: "Only an Admin or Operations can set up Cash Desk." */
+/** Refuses a role the action does not allow: "Only Admin or Operations can set up Cash Desk." */
 function requireRole(ctx: Context, roles: string[], action: string): void {
   if (!roles.includes(ctx.role))
     throw refusal(onlyRoles(roles, action, ctx.accessMode), 403);

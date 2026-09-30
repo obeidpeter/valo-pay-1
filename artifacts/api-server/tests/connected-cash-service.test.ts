@@ -47,7 +47,7 @@ assert.equal(cashView(state, operations).initialised, false);
 assert.equal(state.records.length, 0);
 checks += 2;
 assert.throws(() => act("cash.initialize"), (error: any) => /permission/i.test(error.message) && error.status === 403);
-assert.throws(() => act("cash.initialize", finance), (error: any) => error.message === "Only an Admin or Operations can set up Cash Desk. Change your demo role in Settings." && error.status === 403);
+assert.throws(() => act("cash.initialize", finance), (error: any) => error.message === "Only Admin or Operations can set up Cash Desk. Change your demo role in Settings." && error.status === 403);
 checks += 2;
 for (const purpose of ["merchant_account_read", "erp_draft", "payroll_prepare"])
   makeRecord(state, "connected-consents", {

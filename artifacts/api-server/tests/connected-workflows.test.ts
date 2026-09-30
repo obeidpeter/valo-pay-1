@@ -88,7 +88,7 @@ check(() => {
         undefined,
         { ...ctx, role: "Read-only" },
       ),
-    /Only an Admin, Operations, Finance or Compliance reviewer can make changes in connected banking\. Change your demo role in Settings\.$/,
+    /Only Admin, Operations, Finance or Compliance reviewer can make changes in connected banking\. Change your demo role in Settings\.$/,
   );
 });
 check(() => {
