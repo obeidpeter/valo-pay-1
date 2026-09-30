@@ -35,7 +35,7 @@ test("the allocation picker counts only the instalments it offers", async ({ pag
   await expect(offered).toHaveCount(Number(shown));
   // Every page is full of choices, so the count is the number of instalments that can take a payment.
   expect(Number(total)).toBeGreaterThan(Number(shown));
-  await expect(dialog.getByText("Paid, cancelled, closed and disputed instalments are not listed. Nor are instalments on hold while Finance reviews an earlier reversal decision.")).toBeVisible();
+  await expect(dialog.getByText("Paid, cancelled, closed and disputed instalments are not listed. Instalments on hold while Finance reviews an earlier reversal decision are not listed either.")).toBeVisible();
   // DEMO-LOAN-1001 is paid: searching for it offers nothing and says so, with no pager.
   await dialog.getByRole("searchbox", { name: "Find an instalment" }).fill("DEMO-LOAN-1001");
   await expect(dialog.getByText("No instalment that can take a payment matches this search.")).toBeVisible();

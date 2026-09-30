@@ -70,14 +70,14 @@ describe("forms", () => {
     const due = api.state().records.find((record) => record.kind === "due-items" && record.status === "scheduled" && !api.state().records.some((attempt) => attempt.kind === "attempts" && attempt.data.dueItemId === record.id && ["scheduled", "sent", "unknown"].includes(attempt.status)))!;
     renderApp("/collections");
     const row = (await screen.findByText(due.reference)).closest("tr")!;
-    await user.click(within(row).getByRole("button", { name: "Simulate failed collection" }));
-    const dialog = await screen.findByRole("dialog", { name: "Simulate failed collection" });
+    await user.click(within(row).getByRole("button", { name: "Simulate failed collection attempt" }));
+    const dialog = await screen.findByRole("dialog", { name: "Simulate failed collection attempt" });
     const reason = within(dialog).getByLabelText(/Failure reason/) as HTMLSelectElement;
     const option = within(reason).getByRole("option", { name: "Insufficient funds" }) as HTMLOptionElement;
     expect(option.value).toBe("INSUFFICIENT_FUNDS");
     await user.selectOptions(reason, option);
     await user.type(within(dialog).getByLabelText(/^Reason/), "Check the sample retry policy.");
-    await user.click(within(dialog).getByRole("button", { name: "Simulate failed collection" }));
+    await user.click(within(dialog).getByRole("button", { name: "Simulate failed collection attempt" }));
     await waitFor(() => {
       const action = api.calls.find((call) => (call.body as { action?: string })?.action === "simulate_failure");
       expect(action?.body).toMatchObject({ action: "simulate_failure", recordId: due.id, data: { failureCode: "INSUFFICIENT_FUNDS" } });

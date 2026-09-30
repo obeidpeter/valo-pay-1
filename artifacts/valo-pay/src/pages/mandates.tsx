@@ -219,7 +219,7 @@ export default function MandatesPage() {
           </EmptyState>
         ) : shown.length === 0 ? (
           <EmptyState title={search.get('q')?.trim() ? 'No mandates match your search' : view === 'all' ? 'No mandates yet' : 'No mandates match these filters'} action={search.get('q')?.trim() ? undefined : view === 'all' ? <Button kind="mandates" size="sm" variant="outline" onClick={() => setIsCreateOpen(true)}>Add mandate</Button> : <Button size="sm" variant="outline" onClick={() => setView('all')}>Show all mandates</Button>}>
-            {search.get('q')?.trim() ? 'Try another name or reference, or clear the search. Your view stays as it is.' : view === 'all' ? 'Mandates appear after they are added or imported. Select Add mandate to try activation.' : 'Select Show all mandates to see every activation status.'}
+            {search.get('q')?.trim() ? 'Try another name or reference, or select Clear search. Your view stays as it is.' : view === 'all' ? 'Mandates appear after they are added or imported. Select Add mandate to try activation.' : 'Select Show all mandates to see every activation status.'}
           </EmptyState>
         ) : (
           <ScrollFrame label="Mandates" className="overflow-x-auto">

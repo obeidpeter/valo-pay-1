@@ -259,7 +259,7 @@ describe('allocation picker counts', () => {
     await waitFor(() => expect(within(dialog).queryByText('Loading instalment choices…')).toBeNull());
     expect(offered()).toHaveLength(0);
     expect(within(dialog).getByText('No instalment that can take a payment matches this search. Try another name or reference.')).toBeTruthy();
-    expect(within(dialog).getByText('Paid, cancelled, closed and disputed instalments are not listed. Nor are instalments on hold while Finance reviews an earlier reversal decision.')).toBeTruthy();
+    expect(within(dialog).getByText('Paid, cancelled, closed and disputed instalments are not listed. Instalments on hold while Finance reviews an earlier reversal decision are not listed either.')).toBeTruthy();
     expect(within(dialog).queryByRole('navigation', { name: 'instalment choices pagination' })).toBeNull();
   });
 });

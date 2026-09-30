@@ -90,7 +90,7 @@ describe('held payments and instalments', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Allocate payment' });
     await waitFor(() => expect(within(dialog).getByRole('option', { name: /DEMO-LOAN-1006/ })).toBeTruthy());
     expect(within(dialog).queryByRole('option', { name: /DEMO-LOAN-1005/ })).toBeNull();
-    expect(within(dialog).getByText(/Nor are instalments on hold while Finance reviews an earlier reversal decision/)).toBeTruthy();
+    expect(within(dialog).getByText(/Instalments on hold while Finance reviews an earlier reversal decision are not listed either/)).toBeTruthy();
   });
 
   it.each([

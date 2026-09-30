@@ -204,7 +204,7 @@ export default function ReconciliationPage() {
         <p className="mt-1 text-muted-foreground">Payment evidence checked. No money moved.</p>
         <dl className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
           {[
-            ['Evidence matched', runResult.data?.observationsResolved], ['Matches to review', runResult.data?.proposed],
+            ['Payment evidence resolved', runResult.data?.observationsResolved], ['Matches to review', runResult.data?.proposed],
             ['Unallocated payments', runResult.data?.unallocated], ['Possible duplicates', runResult.data?.possibleDuplicates],
           ].map(([label, count]) => <div key={String(label)}><dt className="text-xs text-muted-foreground">{label}</dt><dd className="mt-1 text-lg font-semibold tabular-nums">{formatNumber(Number(count || 0))}</dd></div>)}
         </dl>
@@ -417,7 +417,7 @@ export default function ReconciliationPage() {
                 ) : auditError && !confirmedAllocations ? (
                   <TableProblem colSpan={7} pager="sampled matches">We could not load the match review sample. Select Refresh queue to try again.</TableProblem>
                 ) : auditSample.length === 0 ? (
-                  <EmptyRow colSpan={7} title={q ? 'No sample matches for this search' : "No automatic matches to review yet"}>{q ? 'Try another name or reference, or select Clear search.' : <>Each daily close picks a sample of last month’s automatic matches rated Certain. Finance then checks whether they are correct.</>}</EmptyRow>
+                  <EmptyRow colSpan={7} title={q ? 'No sample matches for this search' : "No automatic matches to review yet"}>{q ? 'Try another name or reference, or select Clear search.' : <>Valo Pay picks a sample of last month’s automatic matches rated Certain for Finance to check. Last month had none.</>}</EmptyRow>
                 ) : (
                   auditSample.map(allocation => (
                     <tr key={allocation.id} className="hover:bg-secondary/10">
@@ -531,7 +531,7 @@ export default function ReconciliationPage() {
           try { amount = nairaToKobo(String(values.amountKobo ?? '')); } catch { /* The field reports incomplete or invalid input on submit. */ }
           return <section aria-label="Allocation preview" className="space-y-2 rounded-lg border bg-secondary/20 p-3 text-sm">
             <label className="grid gap-1 text-xs">Find an instalment<input type="search" value={allocationSearch} onKeyDown={searchWithoutSubmitting} onChange={event=>{setAllocationSearch(event.target.value);choicePage.resetPage();}} placeholder="Name or reference" className="min-h-10 rounded-md border bg-background px-3" /></label>
-            <p className="text-xs text-muted-foreground">Paid, cancelled, closed and disputed instalments are not listed. Nor are instalments on hold while Finance reviews an earlier reversal decision.</p>
+            <p className="text-xs text-muted-foreground">Paid, cancelled, closed and disputed instalments are not listed. Instalments on hold while Finance reviews an earlier reversal decision are not listed either.</p>
             {choicesQuery.error ? <LoadProblem what="instalment choices" pager="instalment choices" error={choicesQuery.error} retry={()=>{void choicesQuery.refetch();}} /> : <>
               {(choicesQuery.isFetching || allocationSearchPending) && <p role="status">Loading instalment choices…</p>}
               {!allocationSearchPending && choicesQuery.data && (choicesQuery.data.total === 0 ? !choicesQuery.isFetching && <p role="status">{allocationTerm ? 'No instalment that can take a payment matches this search. Try another name or reference.' : `${selectedRecord?.customerId ? 'This payer has no instalment that can take a payment.' : namedInstalment ? `${namedCustomer?.name ? `${namedCustomer.name}, named in the payment evidence,` : `The customer of instalment ${namedInstalment.reference}, named in the payment evidence,`} has no instalment that can take a payment.` : 'No instalment can take a payment.'} Leave the payment unallocated for now, or record a refund if the money went back.`}</p> : <RecordPagination pagination={choicePage} total={choicesQuery.data.total} busy={choicesQuery.isFetching} label="instalment choices" />)}

@@ -120,7 +120,7 @@ export default function CollectionsPage() {
 
       <QueueFreshness key={merchantId} queries={[queue]} />
 
-      <QueueSearch help="Your view and Collected by filters still apply." /><SavedQueueViews queue="collections" views={collectionViews} fallback="all" />
+      <QueueSearch help="Your view and Collected by filter still apply." /><SavedQueueViews queue="collections" views={collectionViews} fallback="all" />
 
       {actionError && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm">{actionError}</p>}
       <div className="flex flex-col gap-6">
@@ -180,7 +180,7 @@ export default function CollectionsPage() {
                         <td className="px-4 py-3 text-right">
                           {item && <div className="flex flex-col items-end gap-2"><Button size="sm" variant="outline" className="h-7 text-xs" action="backtest_policy" record={item} onClick={() => handleAction(item, 'backtest_policy')}>Test retry policy</Button>
                           {item.status === 'in_dispute' && <Button size="sm" variant="outline" className="h-7 text-xs" action="release_dispute" record={item} onClick={() => handleAction(item, 'release_dispute')}>Release from dispute</Button>}
-                          {isUnpaid(item.status) && <Button size="sm" variant="ghost" className="h-7 text-xs" action="simulate_failure" record={item} onClick={() => handleAction(item, 'simulate_failure')}>Simulate failed collection</Button>}</div>}
+                          {isUnpaid(item.status) && <Button size="sm" variant="ghost" className="h-7 text-xs" action="simulate_failure" record={item} onClick={() => handleAction(item, 'simulate_failure')}>Simulate failed collection attempt</Button>}</div>}
                         </td>
                       </tr>
                     ))
@@ -198,8 +198,8 @@ export default function CollectionsPage() {
         record={selectedItem}
         isOpen={isDialogOpen}
         onOpenChange={setIsDialogOpen}
-        title={actionKind === 'simulate_failure' ? 'Simulate failed collection' : actionKind === 'release_dispute' ? 'Release from dispute' : 'Test retry policy'}
-        submitLabel={actionKind === 'simulate_failure' ? 'Simulate failed collection' : actionKind === 'release_dispute' ? 'Release from dispute' : 'Test retry policy'}
+        title={actionKind === 'simulate_failure' ? 'Simulate failed collection attempt' : actionKind === 'release_dispute' ? 'Release from dispute' : 'Test retry policy'}
+        submitLabel={actionKind === 'simulate_failure' ? 'Simulate failed collection attempt' : actionKind === 'release_dispute' ? 'Release from dispute' : 'Test retry policy'}
         actionMutation={actionKind}
         onDone={response => { if (actionKind === 'release_dispute' && response?.message) notifyDone('Released from dispute', String(response.message)); }}
         context={actionKind === 'release_dispute' && selectedItem ? <section aria-label="Release context" className="space-y-2 rounded-lg border bg-secondary/10 p-4 text-sm">
