@@ -164,11 +164,11 @@ it('names the deletion run that deleted a file and opens its deletion record und
   await screen.findByText('Saved export: File deleted');
   expect(screen.getByText(`Deletion run: ${run.id}`)).toBeTruthy();
   await user.click(screen.getByRole('link',{name:'Open the deletion record'}));
-  const receipts=(await screen.findByRole('heading',{name:'Saved deletion receipts'})).parentElement!;
-  expect(screen.getByText(`Retention run ${run.id} is open below with its saved deletion receipts.`)).toBeTruthy();
-  expect(within(receipts).getByText(id).closest('li')!.textContent).toMatch(/^Export file · deleted/);
+  const receipts=(await screen.findByRole('heading',{name:'Deletion records'})).parentElement!;
+  expect(screen.getByText(`Deletion run ${run.id} is shown below, with its deletion records.`)).toBeTruthy();
+  expect(within(receipts).getByText(id).closest('li')!.textContent).toMatch(/^Export file · Deleted/);
   // The page's list of saved runs holds the newest ten, which no longer include it.
-  const listed=screen.getByRole('heading',{name:'Saved deletion runs'}).closest('section')!.querySelectorAll('li');
+  const listed=screen.getByRole('heading',{name:'Deletion runs'}).closest('section')!.querySelectorAll('li');
   expect(listed).toHaveLength(10);
   expect([...listed].some(item=>item.textContent!.includes(formatDate(minute(0))))).toBe(false);
   expect(api.calls.some(call=>call.method==='GET'&&call.path===`/v1/lifecycle/runs/${run.id}`)).toBe(true);

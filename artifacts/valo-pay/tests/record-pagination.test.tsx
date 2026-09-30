@@ -298,17 +298,17 @@ describe('paging a fixed-step list by keyboard', () => {
     expect(document.activeElement).toBe(next);
   }, 30_000);
 
-  it('keeps focus on Next sources while the next page of retained sources loads, and on Previous sources at the last page', async () => {
+  it('keeps focus on Next items while the next page of kept items loads, and on Previous items at the last page', async () => {
     api.mutate((state, ctx) => {
       for (let index = 0; index < 205; index++) makeRecord(state, 'import-batches', { name: `Aged import ${index}`, status: 'committed', createdAt: '2026-01-01T10:00:00.000Z', updatedAt: '2026-01-01T10:00:00.000Z', data: { csv: `reference,name\nAGED-${index},Sample customer`, committedAt: '2026-01-01T10:00:00.000Z', rowIds: [`aged-${index}`], recordIds: [], check: { valid: 1, invalid: 0, imported: 1, rows: [], preview: [] } } });
       saveLifecyclePolicy(state, ctx, { policy: { rawCsvDays: 30, journalPayloadDays: null, exportFileDays: null, auditTrail: 'retain' }, expectedRevision: lifecyclePolicy(state).revision, reason: 'The aged sample sources have passed their retention review.' });
     });
     const user = userEvent.setup();
     renderApp('/lifecycle');
-    const next = await nextWhileHeld(user, 'Next sources', () => api.hold(/^\/v1\/lifecycle$/));
+    const next = await nextWhileHeld(user, 'Next items', () => api.hold(/^\/v1\/lifecycle$/));
     expect(document.activeElement).toBe(next);
-    await nextWhileHeld(user, 'Next sources', () => api.hold(/^\/v1\/lifecycle$/), 'Previous sources');
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Previous sources' }));
+    await nextWhileHeld(user, 'Next items', () => api.hold(/^\/v1\/lifecycle$/), 'Previous items');
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Previous items' }));
   }, 30_000);
 
   it('keeps focus on Next requests while the next page of Request history loads', async () => {

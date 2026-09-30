@@ -38,39 +38,39 @@ test('the current assignee can review and acknowledge a handover without resolvi
 test('an approved retention run keeps going until every source is removed', async ({ page, request }) => {
   expect((await request.post('/__test/aged-batches?count=3')).ok()).toBeTruthy();
   await page.goto('/lifecycle');
-  await page.getByRole('checkbox', { name: 'Raw CSV after import' }).check();
+  await page.getByRole('checkbox', { name: 'Import files (CSV)' }).check();
   await page.getByLabel('Reason for the policy change').fill('Pilot agreement: raw files are kept for 30 days only.');
   await page.getByRole('button', { name: 'Save retention policy' }).click();
   await expect(page.getByText('Retention policy saved. Saving a policy does not delete data.')).toBeVisible();
   await page.getByRole('button', { name: 'Prepare deletion preview' }).click();
-  await page.getByRole('checkbox', { name: /I reviewed every source identity/ }).check();
+  await page.getByRole('checkbox', { name: /I have checked every item/ }).check();
   await page.getByLabel('Reason for approving this deletion').fill('Approved under the pilot retention agreement.');
-  await page.getByRole('button', { name: 'Approve exact deletion run' }).click();
+  await page.getByRole('button', { name: 'Approve deletion' }).click();
   // The sample service removes one source a request: one click carries the run through all three.
-  await page.getByRole('button', { name: 'Execute approved run' }).click();
-  const outcome = page.getByText('This run is complete. Inspect its saved deletion receipts below.');
+  await page.getByRole('button', { name: 'Start deletion' }).click();
+  const outcome = page.getByText('Deletion run complete. See its deletion records below.');
   await expect(outcome).toBeVisible();
   await expect(outcome).toBeFocused();
-  await expect(page.getByText('3 source artifacts · 3 confirmed complete · 0 remaining.', { exact: false })).toBeVisible();
-  await expect(page.getByRole('button', { name: /Execute approved run|Resume approved run|Stop/ })).toHaveCount(0);
+  await expect(page.getByText('3 items · 3 deleted · 0 left.', { exact: false })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Start deletion|Continue deletion|Stop/ })).toHaveCount(0);
   await audit(page);
 });
 
 // Second review of the audit fixes, console finding 2: a run that stops on a failed or lost request says so, and focus goes there.
 for (const [how, said] of [
-  ['answered 502 by a proxy', 'The run stopped because its last request was not confirmed: it failed or its answer was lost, and it may have removed more sources. Use Check original request above to find out. Removed so far: 1 of 3 sources.'],
-  ['lost after the service removed its source', 'The run stopped because its last request was not confirmed: it failed or its answer was lost, and it may have removed more sources. Use Check original request above to find out. Removed so far: 1 of 3 sources.'],
+  ['answered 502 by a proxy', 'Deletion stopped because its last request was not confirmed. It may have deleted more items. Select Check original request above to find out. Deleted so far: 1 of 3 items.'],
+  ['lost after the service removed its source', 'Deletion stopped because its last request was not confirmed. It may have deleted more items. Select Check original request above to find out. Deleted so far: 1 of 3 items.'],
 ] as const) test(`a retention run whose second request is ${how} says where it stopped, and focus goes there`, async ({ page, request }) => {
   expect((await request.post('/__test/aged-batches?count=3')).ok()).toBeTruthy();
   await page.goto('/lifecycle');
-  await page.getByRole('checkbox', { name: 'Raw CSV after import' }).check();
+  await page.getByRole('checkbox', { name: 'Import files (CSV)' }).check();
   await page.getByLabel('Reason for the policy change').fill('Pilot agreement: raw files are kept for 30 days only.');
   await page.getByRole('button', { name: 'Save retention policy' }).click();
   await expect(page.getByText('Retention policy saved. Saving a policy does not delete data.')).toBeVisible();
   await page.getByRole('button', { name: 'Prepare deletion preview' }).click();
-  await page.getByRole('checkbox', { name: /I reviewed every source identity/ }).check();
+  await page.getByRole('checkbox', { name: /I have checked every item/ }).check();
   await page.getByLabel('Reason for approving this deletion').fill('Approved under the pilot retention agreement.');
-  await page.getByRole('button', { name: 'Approve exact deletion run' }).click();
+  await page.getByRole('button', { name: 'Approve deletion' }).click();
   let sent = 0;
   await page.route(/\/api\/v1\/lifecycle\/runs\/[^/]+\/execute/, async route => {
     if (++sent !== 2) return route.fallback();
@@ -78,7 +78,7 @@ for (const [how, said] of [
     await route.fetch();
     await route.abort('connectionreset');
   });
-  const execute = page.getByRole('button', { name: 'Execute approved run' });
+  const execute = page.getByRole('button', { name: 'Start deletion' });
   await execute.focus();
   await page.keyboard.press('Enter');
   const outcome = page.getByText(said, { exact: true });
@@ -109,8 +109,8 @@ for (const theme of ['light', 'dark'] as const) test(`new operations pages expos
     }
     if (route === '/lifecycle') {
       await expect(page.getByRole('button', { name: 'Prepare deletion preview' })).toBeDisabled();
-      await expect(page.getByRole('checkbox', { name: 'Raw CSV after import' })).not.toBeChecked();
-      await expect(page.getByRole('checkbox', { name: 'Generated export files' })).not.toBeChecked();
+      await expect(page.getByRole('checkbox', { name: 'Import files (CSV)' })).not.toBeChecked();
+      await expect(page.getByRole('checkbox', { name: 'Export files' })).not.toBeChecked();
     }
     if (route === '/team') {
       // The server's setup checks are an Admin's closed Technical setup section.
