@@ -546,13 +546,13 @@ export function buildErpDraft(input: ErpDraftInput): ErpDraft {
       ["taxCode", "Tax code"],
     ] as const
   ).forEach(([key, label]) => required(input.mapping[key], label));
-  const gross = money(input.grossMinor, "Gross amount"),
+  const gross = money(input.grossMinor, "Amount before fees"),
     fee = money(input.feeMinor, "Fee"),
-    net = money(input.netMinor, "Net amount");
+    net = money(input.netMinor, "Amount received in the bank");
   if (gross <= 0 || total([net, fee]) !== gross)
     fail(
       "unbalanced_receipt",
-      "The gross amount must equal the amount received in the bank plus the recorded fee.",
+      "The amount before fees must equal the amount received in the bank plus the recorded fee.",
     );
   unique(
     input.invoices.map((i) => i.id),
@@ -601,7 +601,7 @@ export function buildErpDraft(input: ErpDraftInput): ErpDraft {
   if (total(input.allocations.map((a) => a.amountMinor)) !== gross)
     fail(
       "unallocated_receipt",
-      "The amounts applied to invoices must add up to the amount received. Differences cannot be written off.",
+      "The amounts applied to invoices must add up to the amount before fees. Differences cannot be written off.",
     );
   (input.creditNotes ?? []).forEach((c) => {
     money(c.amountMinor, "Credit note");
@@ -1472,6 +1472,6 @@ export function exportPayrollManifest(plan: PayrollPlan) {
     ...manifest,
     manifestHash: cashEvidenceHash(manifest),
     warning:
-      "No one has been paid. This file does not set money aside. Record each payment’s outcome from the bank before you try any payment again.",
+      "This file does not show that anyone was paid, and it does not set money aside. Record each payment’s outcome from the bank before you try any payment again.",
   };
 }
