@@ -35,7 +35,7 @@ describe("unconfirmed changes the journal records point to Operations", () => {
     await user.type(within(dialog).getByLabelText(/^Loan software reference/), "LOST-ANSWER-1");
     await user.type(within(dialog).getByLabelText(/^Consent source or reference/), "Synthetic consent");
     api.failNext(/^\/v1\/records\/customers$/, "offline", "POST");
-    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    await user.click(within(dialog).getByRole("button", { name: "Add customer" }));
     await within(dialog).findByText("Outcome not confirmed");
     const notice = pointsToOperations("Outcome not confirmed");
     expect(notice.textContent).not.toMatch(/not saved after closing or reloading/);

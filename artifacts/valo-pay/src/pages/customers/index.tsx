@@ -8,7 +8,7 @@ import { useListRecords, getListRecordsQueryKey } from '@workspace/api-client-re
 import { useQueryClient } from '@tanstack/react-query';
 import { formatNumber } from '@/lib/formatters';
 import { Search, UserPlus, ArrowRight, Users } from 'lucide-react';
-import { CustomerAvatar, StatusBadge } from '@/components/record-label';
+import { CustomerAvatar, StatusBadge, readableLabel } from '@/components/record-label';
 import { PermissionButton as Button } from '@/components/permission-button';
 import { Link } from 'wouter';
 import { RecordDialog } from '@/components/record-dialog';
@@ -44,14 +44,14 @@ export default function CustomersPage() {
   }, [data, isFetching, pagination.page, pagination.pageSize]);
 
   if (!merchantId) return null;
-  if (!sameLender) return <div className="space-y-3"><h1 className="text-2xl font-bold">Choose the linked lender</h1><p>This customer directory belongs to {workspace?.merchants.find(merchant => merchant.id === directoryParams.get('lender'))?.name || 'another lender'}. Select that lender using the lender menu to restore this search.</p><Button variant="outline" onClick={() => setSearch('')}>Open this lender’s customers</Button></div>;
+  if (!sameLender) return <div className="space-y-3"><h1 className="text-2xl font-bold">Choose the linked lender</h1><p>This customer list belongs to {workspace?.merchants.find(merchant => merchant.id === directoryParams.get('lender'))?.name || 'another lender'}. Choose that lender in Active lender to see this search again.</p><Button variant="outline" onClick={() => setSearch('')}>Open this lender’s customers</Button></div>;
 
   return (
     <div className="space-y-6">
       <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Customers</h1>
-          <p className="text-muted-foreground mt-1">Every customer, payment and consent record in one place.</p>
+          <p className="text-muted-foreground mt-1">Search by name, reference or masked phone number. Each row opens that customer’s history.</p>
         </div>
         <div className="flex items-center gap-3">
           <Button kind="customers" className="gap-2" onClick={() => setIsDialogOpen(true)}>
@@ -67,15 +67,16 @@ export default function CustomersPage() {
         isOpen={isDialogOpen}
         onOpenChange={setIsDialogOpen}
         title="Add customer"
+        submitLabel="Add customer"
         fields={[
           // The same words as the import screens' columns and row errors (importFieldLabel).
           { name: 'name', label: importFieldLabel('customers', 'name'), type: 'text', required: true },
           { name: 'reference', label: importFieldLabel('customers', 'reference'), type: 'text', required: true },
-          { name: 'status', label: importFieldLabel('customers', 'status'), type: 'select', options: recordStatuses.customers.map(status => ({ label: status.charAt(0).toUpperCase() + status.slice(1), value: status })), required: true },
+          { name: 'status', label: importFieldLabel('customers', 'status'), type: 'select', options: recordStatuses.customers.map(status => ({ label: readableLabel(status), value: status })), required: true },
           { name: 'bankName', label: importFieldLabel('customers', 'bankName'), type: 'text', isData: true },
-          { name: 'accountMasked', label: importFieldLabel('customers', 'accountMasked'), type: 'text', isData: true, help: 'For example ******1234. Never enter a full account number.' },
+          { name: 'accountMasked', label: importFieldLabel('customers', 'accountMasked'), type: 'text', isData: true, help: 'For example, ******1234. Never enter a full account number.' },
           { name: 'phoneMasked', label: importFieldLabel('customers', 'phoneMasked'), type: 'text', isData: true },
-          { name: 'consentProvenance', label: importFieldLabel('customers', 'consentProvenance'), type: 'text', isData: true, required: true, help: 'For example: signed form CONSENT-001 or a consent link reference. Use sample details only.' },
+          { name: 'consentProvenance', label: importFieldLabel('customers', 'consentProvenance'), type: 'text', isData: true, required: true, help: 'For example, signed form CONSENT-001 or a consent link reference. Use sample details only.' },
         ]}
         defaultValues={{ status: 'active' }}
       />
@@ -113,8 +114,8 @@ export default function CustomersPage() {
           search.trim() ? (
             <EmptyState filtered title={`No customers match “${search.trim()}”`}>Check the spelling, or search by the reference or the masked phone number.</EmptyState>
           ) : (
-            <EmptyState title="No customers yet" action={<Button kind="customers" size="sm" variant="outline" onClick={() => setIsDialogOpen(true)}>Add a customer</Button>}>
-              Customer records appear here after an import or when you add one. Add a synthetic customer here, or import sample records on the Collections page.
+            <EmptyState title="No customers yet" action={<Button kind="customers" size="sm" variant="outline" onClick={() => setIsDialogOpen(true)}>Add customer</Button>}>
+              Customers appear here after an import or when you add one. Select Add customer, or import sample records on Collections.
             </EmptyState>
           )
         ) : (
@@ -152,8 +153,8 @@ export default function CustomersPage() {
                       <StatusBadge status={customer.status} />
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <Link href={`/customers/${customer.id}?${new URLSearchParams({ lender: merchantId, returnTo: customerReturnTo(directoryParams, merchantId, customer.id) })}`} aria-label={`View history for ${customer.name}`} className="inline-flex min-h-9 items-center gap-2 rounded-lg px-2 text-primary hover:bg-secondary text-xs font-medium">
-                        View history <ArrowRight className="h-3 w-3" />
+                      <Link href={`/customers/${customer.id}?${new URLSearchParams({ lender: merchantId, returnTo: customerReturnTo(directoryParams, merchantId, customer.id) })}`} aria-label={`Open Customer history for ${customer.name}`} className="inline-flex min-h-9 items-center gap-2 rounded-lg px-2 text-primary hover:bg-secondary text-xs font-medium">
+                        Open Customer history <ArrowRight aria-hidden="true" className="h-3 w-3" />
                       </Link>
                     </td>
                   </tr>

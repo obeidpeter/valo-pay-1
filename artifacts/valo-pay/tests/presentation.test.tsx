@@ -150,7 +150,7 @@ it('opens the sample customer at step three, where the automatic R1 match and it
   await user.click(link);
   await screen.findByRole('heading', { level: 1, name: 'Presentation customer' });
   const history = screen.getByRole('heading', { name: 'Customer history' }).closest('div.bg-card') as HTMLElement;
-  const match = within(history).getByText(/^Matched automatically and with certainty by rule R1\./);
+  const match = within(history).getByText(/^Matched automatically by rule R1\. Confidence: Certain\./);
   expect(match.textContent).toContain('Provider reference PRES-O001 resolved to instalment PRES-D001');
   expect(within(match.parentElement!).getByText('₦18,000.50')).toBeTruthy();
   expect(api.calls.filter(c => c.method !== 'GET')).toEqual([]);

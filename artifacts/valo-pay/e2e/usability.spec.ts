@@ -97,7 +97,7 @@ test("field correction links retain the draft and return keyboard focus to its o
   const dialog = page.getByRole("dialog", { name: "Add customer", exact: true });
   const name = dialog.getByLabel(/^Full name/);
   await name.fill("Retained synthetic customer");
-  await dialog.getByRole("button", { name: "Save", exact: true }).click();
+  await dialog.getByRole("button", { name: "Add customer", exact: true }).click();
   await expect(dialog.getByLabel(/^Loan software reference/)).toBeFocused();
   const correction = dialog.getByRole("button", { name: /Consent source or reference: Consent source or reference is required/ });
   await correction.focus();

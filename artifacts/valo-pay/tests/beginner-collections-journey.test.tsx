@@ -139,7 +139,7 @@ it('takes an empty lender from corrected sample imports to a reviewed payment an
   expect(writes().filter(call => (call.body as { action?: string })?.action === 'confirm_allocation')).toHaveLength(1);
 
   await user.click(screen.getByRole('link', { name: 'Customers' }));
-  await user.click(await screen.findByRole('link', { name: 'View history for Pilot customer' }));
+  await user.click(await screen.findByRole('link', { name: 'Open Customer history for Pilot customer' }));
   await screen.findByRole('heading', { name: 'Pilot customer', level: 1 });
   const paymentPanel = screen.getByRole('heading', { name: 'Payments' }).parentElement!.parentElement!;
   expect(await within(paymentPanel).findByText('PILOT-O001')).toBeTruthy();

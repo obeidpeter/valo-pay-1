@@ -124,7 +124,7 @@ it("requests bounded history pages while keeping full balances and an off-page s
     screen.getByText(`${full.events.length} events in the full history`),
   ).toBeTruthy();
   const position = screen.getByRole("heading", {
-    name: "Customer position",
+    name: "Balance summary",
   }).parentElement!;
   const before = position.textContent;
   expect(before).toContain(formatKobo(full.position.outstandingKobo));

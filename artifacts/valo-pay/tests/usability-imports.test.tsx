@@ -128,7 +128,7 @@ describe('UX-I02 shared form recovery and UX-I03 review correction', () => {
     await user.click(opener);
     const dialog = await screen.findByRole('dialog');
     await user.type(within(dialog).getByLabelText(/^Full name/), 'Retained sample name');
-    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Add customer' }));
     const correction = within(dialog).getByRole('button', { name: /Consent source or reference: Consent source or reference is required/ });
     await user.click(correction);
     expect(document.activeElement).toBe(within(dialog).getByLabelText(/^Consent source or reference/));
@@ -146,7 +146,7 @@ describe('UX-I02 shared form recovery and UX-I03 review correction', () => {
     await user.type(within(dialog).getByLabelText(/^Loan software reference/), 'UX-CONFLICT');
     await user.type(within(dialog).getByLabelText(/^Consent source or reference/), 'Synthetic consent');
     api.failNext(/^\/v1\/records\/customers$/, { status: 409, error: 'Reference already exists. Use an idempotency key for safe replay.' }, 'POST');
-    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Add customer' }));
     await within(dialog).findByText('Reference already exists. Use an idempotency key for safe replay.');
     expect(within(dialog).queryByRole('button', { name: 'Discard draft and refresh' })).toBeNull();
     expect(within(dialog).getByLabelText(/^Loan software reference/)).toHaveProperty('value', 'UX-CONFLICT');
@@ -192,9 +192,9 @@ describe('UX-I02 shared form recovery and UX-I03 review correction', () => {
     await user.type(within(dialog).getByLabelText(/^Loan software reference/), 'UX-RECOVERY');
     await user.type(within(dialog).getByLabelText(/^Consent source or reference/), 'Synthetic consent');
     api.failNext(/^\/v1\/records\/customers$/, 'offline', 'POST');
-    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Add customer' }));
     await within(dialog).findByText('Outcome not confirmed');
-    expect(within(dialog).getByRole('button', { name: 'Save' })).toHaveProperty('disabled', true);
+    expect(within(dialog).getByRole('button', { name: 'Add customer' })).toHaveProperty('disabled', true);
     expect(within(dialog).getByLabelText(/^Full name/).closest('fieldset')).toHaveProperty('disabled', true);
     vi.mocked(window.confirm).mockReturnValue(false);
     await user.keyboard('{Escape}');
@@ -242,14 +242,14 @@ describe('UX-I02 shared form recovery and UX-I03 review correction', () => {
       if (attempts.length === 2) return new Response(JSON.stringify({ error: guidance }), { status: 403, headers: { 'Content-Type': 'application/json' } });
       return committed.clone();
     };
-    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Add customer' }));
     await within(dialog).findByText('Outcome not confirmed');
     expect(api.state().records.filter(record => record.reference === 'UX-REPLAY-FORBIDDEN')).toHaveLength(1);
     await user.click(within(dialog).getByRole('button', { name: 'Retry same request' }));
     await within(dialog).findByText(guidance);
     expect(within(dialog).getByText('Outcome not confirmed')).toBeTruthy();
     expect(within(dialog).getByText('Latest response')).toBeTruthy();
-    expect(within(dialog).getByRole('button', { name: 'Save' })).toHaveProperty('disabled', true);
+    expect(within(dialog).getByRole('button', { name: 'Add customer' })).toHaveProperty('disabled', true);
     const name = within(dialog).getByLabelText(/^Full name/);
     expect(name.closest('fieldset')).toHaveProperty('disabled', true);
     await user.type(name, 'changed');

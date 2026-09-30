@@ -12,7 +12,7 @@ describe("forms", () => {
     renderApp("/customers");
     await screen.findByText("Ada Okonkwo");
     await user.click(screen.getByRole("button", { name: "Add customer" }));
-    await user.click(await screen.findByRole("button", { name: "Save" }));
+    await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Add customer" }));
     expect(screen.getByRole("alert").textContent).toMatch(/highlighted fields before saving/);
     expect(screen.getByText("Full name is required.")).toBeTruthy();
     expect(screen.getByText("Loan software reference is required.")).toBeTruthy();
@@ -39,14 +39,14 @@ describe("forms", () => {
     await user.type(screen.getByLabelText(/Consent source or reference/), "Signed sample form CONSENT-001");
     const status = screen.getByLabelText(/Status/) as HTMLSelectElement;
     if (!status.value) await user.selectOptions(status, status.options[1]!.value);
-    await user.click(screen.getByRole("button", { name: "Save" }));
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Add customer" }));
     await waitFor(() => expect(reference.getAttribute("aria-invalid")).toBe("true"));
     expect(screen.getByText("This reference is already used by another customer.")).toBeTruthy();
     expect(screen.getByRole("alert").textContent).toMatch(/Check the highlighted field before saving/);
     expect(document.activeElement).toBe(reference);
     // A refusal that names no field is the alert itself.
     api.failNext(/^\/v1\/records\/customers$/, { status: 403, error: "Only an Admin can add customers." }, "POST");
-    await user.click(screen.getByRole("button", { name: "Save" }));
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Add customer" }));
     await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("Only an Admin can add customers."));
     expect(reference.getAttribute("aria-invalid")).toBeNull();
   });

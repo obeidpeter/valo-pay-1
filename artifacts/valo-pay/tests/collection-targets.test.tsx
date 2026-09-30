@@ -39,7 +39,7 @@ describe('collection targets on customer history', () => {
     const { customer, due, back } = targetDue();
     renderApp(recordDestination(`/customers/${customer.id}`, 'missing-record', back, api.merchantIds[0]!));
     const selected = await screen.findByRole('region', { name: 'Selected collection record' });
-    expect(within(selected).getByRole('heading', { name: 'Collection record unavailable' })).toBeTruthy();
+    expect(within(selected).getByRole('heading', { name: 'Record not found' })).toBeTruthy();
     expect(within(selected).queryByText(`${due.name} · ${due.reference}`)).toBeNull();
     expect(screen.getByRole('link', { name: 'Back to Collections' }).getAttribute('href')).toBe(back);
   });
@@ -50,7 +50,7 @@ describe('collection targets on customer history', () => {
     api.failNext(/^\/v1\/customers\/[^/]+\/history$/, { status: 503, error: 'History temporarily unavailable.' });
     renderApp(recordDestination(`/customers/${customer.id}`, due.id, back, api.merchantIds[0]!));
     const problem = (await screen.findByText('Unable to load customer history')).closest('[role="alert"]')!;
-    expect(screen.queryByText('Collection record unavailable')).toBeNull();
+    expect(screen.queryByText('Record not found')).toBeNull();
     await user.click(within(problem as HTMLElement).getByRole('button', { name: 'Try again' }));
     const selected = await screen.findByRole('region', { name: 'Selected collection record' });
     expect(within(selected).getByText(`${due.name} · ${due.reference}`)).toBeTruthy();

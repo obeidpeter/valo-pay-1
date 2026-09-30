@@ -40,7 +40,7 @@ describe('record dialog request sessions', () => {
     await user.type(within(firstDialog).getByLabelText(/^Consent source or reference/), 'Synthetic consent for session test');
     const release = api.hold(/^\/v1\/records\/customers$/);
     if (outcome === 'error') api.failNext(/^\/v1\/records\/customers$/, { status: 400, error: 'First request rejected.', details: [{ field: 'reference', message: 'The first request reference was rejected.' }] }, 'POST');
-    await user.click(within(firstDialog).getByRole('button', { name: 'Save' }));
+    await user.click(within(firstDialog).getByRole('button', { name: 'Add customer' }));
     await within(firstDialog).findByRole('button', { name: 'Saving…' });
     await act(async () => { controlledDialog.setOpen!(false); });
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
@@ -58,7 +58,7 @@ describe('record dialog request sessions', () => {
     expect((currentReference as HTMLInputElement).value).toBe('UNSAVED-NEW-FORM');
     expect(within(currentDialog).queryByRole('alert')).toBeNull();
     expect(currentReference.getAttribute('aria-invalid')).toBeNull();
-    expect(within(currentDialog).getByRole('button', { name: 'Save' }).hasAttribute('disabled')).toBe(false);
+    expect(within(currentDialog).getByRole('button', { name: 'Add customer' }).hasAttribute('disabled')).toBe(false);
     const writes = api.calls.filter(call => call.path === '/v1/records/customers' && call.method === 'POST');
     expect(writes).toHaveLength(1);
     expect(writes[0]!.query.merchantId).toBe(api.merchantIds[0]);
@@ -80,7 +80,7 @@ describe('record dialog request sessions', () => {
     await user.type(within(dialog).getByLabelText(/^Loan software reference/), 'PENDING-CUSTOMER');
     await user.type(within(dialog).getByLabelText(/^Consent source or reference/), 'Synthetic consent');
     const release = api.hold(/^\/v1\/records\/customers$/);
-    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Add customer' }));
     const saving = await within(dialog).findByRole('button', { name: 'Saving…' });
     const cancel = within(dialog).getByRole('button', { name: 'Cancel' });
     const close = within(dialog).getByRole('button', { name: 'Close' });

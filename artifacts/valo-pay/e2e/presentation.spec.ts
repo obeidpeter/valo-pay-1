@@ -77,7 +77,7 @@ test('step three opens the sample customer, where rule R1 matched the payment au
   await expect(open).toHaveAttribute('href', `/customers/${customer.id}`);
   await open.click();
   await expect(page.getByRole('heading', { level: 1, name: 'Presentation customer' })).toBeVisible();
-  const match = page.getByText(/^Matched automatically and with certainty by rule R1\. Provider reference PRES-O001 resolved to instalment PRES-D001/);
+  const match = page.getByText(/^Matched automatically by rule R1\. Confidence: Certain\. Provider reference PRES-O001 resolved to instalment PRES-D001/);
   await expect(match).toBeVisible();
   await expect(guide.getByRole('button', { name: 'End presentation' })).toBeVisible();
   expect(writes).toEqual([]);

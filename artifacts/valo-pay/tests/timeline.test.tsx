@@ -20,7 +20,7 @@ describe("customer timeline", () => {
     renderApp(`/customers/${ada.id}`);
     expect(await screen.findByRole("heading", { name: "Ada Okonkwo" })).toBeTruthy();
     expect(screen.getByText("DEMO-C1001")).toBeTruthy();
-    expect(screen.getByText("Customer position")).toBeTruthy();
+    expect(screen.getByText("Balance summary")).toBeTruthy();
 
     await user.click(screen.getByRole("button", { name: "Export dispute pack (PDF)" }));
     expect(await screen.findByText("Dispute pack ready")).toBeTruthy();
@@ -45,12 +45,12 @@ describe("customer timeline", () => {
       unapplied("eur-card-payment-2", "SBX-EUR-CARD-2", 3_000, "EUR");
     });
     renderApp(`/customers/${ada.id}`);
-    const position = (await screen.findByText("Customer position")).parentElement!;
-    expect(position.textContent).toContain("Unapplied credit");
+    const position = (await screen.findByText("Balance summary")).parentElement!;
+    expect(position.textContent).toContain("Unallocated payments");
     // The service derives the money beside the naira (the position the fake API serves is the domain's), and the page shows it as it comes.
     expect(customerTimeline(api.state(), ada.id).position.unallocatedOtherCurrencies).toEqual({ EUR: { count: 2, amount: 5_000 }, USD: { count: 1, amount: 100_000 } });
     // Each currency is an item of its own under the label, by code, as close evidence writes it.
-    const others = screen.getByRole("list", { name: "Unapplied in other currencies" });
+    const others = screen.getByRole("list", { name: "Unallocated, other currencies" });
     expect(within(others).getAllByRole("listitem").map((item) => item.textContent!.replace(/\u00a0/g, " "))).toEqual(["EUR 50.00 (2 payments)", "USD 1,000.00 (1 payment)"]);
     // The payment itself is listed in its own currency, never as naira.
     const listed = (await screen.findByRole("heading", { name: "Payments" })).closest("section")!;

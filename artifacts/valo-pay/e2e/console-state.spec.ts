@@ -143,7 +143,7 @@ test("a save whose answer was lost keeps its recovery through a failed refresh",
     await route.fetch();
     await route.abort("connectionreset");
   });
-  await dialog.getByRole("button", { name: "Save", exact: true }).click();
+  await dialog.getByRole("button", { name: "Add customer", exact: true }).click();
   await expect(dialog.getByText("Outcome not confirmed", { exact: true })).toBeVisible();
 
   const outage = await breakWorkspace(page, 502);

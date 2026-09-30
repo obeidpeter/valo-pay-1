@@ -40,7 +40,7 @@ test("a slow committed customer request recovers its lost response without a sec
   await fullName.fill(name);
   await loanReference.fill(reference);
   await dialog.getByLabel(/^Consent source or reference/).fill("Synthetic signed form DB-CONSENT-RECOVERY");
-  await dialog.getByRole("button", { name: "Save", exact: true }).click();
+  await dialog.getByRole("button", { name: "Add customer", exact: true }).click();
 
   try {
     await expect.poll(() => committed?.status).toBe(200);
@@ -140,7 +140,7 @@ test("real API bootstrap, database history pages, full balances and lender isola
     .locator("div")
     .filter({
       has: page.getByRole("heading", {
-        name: "Customer position",
+        name: "Balance summary",
         exact: true,
       }),
     })
