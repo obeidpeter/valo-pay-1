@@ -41,7 +41,7 @@ export function explainWorkspaceError(error: unknown): WorkspaceExplanation {
   const message = serviceWords(error);
   if (typeof status !== 'number') return { title: 'We could not load your workspace', lines: ['Valo Pay could not be reached. Check your connection and try again.'] };
   if (status === 429) return { title: 'Please wait before trying again', lines: [message || 'Too many requests were sent from your connection. Try again shortly.'] };
-  if (status >= 500) return { title: 'We could not load your workspace', lines: ['Valo Pay is not available at the moment. Try again in a moment.'], reportTime: true, reference: referenceOf(error) };
+  if (status >= 500) return { title: 'We could not load your workspace', lines: ['Valo Pay is not available right now. Try again in a few minutes.'], reportTime: true, reference: referenceOf(error) };
   if (status === 401) return { title: 'Sign in to open this workspace', lines: [message || 'Your sign-in session is missing or has ended.', 'Sign in with the account your organisation invited. Then check access again.'] };
   if (status === 403) return { title: 'Your account cannot open this workspace', lines: [message || 'Your account does not have access to this workspace.', 'Check that you chose the right organisation. If you did, ask an Admin there to check your invitation and lender access. Choosing an organisation does not give you access.'] };
   return { title: 'We could not load your workspace', lines: [message || 'Try again.'] };

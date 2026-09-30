@@ -83,9 +83,9 @@ export function ConnectedIntroduction({
         ))}
       </div>
       <p className="text-xs leading-relaxed text-muted-foreground mt-5">
-        Live payments and bank connections are switched off. Credit decisions
-        and changes to accounting software each need their own approval. Valo
-        Pay never holds money.{" "}
+        Live payments and bank connections are switched off. Using credit
+        results or changing accounting software for real would each need its
+        own approval. Valo Pay never holds money.{" "}
         <Link href="/connections" className="underline underline-offset-4">
           Open Permissions and readiness
         </Link>

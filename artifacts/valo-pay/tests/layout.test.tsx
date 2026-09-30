@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { installFakeApi, type FakeApi } from "./fake-api";
-import { renderApp, screen, userEvent, waitFor } from "./harness";
+import { renderApp, screen, userEvent, waitFor, within } from "./harness";
 import { lenderModeLabel } from "@/components/layout";
 
 let api: FakeApi;
@@ -52,6 +52,16 @@ describe("layout", () => {
     const brands = screen.getAllByRole("link", { name: /Go to home page/ });
     expect(brands).toHaveLength(2);
     expect(brands.every((link) => link.getAttribute("href") === "/")).toBe(true);
+  });
+
+  it("names the place Your workspace once the reader is signed in", async () => {
+    signedIn();
+    renderApp("/overview");
+    await screen.findByRole("heading", { name: "Operations overview" });
+    const sidebar = screen.getByRole("complementary", { name: "Sidebar" });
+    expect(within(sidebar).getByText("Your workspace")).toBeTruthy();
+    expect(within(sidebar).queryByText("Sandbox", { exact: true })).toBeNull();
+    expect(document.querySelector("#main .workspace-bar")!.textContent).toMatch(/^Your workspace/);
   });
 
   it("opens Settings at the demo role control from the bar's Change demo role", async () => {

@@ -102,5 +102,7 @@ describe("keyboard", () => {
     renderApp("/settings");
     expect(await screen.findByRole("heading", { name: "Keyboard" })).toBeTruthy();
     expect(screen.getByText("Move to the search box, on pages that have one, such as Customers and Audit log.")).toBeTruthy();
+    // F8 jumps to the notices, and the region's name says so.
+    expect(screen.getByRole("region", { name: "Notices (F8)" })).toBeTruthy();
   });
 });

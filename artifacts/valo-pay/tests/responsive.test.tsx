@@ -64,7 +64,9 @@ describe("responsive layout", () => {
     await screen.findByText("Ada Okonkwo");
     const menu = screen.getByRole("button", { name: "Open menu" });
     await user.click(menu);
-    await screen.findByRole("dialog", { name: "Menu" });
+    const drawer = await screen.findByRole("dialog", { name: "Menu" });
+    // The drawer's own close button says what it closes.
+    expect(within(drawer).getByRole("button", { name: "Close menu" })).toBeTruthy();
     await user.keyboard("{Escape}");
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     await waitFor(() => expect(document.activeElement).toBe(menu));

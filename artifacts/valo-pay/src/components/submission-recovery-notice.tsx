@@ -16,7 +16,7 @@ export function SubmissionRecoveryNotice() {
   // Named by its heading, the standard's title for a request whose answer was lost.
   return <section aria-labelledby="submission-recovery-title" className="mb-6 space-y-3 rounded-xl border border-warning-border bg-warning/10 p-4 print:hidden">
     <h2 id="submission-recovery-title" className="font-semibold">{recovery.entries.length === 1 ? 'Request not confirmed' : 'Requests not confirmed'}</h2>
-    <p className="text-sm">We do not know yet whether Valo Pay saved a request you sent from this page, with this account, role and lender. What you typed was not kept. Check the original request before you change anything, so you do not send it twice.</p>
+    <p className="text-sm">We do not know yet whether Valo Pay saved a request you sent from this page, with this account, role and lender. What you typed is not kept in this browser, so reloading the page loses it. Check the original request before you change anything, so you do not send it twice.</p>
     {!recovery.durable && <p role="alert" className="text-sm">This browser cannot store the request. Keep this page open until you have checked it, or find it in Request history.</p>}
     {recovery.entries.map(entry => <RecoveryRow key={entry.key} entry={entry} />)}
     <Link href="/operations" className="inline-block text-sm underline">Open Request history</Link>

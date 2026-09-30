@@ -115,6 +115,14 @@ export function OpenOperations() {
   );
 }
 /**
+ * Whether a lost change's error says more than the notice itself: Valo Pay's own
+ * words, or a support reference to quote. Without either, the notice's body
+ * already says everything, so the fallback line would only repeat it.
+ */
+function saysMore(error: unknown): boolean {
+  return saidBy(error, "") !== "";
+}
+/**
  * A change whose answer was lost, in the standard's words for it (Request not
  * confirmed): Check original request, Open Request history for a change it
  * records, and Discard original request, which moves focus to `next`, the
@@ -148,10 +156,10 @@ export function RecoveryNotice({
       <p className="font-semibold">Request not confirmed</p>
       <p>
         {persistent
-          ? "We do not know yet whether Valo Pay saved this. Check the original request before you change anything. If Valo Pay received it, it stays in Request history after you leave or reload. If the check does not work, look there before you discard the original request."
+          ? "We do not know yet whether Valo Pay saved this. Check the original request before you change anything. If Valo Pay received it, you can find it in Request history, even after you leave or reload."
           : "We do not know yet whether Valo Pay saved this. Check the original request before you change anything. This page cannot check it once you leave or reload, so it asks before you go. If the check does not work, discard the original request, then refresh this page to see whether it was saved."}
       </p>
-      <PilotError error={mutation.error} fallback={persistent ? JOURNALED_WRITE_PROBLEM : UNJOURNALED_WRITE_PROBLEM} />
+      {saysMore(mutation.error) && <PilotError error={mutation.error} fallback={persistent ? JOURNALED_WRITE_PROBLEM : UNJOURNALED_WRITE_PROBLEM} />}
       <div className="flex flex-wrap gap-3">
         <Button
           variant="outline"

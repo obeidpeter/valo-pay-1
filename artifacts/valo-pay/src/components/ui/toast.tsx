@@ -6,14 +6,14 @@ import { X } from 'lucide-react';
 
 const ToastProvider = ToastPrimitives.Provider;
 
-/** The region is named "Notices", the keyboard list's word for these messages (F8 moves to it). */
+/** The region is named "Notices (F8)": the keyboard list's word for these messages, and the key that moves to them. */
 const ToastViewport = React.forwardRef<
   React.ElementRef<typeof ToastPrimitives.Viewport>,
   React.ComponentPropsWithoutRef<typeof ToastPrimitives.Viewport>
 >(({ className, ...props }, ref) => (
   <ToastPrimitives.Viewport
     ref={ref}
-    label="Notices"
+    label="Notices ({hotkey})"
     className={cn(
       'fixed top-0 z-[100] flex max-h-screen w-full flex-col-reverse p-4 sm:bottom-0 sm:right-0 sm:top-auto sm:flex-col md:max-w-[420px]',
       className,

@@ -322,8 +322,8 @@ it("offers to check or discard a lost invitation revocation, and discarding it f
   ).toBeTruthy();
   // Team changes are not recorded in Request history, so the notice sends the person to this page, not there.
   const lost = screen.getByText("Request not confirmed").closest('[role="alert"]') as HTMLElement;
-  expect(lost.textContent).toContain("The request was not confirmed. Refresh this page to see whether it was saved before you try again.");
-  expect(lost.textContent).not.toMatch(/Operations/);
+  expect(lost.textContent).toContain("refresh this page to see whether it was saved");
+  expect(lost.textContent).not.toMatch(/Operations|Request history/);
   const second = () =>
     screen.getAllByRole("button", {
       name: "Revoke invitation",
@@ -535,7 +535,9 @@ it("says a failed read on a pilot page changed nothing, and sends a lost change 
   api.failNext(/^\/v1\/pilot\/batches$/, "offline", "POST");
   await user.click(screen.getByRole("button", { name: "Save and check batch" }));
   const lost = (await screen.findByText("Request not confirmed")).closest('[role="alert"]') as HTMLElement;
-  expect(lost.textContent).toContain("The request was not confirmed. If Valo Pay received it, Request history shows what happened.");
+  expect(lost.textContent).toContain("If Valo Pay received it, you can find it in Request history, even after you leave or reload.");
+  // The notice says it once: without Valo Pay's own words or a support reference there is no second line repeating it.
+  expect(lost.textContent).not.toContain("The request was not confirmed.");
 });
 
 

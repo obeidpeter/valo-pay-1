@@ -371,8 +371,9 @@ export function Layout({ children }: { children: ReactNode }) {
         {lenderSelect('lender-phone', 'min-w-0 flex-1 rounded-md border bg-secondary p-2 text-sm text-secondary-foreground')}
         <Sheet open={menuOpen} onOpenChange={(open) => { if (open) openedAt.current = location; setMenuOpen(open); }}>
           <SheetTrigger asChild>
-            <Button variant="outline" size="sm" className="shrink-0 gap-2">
-              <Menu className="h-4 w-4" aria-hidden="true" /> Open menu
+            {/* Below 360 px the button says Menu, so the lender's name keeps its room; its name is still Open menu. */}
+            <Button variant="outline" size="sm" className="shrink-0 gap-2" aria-label="Open menu">
+              <Menu className="h-4 w-4" aria-hidden="true" /><span className="min-[360px]:hidden">Menu</span><span className="hidden min-[360px]:inline">Open menu</span>
             </Button>
           </SheetTrigger>
           <SheetContent side="left" closeLabel="Close menu" className="flex w-72 max-w-[90vw] flex-col p-0" aria-describedby={undefined}

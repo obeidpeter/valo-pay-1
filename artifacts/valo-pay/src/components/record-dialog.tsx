@@ -198,7 +198,7 @@ export function RecordDialog({ kind, record, isOpen, onOpenChange, fields: sourc
       const empty = value === undefined || value === null || String(value).trim() === '';
       if (f.required && f.type === 'checkbox' && value !== true) errors[f.name] = `Tick “${f.label}” before saving.`;
       else if (f.required && empty) errors[f.name] = missingMessage(f.label, f.type);
-      else if (f.name === currencyField && !empty && currencyMinorUnit(String(value)) === undefined) errors[f.name] = 'Enter a three-letter currency code, such as NGN or USD.';
+      else if (f.name === currencyField && !empty && currencyMinorUnit(String(value)) === undefined) errors[f.name] = 'Enter a currency code Valo Pay knows, such as NGN or USD.';
       else if (isMoney(f) && !empty && currencyMinorUnit(moneyCurrency) !== undefined) {
         try { majorToMinor(String(value), moneyCurrency); } catch (error) { errors[f.name] = (error as Error).message; }
       }

@@ -487,7 +487,7 @@ describe('settlement batch edits', () => {
     await user.type(within(dialog).getByLabelText(/^Fee/), '5');
     await user.type(within(dialog).getByLabelText(/^Amount after fees/), '995');
     await user.click(within(dialog).getByRole('button', { name: 'Save' }));
-    expect(await within(dialog).findByText('Enter a three-letter currency code, such as NGN or USD.')).toBeTruthy();
+    expect(await within(dialog).findByText('Enter a currency code Valo Pay knows, such as NGN or USD.')).toBeTruthy();
     // In yen the amounts are whole: the field names the currency and refuses a decimal.
     await user.clear(currency);
     await user.type(currency, 'jpy');
