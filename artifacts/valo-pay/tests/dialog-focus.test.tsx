@@ -119,21 +119,21 @@ describe('connected review dialogs hand focus back after confirming', () => {
       });
     });
     const user = userEvent.setup();
-    const confirmIn = async (note: string) => {
+    const confirmIn = async (action: string, note: string) => {
       const dialog = await screen.findByRole('dialog');
-      await user.type(within(dialog).getByRole('textbox', { name: 'Review note' }), note);
-      await user.click(within(dialog).getByRole('button', { name: 'Confirm and save' }));
+      await user.type(within(dialog).getByRole('textbox', { name: 'Reason' }), note);
+      await user.click(within(dialog).getByRole('button', { name: action }));
       await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     };
     renderApp('/cash-desk');
-    await user.click(await screen.findByRole('button', { name: /Set up sample Cash Desk/ }));
-    await confirmIn('Set up the sample workspace for review');
-    expect(screen.queryByRole('button', { name: /Set up sample Cash Desk/ })).toBeNull();
+    await user.click(await screen.findByRole('button', { name: /Set up Cash Desk/ }));
+    await confirmIn('Set up Cash Desk', 'Set up the sample workspace for review');
+    expect(screen.queryByRole('button', { name: /Set up Cash Desk/ })).toBeNull();
     await waitFor(() => expect(document.activeElement?.textContent).toMatch(/^Sample Cash Desk set up\./));
 
     const save = await screen.findByRole('button', { name: /Save forecast/ });
     await user.click(save);
-    await confirmIn('Save the planning assumptions for review');
+    await confirmIn('Save forecast', 'Save the planning assumptions for review');
     await waitFor(() => expect(document.activeElement).toBe(save));
     expect(screen.getByText(/^New sample forecast saved\./)).toBeTruthy();
   });

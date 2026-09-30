@@ -11,8 +11,8 @@ import {
 } from "lucide-react";
 import { valueLabel } from "@workspace/valopay-schema";
 import { ForecastChart } from "./forecast-chart";
-import { amount, Metric, Section } from "./shared";
-import type { CashView, ForecastAssumptions, ReviewAction } from "./types";
+import { amount, Metric, Section, SET_UP_FIRST } from "./shared";
+import type { CashView, ForecastAssumptions, ReviewAction, RoleRefusal } from "./types";
 import { Link } from "wouter";
 
 // An absent source value is not a zero balance. The service supplies qualification and warnings.
@@ -20,6 +20,12 @@ const sourceAmount = (value: number | null | undefined) =>
   value == null ? "Unavailable" : amount(value);
 const sourceTime = (value: string | null | undefined) =>
   value ? formatDate(value) : "Unavailable";
+/** A forecast's version in words: the service names a preview "sample-preview" and a saved forecast "sample-2". */
+const forecastVersion = (version: string) => {
+  if (version === "sample-preview") return "Preview, not saved";
+  const saved = /^sample-(\d+)$/.exec(version);
+  return saved ? `Saved version ${saved[1]}` : version;
+};
 
 type Props = {
   cash: CashView;
@@ -30,6 +36,7 @@ type Props = {
   canPrepareForecast: boolean;
   maker: boolean;
   pending: boolean;
+  refuse: RoleRefusal;
   reviewForecast: () => void;
   ask: ReviewAction;
 };
@@ -43,15 +50,17 @@ export function CashForecastSection({
   canPrepareForecast,
   maker,
   pending,
+  refuse,
   reviewForecast,
   ask,
 }: Props) {
   const { downside, delay, buffer } = assumptions;
   const position = cash.positions.find((p) => p.currency === "NGN");
   const hasBalances = !!position?.accountCount;
-  const base =
+  // The service's "base" and "downside" scenarios are shown as the expected and cautious cases.
+  const expected =
     cash.forecast?.scenarios.find((s) => s.name === "base")?.points ?? [];
-  const stress =
+  const cautious =
     cash.forecast?.scenarios.find((s) => s.name === "downside")?.points ?? [];
   return (
     <div className="space-y-6">
@@ -67,7 +76,7 @@ export function CashForecastSection({
             <p className="mt-1 text-xs text-muted-foreground">
               {hasBalances
                 ? `${formatCount(position!.accountCount, "business account")} included`
-                : "No account balances are available for this view."}
+                : "No account balances to show. Check the Read business accounts permission."}
             </p>
           </div>
           <p className={`text-xs font-medium ${position?.qualified ? "text-muted-foreground" : "text-amber-700 dark:text-amber-400"}`}>
@@ -98,86 +107,86 @@ export function CashForecastSection({
         <Metric
           title="Booked cash"
           value={sourceAmount(hasBalances ? position?.bookedMinor : null)}
-          detail="Recorded source balances; review the timestamps and coverage above"
+          detail="Balances the bank has recorded. Check the timestamps and coverage above."
           accent
         />
         <Metric
           title="Available cash"
           value={sourceAmount(hasBalances ? position?.availableMinor : null)}
           detail={position?.availableMinor == null || !hasBalances
-            ? "Review the source limits above; unavailable does not mean zero"
-            : "Bank-reported amount; pending items are kept separate"}
+            ? "Check the source limits above. Unavailable does not mean zero."
+            : "The amount the bank reports. Pending items are kept separate."}
         />
         <Metric
-          title="Base · day 30"
-          value={amount(base.at(-1)?.closingMinor)}
-          detail="Approved commitments plus explicit planning assumptions"
+          title="Expected · day 30"
+          value={amount(expected.at(-1)?.closingMinor)}
+          detail="Approved payments in and out, plus your planning assumptions"
         />
         <Metric
-          title="Downside · day 30"
-          value={amount(stress.at(-1)?.closingMinor)}
-          detail="Lower and later receipts; committed outflows remain due"
+          title="Cautious · day 30"
+          value={amount(cautious.at(-1)?.closingMinor)}
+          detail="Less money arrives, and later. Approved payments out are still due."
         />
       </div>
       <p className="text-sm text-muted-foreground">
         <Link href="/cash-desk?view=accounting" className="font-medium text-foreground underline underline-offset-4">
-          Review accounting drafts
+          Open Accounting
         </Link>{" "}
-        alongside these balances. An accounting draft or export has not been posted to accounting software.
+        to check drafts against these balances. Drafts and export files are not posted to accounting software.
       </p>
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.55fr)_minmax(280px,1fr)]">
         <Section
           title="Your next 30 days"
-          detail="Base and downside views use the same commitments. A forecast is a planning estimate, not money held or reserved."
+          detail="The expected case uses the approved amounts. The cautious case assumes that less money comes in, and later, while payments out stay due. A forecast is a planning estimate, not money held or set aside."
         >
           {cash.forecast ? (
             <>
               <div className="flex flex-wrap gap-4 text-xs">
                 <span className="flex items-center gap-2">
                   <span className="h-1 w-6 rounded bg-primary" />
-                  Base scenario
+                  Expected case
                 </span>
                 <span className="flex items-center gap-2">
                   <span className="h-0 w-6 border-t-2 border-dashed border-amber-600" />
-                  Downside scenario
+                  Cautious case
                 </span>
                 <span className="ml-auto text-muted-foreground">
-                  {cash.forecast.version} ·{" "}
+                  {forecastVersion(cash.forecast.version)} ·{" "}
                   {formatCompactDate(cash.forecast.asOf)}
                 </span>
               </div>
               <ForecastChart
-                base={base}
-                downside={stress}
+                base={expected}
+                downside={cautious}
                 opening={cash.forecast.openingMinor}
               />
-              <ScrollFrame label="Weekly base and downside cash balances">
+              <ScrollFrame label="Weekly expected and cautious cash balances">
                 <table className="w-full text-sm">
                   <caption className="sr-only">
-                    Weekly base and downside cash balances
+                    Weekly expected and cautious cash balances
                   </caption>
                   <thead>
                     <tr className="border-b text-left text-xs text-muted-foreground">
-                      <th className="py-3 font-medium">Date</th>
+                      <th className="py-3 font-medium">Day</th>
                       <th className="py-3 text-right font-medium">
-                        Base balance
+                        Expected balance
                       </th>
                       <th className="py-3 text-right font-medium">
-                        Downside balance
+                        Cautious balance
                       </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {base.map((point, index) => (
+                    {expected.map((point, index) => (
                       <tr key={point.day} className="border-b last:border-0">
                         <td className="py-3">Day {point.day}</td>
                         <td className="py-3 text-right tabular-nums">
                           {amount(point.closingMinor)}
                         </td>
                         <td
-                          className={`py-3 text-right tabular-nums ${(stress[index]?.closingMinor ?? 0) < 0 ? "font-medium text-destructive" : ""}`}
+                          className={`py-3 text-right tabular-nums ${(cautious[index]?.closingMinor ?? 0) < 0 ? "font-medium text-destructive" : ""}`}
                         >
-                          {amount(stress[index]?.closingMinor)}
+                          {amount(cautious[index]?.closingMinor)}
                         </td>
                       </tr>
                     ))}
@@ -191,28 +200,26 @@ export function CashForecastSection({
             </>
           ) : cash.savedForecast?.state === "prepare_again" ? (
             <p className="text-sm text-muted-foreground">
-              The figures of the forecast saved{" "}
-              {formatDate(cash.savedForecast.createdAt)} are withheld: the
-              permission it was saved under, or the balances and commitments it
-              was made from, have changed or cannot be confirmed. Save a new
-              forecast version under the current permission.
+              The forecast saved on {formatDate(cash.savedForecast.createdAt)}{" "}
+              is hidden. Its permission, balances or commitments have changed,
+              or cannot be checked. Save a new forecast to see current figures.
             </p>
           ) : (
             <p className="text-sm text-muted-foreground">
-              Restore business-account permission to create a new forecast.
+              Grant the Read business accounts permission to create a forecast.
             </p>
           )}
         </Section>
         <Section
-          title="Test a downside"
-          detail="Change the assumptions, then save a new forecast version."
+          title="Test a cautious case"
+          detail="Change the assumptions, then save a new forecast."
         >
           <div className="space-y-5">
             <label
               className="block text-sm font-medium"
               htmlFor="cash-receipts"
             >
-              Expected receipts retained
+              Share of expected receipts that arrive
               <span className="mt-2 flex items-center gap-3">
                 <input
                   id="cash-receipts"
@@ -309,23 +316,22 @@ export function CashForecastSection({
               <ArrowRight />
             </Button>
             <p id="forecast-save-help" className="text-xs leading-relaxed text-muted-foreground">
-              {!canPrepareForecast ? "An Admin, Operations or Finance user can save a forecast."
-                : !canOperate ? "Set up the sample Cash Desk with active business-account read permission before saving."
-                : "Review these assumptions before confirming a new forecast version. Existing versions remain in history."}
+              {!canPrepareForecast ? refuse(["Admin", "Operations", "Finance"], "save a forecast")
+                : !canOperate ? SET_UP_FIRST
+                : "Check these assumptions before you save. Saving creates a new version of the forecast."}
             </p>
             <p className="flex items-start gap-2 text-xs leading-relaxed text-muted-foreground">
               <CircleHelp className="mt-0.5 h-4 w-4 shrink-0" />
-              Only information known at the forecast date is included. Draft
-              commitments and future knowledge are excluded. An approved outflow
-              past its due date counts as due now; an overdue receipt is left
-              out.
+              The forecast uses only what was known on its date. Draft
+              commitments are left out. An approved payment out that is overdue
+              counts as due today. An overdue receipt is left out.
             </p>
           </div>
         </Section>
       </div>
       <Section
         title="Business accounts"
-        detail="Balances retain their bank timestamp and source. No currencies or legal entities are combined."
+        detail="Each balance keeps its bank timestamp and source. Different currencies and businesses are never added together."
         action={
           <Button
             size="sm"
@@ -334,14 +340,16 @@ export function CashForecastSection({
             onClick={() =>
               ask({
                 action: "cash.refresh_sample",
-                title: "Refresh sample balances",
+                title: "Refresh sample balances?",
                 detail:
-                  "Refresh the synthetic balance timestamps without contacting any bank. This does not approve an old payroll plan.",
+                  "This updates the timestamps on the sample balances. No bank is contacted. It does not approve an old payroll plan.",
+                confirm: "Refresh sample balances",
+                busy: "Refreshing…",
               })
             }
           >
             <RefreshCw />
-            Refresh sample
+            Refresh sample balances
           </Button>
         }
       >
@@ -389,17 +397,17 @@ export function CashForecastSection({
                 <div>
                   <dt className="text-muted-foreground">Transaction coverage</dt>
                   <dd className={`mt-1 ${a.coverageComplete ? "" : "font-medium text-amber-700 dark:text-amber-400"}`}>
-                    {a.coverageComplete ? "Complete in this sample" : "Partial — some transactions may be missing"}
+                    {a.coverageComplete ? "Complete in this sample" : "Partial: some transactions may be missing"}
                   </dd>
                 </div>
                 <div>
                   <dt className="text-muted-foreground">Balance definition</dt>
-                  <dd className="mt-1 leading-relaxed">{a.sourceDefinition || "Not supplied"}</dd>
+                  <dd className="mt-1 leading-relaxed">{a.sourceDefinition || "Not recorded"}</dd>
                 </div>
               </dl>
             </article>
           ))}
-          {!cash.accounts.length && <p className="text-sm text-muted-foreground">No account details are available in this view.</p>}
+          {!cash.accounts.length && <p className="text-sm text-muted-foreground">No accounts to show. Check the Read business accounts permission.</p>}
         </div>
       </Section>
       <Section

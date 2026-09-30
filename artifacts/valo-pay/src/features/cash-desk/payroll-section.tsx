@@ -2,8 +2,8 @@ import { ConnectedStatus, connectedStatusLabel } from "@/components/connected-fr
 import { Button } from "@/components/ui/button";
 import { formatCompactDate, formatCount, formatDate } from "@/lib/formatters";
 import { Check, Download, RefreshCw, Users } from "lucide-react";
-import { amount, Gate, Metric, saveJson, Section } from "./shared";
-import type { CashView, ReviewAction } from "./types";
+import { amount, Gate, Metric, saveJson, Section, SET_UP_FIRST } from "./shared";
+import type { CashView, ReviewAction, RoleRefusal } from "./types";
 
 type Props = {
   cash: CashView;
@@ -12,6 +12,7 @@ type Props = {
   maker: boolean;
   finance: boolean;
   pending: boolean;
+  refuse: RoleRefusal;
   ask: ReviewAction;
 };
 
@@ -22,17 +23,18 @@ export function CashPayrollSection({
   maker,
   finance,
   pending,
+  refuse,
   ask,
 }: Props) {
   return (
     <>
       <div className="space-y-5">
         {!cash.permissions.payroll && (
-          <Gate text="Payroll-preparation permission is needed for a funding plan and reviewed bank export." />
+          <Gate text="Grant the Prepare payroll funding permission before you prepare a funding plan or a bank export file." />
         )}
         <Section
-          title="Fund the approved payroll"
-          detail="Use the approved net-pay run to check the source account, other commitments, fees and buffer. Payroll calculations remain in your payroll system."
+          title="Payroll funding"
+          detail="Use the approved payroll (net pay) to check the paying account, other payments due, fees and buffer. Pay is still calculated in your payroll system."
           action={
             <Button
               aria-describedby="payroll-prepare-help"
@@ -46,34 +48,34 @@ export function CashPayrollSection({
               onClick={() =>
                 ask({
                   action: "cash.payroll.prepare",
-                  title: "Prepare payroll funding plan",
+                  title: "Prepare funding plan?",
                   detail:
-                    "Use the approved sample net-pay run and the operating account balance. A separate Finance checker must review the plan.",
+                    "This uses the approved sample payroll (net pay) and the operating account balance. A different Finance reviewer must then approve the plan.",
+                  confirm: "Prepare funding plan",
+                  busy: "Preparing…",
                 })
               }
             >
               <Users />
-              Prepare sample plan
+              Prepare funding plan
             </Button>
           }
         >
           <p id="payroll-prepare-help" className="mb-4 text-xs leading-relaxed text-muted-foreground">
-            {cash.payrollPlans.length > 0 ? "A funding plan already exists. Continue its review below; successful or unknown items must not be exported again."
-              : !maker ? "An Admin or Operations user prepares the plan; a different Finance reviewer checks the funding."
-              : !cash.permissions.payroll ? "Grant payroll-preparation permission in Permissions & readiness before preparing a plan."
-              : !canOperate ? "Set up the sample Cash Desk with active business-account read permission first."
-              : "Prepare a funding plan for the approved net-pay run. A planning buffer does not reserve bank funds."}
+            {cash.payrollPlans.length > 0 ? "A funding plan already exists. Continue with it below. Confirmed items and items with an unknown outcome must not be exported again."
+              : !maker ? refuse(["Admin", "Operations"], "prepare a funding plan")
+              : !cash.permissions.payroll ? "Grant the Prepare payroll funding permission in Permissions and readiness first."
+              : !canOperate ? SET_UP_FIRST
+              : "Prepare a funding plan for the approved payroll (net pay). A planning buffer does not set money aside."}
           </p>
           {!cash.payrollPlans.length ? (
             <div className="rounded-xl border border-dashed p-8 text-center">
               <Users className="mx-auto h-8 w-8 text-muted-foreground" />
-              <h3 className="mt-3 font-medium">
-                Know the funding gap before payday
-              </h3>
+              <h3 className="mt-3 font-medium">No funding plan yet</h3>
               <p className="mx-auto mt-2 max-w-lg text-sm text-muted-foreground">
-                Create a funding plan, have a different person check it, then
-                prepare a bank export. Exporting does not pay employees or
-                reserve funds.
+                Select Prepare funding plan to start. A different Finance
+                reviewer approves the plan before you prepare a bank export
+                file. Exporting does not pay employees or set money aside.
               </p>
             </div>
           ) : (
@@ -82,11 +84,11 @@ export function CashPayrollSection({
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <h3 className="font-semibold">
-                      Approved sample net-pay run
+                      Approved sample payroll (net pay)
                     </h3>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      {formatCount(r.summary.itemCount, "item")} · planned for{" "}
-                      {formatCompactDate(r.plan.paymentDate)} · source balance{" "}
+                      {formatCount(r.summary.itemCount, "payment")} · pay date{" "}
+                      {formatCompactDate(r.plan.paymentDate)} · balance at{" "}
                       {formatDate(r.plan.asOf)}
                     </p>
                   </div>
@@ -96,17 +98,17 @@ export function CashPayrollSection({
                   <Metric
                     title="Approved net pay"
                     value={amount(r.plan.totalNetMinor)}
-                    detail="No payroll or statutory calculations performed"
+                    detail="Valo Pay does not calculate pay, tax or pension"
                   />
                   <Metric
                     title="Total funding need"
                     value={amount(r.plan.requiredMinor)}
-                    detail="Net pay + other commitments + fees + buffer"
+                    detail="Net pay, other payments due, fees and buffer"
                   />
                   <Metric
-                    title="Source available"
+                    title="Available in operating account"
                     value={amount(r.plan.availableMinor)}
-                    detail="Operating account · timestamped snapshot"
+                    detail="Balance at the time shown above"
                   />
                   <Metric
                     title="Funding gap"
@@ -115,15 +117,15 @@ export function CashPayrollSection({
                   />
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  Other commitments {amount(r.plan.commitmentsMinor)} ·
+                  Other payments due {amount(r.plan.commitmentsMinor)} ·
                   estimated fees {amount(r.plan.estimatedFeesMinor)} · buffer{" "}
                   {amount(r.plan.bufferMinor)}
                 </p>
                 {r.status === "review_required" && (
                   <p className="text-sm text-muted-foreground">
                     Permissions changed since this review. Refresh the funding
-                    review, then obtain a new Finance approval. Recorded item
-                    outcomes remain unchanged.
+                    review, then get a new Finance approval. Item results
+                    already recorded are kept.
                   </p>
                 )}
                 <div className="flex flex-wrap gap-2">
@@ -138,9 +140,11 @@ export function CashPayrollSection({
                     onClick={() =>
                       ask({
                         action: "cash.payroll.refresh",
-                        title: "Refresh funding review",
+                        title: "Refresh funding review?",
                         detail:
-                          "Use the latest sample source balance and preserve every item outcome. Previous checker approval is invalidated; a different Finance reviewer must approve the new version.",
+                          "This uses the latest sample balance. Item results already recorded are kept. The earlier approval no longer applies, so a different Finance reviewer must approve again.",
+                        confirm: "Refresh funding review",
+                        busy: "Refreshing…",
                         recordId: r.id,
                       })
                     }
@@ -161,9 +165,11 @@ export function CashPayrollSection({
                     onClick={() =>
                       ask({
                         action: "cash.payroll.approve",
-                        title: "Check payroll funding plan",
+                        title: "Approve funding plan?",
                         detail:
-                          "Confirm the net-pay total, source account, beneficiaries, payment date, commitments and fees. This freezes the plan for export, not payment.",
+                          "Check the net pay total, the paying account, the employees’ accounts, the pay date, other payments and fees. Approving locks the plan for export. It does not pay anyone.",
+                        confirm: "Approve funding plan",
+                        busy: "Approving…",
                         recordId: r.id,
                       })
                     }
@@ -183,15 +189,17 @@ export function CashPayrollSection({
                     onClick={() =>
                       ask({
                         action: "cash.payroll.export",
-                        title: "Prepare bank export",
+                        title: "Prepare bank export file?",
                         detail:
-                          "Include only unsent items. Exported items remain unpaid until their bank outcomes are reconciled.",
+                          "Only items not yet sent are included. Exported items stay unpaid until the bank confirms each payment.",
+                        confirm: "Prepare bank export file",
+                        busy: "Preparing…",
                         recordId: r.id,
                       })
                     }
                   >
                     <Download />
-                    Prepare bank export
+                    Prepare bank export file
                   </Button>
                   {!!r.manifest && (
                     <Button
@@ -201,14 +209,17 @@ export function CashPayrollSection({
                       }
                     >
                       <Download />
-                      Download approved manifest
+                      Download payroll export file
                     </Button>
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Maker: {r.plan.maker} · Checker:{" "}
-                  {r.plan.checker ?? "A different Finance reviewer is required"}
-                  . Bank signatory authority remains separate.
+                  Prepared by {r.plan.maker}.{" "}
+                  {r.plan.checker
+                    ? `Approved by ${r.plan.checker}.`
+                    : "A different Finance reviewer must approve it."}{" "}
+                  The people who sign payments at your bank still approve them
+                  separately.
                 </p>
                 <div className="divide-y rounded-xl border px-4">
                   {r.plan.items.map((item) => (
@@ -242,9 +253,11 @@ export function CashPayrollSection({
                             onClick={() =>
                               ask({
                                 action: "cash.payroll.reconcile",
-                                title: "Record sample success evidence",
+                                title: "Simulate a confirmed payment?",
                                 detail:
-                                  "Simulate matching bank evidence for this one item. This does not send a payment and does not retry any other item.",
+                                  "This simulates bank evidence that this one item was paid. It does not send a payment or retry any other item.",
+                                confirm: "Simulate confirmed payment",
+                                busy: "Simulating…",
                                 recordId: r.id,
                                 data: {
                                   itemId: item.id,
@@ -253,7 +266,7 @@ export function CashPayrollSection({
                               })
                             }
                           >
-                            Sample success
+                            Simulate confirmed payment
                           </Button>
                           {item.status === "exported" && (
                             <Button
@@ -268,9 +281,11 @@ export function CashPayrollSection({
                               onClick={() =>
                                 ask({
                                   action: "cash.payroll.reconcile",
-                                  title: "Record an unknown outcome",
+                                  title: "Simulate an unknown outcome?",
                                   detail:
-                                    "Hold this sample item for bank lookup. It cannot be blindly retried or included in a new export.",
+                                    "This item will be held until the bank confirms what happened. It cannot be retried or added to a new export.",
+                                  confirm: "Simulate unknown outcome",
+                                  busy: "Simulating…",
                                   recordId: r.id,
                                   data: {
                                     itemId: item.id,
@@ -279,7 +294,7 @@ export function CashPayrollSection({
                                 })
                               }
                             >
-                              Sample unknown
+                              Simulate unknown outcome
                             </Button>
                           )}
                         </div>
@@ -294,12 +309,14 @@ export function CashPayrollSection({
       </div>
       {!!cash.payrollReconciliation?.length && (
         <Section
-          title="Reconcile retained payroll evidence"
-          detail="Preparation permission is unavailable. Finance can record sample outcomes for previously exported items without new bank access. Funding details and new exports remain restricted."
+          title="Record results for payroll items already exported"
+          detail="The Prepare payroll funding permission is not active. Finance can still record sample results for items already exported. Funding details and new exports stay hidden until the permission is granted again."
         >
           {cash.payrollReconciliation.map((run) => (
             <div key={run.id} className="space-y-3">
-              <h3 className="text-sm font-semibold">{run.runId}</h3>
+              <h3 className="text-sm font-semibold">
+                Approved sample payroll ({run.runId})
+              </h3>
               {run.items.map((item) => (
                 <div
                   key={item.id}
@@ -310,7 +327,7 @@ export function CashPayrollSection({
                       {item.employeeReference}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      Retained sample item · {connectedStatusLabel("payroll-item", item.status)}
+                      Sample item · {connectedStatusLabel("payroll-item", item.status)}
                     </p>
                   </div>
                   <span className="text-sm font-medium tabular-nums">
@@ -326,15 +343,17 @@ export function CashPayrollSection({
                       onClick={() =>
                         ask({
                           action: "cash.payroll.reconcile",
-                          title: "Reconcile retained sample evidence",
+                          title: "Simulate a confirmed payment?",
                           detail:
-                            "Record matching sample success evidence for this previously exported item. This does not access a bank, renew permission, export a file or send a payment.",
+                            "This records a sample confirmed payment for this exported item. It does not contact a bank, renew a permission, export a file or send a payment.",
+                          confirm: "Simulate confirmed payment",
+                          busy: "Simulating…",
                           recordId: run.id,
                           data: { itemId: item.id, status: "succeeded" },
                         })
                       }
                     >
-                      Record sample success
+                      Simulate confirmed payment
                     </Button>
                   )}
                   {item.status === "succeeded" && (
@@ -345,15 +364,17 @@ export function CashPayrollSection({
                       onClick={() =>
                         ask({
                           action: "cash.payroll.reconcile",
-                          title: "Record retained sample reversal",
+                          title: "Simulate a reversal?",
                           detail:
-                            "Record sample reversal evidence against the original approved item. This does not send a refund or create another payment.",
+                            "This records a sample reversal against the original approved item. It does not send a refund or create another payment.",
+                          confirm: "Simulate reversal",
+                          busy: "Simulating…",
                           recordId: run.id,
                           data: { itemId: item.id, status: "reversed" },
                         })
                       }
                     >
-                      Record sample reversal
+                      Simulate reversal
                     </Button>
                   )}
                 </div>

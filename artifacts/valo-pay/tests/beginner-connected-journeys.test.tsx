@@ -55,11 +55,11 @@ function returnAsFinance(path: string) {
   renderApp(path);
 }
 
-async function confirmCash(user: User, note: string) {
+async function confirmCash(user: User, action: string, note: string) {
   const dialog = await screen.findByRole("dialog");
-  await user.type(within(dialog).getByLabelText("Review note"), note);
+  await user.type(within(dialog).getByLabelText("Reason"), note);
   await user.click(
-    within(dialog).getByRole("button", { name: "Confirm and save" }),
+    within(dialog).getByRole("button", { name: action }),
   );
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
 }
@@ -189,10 +189,11 @@ describe("complete synthetic connected journeys through the real app", () => {
     await grant(user, "payroll_prepare");
     await go(user, "Cash Desk");
     await user.click(
-      screen.getByRole("button", { name: "Set up sample Cash Desk" }),
+      screen.getByRole("button", { name: "Set up Cash Desk" }),
     );
     await confirmCash(
       user,
+      "Set up Cash Desk",
       "Create the sample accounts and approved net-pay run for this rehearsal",
     );
     await screen.findByText(
@@ -202,17 +203,18 @@ describe("complete synthetic connected journeys through the real app", () => {
       screen.getByRole("button", { name: "Payroll funding" }),
     );
     expect(
-      screen.getByText(/Exporting does not pay employees or reserve funds/),
+      screen.getByText(/Exporting does not pay employees or set money aside/),
     ).toBeTruthy();
     await user.click(
-      screen.getByRole("button", { name: "Prepare sample plan" }),
+      screen.getByRole("button", { name: "Prepare funding plan" }),
     );
     await confirmCash(
       user,
+      "Prepare funding plan",
       "Check the approved sample run, source balance and funding assumptions",
     );
     await screen.findByText(
-      "Sample payroll funding plan prepared. A different Finance reviewer must check the funding and items before export. Payroll remains unpaid.",
+      "Sample funding plan prepared. A different Finance reviewer must approve it before export. No one has been paid.",
     );
     expect(
       (
@@ -224,7 +226,7 @@ describe("complete synthetic connected journeys through the real app", () => {
     expect(
       (
         screen.getByRole("button", {
-          name: "Prepare bank export",
+          name: "Prepare bank export file",
         }) as HTMLButtonElement
       ).disabled,
     ).toBe(true);
@@ -239,23 +241,25 @@ describe("complete synthetic connected journeys through the real app", () => {
     );
     await confirmCash(
       user,
+      "Approve funding plan",
       "Independently check the sample beneficiaries, amounts, source balance and payment date",
     );
     await screen.findByText(
-      "Sample funding approval recorded. An export still requires current funding and source checks. Payroll remains unpaid.",
+      "Sample funding plan approved. You can prepare the bank export file while the balances are current. No one has been paid.",
     );
     await user.click(
-      screen.getByRole("button", { name: "Prepare bank export" }),
+      screen.getByRole("button", { name: "Prepare bank export file" }),
     );
     await confirmCash(
       user,
+      "Prepare bank export file",
       "Prepare only the reviewed unsent sample items; no salary instruction is executed",
     );
     await screen.findByText(
-      "Sample payroll export prepared. Download the review file below. Payroll remains unpaid.",
+      "Sample payroll export file prepared. Download it below. No one has been paid.",
     );
     expect(
-      screen.getByRole("button", { name: "Download approved manifest" }),
+      screen.getByRole("button", { name: "Download payroll export file" }),
     ).toBeTruthy();
     const exported = api
       .state()
@@ -270,10 +274,10 @@ describe("complete synthetic connected journeys through the real app", () => {
 
     returnAsFinance("/cash-desk?view=payroll");
     expect(
-      await screen.findByRole("button", { name: "Download approved manifest" }),
+      await screen.findByRole("button", { name: "Download payroll export file" }),
     ).toBeTruthy();
     expect(
-      screen.getByText(/Funding approval and export do not establish payment/),
+      screen.getByText(/Approving the plan and exporting the file do not pay anyone/),
     ).toBeTruthy();
     expect(
       api

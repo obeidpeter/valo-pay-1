@@ -1,8 +1,8 @@
 import { ConnectedStatus } from "@/components/connected-frame";
 import { Button } from "@/components/ui/button";
 import { Check, Download, FileCheck2, RefreshCw } from "lucide-react";
-import { amount, Gate, Metric, saveJson, Section } from "./shared";
-import type { CashView, ReviewAction } from "./types";
+import { amount, Gate, Metric, saveJson, Section, SET_UP_FIRST } from "./shared";
+import type { CashView, ReviewAction, RoleRefusal } from "./types";
 
 type Props = {
   cash: CashView;
@@ -10,6 +10,7 @@ type Props = {
   maker: boolean;
   finance: boolean;
   pending: boolean;
+  refuse: RoleRefusal;
   ask: ReviewAction;
 };
 
@@ -19,16 +20,17 @@ export function CashAccountingSection({
   maker,
   finance,
   pending,
+  refuse,
   ask,
 }: Props) {
   return (
     <div className="space-y-5">
       {!cash.permissions.erp && (
-        <Gate text="Accounting-draft permission is needed to prepare and export a receipt." />
+        <Gate text="Grant the Prepare accounting drafts and VAT schedules permission before you prepare or export a draft." />
       )}
       <Section
-        title="Receipts ready for Finance"
-        detail="Match the bank receipt, invoice residual, fee and credit note before exporting an accounting draft. Xero is the first planned integration; live posting is gated."
+        title="Accounting"
+        detail="Before you export a draft, check that the bank receipt, the amount still owed, the fee and the credit note agree. Xero is the first accounting software we plan to connect. Posting to it is switched off."
         action={
           <Button
             aria-describedby="accounting-prepare-help"
@@ -42,33 +44,34 @@ export function CashAccountingSection({
             onClick={() =>
               ask({
                 action: "cash.erp.prepare",
-                title: "Prepare sample accounting draft",
+                title: "Prepare accounting draft?",
                 detail:
-                  "Create one draft for the sample receipt. It includes a partial invoice payment, evidenced fee and approved credit note.",
+                  "This drafts the sample bank receipt for accounting. It covers part-payment of an invoice, a fee with evidence and an approved credit note.",
+                confirm: "Prepare accounting draft",
+                busy: "Preparing…",
               })
             }
           >
             <FileCheck2 />
-            Prepare sample draft
+            Prepare accounting draft
           </Button>
         }
       >
         <p id="accounting-prepare-help" className="mb-4 text-xs leading-relaxed text-muted-foreground">
-          {cash.erpDrafts.length > 0 ? "A sample draft already exists. Continue its review below; preparing another draft for the same receipt is unavailable."
-            : !maker ? "An Admin or Operations user prepares the draft; a different Finance reviewer checks it."
-            : !cash.permissions.erp ? "Grant accounting-draft permission in Permissions & readiness before preparing a draft."
-            : !canOperate ? "Set up the sample Cash Desk with active business-account read permission first."
-            : "Prepare the draft, review its invoice and fee evidence, then hand it to a different Finance reviewer."}
+          {cash.erpDrafts.length > 0 ? "A sample draft already exists. Continue with it below. You cannot prepare a second draft for the same receipt."
+            : !maker ? refuse(["Admin", "Operations"], "prepare an accounting draft")
+            : !cash.permissions.erp ? "Grant the Prepare accounting drafts and VAT schedules permission in Permissions and readiness first."
+            : !canOperate ? SET_UP_FIRST
+            : "Prepare the draft and check its invoice and fee evidence. A different Finance reviewer then approves it."}
         </p>
         {!cash.erpDrafts.length ? (
           <div className="rounded-xl border border-dashed p-8 text-center">
             <FileCheck2 className="mx-auto h-8 w-8 text-muted-foreground" />
-            <h3 className="mt-3 font-medium">
-              A clear path from receipt to accounting
-            </h3>
+            <h3 className="mt-3 font-medium">No accounting draft yet</h3>
             <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
-              Operations prepares the draft. A different Finance reviewer checks
-              the exact company, invoice, tax code and amounts before export.
+              Select Prepare accounting draft to start. A different Finance
+              reviewer then checks the business, invoice, tax code and amounts
+              before export.
             </p>
           </div>
         ) : (
@@ -83,19 +86,19 @@ export function CashAccountingSection({
               </div>
               <div className="grid gap-3 sm:grid-cols-3">
                 <Metric
-                  title="Gross receipt"
+                  title="Received before fees"
                   value={amount(r.draft.input.grossMinor)}
-                  detail="Amount applied to the invoice"
+                  detail="Amount paid against the invoice"
                 />
                 <Metric
-                  title="Evidenced fee"
+                  title="Fee (with evidence)"
                   value={amount(r.draft.input.feeMinor)}
-                  detail="Separate fee ledger code"
+                  detail="Recorded against a separate fee account"
                 />
                 <Metric
-                  title="Net bank receipt"
+                  title="Received after fees"
                   value={amount(r.draft.input.netMinor)}
-                  detail="Gross receipt less fee"
+                  detail="The amount before fees, less the fee"
                 />
               </div>
               {r.draft.residuals.map((residual) => (
@@ -107,10 +110,10 @@ export function CashAccountingSection({
                   <dl className="mt-3 grid gap-3 sm:grid-cols-4">
                     {(
                       [
-                        ["Original residual", residual.beforeMinor],
-                        ["Payment allocation", residual.paymentMinor],
+                        ["Owed before", residual.beforeMinor],
+                        ["This payment", residual.paymentMinor],
                         ["Credit note", residual.creditNoteMinor],
-                        ["Remaining due", residual.afterMinor],
+                        ["Still owed", residual.afterMinor],
                       ] as const
                     ).map(([name, value]) => (
                       <div key={name}>
@@ -124,17 +127,17 @@ export function CashAccountingSection({
                 </div>
               ))}
               <p className="text-xs text-muted-foreground">
-                Mapping {r.draft.input.mapping.version} ·{" "}
+                Account mapping {r.draft.input.mapping.version} · company{" "}
                 {r.draft.input.mapping.companyId} · tax code{" "}
                 {r.draft.input.mapping.taxCode}
               </p>
               <p className="text-sm text-muted-foreground">
                 Prepared by {r.draft.input.maker}.
                 {r.status === "review_required"
-                  ? " Permissions changed since this review. Refresh the accounting review, then obtain a new Finance approval."
+                  ? " Permissions changed since this review. Refresh the accounting review, then get a new Finance approval."
                   : r.draft.review
-                    ? ` Reviewed by ${r.draft.review.reviewer}.`
-                    : " A different Finance reviewer is required."}
+                    ? ` Approved by ${r.draft.review.reviewer}.`
+                    : " A different Finance reviewer must approve it."}
               </p>
               <div className="flex flex-wrap gap-2">
                 <Button
@@ -145,9 +148,11 @@ export function CashAccountingSection({
                   onClick={() =>
                     ask({
                       action: "cash.erp.refresh",
-                      title: "Refresh accounting review",
+                      title: "Refresh accounting review?",
                       detail:
-                        "Recheck current permissions, invoice balances, mapping and period locks. Keep the same receipt identity and preserve the previous review as history; a different Finance reviewer must approve again.",
+                        "This checks the current permissions, invoice balances, account mapping and closed periods again. The receipt and the earlier review are kept. A different Finance reviewer must then approve again.",
+                      confirm: "Refresh accounting review",
+                      busy: "Refreshing…",
                       recordId: r.id,
                     })
                   }
@@ -166,9 +171,11 @@ export function CashAccountingSection({
                   onClick={() =>
                     ask({
                       action: "cash.erp.review",
-                      title: "Review accounting draft",
+                      title: "Approve accounting draft?",
                       detail:
-                        "Confirm the entity, mapping version, invoice allocation, fee and credit note. This approval does not post to the ERP.",
+                        "Check the business, the account mapping, the invoice payment, the fee and the credit note. Approving does not post anything to accounting software.",
+                      confirm: "Approve draft",
+                      busy: "Approving…",
                       recordId: r.id,
                     })
                   }
@@ -188,15 +195,17 @@ export function CashAccountingSection({
                   onClick={() =>
                     ask({
                       action: "cash.erp.export",
-                      title: "Prepare reviewed ERP export",
+                      title: "Prepare export file?",
                       detail:
-                        "Recheck the approved draft and prepare its manifest. No external accounting entry will be created.",
+                        "This checks the approved draft again and prepares its export file. Nothing will be posted to accounting software.",
+                      confirm: "Prepare export file",
+                      busy: "Preparing…",
                       recordId: r.id,
                     })
                   }
                 >
                   <Download />
-                  Prepare export
+                  Prepare export file
                 </Button>
                 {!!r.manifest && (
                   <Button
@@ -206,14 +215,13 @@ export function CashAccountingSection({
                     }
                   >
                     <Download />
-                    Download review file
+                    Download export file
                   </Button>
                 )}
               </div>
               {!finance && (
                 <p className="text-xs text-muted-foreground">
-                  Switch to a different Finance reviewer to approve or prepare
-                  the export.
+                  {refuse(["Finance"], "approve the draft or prepare its export file")}
                 </p>
               )}
             </div>

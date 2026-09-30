@@ -43,7 +43,7 @@ test("connected modules are readable, keyboard accessible and fit the viewport",
     });
     if (route === "/cash-desk") {
       await page
-        .getByText("Base · day 30", { exact: true })
+        .getByText("Expected · day 30", { exact: true })
         .scrollIntoViewIfNeeded();
       await page.locator("#main").evaluate((node) => {
         node.scrollTop += 420;
@@ -114,6 +114,6 @@ test("permissions can be granted and revoked with an explicit explanation", asyn
   ).toBeVisible();
   await page.goto("/cash-desk");
   await expect(
-    page.getByRole("button", { name: /Set up sample Cash Desk/ }),
+    page.getByRole("button", { name: /Set up Cash Desk/ }),
   ).toBeDisabled();
 });

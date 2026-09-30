@@ -4,7 +4,10 @@ import type { ReactNode } from "react";
 import { Link } from "wouter";
 
 export const amount = (value: number | null | undefined) =>
-  value == null ? "Needs review" : formatKobo(value);
+  value == null ? "Unavailable" : formatKobo(value);
+/** The first step Cash Desk needs before a section can prepare work, when set-up or the business-account permission is missing. */
+export const SET_UP_FIRST =
+  "First, set up Cash Desk and grant the Read business accounts permission.";
 export const saveJson = (name: string, value: unknown) => {
   const url = URL.createObjectURL(
     new Blob([JSON.stringify(value, null, 2)], { type: "application/json" }),
@@ -83,7 +86,7 @@ export function Gate({ text }: { text: string }) {
           href="/connections"
           className="font-medium underline underline-offset-4"
         >
-          Review permissions
+          Open Permissions and readiness
         </Link>
       </span>
     </p>

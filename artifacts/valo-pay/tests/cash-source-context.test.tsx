@@ -76,7 +76,7 @@ describe("Cash balance source context", () => {
     expect(within(context).getByText("20 Sept 2026, 11:00 WAT")).toBeTruthy();
     expect(within(context).getByText("21 Sept 2026, 11:00 WAT")).toBeTruthy();
     expect(within(context).queryByText("No source warnings reported")).toBeNull();
-    expect(screen.getByText("Partial — some transactions may be missing")).toBeTruthy();
+    expect(screen.getByText("Partial: some transactions may be missing")).toBeTruthy();
     expect(metric("Available cash").getByText("Unavailable")).toBeTruthy();
     expect(metric("Available cash").queryByText("₦0.00")).toBeNull();
     const account = screen.getByRole("heading", { name: /Operating account/ }).closest("article")!;
@@ -89,7 +89,7 @@ describe("Cash balance source context", () => {
     });
     renderApp("/cash-desk");
     const context = await screen.findByRole("region", { name: "Sample balance sources" });
-    expect(within(context).getByText("No account balances are available for this view.")).toBeTruthy();
+    expect(within(context).getByText("No account balances to show. Check the Read business accounts permission.")).toBeTruthy();
     expect(within(context).getAllByText("Unavailable")).toHaveLength(2);
     expect(within(context).getByText(/2 accounts omitted/)).toBeTruthy();
     expect(metric("Booked cash").getByText("Unavailable")).toBeTruthy();
@@ -108,11 +108,11 @@ describe("Cash balance source context", () => {
     await screen.findByRole("region", { name: "Sample balance sources" });
     expect(metric("Booked cash").getByText("₦0.00")).toBeTruthy();
     expect(metric("Available cash").getByText("₦0.00")).toBeTruthy();
-    const link = screen.getByRole("link", { name: "Review accounting drafts" });
+    const link = screen.getByRole("link", { name: "Open Accounting" });
     expect(link.getAttribute("href")).toBe("/cash-desk?view=accounting");
-    expect(screen.getByText(/An accounting draft or export has not been posted/)).toBeTruthy();
+    expect(screen.getByText(/Drafts and export files are not posted to accounting software/)).toBeTruthy();
     await user.click(link);
-    expect(await screen.findByRole("heading", { name: "Receipts ready for Finance" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Accounting" })).toBeTruthy();
     expect(window.location.search).toBe("?view=accounting");
     expect(api.calls.some((call) => call.method === "POST")).toBe(false);
   });

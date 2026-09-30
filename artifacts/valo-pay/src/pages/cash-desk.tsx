@@ -2,6 +2,8 @@ import {
   ConnectedFrame,
   ConnectedRecovery,
   ConnectedState,
+  FieldHint,
+  roleRefusal,
 } from "@/components/connected-frame";
 import { LoadProblem } from "@/components/load-problem";
 import { Loading } from "@/components/loading";
@@ -20,7 +22,7 @@ import { CashAccountingSection } from "@/features/cash-desk/accounting-section";
 import { CashForecastSection } from "@/features/cash-desk/forecast-section";
 import { CashPayrollSection } from "@/features/cash-desk/payroll-section";
 import { Gate } from "@/features/cash-desk/shared";
-import type { PendingAction } from "@/features/cash-desk/types";
+import type { PendingAction, RoleRefusal } from "@/features/cash-desk/types";
 import { CashVatSection } from "@/features/cash-desk/vat-section";
 import { useConnected } from "@/lib/connected";
 import { useDialogFocusReturn } from "@/lib/focus";
@@ -41,12 +43,12 @@ import { useEffect, useRef, useState } from "react";
 
 const TITLE = "Cash Desk",
   DESCRIPTION =
-    "A clearer view of business cash, commitments and the work ahead.";
+    "Cash Desk works on a sample business, separate from the lender. A different Finance reviewer approves each accounting draft and payroll plan before export.";
 const cashSections = [
-  { id: "cash", label: "Cash & forecast", icon: ChartNoAxesCombined, description: "Review timestamped balances and assumptions before saving a forecast. Planning buffers do not reserve bank funds." },
-  { id: "accounting", label: "Accounting", icon: FileCheck2, description: "Operations prepares the draft; a different Finance reviewer checks it before export. The accounting system remains authoritative." },
-  { id: "vat", label: "VAT evidence", icon: ShieldCheck, description: "Review invoice, bank and ledger evidence with an accountant. Preparing a schedule does not file or pay a tax return." },
-  { id: "payroll", label: "Payroll funding", icon: Users, description: "Check an approved net-pay run, obtain independent review and track every item. Funding approval and export do not establish payment." },
+  { id: "cash", label: "Cash and forecast", icon: ChartNoAxesCombined, description: "Check each balance’s timestamp and your assumptions before you save a forecast. A planning buffer does not set money aside." },
+  { id: "accounting", label: "Accounting", icon: FileCheck2, description: "Admin or Operations prepares the draft. A different Finance reviewer approves it before export. Your accounting software stays the official record." },
+  { id: "vat", label: "VAT evidence", icon: ShieldCheck, description: "Check invoice, bank and ledger evidence with an accountant. Saving a VAT schedule does not file a VAT return or pay tax." },
+  { id: "payroll", label: "Payroll funding", icon: Users, description: "Check there is enough money for the approved payroll (net pay), have a different Finance reviewer approve the plan and track each item. Approving the plan and exporting the file do not pay anyone." },
 ] as const;
 export default function CashDeskPage() {
   const api = useConnected();
@@ -73,7 +75,7 @@ export default function CashDeskPage() {
   // A confirmed step can remove or disable the button that opened its review, so focus then goes to the result.
   const result = useRef<HTMLParagraphElement>(null);
   const restoreFocus = useDialogFocusReturn(!!action, () => result.current);
-  // Planning inputs, or a review note, typed but not saved are a draft: leaving asks first.
+  // Planning inputs, or a reason, typed but not saved are a draft: leaving asks first.
   const draft = useFormDraft({
     downside,
     delay,
@@ -93,6 +95,8 @@ export default function CashDeskPage() {
   }, [merchantId]);
   const maker = ["Admin", "Operations"].includes(workspace?.role ?? "");
   const finance = workspace?.role === "Finance";
+  const refuse: RoleRefusal = (roles, what) =>
+    roleRefusal(roles, what, workspace?.role ?? "", workspace?.accessMode);
   const ask = (next: PendingAction) => {
     setAction(next);
     setReason("");
@@ -115,38 +119,38 @@ export default function CashDeskPage() {
         "cash.forecast":
           "New sample forecast saved. Your source balances and commitments are unchanged.",
         "cash.refresh_sample":
-          "Sample source timestamps refreshed. Review the updated balances before preparing new work.",
+          "Sample balance timestamps refreshed. Nothing was sent to a bank. Check the updated balances before you prepare new work.",
         "cash.erp.prepare":
-          "Sample accounting draft prepared. A different Finance reviewer must check it before export.",
+          "Sample accounting draft prepared. A different Finance reviewer must approve it before export.",
         "cash.erp.refresh":
           "Accounting review refreshed using current evidence and permissions. A different Finance reviewer must approve it again before export.",
         "cash.erp.review":
-          "Sample accounting review recorded. The draft can be prepared for export if its evidence is still current. Nothing has been posted.",
+          "Sample accounting draft approved. You can prepare its export file while its evidence is still current. Nothing was posted to accounting software.",
         "cash.erp.export":
-          "Sample accounting export prepared. Download the review file below. Nothing has been posted to accounting software.",
+          "Sample accounting export file prepared. Download it below. Nothing was posted to accounting software.",
         "cash.vat.export":
-          "Sample VAT review schedule saved. Review its evidence gaps before use. No tax return was filed or paid.",
+          "Sample VAT schedule saved. Check its evidence gaps before you use it. No VAT return was filed and no tax was paid.",
         "cash.payroll.export":
-          "Sample payroll export prepared. Download the review file below. Payroll remains unpaid.",
+          "Sample payroll export file prepared. Download it below. No one has been paid.",
         "cash.payroll.prepare":
-          "Sample payroll funding plan prepared. A different Finance reviewer must check the funding and items before export. Payroll remains unpaid.",
+          "Sample funding plan prepared. A different Finance reviewer must approve it before export. No one has been paid.",
         "cash.payroll.refresh":
-          "New sample funding review saved. Previous approval and export readiness have ended; Finance must review again. Existing item outcomes remain recorded.",
+          "Funding review refreshed. The earlier approval no longer applies, so a different Finance reviewer must approve again. Item results already recorded are kept.",
         "cash.payroll.approve":
-          "Sample funding approval recorded. An export still requires current funding and source checks. Payroll remains unpaid.",
+          "Sample funding plan approved. You can prepare the bank export file while the balances are current. No one has been paid.",
         "cash.payroll.reconcile":
-          "Sample payroll item evidence recorded. Review each item's status; unknown outcomes stay on hold and must not be exported again.",
+          "Sample result recorded for this item. Items with an unknown outcome stay on hold and must not be exported again.",
       };
       setSuccess(
         message[action.action] ??
-          `${action.title} completed. The sample record is saved; review its current status below. No live financial instruction was sent.`,
+          "Sample record saved. Check its status below. Nothing was sent to a bank.",
       );
       setAction(null);
     } catch (err) {
       setProblem(
         err instanceof Error
           ? err.message
-          : "Unable to save this action. Please try again.",
+          : "This action was not saved. Try again.",
       );
     }
   };
@@ -177,8 +181,10 @@ export default function CashDeskPage() {
     }
     ask({
       action: "cash.forecast",
-      title: "Save forecast version",
-      detail: `Keep ${formatPercent(downsideInflowBps / 10000)} of expected receipts, delayed by ${formatCount(Number(delay), "day")}, with a ${formatKobo(bufferMinor)} planning buffer. The base case keeps approved amounts. No bank balance or commitment will be changed.`,
+      title: "Save forecast?",
+      detail: `Cautious case: ${formatPercent(downsideInflowBps / 10000)} of expected receipts arrive, ${formatCount(Number(delay), "day")} late. Planning buffer: ${formatKobo(bufferMinor)}. The expected case uses the approved amounts. No bank balance or commitment will change.`,
+      confirm: "Save forecast",
+      busy: "Saving…",
       data: {
         downsideInflowBps,
         downsideDelayDays: Number(delay),
@@ -226,19 +232,19 @@ export default function CashDeskPage() {
           {cash.name}
         </p>
         <p className="text-xs text-muted-foreground">
-          Separate SME entity · NGN · sample data
+          Sample business, separate from the lender · Amounts in naira
         </p>
       </div>
       {!cash.initialised ? (
         <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-primary/20 bg-primary/5 p-5">
           <div className="max-w-2xl">
             <h2 className="font-semibold">
-              Explore the sample, then make it your workspace
+              Preview the sample, then set it up
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Preview two business accounts and a 30-day plan. Enable
-              business-account read permission to save forecasts and prepare
-              reviewed exports.
+              Preview two business accounts and a 30-day plan. To save
+              forecasts and prepare exports, grant the Read business accounts
+              permission, then set up Cash Desk.
             </p>
           </div>
           <Button
@@ -247,27 +253,29 @@ export default function CashDeskPage() {
             onClick={() =>
               ask({
                 action: "cash.initialize",
-                title: "Set up sample Cash Desk",
+                title: "Set up Cash Desk?",
                 detail:
-                  "Save the sample SME accounts and approved planning inputs. This will not connect to a real bank.",
+                  "This saves the sample business’s accounts and approved plans. It does not connect to a real bank.",
+                confirm: "Set up Cash Desk",
+                busy: "Setting up…",
               })
             }
           >
-            Set up sample Cash Desk
+            Set up Cash Desk
             <ArrowRight />
           </Button>
           <p id="cash-setup-help" className="w-full text-xs text-muted-foreground">
-            {!maker ? "An Admin or Operations user must set up this sample workspace."
-              : !canWrite ? "This workspace is read-only. Ask an administrator to review your access."
-              : !cash.permissions.read ? "Grant business-account read permission in Permissions & readiness first."
-              : "Save the sample workspace, then prepare a forecast or choose a review task below."}
+            {!maker ? refuse(["Admin", "Operations"], "set up Cash Desk")
+              : !canWrite ? "Your role is Read-only. Ask an Admin for a role that can make changes."
+              : !cash.permissions.read ? "First, grant the Read business accounts permission in Permissions and readiness."
+              : "Set up Cash Desk, then save a forecast or choose a section below."}
           </p>
         </div>
       ) : !cash.permissions.read ? (
-        <Gate text="Business-account permission has expired or been revoked. New forecasts and preparation actions are paused." />
+        <Gate text="The Read business accounts permission has expired or been withdrawn. You cannot save forecasts or prepare work until it is granted again." />
       ) : null}
       {!cash.permissions.read && !cash.initialised && (
-        <Gate text="Business-account read permission is needed before saving changes." />
+        <Gate text="Grant the Read business accounts permission before you save changes." />
       )}
       <SectionNavigation label="Cash Desk sections" sections={cashSections} value={tab} onChange={setTab} controls="cash-desk-view" />
       <div id="cash-desk-view">
@@ -287,6 +295,7 @@ export default function CashDeskPage() {
           )}
           maker={maker}
           pending={pending}
+          refuse={refuse}
           reviewForecast={reviewForecast}
           ask={ask}
         />
@@ -298,6 +307,7 @@ export default function CashDeskPage() {
           maker={maker}
           finance={finance}
           pending={pending}
+          refuse={refuse}
           ask={ask}
         />
       )}
@@ -307,6 +317,7 @@ export default function CashDeskPage() {
           canOperate={canOperate}
           finance={finance}
           pending={pending}
+          refuse={refuse}
           ask={ask}
         />
       )}
@@ -318,6 +329,7 @@ export default function CashDeskPage() {
           maker={maker}
           finance={finance}
           pending={pending}
+          refuse={refuse}
           ask={ask}
         />
       )}
@@ -326,9 +338,9 @@ export default function CashDeskPage() {
       <div className="flex items-start gap-3 rounded-xl border bg-secondary/20 p-4 text-xs leading-relaxed text-muted-foreground">
         <Wallet className="mt-0.5 h-4 w-4 shrink-0" />
         <p>
-          Valo Pay does not hold this money. This workspace uses synthetic SME
-          data. Live bank connections, ERP posting, tax submission and payroll
-          payments require their own approvals and are disabled.
+          Valo Pay never holds money. Sample data only. Bank connections,
+          posting to accounting software, VAT filing and payroll payments are
+          switched off. Each would need its own approval.
         </p>
       </div>
       <Dialog
@@ -340,7 +352,9 @@ export default function CashDeskPage() {
         <DialogContent onCloseAutoFocus={restoreFocus}>
           <DialogHeader>
             <DialogTitle>{action?.title}</DialogTitle>
-            <DialogDescription>{action?.detail}</DialogDescription>
+            <DialogDescription>
+              {action?.detail} Sample data only.
+            </DialogDescription>
           </DialogHeader>
           <ConnectedRecovery
             recovery={api}
@@ -351,22 +365,26 @@ export default function CashDeskPage() {
               setReason("");
               draft.saved();
               setSuccess(
-                "Original sample request confirmed. Review the refreshed records below. No live financial instruction was sent.",
+                "Original request confirmed. Check the updated records below. Nothing was sent to a bank.",
               );
             }}
           />
-          <label htmlFor="cash-action-reason" className="text-sm font-medium">
-            Review note
-            <textarea
-              id="cash-action-reason"
-              disabled={pending || api.hasUnconfirmedOutcome}
-              className="mt-2 min-h-24 w-full rounded-lg border bg-background p-3 text-sm"
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              maxLength={500}
-              placeholder="Explain why you are taking this action (at least 8 characters)."
-            />
-          </label>
+          <div>
+            <label htmlFor="cash-action-reason" className="text-sm font-medium">
+              Reason
+              <textarea
+                id="cash-action-reason"
+                disabled={pending || api.hasUnconfirmedOutcome}
+                className="mt-2 min-h-24 w-full rounded-lg border bg-background p-3 text-sm"
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                maxLength={500}
+                aria-describedby="cash-action-reason-help"
+                placeholder="Why are you taking this action?"
+              />
+            </label>
+            <FieldHint id="cash-action-reason-help" minLength={8} />
+          </div>
           {problem && !api.hasUnconfirmedOutcome && (
             <p role="alert" className="text-sm text-destructive">
               {problem}
@@ -382,13 +400,13 @@ export default function CashDeskPage() {
             </Button>
             <Button
               busy={pending}
-              busyLabel="Saving…"
+              busyLabel={action?.busy}
               disabled={reason.trim().length < 8 || api.hasUnconfirmedOutcome}
               onClick={() => {
                 void act();
               }}
             >
-              Confirm and save
+              {action?.confirm}
             </Button>
           </DialogFooter>
         </DialogContent>

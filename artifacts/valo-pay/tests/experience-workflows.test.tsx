@@ -13,15 +13,15 @@ describe("connected task navigation", () => {
   it("restores a Cash Desk section directly, preserves other URL state and follows browser Back without a mutation", async () => {
     const user = userEvent.setup();
     renderApp("/cash-desk?view=accounting&marker=keep");
-    await screen.findByRole("heading", { name: "Receipts ready for Finance" });
+    await screen.findByRole("heading", { name: "Accounting" });
     expect(screen.getByRole("button", { name: "Accounting" }).getAttribute("aria-current")).toBe("page");
     await user.click(screen.getByRole("button", { name: "Payroll funding" }));
     expect(new URLSearchParams(window.location.search).get("view")).toBe("payroll");
     expect(new URLSearchParams(window.location.search).get("marker")).toBe("keep");
-    expect(screen.getByRole("heading", { name: "Fund the approved payroll" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Payroll funding" })).toBeTruthy();
     window.history.back();
     await waitFor(() => expect(screen.getByRole("button", { name: "Accounting" }).getAttribute("aria-current")).toBe("page"));
-    expect(screen.getByRole("heading", { name: "Receipts ready for Finance" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Accounting" })).toBeTruthy();
     expect(api.calls.filter(call => call.method === "POST" && call.path.includes("/connected/actions"))).toHaveLength(0);
   });
 
@@ -33,7 +33,7 @@ describe("connected task navigation", () => {
     await user.clear(buffer);
     await user.type(buffer, "245000.25");
     await user.click(screen.getByRole("button", { name: "Accounting" }));
-    await user.click(screen.getByRole("button", { name: "Cash & forecast" }));
+    await user.click(screen.getByRole("button", { name: "Cash and forecast" }));
     expect((screen.getByLabelText("Planning buffer (₦)") as HTMLInputElement).value).toBe("245000.25");
     expect(confirm).not.toHaveBeenCalled();
     expect(new URLSearchParams(window.location.search).has("view")).toBe(false);
@@ -46,9 +46,9 @@ describe("connected task navigation", () => {
   it("associates an unavailable sample setup with the role and next step", async () => {
     api.role = "Finance";
     renderApp("/cash-desk");
-    const action = await screen.findByRole("button", { name: "Set up sample Cash Desk" });
+    const action = await screen.findByRole("button", { name: "Set up Cash Desk" });
     expect((action as HTMLButtonElement).disabled).toBe(true);
-    expect(document.getElementById(action.getAttribute("aria-describedby")!)?.textContent).toContain("An Admin or Operations user must set up");
+    expect(document.getElementById(action.getAttribute("aria-describedby")!)?.textContent).toContain("Only Admin or Operations can set up Cash Desk. Your role is Finance.");
   });
 });
 
