@@ -59,18 +59,19 @@ const kindWords: Record<string, string> = {
   costs: 'add or edit costs', 'settlement-batches': 'add or edit settlement batches', exceptions: 'edit exceptions',
   reviews: 'record reviews', calendar: 'add or edit calendar dates',
 };
-/** The roles as a refusal names them: "an Admin" alone, or "Admin, Operations or Finance". */
-function rolesInWords(roles: string[]): string {
-  if (roles.length > 1) return `${roles.slice(0, -1).join(', ')} or ${roles.at(-1)}`;
-  const role = roles[0] ?? '';
-  return role === 'Admin' ? 'an Admin' : role === 'Compliance reviewer' ? 'a Compliance reviewer' : `a ${role} team member`;
+/** The roles as a refusal names them, exactly as the standard lists them and with no articles: "Admin", "Admin, Operations or Finance". */
+export function rolesInWords(roles: readonly string[]): string {
+  return roles.length > 1 ? `${roles.slice(0, -1).join(', ')} or ${roles.at(-1)}` : roles[0] ?? '';
 }
 /**
- * A refusal by role (docs/design/writing.md, Notices): "Only {roles} can {action}.", the specific reason when there
- * is one, and the reader's own role; in the sandbox, where the role is a demo role, where to change it.
+ * A refusal by role (docs/design/writing.md, Notices): "Only {roles} can {action}." and the specific reason when there
+ * is one. A notice also names the reader's role and, where it is a demo role (outside a staff pilot), where to change
+ * it. The reason under a disabled button is `brief` and stops at the reason: the bar above every page already shows
+ * the role and, in the sandbox, links to Change demo role, so a table of disabled buttons does not repeat it.
  */
-function onlyRoles(workspace: NonNullable<ActingWorkspace>, roles: string[], action: string, reason?: string): string {
-  return [`Only ${rolesInWords(roles)} can ${action}.`, reason, `Your role is ${workspace.role}.`, workspace.accessMode === 'staff' ? '' : 'Change your demo role in Settings.'].filter(Boolean).join(' ');
+export function onlyRoles(roles: readonly string[], action: string, { reason, role, accessMode, brief = false }: { reason?: string; role?: string; accessMode?: string; brief?: boolean } = {}): string {
+  const reader = brief || !role ? [] : [`Your role is ${role}.`, accessMode === 'staff' ? '' : 'Change your demo role in Settings.'];
+  return [`Only ${rolesInWords(roles)} can ${action}.`, reason, ...reader].filter(Boolean).join(' ');
 }
 
 /**
@@ -107,13 +108,17 @@ export function heldForReversalReview(record: PermissionRecord | undefined): boo
   return Array.isArray(ids) && ids.length > 0;
 }
 
-/** Presentation guard only. The server remains authoritative for every write. */
-export function permissionReason(workspace: ActingWorkspace, { action, kind, record, payment, instalment }: PermissionRequest): string | null {
+/**
+ * Presentation guard only. The server remains authoritative for every write. A refusal shown as a notice names the
+ * reader's role; one shown under a disabled button (`brief`, from PermissionButton) says only who can and why.
+ */
+export function permissionReason(workspace: ActingWorkspace, { action, kind, record, payment, instalment }: PermissionRequest, { brief = false }: { brief?: boolean } = {}): string | null {
   if (!action && !kind) return null;
   if (!workspace) return 'Wait for your workspace permissions to load.';
+  const reader = { role: workspace.role, accessMode: workspace.accessMode, brief };
   const allowed = action ? actionRoles[action] : recordRoles[kind!];
   if (!allowed) return 'Your role cannot do this.';
-  if (!allowed.includes(workspace.role)) return onlyRoles(workspace, allowed, (action ? actionWords[action] : kindWords[kind!]) || 'do this');
+  if (!allowed.includes(workspace.role)) return onlyRoles(allowed, (action ? actionWords[action] : kindWords[kind!]) || 'do this', reader);
   if (!action && kind === 'exceptions' && ['resolved', 'closed'].includes(record?.status || '')) {
     return 'You cannot edit a resolved or closed exception. Its case keeps what happened.';
   }
@@ -137,11 +142,11 @@ export function permissionReason(workspace: ActingWorkspace, { action, kind, rec
   const refusal = action === 'manual_allocate' ? allocationRefusal(record ?? null) : null;
   if (refusal) return refusal;
   // A settlement batch held for its provider identity, or a renewed review of its hold, is resolved only by confirming whose payout it is (FIN-03).
-  if (action === 'resolve_exception' && providerIdentityOf(record?.data?.condition) && !['Admin', 'Finance'].includes(workspace.role)) return onlyRoles(workspace, ['Admin', 'Finance'], 'resolve this exception', 'Resolving it confirms whose payout the settlement batch is.');
+  if (action === 'resolve_exception' && providerIdentityOf(record?.data?.condition) && !['Admin', 'Finance'].includes(workspace.role)) return onlyRoles(['Admin', 'Finance'], 'resolve this exception', { ...reader, reason: 'Resolving it confirms whose payout the settlement batch is.' });
   // Confirming a pay-by-bank payment whose outcome stayed unknown records a receipt, so Finance records it.
-  if (action === 'resolve_exception' && record?.data?.linkedKind === 'connected-intents' && !['Admin', 'Finance'].includes(workspace.role)) return onlyRoles(workspace, ['Admin', 'Finance'], 'record the outcome of a Pay by Bank payment');
+  if (action === 'resolve_exception' && record?.data?.linkedKind === 'connected-intents' && !['Admin', 'Finance'].includes(workspace.role)) return onlyRoles(['Admin', 'Finance'], 'record the outcome of a Pay by Bank payment', reader);
   // Reconciliation raises a renewed review of an earlier reversal decision for Finance, and only Finance or an administrator resolves it.
-  if (action === 'resolve_exception' && record?.data?.legacyResolutionReview && !['Admin', 'Finance'].includes(workspace.role)) return onlyRoles(workspace, ['Admin', 'Finance'], 'record a second review of an earlier reversal decision');
+  if (action === 'resolve_exception' && record?.data?.legacyResolutionReview && !['Admin', 'Finance'].includes(workspace.role)) return onlyRoles(['Admin', 'Finance'], 'record a second review of an earlier reversal decision', reader);
   if (!action && ['templates', 'policies'].includes(kind || '') && record && !['draft', 'rejected'].includes(record.status || '')) {
     return 'You cannot edit a submitted or approved version. Select Draft next version to change it.';
   }

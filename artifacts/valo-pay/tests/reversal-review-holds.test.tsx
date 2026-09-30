@@ -54,7 +54,7 @@ describe('renewed reversal reviews', () => {
     const row = (await screen.findByText('Earlier decision recorded without a rule version.')).closest('tr')!;
     const button = within(row).getByRole('button', { name: 'Resolve' });
     expect(button.getAttribute('aria-disabled')).toBe('true');
-    expect(reasonFor(button)).toBe('Only Admin or Finance can record a second review of an earlier reversal decision. Your role is Operations. Change your demo role in Settings.');
+    expect(reasonFor(button)).toBe('Only Admin or Finance can record a second review of an earlier reversal decision.');
     await userEvent.setup().click(button);
     expect(screen.queryByRole('dialog')).toBeNull();
     for (const role of ['Finance', 'Admin']) expect(resolve(role)).toBe('accepted');

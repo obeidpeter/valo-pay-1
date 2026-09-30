@@ -157,7 +157,7 @@ export const helpGuides: HelpGuide[] = [
     result:
       "The case records who is responsible and what happened. Handing over a case does not confirm a payment or complete a daily close.",
     blocked:
-      "Only the owner or an Admin can change or hand over an assigned case. Some resolutions need Admin or Finance, even when another role can work on the case.",
+      "Only the case owner or Admin can change or hand over an assigned case. Some resolutions need Admin or Finance, even when another role can work on the case.",
     recovery:
       "If someone else changed the case, select Refresh case and read their update before you save again. Resolved cases keep their history and cannot be handed over.",
     terms: ["exception", "case", "role"],
@@ -555,7 +555,7 @@ export const helpGuides: HelpGuide[] = [
     result:
       "The person works only on the lenders you gave them, in their role. An invitation lasts seven days, and membership lasts 90 days.",
     blocked:
-      "Only an Admin can invite or change team members. You cannot approve your own invitation or change: another Admin must.",
+      "Only Admin can invite or change team members. You cannot approve your own invitation or change: another Admin must.",
     recovery:
       "If an invitation or change was interrupted, refresh Team and access to see whether it was saved before you try again.",
     terms: ["team-member", "role", "demo-role"],
@@ -591,7 +591,7 @@ export const helpGuides: HelpGuide[] = [
       "Change how collections run for this lender, stop all collection instructions, or practise with another role.",
     destination: "Settings",
     needs:
-      "Only an Admin can change collection settings or turn the emergency stop on or off. In the sandbox, anyone can switch demo role.",
+      "Only Admin can change collection settings or turn the emergency stop on or off. In the sandbox, anyone can switch demo role.",
     steps: [
       "To practise as another role, choose it in Demo role and select Switch role. Switching demo roles is not a second person.",
       "To change collection settings, select Edit, change the values and select Save.",
@@ -731,7 +731,7 @@ export const helpTerms: readonly HelpTerm[] = [
     id: "emergency-stop",
     term: "Emergency stop",
     meaning:
-      "The control that stops all collection instructions for a lender. Only an Admin can turn it on or off, and each change is saved in the audit log.",
+      "The control that stops all collection instructions for a lender. Only Admin can turn it on or off, and each change is saved in the audit log.",
     also: ["kill switch", "Turn on emergency stop", "Turn off emergency stop"],
   },
   {

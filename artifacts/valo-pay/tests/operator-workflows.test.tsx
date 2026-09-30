@@ -20,7 +20,7 @@ describe('permissions before a workflow starts', () => {
     expect(add.hasAttribute('disabled')).toBe(false);
     add.focus(); expect(document.activeElement).toBe(add);
     const reason = document.getElementById(add.getAttribute('aria-describedby')!);
-    expect(reason?.textContent).toBe('Only Admin, Operations or Finance can add or edit customers. Your role is Read-only. Change your demo role in Settings.');
+    expect(reason?.textContent).toBe('Only Admin, Operations or Finance can add or edit customers.');
     await user.click(add);
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(api.calls.some(call => call.method === 'POST')).toBe(false);
@@ -32,7 +32,7 @@ describe('permissions before a workflow starts', () => {
     api.role = 'Operations'; renderApp('/reconciliation');
     const confirm = await screen.findByRole('button', { name: 'Confirm' });
     expect(confirm.getAttribute('aria-disabled')).toBe('true');
-    expect(document.getElementById(confirm.getAttribute('aria-describedby')!)?.textContent).toBe('Only Admin or Finance can confirm a match. Your role is Operations. Change your demo role in Settings.');
+    expect(document.getElementById(confirm.getAttribute('aria-describedby')!)?.textContent).toBe('Only Admin or Finance can confirm a match.');
     expect(screen.getByRole('button', { name: 'Run reconciliation' }).getAttribute('aria-disabled')).toBeNull();
     expect(screen.getByRole('button', { name: 'Add batch' }).getAttribute('aria-disabled')).toBe('true');
   });

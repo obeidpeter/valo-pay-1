@@ -56,7 +56,7 @@ describe('guided sandbox exploration', () => {
     await user.click(screen.getByRole('button', { name: 'Next tip' }));
     expect(screen.getByText(/Admin or Finance must confirm or reject the match/)).toBeTruthy();
     for (let i = 0; i < 3; i++) await user.click(screen.getByRole('button', { name: 'Next tip' }));
-    expect(screen.getByText(/Only Admin, Finance or a Compliance reviewer can export a customer dispute pack/)).toBeTruthy();
+    expect(screen.getByText(/Only Admin, Finance or Compliance reviewer can export a customer dispute pack/)).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Read the export guide' }).getAttribute('href')).toBe('/help?topic=exports&returnTo=%2Fcustomers');
     expect(api.calls.filter(call => call.method === 'POST')).toEqual([]);
   });

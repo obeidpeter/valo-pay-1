@@ -22,6 +22,10 @@ describe("exceptions", () => {
     expect(permissionReason({ role: 'Compliance reviewer', actor: 'reviewer' }, { kind: 'exceptions' })).toBe('Only Admin, Operations or Finance can edit exceptions. Your role is Compliance reviewer. Change your demo role in Settings.');
     // A staff pilot's role is not a demo role, so the refusal does not send the reader to Settings.
     expect(permissionReason({ role: 'Compliance reviewer', actor: 'reviewer', accessMode: 'staff' }, { kind: 'exceptions' })).toBe('Only Admin, Operations or Finance can edit exceptions. Your role is Compliance reviewer.');
+    // Under a disabled button the reason says who can, once; the bar above the page shows the role and links to Change demo role.
+    expect(permissionReason({ role: 'Compliance reviewer', actor: 'reviewer' }, { kind: 'exceptions' }, { brief: true })).toBe('Only Admin, Operations or Finance can edit exceptions.');
+    // A single role is named as the standard lists it, with no article.
+    expect(permissionReason({ role: 'Finance', actor: 'finance' }, { action: 'kill_switch' })).toBe('Only Admin can turn the emergency stop on or off. Your role is Finance. Change your demo role in Settings.');
     expect(api.calls.some(call => call.method === 'POST')).toBe(false);
   });
 
@@ -454,7 +458,7 @@ describe("exceptions", () => {
       renderApp(`/exceptions?record=${exception.id}`);
       const resolve = await screen.findByRole('button', { name: 'Resolve' });
       expect(resolve.getAttribute('aria-disabled')).toBe('true');
-      expect(screen.getByText('Only Admin or Finance can resolve this exception. Resolving it confirms whose payout the settlement batch is. Your role is Operations. Change your demo role in Settings.')).toBeTruthy();
+      expect(screen.getByText('Only Admin or Finance can resolve this exception. Resolving it confirms whose payout the settlement batch is.')).toBeTruthy();
       await userEvent.setup().click(resolve);
       expect(screen.queryByRole('dialog', { name: 'Resolve exception' })).toBeNull();
       expect(api.calls.some(call => call.method === 'GET' && call.path.includes('/v1/records/settlement-batches'))).toBe(false);

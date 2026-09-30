@@ -56,7 +56,7 @@ it("lets Finance release an instalment from dispute on Collections, with a reaso
   let row = (await screen.findByText("DEMO-LOAN-1005")).closest("tr")!;
   const refused = within(row).getByRole("button", { name: "Release from dispute" });
   expect(refused.getAttribute("aria-disabled")).toBe("true");
-  expect(document.getElementById(refused.getAttribute("aria-describedby")!.split(" ").at(-1)!)!.textContent).toBe("Only Admin or Finance can release an instalment from dispute. Your role is Operations. Change your demo role in Settings.");
+  expect(document.getElementById(refused.getAttribute("aria-describedby")!.split(" ").at(-1)!)!.textContent).toBe("Only Admin or Finance can release an instalment from dispute.");
 
   switchTo("Finance", "/collections");
   row = (await screen.findByText("DEMO-LOAN-1005")).closest("tr")!;
@@ -89,7 +89,7 @@ it("has Finance record a pay-by-bank outcome that stayed unknown, with its evide
   expect(record(exceptionId).data).toMatchObject({ type: "unknown_outcome", owner: "Finance", linkedKind: "connected-intents" });
   switchTo("Operations", "/exceptions?type=unknown_outcome");
   const refused = within(await screen.findByRole("table")).getByRole("button", { name: "Resolve" });
-  expect(document.getElementById(refused.getAttribute("aria-describedby")!.split(" ").at(-1)!)!.textContent).toBe("Only Admin or Finance can record the outcome of a Pay by Bank payment. Your role is Operations. Change your demo role in Settings.");
+  expect(document.getElementById(refused.getAttribute("aria-describedby")!.split(" ").at(-1)!)!.textContent).toBe("Only Admin or Finance can record the outcome of a Pay by Bank payment.");
 
   switchTo("Finance", "/exceptions?type=unknown_outcome");
   await user.click(within(await screen.findByRole("table")).getByRole("button", { name: "Resolve" }));

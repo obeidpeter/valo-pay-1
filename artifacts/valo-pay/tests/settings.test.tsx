@@ -82,7 +82,7 @@ describe("settings", () => {
     await screen.findByText("07:00 WAT");
     const edit = screen.getByRole("button", { name: "Edit" });
     expect(edit.getAttribute("aria-disabled")).toBe("true");
-    expect(document.getElementById(edit.getAttribute("aria-describedby")!)?.textContent).toBe("Only an Admin can change collection settings. Your role is Finance. Change your demo role in Settings.");
+    expect(document.getElementById(edit.getAttribute("aria-describedby")!)?.textContent).toBe("Only Admin can change collection settings.");
     await user.click(edit);
     expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
     expect(api.calls.some(call => call.path === '/v1/settings' && call.method === 'PATCH')).toBe(false);

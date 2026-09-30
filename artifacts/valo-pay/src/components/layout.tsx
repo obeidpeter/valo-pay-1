@@ -1,5 +1,6 @@
 import React, { type ComponentType, ReactNode, useEffect, useId, useRef, useState } from 'react';
 import { Link, useLocation, useSearch } from 'wouter';
+import { useLocationProperty } from 'wouter/use-browser-location';
 import { useWorkspace } from '@/lib/workspace-context';
 import { AuthShow, useSignOut } from '@/lib/auth';
 import { type LucideIcon, LayoutDashboard, Inbox, AlertTriangle, Scale, ArrowRightLeft, Upload, ClipboardCheck, Users, FileSignature, ScrollText, Landmark, ShieldCheck, Building2, KeyRound, FileBarChart, Download, History, BadgeCheck, Route, Database, Activity, UserCog, Archive, Settings, Presentation, Lock, LogOut, Menu, Sun, Moon, ChevronRight, Layers } from 'lucide-react';
@@ -123,6 +124,32 @@ export function lenderModeLabel(mode: string): string {
   if (mode === 'instruction') return 'Instructions after go-live';
   const words = mode.replace(/[_-]+/g, ' ');
   return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+/** The demo role control on Settings, where the bar's Change demo role link takes the reader. */
+const DEMO_ROLE_CONTROL = 'persona';
+/**
+ * Brings the demo role control into view and focus when the address names it (/settings#persona), once Settings has
+ * rendered it: the page's code and data may arrive a moment after the address changes. `request` counts presses of
+ * the link, so pressing it again on Settings finds the control again.
+ */
+function useDemoRoleArrival(request: number) {
+  const address = useLocationProperty(() => `${window.location.pathname}${window.location.hash}`);
+  useEffect(() => {
+    if (window.location.hash !== `#${DEMO_ROLE_CONTROL}`) return;
+    const until = Date.now() + 10_000;
+    let frame = 0;
+    // Runs after the shell's route focus, so the main region does not take the focus back.
+    const seek = () => {
+      const control = document.getElementById(DEMO_ROLE_CONTROL);
+      if (control) {
+        control.focus({ preventScroll: true });
+        control.scrollIntoView({ block: 'center', behavior: 'instant' });
+      } else if (Date.now() < until) frame = window.requestAnimationFrame(seek);
+    };
+    frame = window.requestAnimationFrame(seek);
+    return () => window.cancelAnimationFrame(frame);
+  }, [address, request]);
 }
 
 /**
@@ -255,6 +282,8 @@ export function Layout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
   const signOut = useSignOut();
   const { theme, setChoice } = useTheme();
+  const [demoRoleRequest, setDemoRoleRequest] = useState(0);
+  useDemoRoleArrival(demoRoleRequest);
   const mainRef = useRef<HTMLElement>(null);
   const sidebarRef = useRef<HTMLElement>(null);
   useQueuePosition(mainRef, `${location}?${search}`, `${merchantId}:${workspace?.actor}:${workspace?.role}`);
@@ -401,7 +430,7 @@ export function Layout({ children }: { children: ReactNode }) {
         <main ref={mainRef} id="main" tabIndex={-1} className="min-w-0 flex-1 overflow-auto bg-background focus:outline-none print:overflow-visible">
           <div className="workspace-bar flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3 md:px-8 print:hidden">
             <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs"><span className="text-muted-foreground">{place}</span><ChevronRight className="h-3 w-3 text-muted-foreground" aria-hidden="true" />{parentTitle && <><span className="text-muted-foreground">{parentTitle}</span><ChevronRight className="h-3 w-3 text-muted-foreground" aria-hidden="true" /></>}<span className="font-medium">{pageTitle}</span></div>
-            <p aria-live="polite" className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs"><span>{workspace?.accessMode === 'staff' ? 'Role' : 'Demo role'}: <strong className="font-semibold">{workspace?.role || 'Loading…'}</strong></span>{lender?.mode && <span>Mode: <strong className="font-semibold">{lenderModeLabel(lender.mode)}</strong></span>}<span className="text-muted-foreground">Times in West Africa Time (WAT)</span></p>
+            <p aria-live="polite" className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs"><span>{workspace?.accessMode === 'staff' ? 'Role' : 'Demo role'}: <strong className="font-semibold">{workspace?.role || 'Loading…'}</strong></span>{workspace && workspace.accessMode !== 'staff' && <Link href={`/settings#${DEMO_ROLE_CONTROL}`} onClick={() => setDemoRoleRequest(count => count + 1)} className="font-medium text-primary underline underline-offset-2">Change demo role</Link>}{lender?.mode && <span>Mode: <strong className="font-semibold">{lenderModeLabel(lender.mode)}</strong></span>}<span className="text-muted-foreground">Times in West Africa Time (WAT)</span></p>
           </div>
           <div className="console-content p-4 sm:p-6 md:p-8 max-w-[1440px] mx-auto print:max-w-none print:p-0" aria-busy={isLoading && !workspace}>
             {!embedded && <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-b pb-3 text-xs print:hidden"><p className="text-muted-foreground">{pageDescriptions[baseRoute]}</p><ContextualHelp topic={helpTopic} returnTo={helpReturn} /></div>}
