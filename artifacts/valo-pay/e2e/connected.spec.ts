@@ -86,7 +86,7 @@ test("a bank return stays pending until the sample provider confirms payment", a
   await expect(
     page.getByText(/You cannot collect this instalment again until the outcome is known/),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Check again: confirmed" }).click();
+  await page.getByRole("button", { name: "Simulate confirmed payment" }).click();
   await expect(
     page.getByRole("link", { name: "Open Reconciliation", exact: true }),
   ).toBeVisible();

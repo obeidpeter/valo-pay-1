@@ -363,9 +363,9 @@ function PaymentContent({ api }: { api: ReturnType<typeof useConnected> }) {
                 )}
                 {due?.blocked && (
                   <p className="text-xs text-muted-foreground">
-                    Another payment for this instalment is in progress or has an
-                    unknown outcome. Resolve it first, in Checkout history or in
-                    Collections.
+                    Another payment for this instalment is scheduled, in
+                    progress or has an unknown outcome. Cancel it or resolve it
+                    first, in Checkout history or in Collections.
                   </p>
                 )}
                 {dueHeld && (
@@ -452,7 +452,7 @@ function PaymentContent({ api }: { api: ReturnType<typeof useConnected> }) {
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
                   {intent.data.expiresAt
-                    ? `The customer must authorise before ${formatDate(intent.data.expiresAt)}.`
+                    ? `Deadline to authorise: ${formatDate(intent.data.expiresAt)}.`
                     : "No expiry recorded."}
                 </p>
                 <p className="text-xs text-muted-foreground mt-3">
@@ -523,9 +523,7 @@ function PaymentContent({ api }: { api: ReturnType<typeof useConnected> }) {
                         )
                       }
                     >
-                      {intent.status === "unknown"
-                        ? "Check again: confirmed"
-                        : "Simulate confirmed payment"}
+                      Simulate confirmed payment
                     </Button>
                     <Button
                       variant="outline"
