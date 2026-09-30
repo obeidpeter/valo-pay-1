@@ -7,6 +7,7 @@ import { reviewedCloseEvidence } from '../domain/close-review';
 import { sensitiveExportKinds, sensitiveExportRefusal } from '@workspace/valopay-schema';
 import { rolePermits } from './pilot-access';
 import { notFound, onlyRoles } from './refusal-words';
+import { recordTypesName } from './action-names';
 
 export const EXPORT_LEASE_MS = 5 * 60_000;
 export const MAX_EXPORT_BYTES = 32 * 1024 * 1024;
@@ -72,7 +73,7 @@ export function exportJobView(record: ValopayRecord, now = new Date().toISOStrin
     ...(record.data.fileDeletedAt ? {expiredAt:String(record.data.fileDeletedAt), ...(record.data.fileRetentionRunId ? {retentionRunId:String(record.data.fileRetentionRunId)} : {})} : {}),
     downloadUrl: `/api/v1/exports/${record.id}/download?merchantId=${encodeURIComponent(record.merchantId)}`,
     ...(ready ? { checksum: String(record.data.checksum), generatedAt: String(record.data.generatedAt || record.createdAt), byteLength: Number(record.data.byteLength || 0), generationMs: Number(record.data.generationMs || 0) } : {}),
-    ...(record.status === 'failed' ? { error: String(record.data.lastError || 'Export generation could not finish. Retry this export.') } : {}),
+    ...(record.status === 'failed' ? { error: String(record.data.lastError || 'This export could not be prepared. Retry it.') } : {}),
   };
 }
 /** Queueing writes metadata only; no rendering, object-storage calls or credentials belong in this transaction. */
@@ -81,12 +82,12 @@ export function queueExport(state: DomainState, ctx: Context, input: ExportInput
   assertExportPermitted(ctx.role, input.kind);
   if (ctx.role === 'Read-only') fail(onlyRoles(EXPORT_MAKER_ROLES, 'create exports', ctx.accessMode, 'Read-only can still download exports already made.'), 403);
   const review = input.kind === 'reviewed-close' ? reviewedCloseEvidence(state, input.closeReviewId || '', true) : undefined;
-  if (!privateDirectory || !/^\/?[^/]+\/.+/.test(privateDirectory)) fail('Private export storage is not configured. Contact the workspace administrator.', 503);
+  if (!privateDirectory || !/^\/?[^/]+\/.+/.test(privateDirectory)) fail('Exports are not set up yet. Contact the Valo Pay team.', 503);
   if (input.customerId && !state.records.some(record => record.kind === 'customers' && record.id === input.customerId)) fail(notFound('Customer'), 404);
-  if (state.records.filter(record => record.kind === 'exports' && ['queued', 'running'].includes(record.status)).length >= EXPORT_QUEUE_LIMIT) fail('Ten exports are already waiting or running for this lender. Wait for one to finish before starting another.', 429, { retryAfterSeconds: EXPORT_QUEUE_RETRY_AFTER_SECONDS });
+  if (state.records.filter(record => record.kind === 'exports' && ['queued', 'running'].includes(record.status)).length >= EXPORT_QUEUE_LIMIT) fail('10 exports are already waiting or in progress for this lender. Wait for one to finish, then try again.', 429, { retryAfterSeconds: EXPORT_QUEUE_RETRY_AFTER_SECONDS });
   const id = randomUUID(), parts = privateDirectory.replace(/^\//, '').replace(/\/+$/, '').split('/'), bucket = parts.shift()!;
   const objectName = `${parts.join('/')}/exports/${state.merchant.id}/${id}.${input.format}`;
-  return exportJobView(makeRecord(state, 'exports', { id, name: `${input.kind} · ${input.format.toUpperCase()}`, status: 'queued', customerId: input.customerId || '', createdAt: ctx.now, updatedAt: ctx.now,
+  return exportJobView(makeRecord(state, 'exports', { id, name: `${recordTypesName(input.kind)} (${input.format.toUpperCase()})`, status: 'queued', customerId: input.customerId || '', createdAt: ctx.now, updatedAt: ctx.now,
     data: { kind: input.kind, format: input.format, usedInRealCase: false, requestedBy: ctx.actor, requestedRole: ctx.role, attempts: 0, bucket, objectName, stage: 'queued', lastProgressAt: ctx.now,
       ...(review ? {closeReviewId:review.id,closeSnapshotDigest:review.data.snapshotDigest} : {}) } }), ctx.now);
 }
@@ -177,7 +178,7 @@ export async function processExportJob(repository: ExportJobRepository, storage:
       if (rendering) return rendering;
       const generated = await generate(claim, signal);
       signal.throwIfAborted();
-      if (generated.bytes.length > MAX_EXPORT_BYTES) throw Object.assign(new Error('Export exceeds the 32 MB file limit. Export a customer pack or a smaller record category.'), { exportTooLarge: true });
+      if (generated.bytes.length > MAX_EXPORT_BYTES) throw Object.assign(new Error('This export would be larger than 32 MB. Export a dispute pack for one customer, or a smaller type of record.'), { exportTooLarge: true });
       const uploading = await progress('uploading');
       if (uploading) return uploading;
       try { await storage.put(claim, generated.bytes, generated.artifact, signal); artifact = generated.artifact; }
@@ -197,10 +198,10 @@ export async function processExportJob(repository: ExportJobRepository, storage:
     // hand the claim back for the next worker.
     if (options.signal?.aborted) return await release('stopping', 'released');
     const message = (error as { exportPdfFieldTooLarge?: boolean })?.exportPdfFieldTooLarge
-      ? 'A field is too long to lay out safely in PDF. Choose JSON or CSV to preserve the complete record.'
+      ? 'A field is too long to fit in a PDF. Choose CSV or JSON to keep the whole record.'
       : (error as { exportTooLarge?: boolean })?.exportTooLarge
-      ? 'Export exceeds the 32 MB file limit. Export a customer pack or a smaller record category.'
-      : 'Export generation could not finish. Retry this export. If it fails again, contact the workspace administrator.';
+      ? 'This export would be larger than 32 MB. Export a dispute pack for one customer, or a smaller type of record.'
+      : 'This export could not be prepared. Retry it, and if it fails again, contact the Valo Pay team.';
     // A stop is handled above. A failure the lender stays too busy to record goes back to the queue, as a busy progress
     // write does. If the database is unavailable, leave the durable running lease to expire and recover on a later poll.
     try {

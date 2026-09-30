@@ -38,7 +38,7 @@ import { allocatableOnly, allocationChoices, pageRecords } from "../../api-serve
 import { pageQueue } from '../../api-server/src/lib/valopay-queues';
 import { importCsv, withRowIdColumn } from "../../api-server/src/lib/valopay-import";
 import { exportJobView, publicExportRecord, queueExport, retryExport } from '../../api-server/src/lib/export-jobs';
-import { connectedActionDone, recordTypeName, withAuditName } from '../../api-server/src/lib/action-names';
+import { connectedActionDone, recordTypeName, recordTypesName, withAuditName } from '../../api-server/src/lib/action-names';
 import { LENDER_NOT_FOUND, UNKNOWN_DEMO_ROLE, notFound, onlyRoles } from '../../api-server/src/lib/refusal-words';
 import { buildConsoleOverview, buildConsoleReports, buildConsoleSettings } from "../../api-server/src/lib/valopay-close-views";
 import type { CloseRuntime } from "../../api-server/src/domain/effective-close-schedule";
@@ -339,7 +339,7 @@ export function installFakeApi(options: { now?: string; role?: string; queuedExp
         const review = body.kind === 'reviewed-close' ? state.records.find(r=>r.kind==='close-reviews'&&r.id===(body as any).closeReviewId) : undefined;
         if(body.kind==='reviewed-close'&&(!review||review.status!=='approved'||!reviewIsCurrent(state,review)))fail('An approved, current close review is required.',409);
         const checksum = canonicalDigest({ kind: body.kind, format: body.format, customerId: body.customerId ?? null, at: ctx.now, records: state.records.length });
-        const record = makeRecord(state, "exports", { name: `${body.kind} ${body.format}`, status: "ready", customerId: body.customerId ?? "", createdAt: ctx.now, data: { kind: body.kind, format: body.format, checksum, usedInRealCase: false, byteLength: 0, generationMs: 0, synthetic: true,...(review?{closeReviewId:review.id,closeSnapshotDigest:review.data.snapshotDigest}:{}) } });
+        const record = makeRecord(state, "exports", { name: `${recordTypesName(body.kind)} (${body.format.toUpperCase()})`, status: "ready", customerId: body.customerId ?? "", createdAt: ctx.now, data: { kind: body.kind, format: body.format, checksum, usedInRealCase: false, byteLength: 0, generationMs: 0, synthetic: true,...(review?{closeReviewId:review.id,closeSnapshotDigest:review.data.snapshotDigest}:{}) } });
         return { id: record.id, downloadUrl: `/api/v1/exports/${record.id}/download?merchantId=${merchantId}`, checksum, generatedAt: ctx.now };
       }, { action: "post.exports", objectId: "workspace", summary: "Synthetic workspace operation" }));
     }],

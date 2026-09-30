@@ -143,7 +143,7 @@ async function complete(claim: ClaimedExport, artifact?: ExportArtifact, message
     if (!row || row.status !== 'running' || row.data.leaseToken !== claim.token) return 'lost';
     const job = recordOf(row), head = await auditHead(client, scope, { since: row.data.startedAt });
     if (artifact && !await runtimeExportRequesterAllowed(client, scope.workspace_id, scope.id, job.data.requestedBy, job.data.requestedRole)) {
-      artifact = undefined; message = 'The original requester authority changed during export generation. Request new evidence after access is reviewed.';
+      artifact = undefined; message = 'The person who asked for this export lost access to it while it was being prepared. Ask someone with access to create it again.';
     }
     job.status = artifact ? 'ready' : 'failed';
     job.data.stage = job.status; job.data.lastProgressAt = scope.now.toISOString();
@@ -152,7 +152,7 @@ async function complete(claim: ClaimedExport, artifact?: ExportArtifact, message
     delete job.data.leaseToken; delete job.data.leaseExpiresAt;
     if (artifact) delete job.data.lastError;
     await writeJob(client, scope, job);
-    await audit(client, scope, job, artifact ? 'export.ready' : 'export.failed', artifact ? 'Private synthetic export is ready; its checksum is recorded.' : 'Export generation failed; the saved job can be retried.', head);
+    await audit(client, scope, job, artifact ? 'export.ready' : 'export.failed', artifact ? 'Export ready to download.' : 'Export could not be prepared. It can be retried on Saved exports.', head);
     return intendedReady && !artifact ? 'lost' : 'saved';
   }) ?? 'busy';
 }
@@ -192,17 +192,17 @@ export const exportJobRepository: ExportJobRepository = {
       const records = (await client.query<Row>(`SELECT r.* FROM valopay_records r WHERE r.merchant_id=$1 AND ${ownership}`, [scope.id, scope.workspace_id, scope.principal_hash])).rows.map(recordOf);
       const head = await auditHead(client, scope, { records });
       if (!await runtimeExportRequesterAllowed(client, scope.workspace_id, scope.id, job.data.requestedBy, job.data.requestedRole)) {
-        job.status = 'failed'; job.data.lastError = 'The original requester no longer has the required lender access or role. Request new evidence after access is reviewed.';
+        job.status = 'failed'; job.data.lastError = 'The person who asked for this export no longer has access to it. Ask someone with access to create it again.';
         job.data.stage = 'failed'; job.data.lastProgressAt = now;
         delete job.data.leaseToken; delete job.data.leaseExpiresAt;
-        await writeJob(client, scope, job); await audit(client, scope, job, 'export.access_changed', 'Export refused because its original requester authority changed.', head);
+        await writeJob(client, scope, job); await audit(client, scope, job, 'export.access_changed', 'Export stopped: the person who asked for it no longer has access.', head);
         return null;
       }
       const token = randomUUID();
       job.status = 'running'; Object.assign(job.data, { leaseToken: token, leaseExpiresAt: new Date(scope.now.getTime() + EXPORT_LEASE_MS).toISOString(), startedAt: now, stage: 'checking', lastProgressAt: now, attempts: Number(job.data.attempts || 0) + 1 });
       delete job.data.lastError;
       const claimed = await writeJob(client, scope, job);
-      const started = await audit(client, scope, job, 'export.started', 'Claimed a saved export job; generation runs outside this transaction.', head);
+      const started = await audit(client, scope, job, 'export.started', 'Started preparing a saved export.', head);
       // The export sees the lender as this transaction leaves it: the job running, its entry appended.
       const state = records.map(record => record.id === claimed.id ? claimed : record);
       if (started) state.push(started);
@@ -235,8 +235,8 @@ export const exportJobRepository: ExportJobRepository = {
       returnExportToQueue(job, scope.now.toISOString());
       await writeJob(client, scope, job);
       await audit(client, scope, job, 'export.released', reason === 'busy'
-        ? 'The lender stayed busy for longer than the export worker waits to record this attempt; the saved job returns to the queue and is tried again when the lender is free.'
-        : 'The export worker stopped before finishing; the saved job returns to the queue for the next worker.', head);
+        ? 'The lender was busy, so this export goes back to the queue. It will be tried again shortly.'
+        : 'Export preparation stopped before it finished. The export goes back to the queue and will be tried again.', head);
       return 'saved';
     }) ?? 'busy';
   },
