@@ -233,6 +233,43 @@ describe("landing page for a signed-in visitor", () => {
     expect(
       within(view.getByRole("banner")).queryByRole("link", { name: "Sign in" }),
     ).toBeNull();
+    // Nothing written for a visitor without an account: no Sign in anywhere, no "No sign-in needed".
+    expect(view.queryByRole("link", { name: "Sign in" })).toBeNull();
+    expect(view.queryByText(/No sign-in/)).toBeNull();
+    expect(
+      view.getByText("Sample data is made up. It is not real customers or money."),
+    ).toBeTruthy();
+    expect(view.getByText("Sample data only.")).toBeTruthy();
+    expect(api.calls).toEqual([]);
+
+    // Signed out on a host where sign-in is available: the sandbox, and Sign in, as for any visitor.
+    vi.resetModules();
+    vi.doMock("@/lib/auth", () => ({
+      authEnabled: true,
+      useSessionUser: () => ({ userId: null, isLoaded: true }),
+      useSignOut: () => () => {},
+      AuthShow: () => null,
+      AuthProvider: ({ children }: { children: unknown }) => children,
+      ClerkSlot: () => null,
+      ClerkSignIn: () => null,
+      ClerkSignUp: () => null,
+      VerifiedSession: () => null,
+    }));
+    const { default: SignedOutLanding } = await import("@/pages/landing");
+    cleanup();
+    const signedOut = render(<SignedOutLanding />);
+    expect(signedOut.getAllByRole("link", { name: "Open the sandbox" })).toHaveLength(3);
+    expect(signedOut.queryByRole("link", { name: /Open your workspace/ })).toBeNull();
+    expect(within(signedOut.getByRole("banner")).getByRole("link", { name: "Sign in" })).toBeTruthy();
+    // The header, the closing call to action and the footer.
+    expect(signedOut.getAllByRole("link", { name: "Sign in" })).toHaveLength(3);
+    expect(
+      signedOut.getByText(/^No sign-in or bank connection needed\. Sample data is made up\./),
+    ).toBeTruthy();
+    expect(signedOut.getByText("No sign-in needed. Sample data only.")).toBeTruthy();
+    expect(
+      signedOut.getByText("No sign-in needed. The preview opens only when you choose."),
+    ).toBeTruthy();
     expect(api.calls).toEqual([]);
     vi.doUnmock("@/lib/auth");
   });

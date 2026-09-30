@@ -68,7 +68,7 @@ export const pilotEmail = (): string => String(import.meta.env.VITE_PILOT_EMAIL 
 export const pilotContact = (): string => `mailto:${pilotEmail()}?subject=${encodeURIComponent("Valo Pay pilot enquiry")}&body=${encodeURIComponent("Hello, I would like to discuss a Valo Pay pilot.\n\nMy organisation and role:\nProduct we are interested in (Collections / Pay by Bank / Credit Desk / Cash Desk):\nThe problem we want to solve:\nCurrent payment provider, banks and business software (names only):\nAbout how many collections, payments or applications a month:\nWhen we would like to start:\n\nPlease do not include customer records, bank details, passwords or other sign-in details.")}`;
 
 /** Uses the actual console, loaded only after an explicit choice; no decorative mock data or autoplay. */
-export function ProductWalkthrough() {
+export function ProductWalkthrough({ signedIn = false }: { signedIn?: boolean }) {
   const [active, setActive] = useState(0);
   const [started, setStarted] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -186,7 +186,8 @@ export function ProductWalkthrough() {
                   <ArrowRight aria-hidden="true" className="ml-2 h-4 w-4" />
                 </Button>
                 <span className="lp-tour-start-note">
-                  No sign-in needed. The preview opens only when you choose.
+                  {!signedIn && "No sign-in needed. "}The preview opens only when
+                  you choose.
                 </span>
               </div>
             )}

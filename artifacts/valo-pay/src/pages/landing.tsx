@@ -171,8 +171,8 @@ export default function LandingPage() {
                 </Button>
               </div>
               <p className="lp-sandbox-hint">
-                No sign-in or bank connection needed. Sample data is made up. It
-                is not real customers or money.
+                {!signedIn && "No sign-in or bank connection needed. "}
+                Sample data is made up. It is not real customers or money.
               </p>
               <ul
                 className="lp-hero-benefits"

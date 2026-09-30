@@ -117,7 +117,7 @@ const questions = [
 export function LandingSections({ signedIn }: { signedIn: boolean }) {
   return (
     <>
-      <ProductWalkthrough />
+      <ProductWalkthrough signedIn={signedIn} />
 
       <section
         id="how"
@@ -420,7 +420,7 @@ export function LandingSections({ signedIn }: { signedIn: boolean }) {
               </div>
               <span className="lp-cta-note">
                 <span aria-hidden="true" />
-                No sign-in needed. Sample data only.
+                {signedIn ? "Sample data only." : "No sign-in needed. Sample data only."}
               </span>
             </div>
           </div>
@@ -474,7 +474,7 @@ export function LandingFooter({ signedIn }: { signedIn: boolean }) {
             <a href="https://github.com/obeidpeter/valo-pay/blob/main/docs/DATABASE_SECURITY.md">
               Security and data access (GitHub)
             </a>
-            <Link href="/sign-in">Sign in</Link>
+            {!signedIn && <Link href="/sign-in">Sign in</Link>}
           </nav>
         </div>
         <div className="lp-footer-bottom">
