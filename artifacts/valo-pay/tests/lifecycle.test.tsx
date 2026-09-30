@@ -197,14 +197,14 @@ for (const [how, said, removed] of [
 });
 
 // Third review of the audit fixes, finding 6: Discard original request moved focus to the nearest control above its
-// notice, the Sandbox guide at the top of the page, rather than to the run it had been carrying on.
-it('moves focus from a discarded run request back to the run, never to the Sandbox guide above the page', async () => {
+// notice, the tips (then the Sandbox guide) at the top of the page, rather than to the run it had been carrying on.
+it('moves focus from a discarded run request back to the run, never to the tips above the page', async () => {
   moreBatches(); enable(); const user = userEvent.setup(); renderApp('/lifecycle');
   await prepare(user); await approve(user);
   secondExecute('lost');
   await runByKeyboard(user);
   await screen.findByText(/^The run stopped because its last request was not confirmed/);
-  expect(screen.getByRole('button', { name: /^Sandbox guide/ })).toBeTruthy();
+  expect(screen.getByRole('button', { name: /^Tips/ })).toBeTruthy();
   vi.spyOn(window, 'confirm').mockReturnValue(true);
   screen.getByRole('button', { name: 'Discard original request' }).focus();
   await user.keyboard('{Enter}');

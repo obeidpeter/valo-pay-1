@@ -44,10 +44,10 @@ it('takes an empty lender from corrected sample imports to a reviewed payment an
 
   renderApp('/overview');
   await screen.findByRole('heading', { name: 'Operations overview' });
-  await user.click(screen.getByRole('button', { name: 'Get started · 3 steps' }));
+  await user.click(screen.getByRole('button', { name: 'Show first steps' }));
   const start = screen.getByRole('region', { name: 'Where to start' });
   await within(start).findByText('Step 1 · Not started');
-  await user.click(within(start).getAllByRole('link', { name: 'Open this task' })[0]!);
+  await user.click(within(start).getAllByRole('link', { name: 'Open Import batches' })[0]!);
 
   // The real format-matched sample is deliberately given one correctable omission.
   await user.click(await screen.findByRole('button', { name: 'Use sample' }));
@@ -62,7 +62,7 @@ it('takes an empty lender from corrected sample imports to a reviewed payment an
 
   // Saved correction work survives leaving the page; it is still not an import.
   await user.click(screen.getByRole('link', { name: 'Overview' }));
-  await screen.findByText('Step 1 · Needs attention');
+  await screen.findByText('Step 1 · Blocked');
   await user.click(screen.getByRole('link', { name: 'Import batches' }));
   await user.click(await screen.findByRole('button', { name: /Customers sample.*Pilot sample/ }));
   await screen.findByRole('heading', { name: 'Saved check results' });

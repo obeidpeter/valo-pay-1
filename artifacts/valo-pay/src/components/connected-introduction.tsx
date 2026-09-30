@@ -4,20 +4,20 @@ const modules = [
   {
     href: "/pay-by-bank",
     icon: Landmark,
-    title: "Pay-by-bank",
-    text: "Follow a one-time payment from bank authorisation to a confirmed receipt. Keep it linked to the right instalment.",
+    title: "Pay by Bank",
+    text: "Create a checkout for one instalment and follow it until the payment is confirmed.",
   },
   {
     href: "/credit-desk",
     icon: ShieldCheck,
     title: "Credit Desk",
-    text: "Explore evidence quality, an explained rule score and repayment capacity. A lender reviews the recommendation.",
+    text: "Check an applicant’s evidence, a sample rule score and an affordability check. A credit result is not a lending decision.",
   },
   {
     href: "/cash-desk",
     icon: Building2,
     title: "Cash Desk",
-    text: "Bring business cash, forecasts, accounting drafts and payroll funding into one clear workspace.",
+    text: "See a sample business’s cash and forecast, and prepare accounting drafts, VAT schedules and payroll funding.",
   },
 ];
 export function ConnectedIntroduction({
@@ -37,9 +37,6 @@ export function ConnectedIntroduction({
     >
       <div className="flex flex-wrap justify-between gap-4 items-end mb-6">
         <div>
-          <p className="text-xs uppercase tracking-widest font-semibold text-primary mb-3">
-            Beyond the collections queue
-          </p>
           <h2
             id={compact ? "connected-preview-title" : "connected-suite-title"}
             className={
@@ -48,11 +45,14 @@ export function ConnectedIntroduction({
                 : "text-3xl font-semibold tracking-tight max-w-xl"
             }
           >
-            Connected payments. Clearer decisions. Better cash visibility.
+            Connected banking
           </h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Try Pay by Bank, Credit Desk and Cash Desk with sample data.
+          </p>
         </div>
         <span className="text-xs text-muted-foreground rounded-full border px-3 py-2">
-          Explore now with sample data
+          Sample data only
         </span>
       </div>
       <div className="grid gap-4 md:grid-cols-3">
@@ -77,17 +77,17 @@ export function ConnectedIntroduction({
               {m.text}
             </p>
             <span className="inline-block text-xs font-semibold mt-5 text-primary">
-              Explore {m.title}
+              Open {m.title}
             </span>
           </Link>
         ))}
       </div>
       <p className="text-xs leading-relaxed text-muted-foreground mt-5">
-        These are synthetic workflows. Live bank connections, payment
-        instructions, credit use and accounting writes each require their own
-        approval. Valo Pay never holds money.{" "}
+        Live payments and bank connections are switched off. Credit decisions
+        and changes to accounting software each need their own approval. Valo
+        Pay never holds money.{" "}
         <Link href="/connections" className="underline underline-offset-4">
-          View permissions and readiness
+          Open Permissions and readiness
         </Link>
       </p>
     </section>

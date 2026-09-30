@@ -11,11 +11,11 @@ const start = () => screen.getByRole('region', { name: 'Where to start' });
 
 describe('role-aware starting point', () => {
   it.each([
-    ['Admin', 'Review proposed payment matches', '/reconciliation?view=review'],
-    ['Finance', 'Review proposed payment matches', '/reconciliation?view=review'],
-    ['Operations', 'Review overdue issues', '/exceptions?view=overdue'],
-    ['Compliance reviewer', 'Review policies and templates', '/policies'],
-    ['Read-only', 'Explore customer records', '/customers'],
+    ['Admin', 'Review matches', '/reconciliation?view=review'],
+    ['Finance', 'Review matches', '/reconciliation?view=review'],
+    ['Operations', 'Open overdue exceptions', '/exceptions?view=overdue'],
+    ['Compliance reviewer', 'Open Policies and templates', '/policies'],
+    ['Read-only', 'Open Customers', '/customers'],
   ])('gives %s a safe destination without changing authority', async (role, label, href) => {
     api.role = role;
     renderApp('/overview');
@@ -31,13 +31,13 @@ describe('role-aware starting point', () => {
     const user = userEvent.setup();
     renderApp('/overview');
     await screen.findByRole('heading', { name: 'Operations overview' });
-    await user.click(within(start()).getByRole('button', { name: 'Get started · 3 steps' }));
+    await user.click(within(start()).getByRole('button', { name: 'Show first steps' }));
     expect(await within(start()).findByText('Step 1 · Not started')).toBeTruthy();
-    expect(within(start()).getByText('Step 2 · Awaiting review')).toBeTruthy();
+    expect(within(start()).getByText('Step 2 · Waiting for review')).toBeTruthy();
     expect(within(start()).getByText('Step 3 · Not started')).toBeTruthy();
-    expect(within(start()).getByText(/Progress belongs to this lender and comes from saved records/)).toBeTruthy();
-    await user.click(within(start()).getByRole('button', { name: 'Hide getting started' }));
-    await user.click(within(start()).getByRole('button', { name: 'Get started · 3 steps' }));
+    expect(within(start()).getByText(/Progress is saved for this lender from its records/)).toBeTruthy();
+    await user.click(within(start()).getByRole('button', { name: 'Hide first steps' }));
+    await user.click(within(start()).getByRole('button', { name: 'Show first steps' }));
     expect(await within(start()).findByText('Step 1 · Not started')).toBeTruthy();
     const calls = api.calls.filter(call => call.path === '/v1/pilot/progress');
     expect(calls).toHaveLength(1);
@@ -51,9 +51,9 @@ describe('role-aware starting point', () => {
     api.failNext(/^\/v1\/pilot\/progress$/, 'offline');
     renderApp('/overview');
     await screen.findByRole('heading', { name: 'Operations overview' });
-    await user.click(within(start()).getByRole('button', { name: 'Get started · 3 steps' }));
+    await user.click(within(start()).getByRole('button', { name: 'Show first steps' }));
     expect(await within(start()).findByRole('alert')).toBeTruthy();
-    expect(within(start()).getByText(/No steps are being marked complete/)).toBeTruthy();
+    expect(within(start()).getByText(/no step is shown as done/)).toBeTruthy();
     expect(within(start()).queryByText('Step 1 · Not started')).toBeNull();
     await user.click(within(start()).getByRole('button', { name: 'Check progress again' }));
     expect(await within(start()).findByText('Step 1 · Not started')).toBeTruthy();
@@ -63,21 +63,21 @@ describe('role-aware starting point', () => {
     const user = userEvent.setup();
     renderApp('/overview');
     await screen.findByRole('heading', { name: 'Operations overview' });
-    await user.click(within(start()).getByRole('button', { name: 'Get started · 3 steps' }));
+    await user.click(within(start()).getByRole('button', { name: 'Show first steps' }));
     await within(start()).findByText('Step 1 · Not started');
-    await user.click(within(start()).getAllByRole('link', { name: 'Open this task' })[0]!);
+    await user.click(within(start()).getAllByRole('link', { name: 'Open Import batches' })[0]!);
     await user.click(await screen.findByRole('button', { name: 'Use sample' }));
     await user.click(screen.getByRole('button', { name: 'Save and check batch' }));
     await screen.findByRole('heading', { name: 'Saved check results' });
     await user.click(screen.getByRole('link', { name: 'Overview' }));
     expect(await screen.findByText('Step 1 · In progress')).toBeTruthy();
-    expect(within(start()).queryByText('Step 1 · Committed')).toBeNull();
-    await user.click(within(start()).getAllByRole('link', { name: 'Open this task' })[0]!);
+    expect(within(start()).queryByText('Step 1 · Imported')).toBeNull();
+    await user.click(within(start()).getAllByRole('link', { name: 'Open Import batches' })[0]!);
     await user.click(await screen.findByRole('button', { name: /Customers sample.*Pilot sample/ }));
     await user.click(await screen.findByRole('button', { name: 'Commit checked batch' }));
     await screen.findByRole('heading', { name: 'Import complete' });
     await user.click(screen.getByRole('link', { name: 'Overview' }));
-    expect(await screen.findByText('Step 1 · Committed')).toBeTruthy();
+    expect(await screen.findByText('Step 1 · Imported')).toBeTruthy();
     expect(api.calls.filter(call => call.method === 'POST' && /\/commit$/.test(call.path))).toHaveLength(1);
     expect(JSON.stringify(localStorage)).not.toContain('PILOT-C001');
   });
@@ -87,10 +87,10 @@ describe('role-aware starting point', () => {
     const user = userEvent.setup();
     renderApp('/overview');
     await screen.findByRole('heading', { name: 'Operations overview' });
-    await user.click(within(start()).getByRole('button', { name: 'Get started · 3 steps' }));
+    await user.click(within(start()).getByRole('button', { name: 'Show first steps' }));
     expect(await within(start()).findByText(/Admin, Operations or Finance must import records/)).toBeTruthy();
     expect(within(start()).getByRole('link', { name: 'Read the import guide' }).getAttribute('href')).toBe('/help?topic=imports&returnTo=%2Foverview');
-    expect(within(start()).getByText(/you do not need bank credentials/)).toBeTruthy();
+    expect(within(start()).getByText(/You do not need bank details/)).toBeTruthy();
     expect(api.calls.filter(call => call.method === 'POST')).toEqual([]);
   });
 
@@ -100,9 +100,12 @@ describe('role-aware starting point', () => {
     renderApp('/overview');
     await screen.findByRole('heading', { name: 'Operations overview' });
     expect(within(start()).getByRole('link', { name: 'Read the access guide' }).getAttribute('href')).toBe('/help?topic=access&returnTo=%2Foverview');
-    await user.click(within(start()).getByRole('button', { name: 'Get started · 3 steps' }));
-    const access = within(start()).getByRole('link', { name: 'Understand your access' });
-    expect(access.getAttribute('href')).toBe('/help?topic=access&returnTo=%2Foverview');
+    await user.click(within(start()).getByRole('button', { name: 'Show first steps' }));
+    // The next step and the checklist's own link both read the access guide, in the same words.
+    const links = within(start()).getAllByRole('link', { name: 'Read the access guide' });
+    expect(links).toHaveLength(2);
+    for (const link of links) expect(link.getAttribute('href')).toBe('/help?topic=access&returnTo=%2Foverview');
+    const access = links[1]!;
     await user.click(access);
     expect(await screen.findByRole('heading', { name: 'Sign in or accept an invitation', level: 2 })).toBeTruthy();
     expect(api.calls.filter(call => call.method === 'POST')).toEqual([]);
@@ -112,7 +115,7 @@ describe('role-aware starting point', () => {
     const user = userEvent.setup();
     renderApp('/overview');
     await screen.findByRole('heading', { name: 'Operations overview' });
-    await user.click(within(start()).getByRole('button', { name: 'Get started · 3 steps' }));
+    await user.click(within(start()).getByRole('button', { name: 'Show first steps' }));
     await within(start()).findByText('Step 1 · Not started');
     api.merchantIds = [];
     api.role = 'Read-only';
@@ -137,12 +140,12 @@ describe('role-aware starting point', () => {
     const user = userEvent.setup();
     renderApp('/overview');
     await screen.findByRole('heading', { name: 'Operations overview' });
-    await user.click(within(start()).getByRole('button', { name: 'Get started · 3 steps' }));
+    await user.click(within(start()).getByRole('button', { name: 'Show first steps' }));
     await within(start()).findByText('Step 1 · Not started');
     await user.selectOptions(screen.getByLabelText('Active lender', { selector: '#lender-sidebar' }), api.merchantIds[1]!);
-    await waitFor(() => expect(within(start()).getByRole('button', { name: 'Get started · 3 steps' }).getAttribute('aria-expanded')).toBe('false'));
+    await waitFor(() => expect(within(start()).getByRole('button', { name: 'Show first steps' }).getAttribute('aria-expanded')).toBe('false'));
     expect(api.calls.filter(call => call.path === '/v1/pilot/progress')).toHaveLength(1);
     await user.selectOptions(screen.getByLabelText('Active lender', { selector: '#lender-sidebar' }), api.merchantIds[0]!);
-    expect(await within(start()).findByRole('button', { name: 'Hide getting started' })).toBeTruthy();
+    expect(await within(start()).findByRole('button', { name: 'Hide first steps' })).toBeTruthy();
   });
 });
