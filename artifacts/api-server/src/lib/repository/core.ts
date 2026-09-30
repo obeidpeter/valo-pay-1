@@ -284,7 +284,7 @@ function principalFor(req: Request, res: Response) {
 export function sessionFor(context: StoreContext): Session {
   const session = sessions.get(context);
   if (!session || !session.active)
-    fail("This request can no longer change the lender. Try again.", 409);
+    fail("This request was stopped before it finished. Try again.", 409);
   return session;
 }
 /** Whether this request's own transaction verified the restricted database: the readiness page reports this, never the configuration alone. */
@@ -678,7 +678,7 @@ export async function inWorkspace<T>(
       if (inserted) await lockWorkspace(client, inserted.id, lockMode, write);
       workspace = inserted || (await lockedSandbox());
       if (!workspace)
-        throw new Error("We could not open your sandbox. Reload the page and try again.");
+        throw new Error("Valo Pay could not open your sandbox. Reload the page and try again.");
       if (inserted) {
         await seedWorkspace(
           client,
@@ -774,7 +774,7 @@ export async function inWorkspace<T>(
         (error as { code?: string } | undefined)?.code || "",
       )
     ) {
-      conflict("Operation conflicts with the current lender state.");
+      conflict();
     }
     throw error;
   } finally {

@@ -120,8 +120,8 @@ function answer(error: unknown): Answer {
   const write = answerTo(markRolledBack(new ResponseContractError(mismatch())), "POST");
   assert.deepEqual([write.status, write.body], [500, { error: "This action failed and nothing was saved. Try again, and quote this reference if it happens again.", committed: false, requestId: "test-request" }], "a write's invalid answer, checked before COMMIT, saved nothing");
   const read = answerTo(markRolledBack(new ResponseContractError(mismatch())), "GET");
-  assert.deepEqual([read.status, read.body], [500, { error: "We could not load this. Try again, and quote this reference if it happens again.", requestId: "test-request" }], "a read's invalid answer is a read's failure: no action, nothing to save");
-  assert.deepEqual(answerTo(markRolledBack(new TypeError("x is undefined")), "GET").body, { error: "We could not load this. Try again, and quote this reference if it happens again.", requestId: "test-request" }, "so is a read's programming error");
+  assert.deepEqual([read.status, read.body], [500, { error: "Valo Pay could not load this. Try again, and quote this reference if it happens again.", requestId: "test-request" }], "a read's invalid answer is a read's failure: no action, nothing to save");
+  assert.deepEqual(answerTo(markRolledBack(new TypeError("x is undefined")), "GET").body, { error: "Valo Pay could not load this. Try again, and quote this reference if it happens again.", requestId: "test-request" }, "so is a read's programming error");
   const replay = answerTo(markRolledBack(new ResponseContractError(mismatch(), { saved: true })), "POST");
   assert.deepEqual([replay.status, replay.body], [500, { error: "We do not know yet whether Valo Pay saved this. Check the original request in Request history before you change anything.", requestId: "test-request" }], "a saved request's stored answer that cannot be given never says nothing was saved, though the repeat's transaction rolled back");
   assert.deepEqual(replay.logged.map((line) => [line.level, line.fields["event"], line.fields["replayed"]]), [["error", "response.invalid", true]], "and the log says which answer failed");
@@ -205,7 +205,7 @@ function answer(error: unknown): Answer {
   try { parsePublishableKey("", { fatal: true }); } catch (error) { missingKey = error; }
   assert.ok(missingKey instanceof Error && !("status" in missingKey) && !("code" in missingKey), "a real dependency error: a plain Error without a status or code");
   const dependency = handled(missingKey, "GET");
-  assert.deepEqual([dependency.status, (dependency.body as { error: string }).error], [500, "We could not load this. Try again, and quote this reference if it happens again."], "it is the service's 500 in general words, never a 400 that blames the request");
+  assert.deepEqual([dependency.status, (dependency.body as { error: string }).error], [500, "Valo Pay could not load this. Try again, and quote this reference if it happens again."], "it is the service's 500 in general words, never a 400 that blames the request");
   assert.deepEqual(levels(dependency), [["error", "request.failed"]], "logged at error level with its stack, not as a rejection at info");
   const rule = handled(new Error("A reason is required for this business or destructive action."));
   assert.deepEqual([rule.status, levels(rule)], [400, [["info", "request.rejected"]]], "while the application's own rule without a status stays a 400");

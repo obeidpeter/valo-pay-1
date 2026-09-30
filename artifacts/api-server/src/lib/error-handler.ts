@@ -75,7 +75,7 @@ const networkCodes = new Set(["ECONNREFUSED", "ECONNRESET", "ENOTFOUND", "EAI_AG
 // whose answer was lost is checked with "Check original request", on the notice or in Request history.
 const GENERAL_FAILURE = "We do not know yet whether Valo Pay saved this. Check the original request in Request history before you change anything.";
 const NOT_SAVED = "This action failed and nothing was saved. Try again, and quote this reference if it happens again.";
-const READ_FAILURE = "We could not load this. Try again, and quote this reference if it happens again.";
+const READ_FAILURE = "Valo Pay could not load this. Try again, and quote this reference if it happens again.";
 const SAVED_FAILURE = "Valo Pay saved this request but could not send its answer. Check the original request in Request history to see the saved result.";
 const RUNNING_FAILURE = "This request is still running. Wait a moment, then check the original request in Request history to see its result.";
 const UNREACHABLE = "Valo Pay could not reach a system this request needs. Try again shortly.";

@@ -459,7 +459,7 @@ try {
   await pool.query(`UPDATE valopay_records SET data=jsonb_set(data,'{expiresAt}','"next Tuesday"') WHERE merchant_id=$1 AND id=$2`, [lender, storedRun]);
   logged.length = 0;
   const unreadable = await call(q("/v1/lifecycle"));
-  assert.deepEqual([unreadable.status, unreadable.data], [500, { error: "We could not load this. Try again, and quote this reference if it happens again.", requestId: unreadable.data.requestId }], "a read's failure, without committed");
+  assert.deepEqual([unreadable.status, unreadable.data], [500, { error: "Valo Pay could not load this. Try again, and quote this reference if it happens again.", requestId: unreadable.data.requestId }], "a read's failure, without committed");
   assert.deepEqual([events("response.invalid").map((line) => line.level), events("request.rejected").length], [["error"], 0], "logged as an invalid answer, never as a rejected request");
   await pool.query("DELETE FROM valopay_records WHERE merchant_id=$1 AND id=$2", [lender, storedRun]);
 
@@ -482,7 +482,7 @@ try {
   const otherState = await store.inWorkspace(sandboxRequest(), response, async (ctx) => { const state = await store.loadState(ctx, other); makeRecord(state, "connected-credit-assessments", { name: "Malformed assessment", status: "blocked", createdAt: ctx.now, data: { result: { evidence: { grantVersions: [], issues: [] }, policy: {}, score: "not a score" }, scenario: "ready", createdBy: "Sandbox Operations" } }); store.appendAudit(state, ctx, "test.contract.malformed", other, "Stored a malformed synthetic forecast."); await store.saveState(ctx, state); return state.merchant.id; });
   const malformed = await call(q("/v1/connected", otherState));
   assert.equal(malformed.status, 500, "a malformed stored assessment fails the read");
-  assert.deepEqual([malformed.data.error, malformed.data.committed], ["We could not load this. Try again, and quote this reference if it happens again.", undefined], "in a read's words: a read saves nothing either way");
+  assert.deepEqual([malformed.data.error, malformed.data.committed], ["Valo Pay could not load this. Try again, and quote this reference if it happens again.", undefined], "in a read's words: a read saves nothing either way");
 
   // ---- New sandboxes from one address are limited, and the refusal says when to retry (429, Retry-After an hour) ----
   // Last of this suite's sandboxes: the limit is per process and address, and the staff host below needs none.
