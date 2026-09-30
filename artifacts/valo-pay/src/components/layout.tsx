@@ -113,14 +113,14 @@ function pageName(location: string): string | undefined {
 }
 
 /**
- * The lender's mode in plain words. Observation mode lets Valo Pay record and match payments but never send a
- * collection instruction ("Watch only", the word the retry decisions use for it); instruction mode lets it send
- * them once live use is approved, and live payments are switched off in this release (docs/usability/release.md,
- * policy-engine.ts).
+ * The lender's mode in plain words. Observation mode lets Valo Pay record and match payments, and the team import,
+ * match and resolve records, but never send a collection instruction; instruction mode lets it send them only once
+ * the lender is approved for live use, and live payments are switched off in this release
+ * (docs/usability/release.md, policy-engine.ts).
  */
 export function lenderModeLabel(mode: string): string {
-  if (mode === 'observation') return 'Watch only';
-  if (mode === 'instruction') return 'Can send collection instructions';
+  if (mode === 'observation') return 'Records payments only';
+  if (mode === 'instruction') return 'Instructions after go-live';
   const words = mode.replace(/[_-]+/g, ' ');
   return words.charAt(0).toUpperCase() + words.slice(1);
 }

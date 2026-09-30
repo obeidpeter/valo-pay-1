@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { installFakeApi, type FakeApi } from "./fake-api";
 import { renderApp, screen, userEvent, waitFor } from "./harness";
+import { lenderModeLabel } from "@/components/layout";
 
 let api: FakeApi;
 beforeEach(() => { api = installFakeApi(); });
@@ -18,7 +19,7 @@ describe("layout", () => {
     expect(screen.getByRole("complementary", { name: "Sidebar" }).textContent).toContain("Sandbox");
     expect(screen.getByText('Demo role:', { exact: false })).toBeTruthy();
     // The lender's observation mode, in plain words.
-    expect(screen.getByText('Watch only', { selector: 'strong' })).toBeTruthy();
+    expect(screen.getByText('Records payments only', { selector: 'strong' })).toBeTruthy();
 
     // The lender selector exists twice in the document (phone bar and sidebar); the browser shows one. Either changes the lender for both.
     await user.selectOptions(screen.getAllByLabelText("Active lender")[0]!, second);
@@ -37,5 +38,11 @@ describe("layout", () => {
     const brands = screen.getAllByRole("link", { name: /Go to home page/ });
     expect(brands).toHaveLength(2);
     expect(brands.every((link) => link.getAttribute("href") === "/")).toBe(true);
+  });
+
+  it("names each lender mode in plain words", () => {
+    expect(lenderModeLabel("observation")).toBe("Records payments only");
+    expect(lenderModeLabel("instruction")).toBe("Instructions after go-live");
+    expect(lenderModeLabel("some_new_mode")).toBe("Some new mode");
   });
 });

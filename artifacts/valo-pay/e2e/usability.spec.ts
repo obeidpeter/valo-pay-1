@@ -77,8 +77,8 @@ test("role, lender mode and WAT context reflect the current authority on every v
   const context = page.locator("#main .workspace-bar");
   await expect(context).toBeInViewport();
   await expect(context).toContainText(`Demo role: ${workspace.role}`);
-  // The lender's mode in plain words: observation mode watches payments and never sends a collection instruction.
-  await expect(context).toContainText(`Mode: ${lender.mode === "observation" ? "Watch only" : "Can send collection instructions"}`);
+  // The lender's mode in plain words: observation mode records payments and never sends a collection instruction.
+  await expect(context).toContainText(`Mode: ${lender.mode === "observation" ? "Records payments only" : "Instructions after go-live"}`);
   await expect(context).toContainText("Times in West Africa Time (WAT)");
   await page.getByLabel("Demo role", { exact: true }).selectOption("Read-only");
   await page.getByRole("button", { name: "Switch role", exact: true }).click();

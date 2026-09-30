@@ -71,7 +71,7 @@ export const helpGuides: HelpGuide[] = [
       "If a lender or task is missing, ask an Admin of your organisation to check your access. Do not use another account to get round a restriction.",
     recovery:
       "Sign in to the same account and choose the same lender to find your saved work. If you reload the page, anything you have not saved may be lost.",
-    terms: ["sandbox", "your-workspace", "active-lender", "role", "watch-only"],
+    terms: ["sandbox", "your-workspace", "active-lender", "role", "records-payments-only"],
   },
   {
     id: "access",
@@ -653,13 +653,6 @@ export const helpTerms: readonly HelpTerm[] = [
     also: ["audit trail", "audit record", "Check audit log"],
   },
   {
-    id: "instruction-mode",
-    term: "Can send collection instructions",
-    meaning:
-      "A lender mode in which Valo Pay may send collection instructions once live use is approved. Live payments and bank connections are switched off, so no instruction reaches a bank.",
-    also: ["instruction mode", "Mode"],
-  },
-  {
     id: "case",
     term: "Case",
     meaning:
@@ -783,6 +776,13 @@ export const helpTerms: readonly HelpTerm[] = [
     also: ["Repayment due", "Instalment or due item", "due item", "repayment", "bill", "obligation"],
   },
   {
+    id: "instructions-after-go-live",
+    term: "Instructions after go-live",
+    meaning:
+      "A lender mode in which Valo Pay may send collection instructions once the lender is approved for live use. Live payments and bank connections are switched off, so no instruction reaches a bank.",
+    also: ["Can send collection instructions", "instruction mode", "Mode"],
+  },
+  {
     id: "kobo",
     term: "Kobo",
     meaning:
@@ -887,6 +887,13 @@ export const helpTerms: readonly HelpTerm[] = [
     also: ["Match payments to repayments", "reconcile"],
   },
   {
+    id: "records-payments-only",
+    term: "Records payments only",
+    meaning:
+      "A lender mode in which Valo Pay records and matches payments but never sends a collection instruction to a bank or provider. Your team can still import, match and resolve records.",
+    also: ["Watch only", "observation mode", "Observation only", "Mode"],
+  },
+  {
     id: "request-history",
     term: "Request history",
     meaning:
@@ -960,13 +967,6 @@ export const helpTerms: readonly HelpTerm[] = [
     meaning:
       "The file VAT evidence prepares, keeping invoice, bank and ledger evidence apart for an accountant. It files no VAT return and pays no tax.",
     also: ["VAT evidence schedule", "VAT review schedule"],
-  },
-  {
-    id: "watch-only",
-    term: "Watch only",
-    meaning:
-      "A lender mode in which Valo Pay records and matches payments but never sends a collection instruction to a bank or provider.",
-    also: ["observation mode", "Observation only", "Mode"],
   },
   {
     id: "your-workspace",
