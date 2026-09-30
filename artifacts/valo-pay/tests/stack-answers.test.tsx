@@ -33,7 +33,7 @@ async function runAssessment() {
   renderApp("/credit-desk");
   await screen.findByRole("heading", { name: "Credit Desk", level: 1 });
   await user.type(screen.getByLabelText("Reason for this assessment"), "Check how the confirmation is read");
-  await user.click(screen.getByRole("button", { name: /Run sample assessment/ }));
+  await user.click(screen.getByRole("button", { name: /Run assessment/ }));
 }
 
 it("shows a problem instead of a team directory when the answer is incomplete", async () => {
@@ -65,8 +65,8 @@ it("holds a connected action whose record is malformed as unconfirmed", async ()
   renderApp("/credit-desk");
   await screen.findByRole("heading", { name: "Credit Desk", level: 1 });
   await user.type(screen.getByLabelText("Reason for this assessment"), "Check that a malformed confirmation is held");
-  await user.click(screen.getByRole("button", { name: /Run sample assessment/ }));
-  await screen.findByText("Previous action outcome unconfirmed");
+  await user.click(screen.getByRole("button", { name: /Run assessment/ }));
+  await screen.findByText("Request not confirmed");
 });
 
 // A confirmation is read in the one shape its action gives (connectedActionResultFor): an assessment answers its
@@ -74,27 +74,27 @@ it("holds a connected action whose record is malformed as unconfirmed", async ()
 it("holds an assessment whose confirmation carries no record, only an outcome, as unconfirmed", async () => {
   answerWith("POST", /\/v1\/connected\/actions$/, () => ({ message: "Sample workspace updated.", record: { message: "Assessment saved.", data: { synthetic: true } }, mode: "synthetic", externalInstructionPerformed: false }));
   await runAssessment();
-  await screen.findByText("Previous action outcome unconfirmed");
-  expect(screen.queryByText(/A new immutable sample assessment has been recorded/)).toBeNull();
+  await screen.findByText("Request not confirmed");
+  expect(screen.queryByText(/Sample assessment saved as a new version/)).toBeNull();
 });
 
 it("holds a malformed record that passes as an outcome carrying extra keys as unconfirmed", async () => {
   answerWith("POST", /\/v1\/connected\/actions$/, () => ({ message: "Sample workspace updated.", mode: "synthetic", externalInstructionPerformed: false, record: { message: "x", data: { synthetic: true, consent: "anything" }, status: "active" } }));
   await runAssessment();
-  await screen.findByText("Previous action outcome unconfirmed");
+  await screen.findByText("Request not confirmed");
 });
 
 it("holds an assessment whose record belongs to another lender as unconfirmed", async () => {
   answerWith("POST", /\/v1\/connected\/actions$/, (_original, url) => assessmentConfirmation(url, { merchantId: "another-lender" }));
   await runAssessment();
-  await screen.findByText("Previous action outcome unconfirmed");
+  await screen.findByText("Request not confirmed");
 });
 
 it("accepts an assessment confirmation that carries a field a newer service added", async () => {
   answerWith("POST", /\/v1\/connected\/actions$/, (_original, url) => ({ ...assessmentConfirmation(url, { addedLater: "ignored" }), addedLater: true }));
   await runAssessment();
-  await screen.findByText(/A new immutable sample assessment has been recorded/);
-  expect(screen.queryByText("Previous action outcome unconfirmed")).toBeNull();
+  await screen.findByText(/Sample assessment saved as a new version/);
+  expect(screen.queryByText("Request not confirmed")).toBeNull();
 });
 
 it("reads an answer that carries a field a newer service added", async () => {

@@ -32,8 +32,8 @@ export function ForecastChart({
       className="my-4 w-full overflow-visible"
     >
       <title id={id}>
-        Cash forecast comparison. Exact base and downside amounts are listed in
-        the table below.
+        Cash forecast comparison. The table below lists the exact expected and
+        cautious amounts.
       </title>
       {[0, 1, 2].map((n) => (
         <line

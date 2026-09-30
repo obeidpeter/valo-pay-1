@@ -36,6 +36,15 @@ export const valueLabels: Readonly<Record<string, string>> = {
   MANDATE_LIMIT_EXCEEDED: "Mandate limit exceeded", BANK_UNAVAILABLE: "Bank unavailable",
   PROVIDER_ERROR: "Provider error", TIMEOUT_UNKNOWN: "Outcome unknown",
   DUPLICATE: "Duplicate instruction", CUSTOMER_DISPUTED: "Customer disputed the debit", UNKNOWN: "Unclassified failure",
+  // Connected banking. A code that other pages show in other words, or that needs its own colour, is keyed by the record it describes ("checkout.created").
+  review_pending: "Waiting for review", insufficient_evidence: "More evidence needed", reconciled_for_review: "Ready for accountant review",
+  exported_unpaid: "Exported, not paid", needs_reconciliation: "Some outcomes unknown", partially_completed: "Not all confirmed",
+  "checkout.created": "Awaiting authorisation", "checkout.unknown": "Outcome unknown", "permission.revoked": "Withdrawn",
+  "assessment.blocked": "Blocked", "accounting-draft.blocked": "Blocked",
+  "accounting-draft.proposed": "Waiting for review", "accounting-draft.reviewed": "Approved",
+  "accounting-draft.review_required": "Needs new approval", "vat-schedule.review_required": "Needs evidence",
+  "payroll-run.completed": "All confirmed", "payroll-run.submitted": "Sent to bank", "payroll-item.submitted": "Sent to bank",
+  "payroll-item.succeeded": "Confirmed", "payroll-item.unknown": "Outcome unknown", "payroll-funding.unknown": "Balance unknown",
 };
 
 /** A stored value in words: its label, or the value spelled out ("pending_review" as "Pending review"). */

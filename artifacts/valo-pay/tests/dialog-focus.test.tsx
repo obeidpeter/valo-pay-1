@@ -86,26 +86,26 @@ describe('dialog opener restoration across browser click behavior', () => {
 });
 
 describe('connected review dialogs hand focus back after confirming', () => {
-  it('returns Pay-by-bank focus to the opener after Go back, and to the result when confirming removed the opener', async () => {
+  it('returns Pay by Bank focus to the opener after Keep checkout, and to the result when confirming removed the opener', async () => {
     const user = userEvent.setup();
     renderApp('/pay-by-bank');
-    await screen.findByRole('heading', { name: 'Pay-by-bank', level: 1 });
+    await screen.findByRole('heading', { name: 'Pay by Bank', level: 1 });
     const due = api.state().records.find((r) => r.reference === 'DEMO-LOAN-1005')!;
     await user.selectOptions(screen.getByLabelText('Customer and instalment'), due.id);
-    await user.click(screen.getByRole('button', { name: /Create sample checkout/ }));
+    await user.click(screen.getByRole('button', { name: /Create checkout/ }));
     const cancel = await screen.findByRole('button', { name: 'Cancel checkout' });
     await user.click(cancel);
-    await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Go back' }));
+    await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Keep checkout' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     await waitFor(() => expect(document.activeElement).toBe(cancel));
 
     // Authorising removes the button that opened the review: focus goes to the result, not the page body.
-    await user.click(screen.getByRole('button', { name: 'Review & authorise' }));
+    await user.click(screen.getByRole('button', { name: 'Simulate authorisation' }));
     const dialog = await screen.findByRole('dialog');
     await user.type(within(dialog).getByLabelText('Reason'), 'Review sample payment details');
-    await user.click(within(dialog).getByRole('button', { name: 'Confirm sample action' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Simulate authorisation' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-    expect(screen.queryByRole('button', { name: 'Review & authorise' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Simulate authorisation' })).toBeNull();
     await waitFor(() => expect(document.activeElement?.textContent).toMatch(/^Sample bank authorisation recorded\./));
     expect(document.activeElement?.getAttribute('role')).toBe('status');
   });
@@ -119,21 +119,21 @@ describe('connected review dialogs hand focus back after confirming', () => {
       });
     });
     const user = userEvent.setup();
-    const confirmIn = async (note: string) => {
+    const confirmIn = async (action: string, note: string) => {
       const dialog = await screen.findByRole('dialog');
-      await user.type(within(dialog).getByRole('textbox', { name: 'Review note' }), note);
-      await user.click(within(dialog).getByRole('button', { name: 'Confirm and save' }));
+      await user.type(within(dialog).getByRole('textbox', { name: 'Reason' }), note);
+      await user.click(within(dialog).getByRole('button', { name: action }));
       await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     };
     renderApp('/cash-desk');
-    await user.click(await screen.findByRole('button', { name: /Set up sample Cash Desk/ }));
-    await confirmIn('Set up the sample workspace for review');
-    expect(screen.queryByRole('button', { name: /Set up sample Cash Desk/ })).toBeNull();
+    await user.click(await screen.findByRole('button', { name: /Set up Cash Desk/ }));
+    await confirmIn('Set up Cash Desk', 'Set up the sample workspace for review');
+    expect(screen.queryByRole('button', { name: /Set up Cash Desk/ })).toBeNull();
     await waitFor(() => expect(document.activeElement?.textContent).toMatch(/^Sample Cash Desk set up\./));
 
     const save = await screen.findByRole('button', { name: /Save forecast/ });
     await user.click(save);
-    await confirmIn('Save the planning assumptions for review');
+    await confirmIn('Save forecast', 'Save the planning assumptions for review');
     await waitFor(() => expect(document.activeElement).toBe(save));
     expect(screen.getByText(/^New sample forecast saved\./)).toBeTruthy();
   });

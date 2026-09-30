@@ -7,7 +7,13 @@ import {
   ConnectedStatus,
   ConnectedRecovery,
   ConnectedState,
+  FieldHint,
+  connectedStatusLabel,
+  describedBy,
+  roleRefusal,
+  tooShort,
 } from "@/components/connected-frame";
+import { FieldError } from "@/components/form-field";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -27,16 +33,61 @@ import { useWorkspace } from "@/lib/workspace-context";
 import { useDialogFocusReturn, useFocusWhenLost } from "@/lib/focus";
 import { reversalReviewRefusals } from "@/lib/permissions";
 import { PaymentProgress } from "@/features/pay-by-bank/payment-progress";
-const TITLE = "Pay-by-bank",
+const TITLE = "Pay by Bank",
   DESCRIPTION =
-    "A clear journey from bank authorisation to a verified receipt, tied to the instalment it pays.";
+    "The customer authorises each payment at their bank. A payment counts only when the bank or provider confirms it.";
+/**
+ * The steps taken in a dialog: its question, what will happen, and the button
+ * that does it. The button that opens the dialog says the same.
+ */
+const reviewedSteps: Record<
+  string,
+  { title: string; detail: string; confirm: string; busy: string; keep?: string }
+> = {
+  "payment.authorise": {
+    title: "Simulate the customer’s authorisation?",
+    detail:
+      "This stands in for the customer authorising the payment at their bank. Sample data only. No money will move.",
+    confirm: "Simulate authorisation",
+    busy: "Simulating…",
+  },
+  "payment.cancel": {
+    title: "Cancel this checkout?",
+    detail:
+      "The customer can no longer authorise it. Sample data only. No money will move.",
+    confirm: "Cancel checkout",
+    busy: "Cancelling…",
+    keep: "Keep checkout",
+  },
+  "payment.refund_request": {
+    title: "Request a refund?",
+    detail:
+      "A different Finance reviewer must then record the refund. Sample data only. No money will move.",
+    confirm: "Request refund",
+    busy: "Requesting…",
+  },
+  "payment.refund_confirm": {
+    title: "Record this refund?",
+    detail:
+      "The instalment this payment covered opens again for collection. Sample data only. No money will move.",
+    confirm: "Record refund",
+    busy: "Recording…",
+  },
+  "payment.reverse": {
+    title: "Record a reversal?",
+    detail:
+      "The instalment this payment covered goes into dispute. Sample data only. No money will move.",
+    confirm: "Record reversal",
+    busy: "Recording…",
+  },
+};
 export default function PayByBank() {
   const api = useConnected(),
     { merchantId } = useWorkspace();
   return <PaymentContent key={merchantId} api={api} />;
 }
 function PaymentContent({ api }: { api: ReturnType<typeof useConnected> }) {
-  const { merchantId } = useWorkspace();
+  const { merchantId, workspace } = useWorkspace();
   const [dueId, setDueId] = useState(""),
     [amount, setAmount] = useState<string | null>(null),
     [amountError, setAmountError] = useState(""),
@@ -45,16 +96,16 @@ function PaymentContent({ api }: { api: ReturnType<typeof useConnected> }) {
     [success, setSuccess] = useState("");
   const [review, setReview] = useState<{
       action: string;
-      title: string;
       record: ConnectedRecord;
       data?: Record<string, unknown>;
     } | null>(null),
-    [reason, setReason] = useState("");
+    [reason, setReason] = useState(""),
+    [reasonError, setReasonError] = useState("");
   // A confirmed step usually removes the button that opened its review, so focus then goes to the result.
   const result = useRef<HTMLParagraphElement>(null),
     problem = useRef<HTMLParagraphElement>(null);
   const restoreFocus = useDialogFocusReturn(!!review, () => result.current);
-  // A step taken without a review (Simulate browser return, the outcomes) also removes or disables its own
+  // A step taken without a review (Simulate return from bank, the outcomes) also removes or disables its own
   // button: when focus has fallen to the page, it goes to what the step did, or to why it was refused.
   useFocusWhenLost(result, success);
   useFocusWhenLost(problem, error);
@@ -64,7 +115,7 @@ function PaymentContent({ api }: { api: ReturnType<typeof useConnected> }) {
     action: string,
     data: Record<string, unknown> = {},
     recordId?: string,
-    why = "Explore the synthetic payment journey",
+    why = "Sample Pay by Bank step",
   ) => {
     setError("");
     setSuccess("");
@@ -76,27 +127,27 @@ function PaymentContent({ api }: { api: ReturnType<typeof useConnected> }) {
       draft.saved();
       const messages: Record<string, string> = {
         "payment.create":
-          "Sample checkout created. Review the customer, instalment, recipient and amount before authorising it.",
+          "Sample checkout created. Check the customer, instalment, recipient and amount before you simulate authorisation.",
         "payment.authorise":
-          "Sample bank authorisation recorded. A verified receipt is still needed; no payment is confirmed yet.",
+          "Sample bank authorisation recorded. The payment is not confirmed yet.",
         "payment.return":
-          "Browser return recorded. The sample payment is pending until a provider outcome is recorded.",
+          "Return from the bank recorded. The sample payment is pending until the provider reports the outcome.",
         "payment.cancel":
-          "Unauthorised sample checkout cancelled. No money moved.",
+          "Sample checkout cancelled before authorisation. No money moved.",
         "payment.refund_request":
-          "Sample refund request recorded. A different Finance reviewer must confirm the evidence; no refund was sent.",
+          "Sample refund requested. A different Finance reviewer must now record it. No money moved.",
         "payment.refund_confirm":
-          "Sample refund evidence recorded. An instalment the receipt paid owes that amount again and is open for collection, not in dispute. No funds were sent.",
+          "Sample refund recorded. The instalment this payment covered is open for collection again. It is not in dispute. No money moved.",
         "payment.reverse":
-          "Sample reversal evidence recorded. An instalment the receipt paid owes that amount again and is in dispute, with a customer dispute exception for Operations. No money moved.",
+          "Sample reversal recorded. The instalment this payment covered is now in dispute. A new dispute exception is open for Operations. No money moved.",
       };
       setSuccess(
         action === "payment.outcome"
           ? data.outcome === "confirmed"
-            ? "Sample receipt confirmed. Review the payment and allocation in reconciliation; this is not evidence of a live payment."
+            ? "Sample payment confirmed. It is not a real payment."
             : data.outcome === "unknown"
-              ? "Outcome remains unknown. Another collection is blocked. Query this outcome instead of starting a new payment."
-              : "Sample provider failure recorded. No successful receipt was recorded for this checkout."
+              ? "Outcome still unknown. You cannot collect this instalment again until it is known. Check again instead of starting a new payment."
+              : "Sample failed payment recorded. No money moved."
           : (messages[action] ?? "Sample record saved. No money moved."),
       );
       setReview(null);
@@ -106,25 +157,27 @@ function PaymentContent({ api }: { api: ReturnType<typeof useConnected> }) {
       return false;
     }
   };
-  if (api.isLoading) return <Loading what="pay-by-bank" heading />;
+  if (api.isLoading) return <Loading what={TITLE} heading />;
   if (!api.data)
     return (
       <ConnectedState title={TITLE} description={DESCRIPTION}>
         <LoadProblem
-          what="pay-by-bank"
+          what={TITLE}
           error={api.error}
           retry={() => void api.refetch()}
         />
         <ConnectedRecovery recovery={api} />
       </ConnectedState>
     );
-  const { payments } = api.data,
+  const { payments, role } = api.data,
     due = payments.dues.find((d) => d.id === dueId) || payments.dues[0],
     intent =
       payments.intents.find((i) => i.id === selected) || payments.intents[0];
   const canPay =
-      api.canWrite &&
-      ["Admin", "Operations", "Finance"].includes(api.data.role),
+      api.canWrite && ["Admin", "Operations", "Finance"].includes(role),
+    canRequestRefund = api.canWrite && ["Admin", "Operations"].includes(role),
+    canRecord = role === "Finance",
+    staff = workspace?.accessMode === "staff",
     checkoutExpired =
       !!intent &&
       Date.parse(intent.data.expiresAt ?? '') <= Date.parse(api.data.asOf);
@@ -137,14 +190,21 @@ function PaymentContent({ api }: { api: ReturnType<typeof useConnected> }) {
       (e) => e.status === "unknown",
     )?.at,
     outcomeExceptionId = intent?.data.outcomeExceptionId;
-  const openReview = (
-    action: string,
-    title: string,
-    record: ConnectedRecord,
-  ) => {
+  // Why a confirmed payment's refund or reversal is not this role's to take, before a refund is requested.
+  const adjustmentRefusal =
+    !canRequestRefund && !canRecord
+      ? `Only Admin or Operations can request a refund, and only Finance can record a reversal. Your role is ${role}.${staff ? "" : " Change your demo role in Settings."}`
+      : !canRequestRefund
+        ? roleRefusal(["Admin", "Operations"], "request a refund", role, workspace?.accessMode)
+        : !canRecord
+          ? roleRefusal(["Finance"], "record a reversal", role, workspace?.accessMode)
+          : "";
+  const step = review ? reviewedSteps[review.action] : undefined;
+  const openReview = (action: string, record: ConnectedRecord) => {
     setReason("");
+    setReasonError("");
     setError("");
-    setReview({ action, title, record });
+    setReview({ action, record });
   };
   const create = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -155,7 +215,7 @@ function PaymentContent({ api }: { api: ReturnType<typeof useConnected> }) {
       value = nairaToKobo(amount ?? koboToNaira(due.outstandingKobo));
       if (value <= 0 || value > due.outstandingKobo)
         throw new Error(
-          `Enter an amount above ₦0.00 and no higher than ${formatKobo(due.outstandingKobo)}.`,
+          `Enter an amount from ₦0.01 to ${formatKobo(due.outstandingKobo)}.`,
         );
     } catch (e) {
       setAmountError((e as Error).message);
@@ -191,7 +251,7 @@ function PaymentContent({ api }: { api: ReturnType<typeof useConnected> }) {
     >
       <div className="connected-metrics">
         <div className="connected-metric">
-          <span>Confirmed sample receipts</span>
+          <span>Confirmed sample payments</span>
           <strong>
             {formatNumber(
               payments.intents.filter((i) => i.status === "confirmed").length,
@@ -199,7 +259,7 @@ function PaymentContent({ api }: { api: ReturnType<typeof useConnected> }) {
           </strong>
         </div>
         <div className="connected-metric">
-          <span>Awaiting a verified outcome</span>
+          <span>Waiting for an outcome</span>
           <strong>
             {formatNumber(
               payments.intents.filter((i) =>
@@ -209,15 +269,15 @@ function PaymentContent({ api }: { api: ReturnType<typeof useConnected> }) {
           </strong>
         </div>
         <div className="connected-metric">
-          <span>One instalment, one collection</span>
-          <strong className="!text-xl">Duplicate protection</strong>
+          <span>Each instalment</span>
+          <strong className="!text-xl">One payment at a time</strong>
         </div>
       </div>
       <p className="connected-note">
         <ShieldCheck size={16} className="inline mr-2" aria-hidden="true" />
-        This simulator uses a one-time, bank-authorised payment journey. It is
-        separate from manual transfer and direct debit. A browser return never
-        counts as proof of payment.
+        A checkout asks a customer to pay one instalment from their bank. It is
+        separate from bank transfers and direct debits. This page simulates each
+        bank step.
       </p>
       {error && !api.hasUnconfirmedOutcome && (
         <p role="alert" className="connected-error" ref={problem}>
@@ -251,8 +311,8 @@ function PaymentContent({ api }: { api: ReturnType<typeof useConnected> }) {
                     {payments.dues.map((d) => (
                       <option value={d.id} key={d.id}>
                         {d.customerName} · {d.reference}
-                        {d.blocked ? " · pending instruction" : ""}
-                        {heldForReview.has(d.id) ? " · held for review" : ""}
+                        {d.blocked ? " · another payment in progress" : ""}
+                        {heldForReview.has(d.id) ? " · held for reversal review" : ""}
                       </option>
                     ))}
                   </select>
@@ -272,8 +332,8 @@ function PaymentContent({ api }: { api: ReturnType<typeof useConnected> }) {
                     id="checkout-amount-help"
                     className="text-xs text-muted-foreground mt-2"
                   >
-                    Outstanding: {formatKobo(due!.outstandingKobo)}. Partial
-                    payment is supported.
+                    Outstanding: {formatKobo(due!.outstandingKobo)}. You can ask
+                    for less than this.
                   </p>
                   {amountError && (
                     <p
@@ -289,19 +349,23 @@ function PaymentContent({ api }: { api: ReturnType<typeof useConnected> }) {
                   type="submit"
                   disabled={api.pending || !canPay || due?.blocked || dueHeld}
                 >
-                  Create sample checkout <ArrowRight size={16} />
+                  Create checkout <ArrowRight size={16} />
                 </Button>
                 {!canPay && (
                   <p className="text-xs text-muted-foreground">
-                    Your role, {api.data.role}, can view this journey. Admin,
-                    Operations or Finance is required to create or update a
-                    sample checkout.
+                    {roleRefusal(
+                      ["Admin", "Operations", "Finance"],
+                      "create or change a checkout",
+                      role,
+                      workspace?.accessMode,
+                    )}
                   </p>
                 )}
                 {due?.blocked && (
                   <p className="text-xs text-muted-foreground">
-                    An instruction is pending. Resolve its outcome before
-                    collecting again.
+                    Another payment for this instalment is scheduled, in
+                    progress or has an unknown outcome. Cancel it or resolve it
+                    first, in Checkout history or in Collections.
                   </p>
                 )}
                 {dueHeld && (
@@ -312,17 +376,18 @@ function PaymentContent({ api }: { api: ReturnType<typeof useConnected> }) {
               </form>
             ) : (
               <p className="text-sm text-muted-foreground">
-                There are no open instalments to collect.
+                No open instalments to collect. Collections lists every
+                instalment and its status.
               </p>
             )}
           </ConnectedPanel>
           <ConnectedPanel
             title="Checkout history"
-            description="Select a checkout to continue its journey or review its receipt."
+            description="Select a checkout to continue it or to check its payment."
           >
             {payments.intents.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                Your first checkout will appear here.
+                No checkouts yet. Select Create checkout to make the first one.
               </p>
             ) : (
               <div className="space-y-2">
@@ -337,7 +402,7 @@ function PaymentContent({ api }: { api: ReturnType<typeof useConnected> }) {
                       <span className="text-sm font-semibold">
                         {formatKobo(i.amountKobo)}
                       </span>
-                      <ConnectedStatus status={i.status} />
+                      <ConnectedStatus record="checkout" status={i.status} />
                     </div>
                     <p className="mt-2">
                       {
@@ -353,11 +418,11 @@ function PaymentContent({ api }: { api: ReturnType<typeof useConnected> }) {
           </ConnectedPanel>
         </div>
         <ConnectedPanel
-          title={intent ? "Checkout detail" : "Ready when you are"}
+          title={intent ? "Checkout details" : "No checkout yet"}
           description={
             intent
-              ? "Sample bank journey · NGN · no live payment instruction"
-              : "Create a checkout to explore authorisation, pending outcomes and reconciliation."
+              ? "A sample payment in naira. Nothing is sent to a bank."
+              : "Select Create checkout to try each step, from authorisation to a confirmed payment."
           }
         >
           {intent ? (
@@ -372,7 +437,7 @@ function PaymentContent({ api }: { api: ReturnType<typeof useConnected> }) {
                     <h3 className="font-semibold">{intent.data.beneficiary}</h3>
                   </div>
                   <div className="ml-auto">
-                    <ConnectedStatus status={intent.status} />
+                    <ConnectedStatus record="checkout" status={intent.status} />
                   </div>
                 </div>
                 <p className="text-4xl font-semibold tracking-tight">
@@ -383,10 +448,12 @@ function PaymentContent({ api }: { api: ReturnType<typeof useConnected> }) {
                     api.data.customers.find((c) => c.id === intent.customerId)
                       ?.name
                   }{" "}
-                  · One-time sample payment
+                  · One-off sample payment
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Authorise before {formatDate(intent.data.expiresAt ?? '')}
+                  {intent.data.expiresAt
+                    ? `Deadline to authorise: ${formatDate(intent.data.expiresAt)}.`
+                    : "No expiry recorded."}
                 </p>
                 <p className="text-xs text-muted-foreground mt-3">
                   This simulator does not calculate or charge payment fees. It does not quote the cost of a live payment.
@@ -400,33 +467,21 @@ function PaymentContent({ api }: { api: ReturnType<typeof useConnected> }) {
                       disabled={
                         api.pending || !canPay || checkoutExpired || intentHeld
                       }
-                      onClick={() =>
-                        openReview(
-                          "payment.authorise",
-                          "Review sample bank authorisation",
-                          intent,
-                        )
-                      }
+                      onClick={() => openReview("payment.authorise", intent)}
                     >
-                      Review & authorise
+                      Simulate authorisation
                     </Button>
                     <Button
                       variant="outline"
                       disabled={api.pending || !canPay}
-                      onClick={() =>
-                        openReview(
-                          "payment.cancel",
-                          "Cancel this checkout",
-                          intent,
-                        )
-                      }
+                      onClick={() => openReview("payment.cancel", intent)}
                     >
                       Cancel checkout
                     </Button>
                     {checkoutExpired && (
                       <p className="text-sm text-muted-foreground">
-                        This checkout expired. Cancel it and create a new
-                        checkout to obtain fresh authorisation.
+                        This checkout has expired. Cancel it, then create a new
+                        one.
                       </p>
                     )}
                     {intentHeld && (
@@ -439,9 +494,16 @@ function PaymentContent({ api }: { api: ReturnType<typeof useConnected> }) {
                 {intent.status === "authorised" && (
                   <Button
                     disabled={api.pending || !canPay}
-                    onClick={() => void act("payment.return", {}, intent.id)}
+                    onClick={() =>
+                      void act(
+                        "payment.return",
+                        {},
+                        intent.id,
+                        "Simulate the return from the bank",
+                      )
+                    }
                   >
-                    Simulate browser return
+                    Simulate return from bank
                   </Button>
                 )}
                 {["authorised", "pending", "unknown"].includes(
@@ -455,13 +517,13 @@ function PaymentContent({ api }: { api: ReturnType<typeof useConnected> }) {
                           "payment.outcome",
                           { outcome: "confirmed" },
                           intent.id,
-                          "Query sample provider and confirm its receipt",
+                          intent.status === "unknown"
+                            ? "Check again and simulate a confirmed payment"
+                            : "Simulate a confirmed payment",
                         )
                       }
                     >
-                      {intent.status === "unknown"
-                        ? "Query again: confirmed"
-                        : "Simulate confirmed receipt"}
+                      Simulate confirmed payment
                     </Button>
                     <Button
                       variant="outline"
@@ -471,6 +533,7 @@ function PaymentContent({ api }: { api: ReturnType<typeof useConnected> }) {
                           "payment.outcome",
                           { outcome: "unknown" },
                           intent.id,
+                          "Simulate an unknown outcome",
                         )
                       }
                     >
@@ -484,10 +547,11 @@ function PaymentContent({ api }: { api: ReturnType<typeof useConnected> }) {
                           "payment.outcome",
                           { outcome: "failed" },
                           intent.id,
+                          "Simulate a failed payment",
                         )
                       }
                     >
-                      Simulate failure
+                      Simulate failed payment
                     </Button>
                   </>
                 )}
@@ -497,22 +561,14 @@ function PaymentContent({ api }: { api: ReturnType<typeof useConnected> }) {
                       className="text-sm font-medium underline underline-offset-4 py-2"
                       href="/reconciliation"
                     >
-                      View reconciliation
+                      Open Reconciliation
                     </Link>
                     {!intent.data.refundRequest && (
                       <Button
                         variant="outline"
-                        disabled={
-                          api.pending ||
-                          !api.canWrite ||
-                          !["Admin", "Operations"].includes(api.data.role)
-                        }
+                        disabled={api.pending || !canRequestRefund}
                         onClick={() =>
-                          openReview(
-                            "payment.refund_request",
-                            "Request a sample refund",
-                            intent,
-                          )
+                          openReview("payment.refund_request", intent)
                         }
                       >
                         Request refund
@@ -521,49 +577,45 @@ function PaymentContent({ api }: { api: ReturnType<typeof useConnected> }) {
                     {intent.data.refundRequest && (
                       <Button
                         variant="outline"
-                        disabled={api.pending || api.data.role !== "Finance"}
+                        disabled={api.pending || !canRecord}
                         onClick={() =>
-                          openReview(
-                            "payment.refund_confirm",
-                            "Confirm sample refund evidence",
-                            intent,
-                          )
+                          openReview("payment.refund_confirm", intent)
                         }
                       >
-                        Finance: confirm refund
+                        Record refund
                       </Button>
                     )}
                     <Button
                       variant="outline"
-                      disabled={api.pending || api.data.role !== "Finance"}
-                      onClick={() =>
-                        openReview(
-                          "payment.reverse",
-                          "Record sample reversal evidence",
-                          intent,
-                        )
-                      }
+                      disabled={api.pending || !canRecord}
+                      onClick={() => openReview("payment.reverse", intent)}
                     >
-                      Finance: record reversal
+                      Record reversal
                     </Button>
+                    {!intent.data.refundRequest && adjustmentRefusal && (
+                      <p className="w-full text-xs text-muted-foreground">
+                        {adjustmentRefusal}
+                      </p>
+                    )}
                   </>
                 )}
               </div>
               {intent.status === "unknown" && (
                 <p className="connected-note">
-                  The result has been unknown
-                  {unknownSince ? ` since ${formatDate(unknownSince)}` : ""}. A
-                  new collection is blocked until the outcome is known. Query
-                  the provider again; once the outcome has been unknown for 24
-                  hours, the daily close raises an unknown-outcome exception
-                  for Finance, who confirms the payment with its evidence or
-                  marks it failed. Either one releases the instalment.{" "}
+                  The outcome has been unknown
+                  {unknownSince ? ` since ${formatDate(unknownSince)}` : ""}.
+                  You cannot collect this instalment again until the outcome is
+                  known. Check again with the provider. If it is still unknown
+                  after 24 hours, the daily close creates an exception for
+                  Finance. Finance then records the payment as confirmed, with
+                  evidence, or as failed. Either way, this instalment is no
+                  longer held.{" "}
                   {outcomeExceptionId && (
                     <Link
                       className="font-medium underline underline-offset-4"
                       href={`/exceptions?${new URLSearchParams({ record: outcomeExceptionId, lender: merchantId || "" })}`}
                     >
-                      Open the unknown-outcome exception
+                      Open the exception for this checkout
                     </Link>
                   )}
                 </p>
@@ -575,24 +627,28 @@ function PaymentContent({ api }: { api: ReturnType<typeof useConnected> }) {
                     className="inline mr-2"
                     aria-hidden="true"
                   />
-                  Sample server receipt recorded. The payment and allocation are
-                  available in the customer timeline and reconciliation. This is
-                  not evidence of a live bank payment.
+                  You can see this sample payment, and the instalment it paid,
+                  in the customer’s history and in Reconciliation. It is not a
+                  real bank payment.
                 </p>
               )}
               {intent.data.refundRequest && (
                 <p className="connected-note">
-                  Refund requested by {intent.data.refundRequest.maker}. Switch
-                  to the Finance demo role in{" "}
-                  <Link href="/settings" className="underline">
-                    Settings
-                  </Link>{" "}
-                  to explore the reviewer step. A demo role switch does not
-                  establish independent human approval. Sample refund evidence
-                  never sends funds.
+                  Refund requested by {intent.data.refundRequest.maker}. A
+                  different Finance reviewer must record it.{" "}
+                  {!staff && (
+                    <>
+                      To try that step, change your demo role to Finance in{" "}
+                      <Link href="/settings" className="underline">
+                        Settings
+                      </Link>
+                      . Switching demo roles is not a second person.{" "}
+                    </>
+                  )}
+                  Recording a refund never sends money.
                 </p>
               )}
-              <h3 className="font-semibold text-sm pt-3">Journey history</h3>
+              <h3 className="font-semibold text-sm pt-3">Checkout timeline</h3>
               <ol className="connected-timeline">
                 {intent.data.events?.map(
                   (
@@ -600,8 +656,8 @@ function PaymentContent({ api }: { api: ReturnType<typeof useConnected> }) {
                     i: number,
                   ) => (
                     <li key={i}>
-                      <span className="font-medium capitalize">
-                        {e.status.replaceAll("_", " ")}
+                      <span className="font-medium">
+                        {connectedStatusLabel("checkout", e.status)}
                       </span>
                       <p className="text-muted-foreground mt-1">{e.detail}</p>
                       <time>{formatDate(e.at)}</time>
@@ -614,15 +670,15 @@ function PaymentContent({ api }: { api: ReturnType<typeof useConnected> }) {
             <div className="py-12 text-center text-muted-foreground">
               <Landmark size={34} className="mx-auto mb-4" aria-hidden="true" />
               <p className="text-sm">
-                The customer sees who they are paying,
+                The customer will see who they are paying,
                 <br />
-                the exact amount, and what happens next.
+                the exact amount and what happens next.
               </p>
             </div>
           )}
         </ConnectedPanel>
       </div>
-      {review && (
+      {review && step && (
         <Dialog
           open
           onOpenChange={(open) => {
@@ -632,11 +688,8 @@ function PaymentContent({ api }: { api: ReturnType<typeof useConnected> }) {
         >
           <DialogContent onCloseAutoFocus={restoreFocus}>
             <DialogHeader>
-              <DialogTitle>{review.title}</DialogTitle>
-              <DialogDescription>
-                Sample data only. No funds will move. Review the amount and
-                recipient before continuing.
-              </DialogDescription>
+              <DialogTitle>{step.title}</DialogTitle>
+              <DialogDescription>{step.detail}</DialogDescription>
             </DialogHeader>
             <ConnectedRecovery
               recovery={api}
@@ -646,14 +699,21 @@ function PaymentContent({ api }: { api: ReturnType<typeof useConnected> }) {
                 setReview(null);
                 setReason("");
                 setSuccess(
-                  "Original sample request confirmed. Review the refreshed checkout below.",
+                  "Original request confirmed. Check the updated checkout below. Nothing was sent to a bank.",
                 );
               }}
             />
             <form
               className="space-y-4"
+              noValidate
               onSubmit={(e) => {
                 e.preventDefault();
+                const short = tooShort(reason, "a reason", 8);
+                setReasonError(short);
+                if (short) {
+                  document.getElementById("payment-reason")?.focus();
+                  return;
+                }
                 void act(
                   review.action,
                   review.data || {},
@@ -681,12 +741,18 @@ function PaymentContent({ api }: { api: ReturnType<typeof useConnected> }) {
                   disabled={api.pending || api.hasUnconfirmedOutcome}
                   className="w-full border rounded-md p-3 bg-background"
                   required
-                  minLength={8}
                   maxLength={500}
                   value={reason}
-                  onChange={(e) => setReason(e.target.value)}
+                  onChange={(e) => {
+                    setReason(e.target.value);
+                    setReasonError("");
+                  }}
+                  aria-invalid={reasonError ? true : undefined}
+                  aria-describedby={describedBy("payment-reason", reasonError)}
                   rows={3}
                 />
+                <FieldHint id="payment-reason-help" minLength={8} />
+                <FieldError id="payment-reason" message={reasonError} />
               </div>
               {error && !api.hasUnconfirmedOutcome && (
                 <p role="alert" className="text-sm text-destructive">
@@ -700,13 +766,15 @@ function PaymentContent({ api }: { api: ReturnType<typeof useConnected> }) {
                   disabled={api.pending || api.hasUnconfirmedOutcome}
                   onClick={() => setReview(null)}
                 >
-                  Go back
+                  {step.keep ?? "Cancel"}
                 </Button>
                 <Button
                   type="submit"
-                  disabled={api.pending || api.hasUnconfirmedOutcome}
+                  busy={api.pending}
+                  busyLabel={step.busy}
+                  disabled={api.hasUnconfirmedOutcome}
                 >
-                  {api.pending ? "Saving…" : "Confirm sample action"}
+                  {step.confirm}
                 </Button>
               </DialogFooter>
             </form>

@@ -140,16 +140,16 @@ describe('held payments and instalments', () => {
     expect(authorise).toBe('This instalment is held for renewed Finance review of an earlier reversal decision. Resolve that review and run reconciliation before authorising a checkout.');
     api.role = 'Finance';
     renderApp('/pay-by-bank');
-    await screen.findByRole('heading', { name: 'Pay-by-bank', level: 1 });
-    expect(within(screen.getByLabelText('Customer and instalment')).getByRole('option', { name: /DEMO-LOAN-1005 · held for review/ })).toBeTruthy();
+    await screen.findByRole('heading', { name: 'Pay by Bank', level: 1 });
+    expect(within(screen.getByLabelText('Customer and instalment')).getByRole('option', { name: /DEMO-LOAN-1005 · held for reversal review/ })).toBeTruthy();
     await user.selectOptions(screen.getByLabelText('Customer and instalment'), due.id);
-    expect((screen.getByRole('button', { name: /Create sample checkout/ }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: /Create checkout/ }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByText(create)).toBeTruthy();
-    expect((screen.getByRole('button', { name: 'Review & authorise' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: 'Simulate authorisation' }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByText(authorise)).toBeTruthy();
     // Another instalment is offered as before.
     await user.selectOptions(screen.getByLabelText('Customer and instalment'), byReference('DEMO-LOAN-1006', 'due-items').id);
-    expect((screen.getByRole('button', { name: /Create sample checkout/ }) as HTMLButtonElement).disabled).toBe(false);
+    expect((screen.getByRole('button', { name: /Create checkout/ }) as HTMLButtonElement).disabled).toBe(false);
     expect(screen.queryByText(create)).toBeNull();
   });
 });

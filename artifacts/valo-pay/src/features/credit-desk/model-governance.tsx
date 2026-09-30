@@ -8,21 +8,21 @@ export function ModelGovernance({
 }: Pick<CreditDeskView, "model" | "gate">) {
   return (
     <ConnectedPanel
-      title="Model governance"
-      description="The sandbox makes proposed controls testable. It does not satisfy the approval gate for lending."
+      title="Scoring rules and live use"
+      description="You can try the proposed controls here. They are not approved for real lending."
     >
       <div className="connected-subgrid">
         <div className="connected-record">
           <h3>{model.name}</h3>
           <p className="mt-2">
-            {model.validation}. Every missing mandatory feature keeps the score
-            unavailable; its weight is never redistributed.
+            {model.validation}. If a required input is missing, there is no
+            score. Its points are never moved to other inputs.
           </p>
         </div>
         <div className="connected-record">
           <h3>
             <LockKeyhole size={16} className="inline mr-2" aria-hidden="true" />
-            Live use is gated
+            Not approved for live use
           </h3>
           <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
             {gate.requirements.map((requirement) => (

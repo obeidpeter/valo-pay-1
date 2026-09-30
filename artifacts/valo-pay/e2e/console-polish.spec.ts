@@ -48,18 +48,18 @@ test("focus follows Edit, Cancel and Save on Settings instead of falling to the 
   await expect.poll(() => focused(page)).toMatchObject({ tag: "button", text: "Edit" });
 });
 
-test("a pay-by-bank step that removes its button moves focus to what it did", async ({ page }) => {
+test("a Pay by Bank step that removes its button moves focus to what it did", async ({ page }) => {
   await page.goto("/pay-by-bank");
-  await page.getByRole("button", { name: /Create sample checkout/ }).click();
-  await page.getByRole("button", { name: "Review & authorise" }).click();
+  await page.getByRole("button", { name: /Create checkout/ }).click();
+  await page.getByRole("button", { name: "Simulate authorisation" }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel("Reason").fill("Review sample payment details");
-  await dialog.getByRole("button", { name: "Confirm sample action" }).click();
-  const browserReturn = page.getByRole("button", { name: "Simulate browser return" });
+  await dialog.getByRole("button", { name: "Simulate authorisation" }).click();
+  const browserReturn = page.getByRole("button", { name: "Simulate return from bank" });
   await browserReturn.focus();
   await page.keyboard.press("Enter");
   await expect(browserReturn).toHaveCount(0);
-  await expect.poll(() => focused(page)).toMatchObject({ tag: "p", text: expect.stringMatching(/^Browser return recorded\./) });
+  await expect.poll(() => focused(page)).toMatchObject({ tag: "p", text: expect.stringMatching(/^Return from the bank recorded\./) });
 });
 
 test("a decision on Team & access moves focus to what it did, and a staff administrator is still warned", async ({ page }) => {
@@ -149,10 +149,10 @@ test("loading and error states keep an h1", async ({ page }) => {
   // A page whose first load failed, with nothing to show.
   for (const [route, api, problem] of [
     ["/overview", "**/api/v1/overview?*", "Unable to load the overview"],
-    ["/pay-by-bank", "**/api/v1/connected?*", "Unable to load pay-by-bank"],
+    ["/pay-by-bank", "**/api/v1/connected?*", "Unable to load Pay by Bank"],
     ["/credit-desk", "**/api/v1/connected?*", "Unable to load Credit Desk"],
     ["/cash-desk", "**/api/v1/connected?*", "Unable to load Cash Desk"],
-    ["/connections", "**/api/v1/connected?*", "Unable to load permissions"],
+    ["/connections", "**/api/v1/connected?*", "Unable to load Permissions and readiness"],
   ] as const) {
     await page.route(api, (request) => request.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ error: "Lender not found in this workspace.", requestId: "browser-missing" }) }));
     await page.goto(route);

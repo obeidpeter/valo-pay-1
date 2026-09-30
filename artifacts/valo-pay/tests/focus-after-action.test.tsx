@@ -30,18 +30,18 @@ it("moves focus into the settings form on Edit, and back to Edit after Cancel or
 it("moves focus to the result when a pay-by-bank step removes its own button", async () => {
   const user = userEvent.setup();
   renderApp("/pay-by-bank");
-  await screen.findByRole("heading", { name: "Pay-by-bank", level: 1 });
+  await screen.findByRole("heading", { name: "Pay by Bank", level: 1 });
   const due = api.state().records.find((record) => record.reference === "DEMO-LOAN-1005")!;
   await user.selectOptions(screen.getByLabelText("Customer and instalment"), due.id);
-  await user.click(screen.getByRole("button", { name: /Create sample checkout/ }));
-  await user.click(await screen.findByRole("button", { name: "Review & authorise" }));
+  await user.click(screen.getByRole("button", { name: /Create checkout/ }));
+  await user.click(await screen.findByRole("button", { name: "Simulate authorisation" }));
   const dialog = screen.getByRole("dialog");
   await user.type(within(dialog).getByLabelText("Reason"), "Review sample payment details");
-  await user.click(within(dialog).getByRole("button", { name: "Confirm sample action" }));
-  await user.click(await screen.findByRole("button", { name: "Simulate browser return" }));
-  const result = await screen.findByText(/^Browser return recorded\./);
+  await user.click(within(dialog).getByRole("button", { name: "Simulate authorisation" }));
+  await user.click(await screen.findByRole("button", { name: "Simulate return from bank" }));
+  const result = await screen.findByText(/^Return from the bank recorded\./);
   await waitFor(() => expect(document.activeElement).toBe(result));
-  expect(screen.queryByRole("button", { name: "Simulate browser return" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Simulate return from bank" })).toBeNull();
 });
 
 it("moves focus to the page content when End presentation removes the guide", async () => {

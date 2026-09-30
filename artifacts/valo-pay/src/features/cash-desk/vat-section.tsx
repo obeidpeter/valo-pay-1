@@ -1,30 +1,39 @@
+import { ConnectedStatus } from "@/components/connected-frame";
 import { Button } from "@/components/ui/button";
 import { ScrollFrame } from "@/components/scroll-frame";
 import { formatDate } from "@/lib/formatters";
+import { valueLabel } from "@workspace/valopay-schema";
 import { Download, FileCheck2 } from "lucide-react";
-import { amount, label, Metric, saveJson, Section } from "./shared";
-import type { CashView, ReviewAction } from "./types";
+import { amount, Metric, saveJson, Section, SET_UP_FIRST } from "./shared";
+import type { CashView, ReviewAction, RoleRefusal } from "./types";
 
 type Props = {
   cash: CashView;
   canOperate: boolean;
   finance: boolean;
   pending: boolean;
+  refuse: RoleRefusal;
   ask: ReviewAction;
 };
+
+const monthFormat = new Intl.DateTimeFormat("en-GB", { month: "long", year: "numeric", timeZone: "UTC" });
+/** A VAT period ("2026-09") as its month in words ("September 2026"); anything else as it is. */
+const vatMonth = (period: string) =>
+  /^\d{4}-\d{2}$/.test(period) ? monthFormat.format(new Date(`${period}-01T00:00:00Z`)) : period;
 
 export function CashVatSection({
   cash,
   canOperate,
   finance,
   pending,
+  refuse,
   ask,
 }: Props) {
   return (
     <div className="space-y-5">
       <Section
-        title="VAT evidence review"
-        detail="Invoice amounts, bank allocations and the ledger control remain separate. A bank credit alone does not create VAT or prove input-tax recovery."
+        title="VAT evidence"
+        detail="Invoice amounts, bank payments and the VAT account in your ledger are checked separately. Money arriving in the bank does not by itself create VAT, or prove that you can reclaim VAT."
         action={
           <Button
             variant="outline"
@@ -35,58 +44,60 @@ export function CashVatSection({
             onClick={() =>
               ask({
                 action: "cash.vat.export",
-                title: "Save VAT review schedule",
+                title: "Save VAT schedule?",
                 detail:
-                  "Save the invoice-to-bank-to-ledger evidence schedule with outstanding gaps. This does not file a return or remit tax.",
+                  "This saves the schedule that links invoices, bank payments and the ledger, with any gaps. It does not file a VAT return or pay tax.",
+                confirm: "Save VAT schedule",
+                busy: "Saving…",
               })
             }
           >
             <FileCheck2 />
-            Save review schedule
+            Save VAT schedule
           </Button>
         }
       >
         <p id="vat-review-help" className="mb-4 text-xs leading-relaxed text-muted-foreground">
-          {!finance ? "A Finance reviewer saves the review schedule after checking the evidence."
-            : !cash.permissions.erp ? "Grant accounting-draft permission in Permissions & readiness before saving this schedule."
-            : !canOperate ? "Set up the sample Cash Desk with active business-account read permission first."
-            : "Keep evidence gaps visible in the saved schedule for the accountant to resolve. This action does not file a return."}
+          {!finance ? refuse(["Finance"], "save a VAT schedule")
+            : !cash.permissions.erp ? "Grant the Prepare accounting drafts and VAT schedules permission in Permissions and readiness first."
+            : !canOperate ? SET_UP_FIRST
+            : "The saved schedule keeps any evidence gaps for your accountant to resolve. It does not file a VAT return."}
         </p>
         {cash.vat ? (
           <div className="space-y-5">
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <Metric
-                title="Output VAT"
+                title="Output VAT (on sales)"
                 value={amount(cash.vat.outputVatMinor)}
-                detail="Approved sales invoice tax amounts"
+                detail="VAT on approved sales invoices"
               />
               <Metric
-                title="Recoverable input"
+                title="Input VAT you can reclaim"
                 value={amount(cash.vat.eligibleInputVatMinor)}
-                detail="Requires an approved recovery decision"
+                detail="Counts only VAT with an approved decision to reclaim it"
               />
               <Metric
-                title="Input needing review"
+                title="Input VAT needing review"
                 value={amount(cash.vat.blockedInputVatMinor)}
-                detail="Excluded until evidence is approved"
+                detail="Left out until a decision to reclaim it is approved"
               />
               <Metric
-                title="Ledger difference"
+                title="Difference from your ledger"
                 value={amount(cash.vat.varianceMinor)}
-                detail="Ledger control less expected balance"
+                detail="VAT account in your ledger minus the expected balance"
               />
             </div>
-            <ScrollFrame label={`VAT invoice evidence for ${cash.vat.period}`}>
+            <ScrollFrame label={`VAT invoice evidence for ${vatMonth(cash.vat.period)}`}>
               <table className="w-full text-sm">
                 <caption className="sr-only">
-                  VAT invoice evidence for {cash.vat.period}
+                  VAT invoice evidence for {vatMonth(cash.vat.period)}
                 </caption>
                 <thead>
                   <tr className="border-b text-left text-xs text-muted-foreground">
                     <th className="py-3">Invoice</th>
-                    <th className="py-3 text-right">Net value</th>
-                    <th className="py-3 text-right">Invoice VAT</th>
-                    <th className="py-3 text-right">Bank allocation</th>
+                    <th className="py-3 text-right">Value before VAT</th>
+                    <th className="py-3 text-right">VAT</th>
+                    <th className="py-3 text-right">Paid through bank</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -95,7 +106,7 @@ export function CashVatSection({
                       <td className="py-4">
                         <span className="font-medium">{line.invoiceId}</span>
                         <span className="block text-xs text-muted-foreground">
-                          {label(line.kind)}
+                          {valueLabel(line.kind)}
                         </span>
                       </td>
                       <td className="py-4 text-right tabular-nums">
@@ -114,12 +125,12 @@ export function CashVatSection({
             </ScrollFrame>
             <div className="rounded-xl border bg-secondary/30 p-4">
               <p className="text-sm font-medium">
-                {amount(cash.vat.excludedBankCreditsMinor)} of bank credits
-                excluded from the VAT calculation
+                {amount(cash.vat.excludedBankCreditsMinor)} received in the
+                bank is left out of the VAT calculation
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Loan proceeds and own-account transfers are not treated as sales
-                invoices.
+                Loan money and transfers between the business’s own accounts
+                are not treated as sales.
               </p>
             </div>
             {cash.vat.missingEvidence.map((issue) => (
@@ -131,8 +142,10 @@ export function CashVatSection({
               </p>
             ))}
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <p className="text-sm text-muted-foreground">
-                Period {cash.vat.period} · {label(cash.vat.status)} · not filed
+              <p className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                <span>{vatMonth(cash.vat.period)}</span>
+                <ConnectedStatus record="vat-schedule" status={cash.vat.status} />
+                <span>No VAT return filed</span>
               </p>
               <Button
                 variant="outline"
@@ -141,13 +154,15 @@ export function CashVatSection({
                 }
               >
                 <Download />
-                Download sample schedule
+                Download current VAT schedule
               </Button>
             </div>
           </div>
         ) : (
           <p className="text-sm text-muted-foreground">
-            Restore business-account permission to review the evidence schedule.
+            Grant the Read business accounts permission and the Prepare
+            accounting drafts and VAT schedules permission to see this
+            schedule.
           </p>
         )}
         <>
@@ -171,13 +186,13 @@ export function CashVatSection({
                   }
                 >
                   <Download />
-                  Download saved review
+                  Download saved VAT schedule
                 </Button>
               ) : (
                 <p className="text-xs text-muted-foreground">
-                  Its figures are withheld: the permission it was saved under,
-                  or its evidence, has changed or cannot be confirmed. Save the
-                  schedule again under the current permission.
+                  This schedule’s figures are hidden. Its permission or
+                  evidence has changed, or cannot be checked. Save the
+                  schedule again to see current figures.
                 </p>
               )}
             </div>

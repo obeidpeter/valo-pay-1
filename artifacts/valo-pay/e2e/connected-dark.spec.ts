@@ -8,10 +8,10 @@ test("connected modules preserve contrast, legibility and viewport fit in dark m
   await request.post("/__test/reset");
   await page.addInitScript(() => localStorage.setItem("valopay-theme", "dark"));
   for (const [route, title] of [
-    ["/pay-by-bank", "Pay-by-bank"],
+    ["/pay-by-bank", "Pay by Bank"],
     ["/credit-desk", "Credit Desk"],
     ["/cash-desk", "Cash Desk"],
-    ["/connections", "Permissions & readiness"],
+    ["/connections", "Permissions and readiness"],
   ]) {
     await page.goto(route!);
     await expect(

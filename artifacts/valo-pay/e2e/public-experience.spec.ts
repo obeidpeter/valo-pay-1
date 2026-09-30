@@ -141,7 +141,7 @@ test("navigation, keyboard previews and opt-in tour preserve visitor control", a
   await expect(
     page
       .frameLocator("iframe")
-      .getByRole("heading", { name: "Pay-by-bank", level: 1 }),
+      .getByRole("heading", { name: "Pay by Bank", level: 1 }),
   ).toBeVisible();
   expect(workspaceRequests.length).toBeGreaterThan(0);
   await page.getByRole("button", { name: /03 · Credit Desk/ }).click();

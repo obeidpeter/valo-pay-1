@@ -26,7 +26,7 @@ async function grant(user: User, purpose: string, subject?: string) {
   );
   if (subject)
     await user.selectOptions(
-      screen.getByLabelText("Subject", { exact: true }),
+      screen.getByLabelText("Who it covers", { exact: true }),
       subject,
     );
   await user.type(
@@ -34,7 +34,7 @@ async function grant(user: User, purpose: string, subject?: string) {
     "Authorise this purpose for the synthetic journey",
   );
   await user.click(
-    screen.getByRole("button", { name: "Grant sample permission" }),
+    screen.getByRole("button", { name: "Grant permission" }),
   );
   await waitFor(() =>
     expect(
@@ -43,7 +43,7 @@ async function grant(user: User, purpose: string, subject?: string) {
         .records.filter((record) => record.kind === "connected-consents"),
     ).toHaveLength(before + 1),
   );
-  await screen.findByText("Sample permission recorded.");
+  await screen.findByText("Sample permission granted. The pages that need it can use it now.");
 }
 
 /** A second synthetic identity in the test service, not a real authentication or MFA rehearsal. */
@@ -55,11 +55,11 @@ function returnAsFinance(path: string) {
   renderApp(path);
 }
 
-async function confirmCash(user: User, note: string) {
+async function confirmCash(user: User, action: string, note: string) {
   const dialog = await screen.findByRole("dialog");
-  await user.type(within(dialog).getByLabelText("Review note"), note);
+  await user.type(within(dialog).getByLabelText("Reason"), note);
   await user.click(
-    within(dialog).getByRole("button", { name: "Confirm and save" }),
+    within(dialog).getByRole("button", { name: action }),
   );
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
 }
@@ -72,30 +72,30 @@ describe("complete synthetic connected journeys through the real app", () => {
     const applicantId = (
       screen.getByLabelText("Applicant") as HTMLSelectElement
     ).value;
-    expect(screen.getByText("Account reading: Required")).toBeTruthy();
-    expect(screen.getByText("Credit assessment: Required")).toBeTruthy();
+    expect(screen.getByText("Read applicant accounts: Not active")).toBeTruthy();
+    expect(screen.getByText("Assess an application: Not active")).toBeTruthy();
     await user.click(
-      screen.getByRole("link", { name: /Set up sample permissions/ }),
+      screen.getByRole("link", { name: /Open Permissions and readiness/ }),
     );
     await screen.findByRole("heading", {
-      name: "Permissions & readiness",
+      name: "Permissions and readiness",
       level: 1,
     });
     await grant(user, "account_read", applicantId);
     await grant(user, "credit_assessment", applicantId);
     await go(user, "Credit Desk");
     await user.selectOptions(screen.getByLabelText("Applicant"), applicantId);
-    expect(screen.getByText("Account reading: Active")).toBeTruthy();
-    expect(screen.getByText("Credit assessment: Active")).toBeTruthy();
+    expect(screen.getByText("Read applicant accounts: Active")).toBeTruthy();
+    expect(screen.getByText("Assess an application: Active")).toBeTruthy();
     await user.type(
       screen.getByLabelText("Reason for this assessment"),
       "Review permitted sample income and the proposed repayment schedule",
     );
     await user.click(
-      screen.getByRole("button", { name: /Run sample assessment/ }),
+      screen.getByRole("button", { name: /Run assessment/ }),
     );
     await screen.findByText(
-      "A new immutable sample assessment has been recorded. Review its evidence and explanations below.",
+      "Sample assessment saved as a new version. It cannot be changed. Check its evidence and explanations below.",
     );
     const assessment = api
       .state()
@@ -104,12 +104,12 @@ describe("complete synthetic connected journeys through the real app", () => {
       )!;
     const original = JSON.stringify(assessment.data.result);
     expect(assessment.data.result.createdBy).toBe("Sandbox Operations");
-    expect(screen.getByText(/Not a probability of default\./)).toBeTruthy();
+    expect(screen.getByText(/Not a prediction of whether the applicant will repay\./)).toBeTruthy();
     expect(screen.getByText(/Not a lending decision\./)).toBeTruthy();
     expect(
       (
         screen.getByRole("button", {
-          name: "Record sample review",
+          name: "Record review",
         }) as HTMLButtonElement
       ).disabled,
     ).toBe(true);
@@ -130,17 +130,17 @@ describe("complete synthetic connected journeys through the real app", () => {
       "The sample evidence supports the proposed repayments. This rehearsal does not approve a real loan.",
     );
     await user.click(
-      screen.getByRole("button", { name: "Record sample review" }),
+      screen.getByRole("button", { name: "Record review" }),
     );
     await screen.findByText(
-      "The separate sample review is recorded. The assessment and its score are unchanged.",
+      "Sample review recorded. The assessment and its score have not changed.",
     );
     expect(
       screen.getByRole("heading", { name: "Sample approval recorded" }),
     ).toBeTruthy();
     expect(
       screen.getByText(
-        /Simulated reviewer authentication. This is not an actual lending decision/,
+        /Reviewer sign-in is simulated in the sandbox\. This is not a real lending decision/,
       ),
     ).toBeTruthy();
     expect(
@@ -163,7 +163,7 @@ describe("complete synthetic connected journeys through the real app", () => {
       await screen.findByRole("heading", { name: "Sample approval recorded" }),
     ).toBeTruthy();
     expect(
-      screen.queryByRole("button", { name: "Record sample review" }),
+      screen.queryByRole("button", { name: "Record review" }),
     ).toBeNull();
     const writes = api.calls.filter(
       (call) => call.method === "POST" && call.path === "/v1/connected/actions",
@@ -182,17 +182,18 @@ describe("complete synthetic connected journeys through the real app", () => {
     const user = userEvent.setup();
     renderApp("/connections");
     await screen.findByRole("heading", {
-      name: "Permissions & readiness",
+      name: "Permissions and readiness",
       level: 1,
     });
     await grant(user, "merchant_account_read");
     await grant(user, "payroll_prepare");
     await go(user, "Cash Desk");
     await user.click(
-      screen.getByRole("button", { name: "Set up sample Cash Desk" }),
+      screen.getByRole("button", { name: "Set up Cash Desk" }),
     );
     await confirmCash(
       user,
+      "Set up Cash Desk",
       "Create the sample accounts and approved net-pay run for this rehearsal",
     );
     await screen.findByText(
@@ -202,17 +203,18 @@ describe("complete synthetic connected journeys through the real app", () => {
       screen.getByRole("button", { name: "Payroll funding" }),
     );
     expect(
-      screen.getByText(/Exporting does not pay employees or reserve funds/),
+      screen.getByText(/Exporting does not pay employees or set money aside/),
     ).toBeTruthy();
     await user.click(
-      screen.getByRole("button", { name: "Prepare sample plan" }),
+      screen.getByRole("button", { name: "Prepare funding plan" }),
     );
     await confirmCash(
       user,
+      "Prepare funding plan",
       "Check the approved sample run, source balance and funding assumptions",
     );
     await screen.findByText(
-      "Sample payroll funding plan prepared. A different Finance reviewer must check the funding and items before export. Payroll remains unpaid.",
+      "Sample funding plan prepared. A different Finance reviewer must approve it before export. No one has been paid.",
     );
     expect(
       (
@@ -224,7 +226,7 @@ describe("complete synthetic connected journeys through the real app", () => {
     expect(
       (
         screen.getByRole("button", {
-          name: "Prepare bank export",
+          name: "Prepare bank export file",
         }) as HTMLButtonElement
       ).disabled,
     ).toBe(true);
@@ -239,23 +241,25 @@ describe("complete synthetic connected journeys through the real app", () => {
     );
     await confirmCash(
       user,
+      "Approve funding plan",
       "Independently check the sample beneficiaries, amounts, source balance and payment date",
     );
     await screen.findByText(
-      "Sample funding approval recorded. An export still requires current funding and source checks. Payroll remains unpaid.",
+      "Sample funding plan approved. You can prepare the bank export file while the balances are current. No one has been paid.",
     );
     await user.click(
-      screen.getByRole("button", { name: "Prepare bank export" }),
+      screen.getByRole("button", { name: "Prepare bank export file" }),
     );
     await confirmCash(
       user,
+      "Prepare bank export file",
       "Prepare only the reviewed unsent sample items; no salary instruction is executed",
     );
     await screen.findByText(
-      "Sample payroll export prepared. Download the review file below. Payroll remains unpaid.",
+      "Sample payroll export file prepared. Download it below. No one has been paid.",
     );
     expect(
-      screen.getByRole("button", { name: "Download approved manifest" }),
+      screen.getByRole("button", { name: "Download payroll export file" }),
     ).toBeTruthy();
     const exported = api
       .state()
@@ -270,10 +274,10 @@ describe("complete synthetic connected journeys through the real app", () => {
 
     returnAsFinance("/cash-desk?view=payroll");
     expect(
-      await screen.findByRole("button", { name: "Download approved manifest" }),
+      await screen.findByRole("button", { name: "Download payroll export file" }),
     ).toBeTruthy();
     expect(
-      screen.getByText(/Funding approval and export do not establish payment/),
+      screen.getByText(/Approving the plan and exporting the file do not pay anyone/),
     ).toBeTruthy();
     expect(
       api

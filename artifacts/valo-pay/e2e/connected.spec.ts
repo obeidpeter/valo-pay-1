@@ -7,10 +7,10 @@ test("connected modules are readable, keyboard accessible and fit the viewport",
   page,
 }, info) => {
   for (const [route, title] of [
-    ["/pay-by-bank", "Pay-by-bank"],
+    ["/pay-by-bank", "Pay by Bank"],
     ["/credit-desk", "Credit Desk"],
     ["/cash-desk", "Cash Desk"],
-    ["/connections", "Permissions & readiness"],
+    ["/connections", "Permissions and readiness"],
   ]) {
     await page.goto(route!);
     await expect(
@@ -43,7 +43,7 @@ test("connected modules are readable, keyboard accessible and fit the viewport",
     });
     if (route === "/cash-desk") {
       await page
-        .getByText("Base · day 30", { exact: true })
+        .getByText("Expected · day 30", { exact: true })
         .scrollIntoViewIfNeeded();
       await page.locator("#main").evaluate((node) => {
         node.scrollTop += 420;
@@ -57,7 +57,7 @@ test("a bank return stays pending until the sample provider confirms payment", a
 }) => {
   await page.goto("/pay-by-bank");
   await expect(
-    page.getByRole("heading", { name: "Pay-by-bank", level: 1 }),
+    page.getByRole("heading", { name: "Pay by Bank", level: 1 }),
   ).toBeVisible();
   const options = await page
     .getByLabel("Customer and instalment")
@@ -66,27 +66,32 @@ test("a bank return stays pending until the sample provider confirms payment", a
   await page.getByLabel("Customer and instalment").selectOption({
     label: options.find((s) => s.includes("DEMO-LOAN-1005"))!,
   });
-  await page.getByRole("button", { name: /Create sample checkout/ }).click();
-  await page.getByRole("button", { name: "Review & authorise" }).click();
+  await page.getByRole("button", { name: /Create checkout/ }).click();
+  await page.getByRole("button", { name: "Simulate authorisation" }).click();
   await page
     .getByRole("dialog")
     .getByLabel("Reason")
     .fill("Review the amount and sample beneficiary");
-  await page.getByRole("button", { name: "Confirm sample action" }).click();
-  await page.getByRole("button", { name: "Simulate browser return" }).click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Simulate authorisation" })
+    .click();
+  await page.getByRole("button", { name: "Simulate return from bank" }).click();
   await expect(
     page.getByText(
       "Browser returned. Payment is not confirmed; awaiting provider evidence.",
     ),
   ).toBeVisible();
   await page.getByRole("button", { name: "Simulate unknown outcome" }).click();
-  await expect(page.getByText(/A new collection is blocked/)).toBeVisible();
-  await page.getByRole("button", { name: "Query again: confirmed" }).click();
   await expect(
-    page.getByRole("link", { name: "View reconciliation", exact: true }),
+    page.getByText(/You cannot collect this instalment again until the outcome is known/),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Simulate confirmed payment" }).click();
+  await expect(
+    page.getByRole("link", { name: "Open Reconciliation", exact: true }),
   ).toBeVisible();
 });
-test("permissions can be granted and revoked with an explicit explanation", async ({
+test("permissions can be granted and withdrawn with an explicit explanation", async ({
   page,
 }) => {
   await page.goto("/connections");
@@ -96,19 +101,24 @@ test("permissions can be granted and revoked with an explicit explanation", asyn
   await page
     .getByLabel("Reason for granting permission")
     .fill("Review SME sample account balances");
-  await page.getByRole("button", { name: "Grant sample permission" }).click();
-  await page.getByRole("button", { name: "Review revocation" }).click();
+  await page.getByRole("button", { name: "Grant permission" }).click();
   await page
-    .getByLabel("Reason for revoking permission")
+    .getByRole("button", {
+      name: "Withdraw Read business accounts for Sample business",
+      exact: true,
+    })
+    .click();
+  await page
+    .getByLabel("Reason for withdrawing permission")
     .fill("The SME withdrew sample account permission");
-  await page.getByRole("button", { name: "Revoke permission" }).click();
+  await page.getByRole("button", { name: "Withdraw permission" }).click();
   await expect(
     page.getByText(
-      "Permission revoked. New dependent work is blocked; historical evidence is retained.",
+      "Permission withdrawn. New work that needs it is now blocked. Records made earlier are kept.",
     ),
   ).toBeVisible();
   await page.goto("/cash-desk");
   await expect(
-    page.getByRole("button", { name: /Set up sample Cash Desk/ }),
+    page.getByRole("button", { name: /Set up Cash Desk/ }),
   ).toBeDisabled();
 });
