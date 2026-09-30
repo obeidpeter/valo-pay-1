@@ -6,7 +6,7 @@ const keyName = /^projects\/[a-zA-Z0-9_-]+\/locations\/[a-zA-Z0-9_-]+\/keyRings\
 const envelopeSchema = z.object({ protectedPayload: z.literal(1), key: z.string().regex(keyName), wrappedKey: z.string().min(1).max(20000), iv: z.string().length(16), tag: z.string().length(24), ciphertext: z.string().max(12000000) }).strict();
 export interface WrappingKeyProvider { wrap(key: string, dataKey: Buffer, aad: Buffer): Promise<Buffer>; unwrap(key: string, wrappedKey: Buffer, aad: Buffer): Promise<Buffer>; }
 export interface PayloadScope { lender: string; record: string; field: string; }
-const unavailable = (): never => { throw Object.assign(new Error('Protected data cannot be opened. Ask the administrator to check the configured encryption key.'), { status: 503 }); };
+const unavailable = (): never => { throw Object.assign(new Error('Protected data cannot be opened. Contact the Valo Pay team.'), { status: 503 }); };
 const aadFor = (scope: PayloadScope) => Buffer.from(JSON.stringify(['valopay', 1, scope.lender, scope.record, scope.field]));
 /** The bytes of canonical base64 text of exactly `bytes` bytes, else undefined: Node's decoder skips stray characters and stops at padding, so the text's length proves nothing. */
 const exactBase64 = (text: string, bytes: number): Buffer | undefined => {

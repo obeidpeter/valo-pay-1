@@ -109,7 +109,7 @@ try {
     await pool.query("UPDATE valopay_idempotency SET response=$3 WHERE merchant_id=$1 AND id=ANY($2::text[])", [lender, [entry!.id, store.digest(`${lender}:${key}`)], unopenable]);
     const repeat = await call(q("/v1/records/customers"), "POST", body, key);
     assert.equal(repeat.status, 503, JSON.stringify(repeat.data));
-    assert.deepEqual([repeat.data.committed, repeat.data.operation, repeat.data.error], [undefined, "completed", "Protected data cannot be opened. Ask the administrator to check the configured encryption key. This request was saved."], "a saved request whose answer cannot be opened says it was saved");
+    assert.deepEqual([repeat.data.committed, repeat.data.operation, repeat.data.error], [undefined, "completed", "Protected data cannot be opened. Contact the Valo Pay team. This request was saved."], "a saved request whose answer cannot be opened says it was saved");
     assert.deepEqual([(await entryOf(key))[0]!.status, await saved(body.reference)], ["completed", 1]);
     // A retry from Operations whose stored request cannot be opened says the same.
     await pool.query("UPDATE valopay_operations SET request=$3 WHERE merchant_id=$1 AND id=$2", [lender, entry!.id, unopenable]);

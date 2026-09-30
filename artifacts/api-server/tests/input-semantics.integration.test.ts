@@ -55,10 +55,10 @@ try {
     // A settings change cannot name a customer or carry a reassuring story: neither field is in its schema.
     const settings = ok(await call(q("/v1/settings")));
     ok(await call(q("/v1/settings"), "PATCH", { minimumTicketKobo: 500000, expectedRevision: settings.revision, recordId: victim.id, reason: "Routine review of customer contact preferences; no financial settings changed." }));
-    assert.deepEqual(await lastAudit().then(({ action, objectId, summary }) => ({ action, objectId, summary })), { action: "patch.settings", objectId: "workspace", summary: "Synthetic workspace operation" }, "a settings change is recorded against the lender, in the route's words");
+    assert.deepEqual(await lastAudit().then(({ action, objectId, summary }) => ({ action, objectId, summary })), { action: "patch.settings", objectId: "workspace", summary: "Change to sample data." }, "a settings change is recorded against the lender, in the route's words");
     // A new record is the entry's object, whatever the body names; its data cannot add a note to the summary either.
     const created = ok(await call(q("/v1/records/customers"), "POST", { name: "Audit integrity customer", data: { consentProvenance: "Synthetic fixture", auditNote: "Approved by the board." }, recordId: victim.id, reason: "Corrected the victim's name at their request." }));
-    assert.deepEqual(await lastAudit().then(({ objectId, summary }) => ({ objectId, summary })), { objectId: created.id, summary: "Synthetic workspace operation" }, "a created record is the object, and neither the body's reason nor its data's note reaches the summary");
+    assert.deepEqual(await lastAudit().then(({ objectId, summary }) => ({ objectId, summary })), { objectId: created.id, summary: "Change to sample data." }, "a created record is the object, and neither the body's reason nor its data's note reaches the summary");
     // An action keeps its own reason, and names the record it applies to only when it acted on it.
     ok(await call(q("/v1/actions"), "POST", { action: "run_reconciliation", recordId: victim.id, reason: "Reconcile the morning's payment evidence." }));
     assert.deepEqual(await lastAudit().then(({ action, objectId, summary }) => ({ action, objectId, summary })), { action: "run_reconciliation", objectId: "workspace", summary: "Reconcile the morning's payment evidence." }, "an action that ignores recordId does not name the record");

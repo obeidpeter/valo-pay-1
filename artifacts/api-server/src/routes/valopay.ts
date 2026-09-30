@@ -15,7 +15,7 @@ import { getGates } from "../lib/valopay-readiness";
 import { importCsv, withRowIdColumn } from "../lib/valopay-import";
 import { exportDescriptorForRecord, exportKinds, readExport } from "../lib/valopay-exports";
 import { recordTypeName, withAuditName } from "../lib/action-names";
-import { UNKNOWN_DEMO_ROLE, notFound, onlyRoles } from "../lib/refusal-words";
+import { UNKNOWN_DEMO_ROLE, demoRoleHint, notFound, onlyRoles } from "../lib/refusal-words";
 import { assertExportPermitted, exportJobView, publicExportRecord, queueExport, retryExport } from '../lib/export-jobs';
 import { assertRecordVersion, assertSettingsVersion, mergeData } from "../lib/edit-versions";
 import { schedulerStatus } from "../lib/close-scheduler";
@@ -89,7 +89,7 @@ export async function withState<S extends z.ZodTypeAny>(req:Request,res:Response
    const result=contractAnswer(responseSchema,rawResult);
   if(mutating){
    // A domain action may add what it established to the reason, such as the payer Finance identified: server-built text in its answer.
-   const reason=audit.reason?.trim()||"Synthetic workspace operation",auditNote=audit.action===undefined?undefined:(rawResult as {data?:{auditNote?:unknown}}|undefined)?.data?.auditNote;
+   const reason=audit.reason?.trim()||"Change to sample data.",auditNote=audit.action===undefined?undefined:(rawResult as {data?:{auditNote?:unknown}}|undefined)?.data?.auditNote;
    appendAudit(state,ctx,audit.action??`${req.method.toLowerCase()}.${req.path.split("/").slice(2).join(".")}`,auditObject(ctx,state,{path:req.params.id,body:audit.recordId,answer:rawResult},"workspace"),withAuditNote(reason,auditNote),changes);
     await saveState(ctx,state);
     if(receipt)await saveIdempotency(ctx,receipt.id,fingerprint,result);
@@ -141,7 +141,7 @@ router.patch("/v1/records/:kind/:id",async(req,res)=>{
   // Every edit names the version it was made on (the contract requires expectedUpdatedAt), a coordinated case's included.
   const {expectedUpdatedAt}=recordVersion.parse(req.body);
   const old=state.records.find(r=>r.kind===kind&&r.id===id);if(!old)fail(notFound(recordTypeName(kind)),404);
-  if (kind === 'exceptions' && old.data.case?.assignee && old.data.case.assignee !== ctx.actor && ctx.role !== 'Admin') fail('Ask the case assignee or an administrator to make this change.',403);
+  if (kind === 'exceptions' && old.data.case?.assignee && old.data.case.assignee !== ctx.actor && ctx.role !== 'Admin') fail(`Only the person who owns this case or an Admin can change it.${demoRoleHint(ctx.accessMode)}`,403);
   assertRecordVersion(old,expectedUpdatedAt);
   const input={...old,...body,data:{...mergeData(old.data,body.data),synthetic:true} as Record<string,any>,updatedAt:ctx.now};
   assertNoDirectImportedCorrection(old,input);

@@ -269,7 +269,7 @@ export function installFakeApi(options: { now?: string; role?: string; queuedExp
         validateRecord(state, ctx, kind, input);
         if (body.reference && state.records.some((record) => record.kind === kind && record.reference === body.reference && kind !== "observations")) fail(`Another ${recordTypeName(kind).toLowerCase()} already uses this reference. Enter a different reference.`, 409);
         return makeRecord(state, kind, input);
-      }, { action: `post.records.${kind}`, objectId: "workspace", summary: "Synthetic workspace operation" }));
+      }, { action: `post.records.${kind}`, objectId: "workspace", summary: "Change to sample data." }));
     }],
     ["PATCH", /^\/v1\/records\/(?<kind>[^/]+)\/(?<id>[^/]+)$/, (params, query, raw) => {
       const kind = params.kind!;
@@ -285,7 +285,7 @@ export function installFakeApi(options: { now?: string; role?: string; queuedExp
         validateRecord(state, ctx, kind, input, true);
         Object.assign(old, input);
         return old;
-      }, { action: `patch.records.${kind}.${params.id}`, objectId: params.id!, summary: "Synthetic workspace operation" }));
+      }, { action: `patch.records.${kind}.${params.id}`, objectId: params.id!, summary: "Change to sample data." }));
     }],
     ["POST", /^\/v1\/actions$/, (_p, query, raw) => {
       const body = S.PerformActionBody.parse(raw);
@@ -293,11 +293,11 @@ export function installFakeApi(options: { now?: string; role?: string; queuedExp
       if (body.action === "set_role") {
         const role = String(body.data?.role);
         if (!(roles as readonly string[]).includes(role)) fail(UNKNOWN_DEMO_ROLE);
-        return S.PerformActionResponse.parse(withState(merchantId, () => { api.role = role; return { message: `Demo role changed to ${role}. It gives no access to real data or live payments.`, data: { role } }; }, { action: "set_role", objectId: "workspace", summary: body.reason || "Synthetic workspace operation" }));
+        return S.PerformActionResponse.parse(withState(merchantId, () => { api.role = role; return { message: `Demo role changed to ${role}. It gives no access to real data or live payments.`, data: { role } }; }, { action: "set_role", objectId: "workspace", summary: body.reason || "Change to sample data." }));
       }
-      if (body.action === "verify_audit") return S.PerformActionResponse.parse(withState(merchantId, (state) => ({ message: "Audit log check complete.", data: verifyAudit(state) }), { action: "verify_audit", objectId: "workspace", summary: body.reason || "Synthetic workspace operation" }));
+      if (body.action === "verify_audit") return S.PerformActionResponse.parse(withState(merchantId, (state) => ({ message: "Audit log check complete.", data: verifyAudit(state) }), { action: "verify_audit", objectId: "workspace", summary: body.reason || "Change to sample data." }));
       if (body.action === "mark_pack_used") fail("A dispute pack made from sample data cannot be recorded as used in a real case.", 403);
-      return S.PerformActionResponse.parse(withState(merchantId, (state, ctx) => executeAction(state, ctx, body), { action: body.action, objectId: body.recordId || "workspace", summary: body.reason || "Synthetic workspace operation" }));
+      return S.PerformActionResponse.parse(withState(merchantId, (state, ctx) => executeAction(state, ctx, body), { action: body.action, objectId: body.recordId || "workspace", summary: body.reason || "Change to sample data." }));
     }],
     ["POST", /^\/v1\/imports$/, (_p, query, raw) => {
       const body = S.ImportRecordsBody.parse(withRowIdColumn(raw));
@@ -324,7 +324,7 @@ export function installFakeApi(options: { now?: string; role?: string; queuedExp
         Object.assign(state.settings, preferences);
         rescheduleAfterSettings(state, previous, ctx.now);
         return buildConsoleSettings(state, ctx.role, ctx.now, api.scheduler);
-      }, { action: "patch.settings", objectId: "workspace", summary: "Synthetic workspace operation" }));
+      }, { action: "patch.settings", objectId: "workspace", summary: "Change to sample data." }));
     }],
     ["POST", /^\/v1\/exports$/, (_p, query, raw) => {
       const body = S.CreateExportBody.parse(raw);
@@ -341,7 +341,7 @@ export function installFakeApi(options: { now?: string; role?: string; queuedExp
         const checksum = canonicalDigest({ kind: body.kind, format: body.format, customerId: body.customerId ?? null, at: ctx.now, records: state.records.length });
         const record = makeRecord(state, "exports", { name: `${recordTypesName(body.kind)} (${body.format.toUpperCase()})`, status: "ready", customerId: body.customerId ?? "", createdAt: ctx.now, data: { kind: body.kind, format: body.format, checksum, usedInRealCase: false, byteLength: 0, generationMs: 0, synthetic: true,...(review?{closeReviewId:review.id,closeSnapshotDigest:review.data.snapshotDigest}:{}) } });
         return { id: record.id, downloadUrl: `/api/v1/exports/${record.id}/download?merchantId=${merchantId}`, checksum, generatedAt: ctx.now };
-      }, { action: "post.exports", objectId: "workspace", summary: "Synthetic workspace operation" }));
+      }, { action: "post.exports", objectId: "workspace", summary: "Change to sample data." }));
     }],
     ["GET", /^\/v1\/exports\/(?<id>[^/]+)$/, ({id}, query) => {
       const record=states.get(merchantOf(query))!.records.find(record=>record.kind==='exports'&&record.id===id);
