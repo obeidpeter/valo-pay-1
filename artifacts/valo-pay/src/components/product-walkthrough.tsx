@@ -44,9 +44,9 @@ const screens = [
     path: "/credit-desk",
     title: "Put the evidence beside the recommendation",
     description:
-      "Check evidence quality, affordability and what drives the score. See how a different person records the review and the explanation for the applicant.",
+      "Check evidence quality, affordability and what drives the score. See how a reviewer, not the person who prepared the assessment, records the review and the explanation for the applicant.",
     exercise:
-      "Grant Read applicant accounts and Assess an application, then compare the sample evidence.",
+      "Grant the two permissions, Read applicant accounts and Assess an application. Then compare the sample evidence.",
     boundary:
       "The sample rule score is not validated. No real loan is approved or paid out.",
   },
@@ -59,7 +59,7 @@ const screens = [
     description:
       "Explore cash positions and forecast scenarios for a sample business. Then review accounting drafts, VAT evidence and payroll funding.",
     exercise:
-      "Grant Read business accounts, then set up the sample Cash Desk.",
+      "Grant the Read business accounts permission. Then set up the sample Cash Desk.",
     boundary: "No live bank feeds, posting to accounting software, tax filing or payouts.",
   },
 ];

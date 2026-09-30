@@ -32,7 +32,7 @@ export const publicWorkspaces = [
     lead: "Follow the payment through.",
     description:
       "Try a one-time checkout. See the customer authorise it at their bank, then follow the payment into reconciliation.",
-    details: ["Checkout for an exact amount", "Payment confirmation", "Refund review"],
+    details: ["Checkout for an exact amount", "Payment confirmed", "Refund review"],
     preview: "Authorisation is only the beginning",
     note: "Returning from a bank screen does not mean a payment has been confirmed.",
   },
@@ -214,7 +214,7 @@ export function WorkspaceShowcase() {
               <li className="is-current">
                 <CircleDot aria-hidden="true" />
                 <span>
-                  <strong>Payment confirmation</strong>
+                  <strong>Payment confirmed</strong>
                   <small>Only a confirmed payment can be matched.</small>
                 </span>
               </li>
