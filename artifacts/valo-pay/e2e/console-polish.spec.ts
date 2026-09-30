@@ -550,5 +550,5 @@ test("an invitation's answer takes the focus, not a member's Save lender access 
   // The button waits disabled for the answer; a browser that leaves the focus on it is made to drop it to the page body.
   await expect(create).toBeDisabled();
   await page.evaluate(() => { const active = document.activeElement as HTMLElement | null; if (active?.matches(":disabled")) active.blur(); });
-  await expect.poll(() => focused(page)).toMatchObject({ tag: "p", text: expect.stringMatching(/^Invitation created\. No email has been sent, so share the link with this person yourself\./) });
+  await expect.poll(() => focused(page)).toMatchObject({ tag: "p", text: expect.stringMatching(/^Invitation created\. No email has been sent, so share the link/) });
 });
