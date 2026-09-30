@@ -45,15 +45,15 @@ export default function TeamInvitePage() {
           Accept your invitation
         </h1>
         <p className="max-w-3xl text-sm text-muted-foreground">
-          Sign in with the email address your invitation was sent to. Valo Pay
-          checks your organisation membership and your role separately.
+          Sign in with the email address the invitation is for. Valo Pay checks
+          your organisation membership and your role separately.
         </p>
       </header>
       <PilotPanel title="Confirm your access">
         {!completeLink ? (
           <div id="invitation-link-problem" role="alert" className="space-y-2 rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm">
             <p className="font-medium">This invitation link is incomplete or invalid.</p>
-            <p>Open the full link the Admin sent you again. If it still does not work, ask them for a new invitation.</p>
+            <p>Open the full link again, exactly as the Admin sent it. If it still does not work, ask them for a new invitation.</p>
           </div>
         ) : (
           <>

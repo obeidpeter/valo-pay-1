@@ -165,8 +165,8 @@ function Unavailable({ action }: { action: "sign in" | "create an account" }) {
       </span>
       <h2 id="unavailable-title">Sign-in is unavailable here</h2>
       <p>
-        You cannot {action} at this address. Open the sandbox to try Valo Pay
-        without an account.
+        You cannot {action} at this address. If you were invited to a team, ask
+        the Admin who invited you which address to use.
       </p>
       <div className="auth-sandbox-note">
         <Sparkles aria-hidden="true" />

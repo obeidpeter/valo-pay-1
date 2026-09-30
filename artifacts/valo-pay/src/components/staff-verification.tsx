@@ -23,9 +23,9 @@ export function VerifiedSession() {
   return (
     <div className="space-y-3">
       <p className="text-sm text-muted-foreground">
-        Choose the organisation you were invited to. Select Open account
-        security to set up two-step verification. Then select Verify identity
-        before you make a change.
+        Choose your organisation. Select Open account security to set up
+        two-step verification. Then select Verify identity before you make a
+        change.
       </p>
       <div className="flex flex-wrap items-center gap-3">
         <OrganizationSwitcher hidePersonal />

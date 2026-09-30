@@ -27,7 +27,7 @@ for (const [name, fragment] of [
   renderApp(`/team-invite${fragment}`);
   const problem = await screen.findByRole("alert");
   expect(problem.textContent).toContain("This invitation link is incomplete or invalid.");
-  expect(problem.textContent).toContain("Open the full link the Admin sent you again.");
+  expect(problem.textContent).toContain("Open the full link again, exactly as the Admin sent it.");
   expect(problem.textContent).toContain("ask them for a new invitation");
   const accept = screen.getByRole("button", { name: "Accept invitation" }) as HTMLButtonElement;
   expect(accept.disabled).toBe(true);

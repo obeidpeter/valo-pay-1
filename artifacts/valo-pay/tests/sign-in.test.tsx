@@ -23,7 +23,7 @@ describe("sign-in pages without Clerk", () => {
     ).toBeTruthy();
     expect(
       screen.getByText(
-        "You cannot sign in at this address. Open the sandbox to try Valo Pay without an account.",
+        "You cannot sign in at this address. If you were invited to a team, ask the Admin who invited you which address to use.",
       ),
     ).toBeTruthy();
     expect(screen.queryByRole("textbox")).toBeNull();
@@ -69,7 +69,7 @@ describe("sign-in pages without Clerk", () => {
     ).toBeTruthy();
     expect(
       screen.getByText(
-        "You cannot create an account at this address. Open the sandbox to try Valo Pay without an account.",
+        "You cannot create an account at this address. If you were invited to a team, ask the Admin who invited you which address to use.",
       ),
     ).toBeTruthy();
     expect(
