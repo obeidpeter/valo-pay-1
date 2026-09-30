@@ -41,7 +41,7 @@ export function DailyCloseStatus({ value, showHistory = false }: { value: unknow
   }
   return <div className="space-y-1 text-xs">
     <p className={warning ? 'font-medium text-destructive' : 'text-muted-foreground'}>{message}</p>
-    {showHistory && <p className="text-muted-foreground">Last daily close: {typeof schedule?.lastAt === 'string' ? `${formatDate(schedule.lastAt)} (${schedule.lastTrigger === 'scheduled' ? 'automatic' : 'run by hand'})` : 'Not closed yet'}.</p>}
+    {showHistory && <p className="text-muted-foreground">Last daily close: {typeof schedule?.lastAt === 'string' ? `${formatDate(schedule.lastAt)} (${schedule.lastTrigger === 'scheduled' ? 'started automatically' : 'run by hand'})` : 'Not closed yet'}.</p>}
     {typeof schedule?.lastCheckedAt === 'string' && <p className="text-muted-foreground">Automatic closes last checked: {formatDate(schedule.lastCheckedAt)}.</p>}
     {schedule?.serviceIssue === 'failed' && typeof schedule.lastErrorAt === 'string' && <p className="text-muted-foreground">Last failed check: {formatDate(schedule.lastErrorAt)}.</p>}
   </div>;

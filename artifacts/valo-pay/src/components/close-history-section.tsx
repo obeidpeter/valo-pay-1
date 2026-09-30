@@ -111,7 +111,7 @@ function CloseEvidence({ close }: { close: ValopayRecord }) {
               }}
             />
           ) : query.isLoading ? (
-            <p role="status">Loading close evidence…</p>
+            <p role="status">Loading close details…</p>
           ) : report ? (
             <dl className="space-y-3">
               {measures.map(([label, value]) => (
@@ -125,7 +125,7 @@ function CloseEvidence({ close }: { close: ValopayRecord }) {
             <p>Detailed reports were not available when this close ran.</p>
           )}
           {query.data?.data?.positionAlert === true && (
-            <p className="text-destructive">Customer balances need review</p>
+            <p className="text-destructive">Customer balances need review. Open Reconciliation to check them.</p>
           )}
           {!!query.data?.data?.schedule && (
             <p>
@@ -244,7 +244,7 @@ export function CloseHistorySection({ active }: { active: boolean }) {
         )}
         {validation.error ? (
           <p role="alert" className="text-sm text-destructive">
-            The close history is hidden until the date range is corrected.
+            Correct the dates above to see the daily closes.
           </p>
         ) : query.error && !query.data ? (
           <LoadProblem
