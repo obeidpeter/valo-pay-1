@@ -103,7 +103,7 @@ test("a failed background refresh keeps the open draft and says the workspace co
   expect(outage.refused()).toBeGreaterThan(0);
   const problem = page.getByRole("status").filter({ hasText: "Your workspace could not be refreshed." });
   await expect(problem).toBeVisible();
-  await expect(problem).toContainText("Operations");
+  await expect(problem).toContainText("Request history");
   await expect(dialog).toBeVisible();
   await expect(dialog.getByLabel(/^Full name/)).toHaveValue("Draft customer typed before the outage");
   await expect(page.getByText("No lender data has been changed.")).toHaveCount(0);
