@@ -200,7 +200,7 @@ export default function MandatesPage() {
         <Button kind="mandates" onClick={() => setIsCreateOpen(true)}>Add mandate</Button>
       </header>
 
-      <QueueSearch /><SavedQueueViews queue="mandates" views={mandateViews} fallback="all" />
+      <QueueSearch help="Your view still applies." /><SavedQueueViews queue="mandates" views={mandateViews} fallback="all" />
 
       <div className="bg-card border rounded-xl shadow-sm overflow-hidden flex flex-col">
         {targetId ? <div className="flex flex-wrap items-center justify-between gap-3 border-b p-4"><p className="text-sm font-medium">Selected mandate</p><Button size="sm" variant="outline" onClick={leaveSelectedRecord}>Show all mandates</Button></div> : <div className="border-b p-4">

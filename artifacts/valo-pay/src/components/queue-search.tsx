@@ -5,7 +5,7 @@ import { useWorkspace } from "@/lib/workspace-context";
 export function QueueSearch({
   label = "Search this queue",
   placeholder = "Customer name or reference",
-  help = "Status and owner filters still apply.",
+  help = "Your filters still apply.",
   pagePrefixes = [],
 }: {
   label?: string;

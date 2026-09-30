@@ -105,7 +105,7 @@ export default function ExceptionsPage() {
         <p className="mt-1">{resolved.message}</p>
       </section>}
 
-      <QueueSearch /><SavedQueueViews queue="exceptions" views={exceptionViews} fallback="open" />
+      <QueueSearch help="Your view, team and type filters still apply." /><SavedQueueViews queue="exceptions" views={exceptionViews} fallback="open" />
 
       <div className="bg-card border rounded-xl shadow-sm overflow-hidden flex flex-col">
         {targetId ? <div className="flex flex-wrap items-center justify-between gap-3 border-b p-5"><p className="text-sm font-medium">Selected exception</p><Button size="sm" variant="outline" onClick={leaveSelectedRecord}>Show all exceptions</Button></div> : <div className="p-5 border-b flex flex-wrap items-center gap-4">

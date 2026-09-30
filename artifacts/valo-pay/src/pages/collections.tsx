@@ -120,7 +120,7 @@ export default function CollectionsPage() {
 
       <QueueFreshness key={merchantId} queries={[queue]} />
 
-      <QueueSearch /><SavedQueueViews queue="collections" views={collectionViews} fallback="all" />
+      <QueueSearch help="Your view and Collected by filters still apply." /><SavedQueueViews queue="collections" views={collectionViews} fallback="all" />
 
       {actionError && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm">{actionError}</p>}
       <div className="flex flex-col gap-6">
