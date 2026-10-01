@@ -401,7 +401,7 @@ describe('a page that fails to load', () => {
     api.mutate((state, ctx) => { for (let index = 0; index < 60; index++) saveImportBatch(state, ctx, { name: `Paged batch ${index}`, kind: 'customers', source: 'Pilot sample', sourceBatchId: `paged-${index}`, csv: `source_row_id,name,reference\nrow-${index},Paged customer ${index},PAGED-${index}`, mapping: {}, amountUnit: 'naira', identityColumn: 'source_row_id', syntheticOnly: true }); });
     const user = userEvent.setup();
     renderApp('/imports');
-    await failingNext(user, await screen.findByRole('button', { name: 'Next batches' }, { timeout: 10_000 }), /^\/v1\/pilot\/batches$/, /^The service is unavailable for a moment\./);
+    await failingNext(user, await screen.findByRole('button', { name: 'Next batches' }, { timeout: 10_000 }), /^\/v1\/pilot\/batches$/, /^We could not load import batchesThe service is unavailable for a moment\./);
   }, 30_000);
 
   it('moves focus to the notice that replaced a picker\'s pager, inside its dialog', async () => {
@@ -541,6 +541,6 @@ describe('the notice of the list whose page failed', () => {
     api.mutate((state, ctx) => { for (let index = 0; index < 60; index++) { const { id } = queueExport(state, ctx, { kind: 'customers', format: 'csv' }, 'sample/private'); const job = state.records.find(record => record.id === id)!; job.status = 'failed'; job.data.error = 'Sample failure.'; } });
     const user = userEvent.setup();
     renderApp('/exports');
-    await tryAgain(user, await screen.findByRole('button', { name: 'Next exports' }, { timeout: 10_000 }), /^\/v1\/records\/exports$/, /^The service is unavailable for a moment\./, () => screen.findByText(/^26–50 of \d+$/));
+    await tryAgain(user, await screen.findByRole('button', { name: 'Next exports' }, { timeout: 10_000 }), /^\/v1\/records\/exports$/, /^We could not load the export historyThe service is unavailable for a moment\./, () => screen.findByText(/^26–50 of \d+$/));
   }, 30_000);
 });
