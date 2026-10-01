@@ -10,7 +10,7 @@ export const limitations=[
   "Two design-partner lenders: 2 qualifying signed contracts and a confirmed collection transfer for each instalment are still needed.",
   "Text messages are simulated. There is no live Nigerian text message route yet, no do-not-disturb support and no evidence that a provider accepts the messages.",
   "Valo Pay keeps its current software. Its hosting, security and performance are not yet approved for live use.",
-  "Team member access that expires, optional field encryption and a signed Paystack test inbox are built and tested with sample data. Their live set-up and provider acceptance are not yet verified. Still to build: sending and scheduling live collection instructions, secure deletion of keys, and storage that cannot be deleted early.",
+  "Team member access that expires, optional field encryption and a signed Paystack test inbox are built and tested with sample data. Their live set-up and provider acceptance are not yet verified. Not yet available: sending and scheduling live collection instructions, secure deletion of keys, and storage that cannot be deleted early.",
   "Load capacity, uptime, backup restoration, message delivery and live response times are not yet certified. Sample results cannot pass the recovery test, the list-price test or the operational test.",
 ];
 /** The readiness gates: prerequisites and decisions, always unproven on synthetic data. */
