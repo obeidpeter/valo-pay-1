@@ -54,7 +54,8 @@ describe('renewed reversal reviews', () => {
     const row = (await screen.findByText('Earlier decision recorded without a rule version.')).closest('tr')!;
     const button = within(row).getByRole('button', { name: 'Resolve exception' });
     expect(button.getAttribute('aria-disabled')).toBe('true');
-    expect(reasonFor(button)).toBe('Only Admin or Finance can record a second review of an earlier reversal decision.');
+    // The same words as the service's refusal above, without the reader's role, which the bar shows.
+    expect(reasonFor(button)).toBe('Only Admin or Finance can resolve a reversal review.');
     await userEvent.setup().click(button);
     expect(screen.queryByRole('dialog')).toBeNull();
     for (const role of ['Finance', 'Admin']) expect(resolve(role)).toBe('accepted');

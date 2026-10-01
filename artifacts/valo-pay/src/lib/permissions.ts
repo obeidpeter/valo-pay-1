@@ -146,7 +146,7 @@ export function permissionReason(workspace: ActingWorkspace, { action, kind, rec
   // Confirming a pay-by-bank payment whose outcome stayed unknown records a receipt, so Finance records it.
   if (action === 'resolve_exception' && record?.data?.linkedKind === 'connected-intents' && !['Admin', 'Finance'].includes(workspace.role)) return onlyRoles(['Admin', 'Finance'], 'record the outcome of a Pay by Bank payment', reader);
   // Reconciliation raises a renewed review of an earlier reversal decision for Finance, and only Finance or an administrator resolves it.
-  if (action === 'resolve_exception' && record?.data?.legacyResolutionReview && !['Admin', 'Finance'].includes(workspace.role)) return onlyRoles(['Admin', 'Finance'], 'record a second review of an earlier reversal decision', reader);
+  if (action === 'resolve_exception' && record?.data?.legacyResolutionReview && !['Admin', 'Finance'].includes(workspace.role)) return onlyRoles(['Admin', 'Finance'], 'resolve a reversal review', reader);
   if (!action && ['templates', 'policies'].includes(kind || '') && record && !['draft', 'rejected'].includes(record.status || '')) {
     return 'You cannot edit a submitted or approved version. Select Draft next version to change it.';
   }
