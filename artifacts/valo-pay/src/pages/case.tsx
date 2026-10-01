@@ -233,7 +233,7 @@ function CaseWork({ data, refresh }: { data: any; refresh(): Promise<any> }) {
                 : "Not set"}
             </dd>
           </dl>
-          <p className="text-sm text-muted-foreground">{record.data.notes}</p>
+          <p className="text-sm text-muted-foreground whitespace-pre-line">{record.data.notes}</p>
           <Link
             href={`/exceptions?${new URLSearchParams({ record: record.id, ...(merchantId ? { lender: merchantId } : {}) })}#record-${record.id}`}
             className="inline-block text-sm text-primary underline"

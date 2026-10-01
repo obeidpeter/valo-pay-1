@@ -269,12 +269,12 @@ export default function ReportsPage() {
                       {discrepancyRows(reports.billing).map(line => (
                         <tbody key={String(line.invoiceId)} className="border-b border-border/60 last:border-0">
                           <tr><td className="pt-2 pr-2">{String(line.invoiceReference)}</td><td className="pt-2 pr-2">{String(line.period)}</td><td className="pt-2 pr-2">{rateText(line.chargedRate)}</td><td className="pt-2 pr-2">{rateText(line.agreedRate)}</td></tr>
-                          {!!line.explanation && <tr><td colSpan={4} className="pb-2 pr-2 font-sans text-muted-foreground [overflow-wrap:anywhere]">{String(line.explanation)}</td></tr>}
+                          {!!line.explanation && <tr><td colSpan={4} className="pb-2 pr-2 font-sans text-muted-foreground whitespace-pre-line [overflow-wrap:anywhere]">{String(line.explanation)}</td></tr>}
                         </tbody>
                       ))}
                     </table>
                   </ScrollFrame>
-                  <p>{String(reports.billing?.rateDiscrepancyGuidance || 'Issued invoices cannot be changed. Agree any difference with the lender outside Valo Pay.')}</p>
+                  <p className="whitespace-pre-line">{String(reports.billing?.rateDiscrepancyGuidance || 'Issued invoices cannot be changed. Agree any difference with the lender outside Valo Pay.')}</p>
                 </div>}
                 <ReportDisclosure title="Billing rates and rules">
                   <dl className="space-y-3 text-xs">

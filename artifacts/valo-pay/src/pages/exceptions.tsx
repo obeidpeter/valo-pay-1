@@ -197,7 +197,7 @@ export default function ExceptionsPage() {
                         </div>
                       )}
                       {!!exception.data?.notes && (
-                        <p className="max-w-sm text-xs leading-relaxed text-muted-foreground mt-2">{String(exception.data.notes)}</p>
+                        <p className="max-w-sm text-xs leading-relaxed text-muted-foreground mt-2 whitespace-pre-line">{String(exception.data.notes)}</p>
                       )}
                     </td>
                     <td className="px-6 py-4 text-right space-x-2">

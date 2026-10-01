@@ -15,6 +15,19 @@ afterEach(() => api.uninstall());
 const inOneLine = (notes: unknown) => String(notes).replace(/\s+/g, ' ').trim();
 
 describe("exceptions", () => {
+  it("shows a note's choices each on its own line, on the list and on the case", async () => {
+    const notes = "The outcome of this payment is unknown.\nResolve this exception as one of these:\nConfirmed successful: the money arrived.\nConfirmed failed: the money did not arrive.\nEither way, the checkout stops holding the instalment.";
+    const exception = api.mutate(state => { const record = state.records.find(item => item.kind === "exceptions" && item.status === "open")!; record.data.notes = notes; return record; });
+    renderApp("/exceptions");
+    const listed = await screen.findByText(inOneLine(notes));
+    // The text keeps its line breaks, and the paragraph shows them as lines.
+    expect(listed.textContent).toBe(notes);
+    expect(listed.className).toContain("whitespace-pre-line");
+    renderApp(`/cases/${exception.id}`);
+    const onCase = (await screen.findAllByText(inOneLine(notes))).find(element => element !== listed)!;
+    expect(onCase.className).toContain("whitespace-pre-line");
+  });
+
   it('keeps Compliance review available without offering a generic exception edit or create', async () => {
     api.role = 'Compliance reviewer';
     renderApp('/exceptions');
