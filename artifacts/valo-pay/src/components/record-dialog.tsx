@@ -25,10 +25,10 @@ const actionLabels: Record<string, string> = {
   notify_policy_change: 'Record policy change notice', apply_policy_version: 'Apply policy version',
   submit_policy: 'Submit for review', approve_policy: 'Approve policy', reject_policy: 'Reject policy',
   new_policy_version: 'Draft next version', submit_template: 'Submit for review', approve_template: 'Approve template',
-  reject_template: 'Reject template', new_template_version: 'Draft next version',
+  reject_template: 'Request changes', new_template_version: 'Draft next version',
   confirm_allocation: 'Confirm match', reject_allocation: 'Reject match', manual_allocate: 'Allocate payment',
-  review_allocation: 'Save review', resolve_exception: 'Resolve exception', record_refund: 'Record external refund', release_dispute: 'Release from dispute',
-  simulate_failure: 'Simulate failure', backtest_policy: 'Test policy',
+  review_allocation: 'Save review', resolve_exception: 'Resolve exception', record_refund: 'Record refund', release_dispute: 'Release from dispute',
+  simulate_failure: 'Simulate failed collection attempt', backtest_policy: 'Test policy',
   preregister_experiment: 'Register experiment plan', hand_back: 'Return collection', issue_invoice: 'Issue invoice', confirm_discount_terms: 'Confirm discount dates',
 };
 /** Each default submit button while its request runs, repeating its verb (docs/design/writing.md, Buttons and links). */
@@ -38,12 +38,14 @@ const busyLabels: Record<string, string> = {
   notify_policy_change: 'Recording policy change notice…', apply_policy_version: 'Applying policy version…',
   submit_policy: 'Submitting for review…', approve_policy: 'Approving policy…', reject_policy: 'Rejecting policy…',
   new_policy_version: 'Drafting next version…', submit_template: 'Submitting for review…', approve_template: 'Approving template…',
-  reject_template: 'Rejecting template…', new_template_version: 'Drafting next version…',
+  reject_template: 'Requesting changes…', new_template_version: 'Drafting next version…',
   confirm_allocation: 'Confirming match…', reject_allocation: 'Rejecting match…', manual_allocate: 'Allocating payment…',
-  review_allocation: 'Saving review…', resolve_exception: 'Resolving exception…', record_refund: 'Recording external refund…', release_dispute: 'Releasing from dispute…',
-  simulate_failure: 'Simulating failure…', backtest_policy: 'Testing policy…',
+  review_allocation: 'Saving review…', resolve_exception: 'Resolving exception…', record_refund: 'Recording refund…', release_dispute: 'Releasing from dispute…',
+  simulate_failure: 'Simulating failed collection attempt…', backtest_policy: 'Testing policy…',
   preregister_experiment: 'Registering experiment plan…', hand_back: 'Returning collection…', issue_invoice: 'Issuing invoice…', confirm_discount_terms: 'Confirming discount dates…',
 };
+/** The dismiss button of a form whose action itself cancels something keeps that thing (docs/design/writing.md, Buttons and links). */
+const dismissLabels: Record<string, string> = { mandate_cancel: 'Keep mandate' };
 
 type FieldDef = {
   name: string;
@@ -392,7 +394,7 @@ export function RecordDialog({ kind, record, isOpen, onOpenChange, fields: sourc
             </section>}
             </fieldset>
             <div className="flex justify-end gap-2 mt-4 pt-4 border-t">
-              <Button type="button" variant="outline" disabled={isPending} onClick={() => changeOpen(false)}>{hasUnconfirmedOutcome ? 'Close' : 'Cancel'}</Button>
+              <Button type="button" variant="outline" disabled={isPending} onClick={() => changeOpen(false)}>{hasUnconfirmedOutcome ? 'Close' : (actionMutation && dismissLabels[actionMutation]) || 'Cancel'}</Button>
               <Button type="submit" disabled={!!blockedReason || hasUnconfirmedOutcome} busy={isPending} busyLabel={(typeof busyWords === 'function' ? busyWords(formData) : busyWords) ?? (actionMutation ? busyLabels[actionMutation] || 'Confirming action…' : 'Saving…')}>{(typeof submitLabel === 'function' ? submitLabel(formData) : submitLabel) ?? (actionMutation ? actionLabels[actionMutation] || 'Confirm action' : 'Save')}</Button>
             </div>
           </form>

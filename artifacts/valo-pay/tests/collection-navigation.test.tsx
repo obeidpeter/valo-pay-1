@@ -140,6 +140,21 @@ describe('mandate change confirmations', () => {
     expect(api.state().records.find(record => record.id === attemptId)?.status).toBe('cancelled');
   });
 
+  it('dismisses a mandate cancellation with Keep mandate, which leaves the mandate as it was', async () => {
+    const user = userEvent.setup();
+    const mandate = api.state().records.find(record => record.kind === 'mandates' && record.status === 'active')!;
+    renderApp(`/mandates?record=${mandate.id}`);
+    const row = (await screen.findByText(mandate.reference)).closest('tr')!;
+    await user.click(within(row).getByRole('button', { name: 'Cancel mandate' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Cancel mandate' });
+    expect(within(dialog).getByRole('button', { name: 'Cancel mandate' })).toBeTruthy();
+    expect(within(dialog).queryByRole('button', { name: 'Cancel' })).toBeNull();
+    await user.click(within(dialog).getByRole('button', { name: 'Keep mandate' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Cancel mandate' })).toBeNull());
+    expect(api.calls.some(call => call.path === '/v1/actions' && (call.body as any)?.action === 'mandate_cancel')).toBe(false);
+    expect(api.state().records.find(record => record.id === mandate.id)?.status).toBe('active');
+  });
+
   it('explains reissue as a new mandate and requires fresh consent instead of prefilling old evidence', async () => {
     const user = userEvent.setup();
     const mandate = api.state().records.find(record => record.kind === 'mandates' && record.status === 'pending_activation')!;
