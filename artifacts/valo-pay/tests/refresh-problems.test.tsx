@@ -19,14 +19,14 @@ const text = (selector: string) => () => document.querySelector(selector)?.textC
 
 describe("failed background refresh", () => {
   it.each([
-    ["/overview", /^\/v1\/overview$/, "Overview", "The overview could not be refreshed.", text('section[aria-labelledby="overview-metrics-title"]')],
-    ["/reports", /^\/v1\/reports$/, "Reports", "Reports could not be refreshed.", text('section[aria-label="Totals"]')],
-    ["/reports", /^\/v1\/close-history$/, "Reports", "The close history could not be refreshed.", text("#daily-closes")],
-    ["/settings", /^\/v1\/settings$/, "Settings", "Collection settings could not be refreshed.", () => screen.queryByRole("heading", { name: "Collection settings" })?.closest("section")?.textContent],
-    ["/credit-desk", /^\/v1\/connected$/, "Credit Desk", "Credit Desk could not be refreshed.", text(".connected-page")],
-    ["/pay-by-bank", /^\/v1\/connected$/, "Pay by Bank", "Pay by Bank could not be refreshed.", text(".connected-page fieldset")],
-    ["/cash-desk", /^\/v1\/connected$/, "Cash Desk", "Cash Desk could not be refreshed.", text(".connected-page fieldset")],
-    ["/connections", /^\/v1\/connected$/, "Permissions and readiness", "Permissions and readiness could not be refreshed.", text(".connected-page fieldset")],
+    ["/overview", /^\/v1\/overview$/, "Overview", "We could not refresh the overview.", text('section[aria-labelledby="overview-metrics-title"]')],
+    ["/reports", /^\/v1\/reports$/, "Reports", "We could not refresh the reports.", text('section[aria-label="Totals"]')],
+    ["/reports", /^\/v1\/close-history$/, "Reports", "We could not refresh the close history.", text("#daily-closes")],
+    ["/settings", /^\/v1\/settings$/, "Settings", "We could not refresh the collection settings.", () => screen.queryByRole("heading", { name: "Collection settings" })?.closest("section")?.textContent],
+    ["/credit-desk", /^\/v1\/connected$/, "Credit Desk", "We could not refresh Credit Desk.", text(".connected-page")],
+    ["/pay-by-bank", /^\/v1\/connected$/, "Pay by Bank", "We could not refresh Pay by Bank.", text(".connected-page fieldset")],
+    ["/cash-desk", /^\/v1\/connected$/, "Cash Desk", "We could not refresh Cash Desk.", text(".connected-page fieldset")],
+    ["/connections", /^\/v1\/connected$/, "Permissions and readiness", "We could not refresh Permissions and readiness.", text(".connected-page fieldset")],
   ])("%s keeps its figures when %s fails to refresh", async (route, request, heading, notice, figures) => {
     const user = userEvent.setup();
     renderApp(route);
@@ -54,7 +54,7 @@ describe("failed background refresh", () => {
     await user.type(screen.getByLabelText("Lender contact details for customer notices"), " until Friday");
     api.failNext(/^\/v1\/settings$/, "offline");
     await act(async () => { await queryClient.refetchQueries({ type: "active" }); });
-    await screen.findByText("Collection settings could not be refreshed.");
+    await screen.findByText("We could not refresh the collection settings.");
     expect(screen.getByDisplayValue(/until Friday$/)).toBeTruthy();
     expect(screen.queryByText("We could not load collection settings")).toBeNull();
   });
@@ -63,6 +63,6 @@ describe("failed background refresh", () => {
     api.failNext(/^\/v1\/overview$/, { status: 503, error: "Valo Pay is busy. Try again in a moment." });
     renderApp("/overview");
     expect(await screen.findByText("We could not load the overview")).toBeTruthy();
-    expect(screen.queryByText("The overview could not be refreshed.")).toBeNull();
+    expect(screen.queryByText("We could not refresh the overview.")).toBeNull();
   });
 });

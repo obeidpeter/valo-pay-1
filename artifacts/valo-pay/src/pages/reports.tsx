@@ -190,7 +190,7 @@ export default function ReportsPage() {
         <LoadProblem what="reports" error={reportsError} retry={() => { void refetch(); }} busy={fetchingReports} />
       ) : (
         <div className="space-y-6">
-          <RefreshProblem what="Reports" query={reportsQuery} />
+          <RefreshProblem what="the reports" query={reportsQuery} />
           <p className="text-xs text-muted-foreground">{view === 'operations' ? `Current totals for this lender${reports.operational?.asOf ? ` as at ${formatDate(String(reports.operational.asOf))}` : ''}.` : view === 'billing' ? `Billing month: ${String(reports.billing?.period || 'not recorded')}. Amounts are in naira unless another currency is named.` : `Accuracy sample: ${String((reports.operational?.precisionAudit as any)?.month || 'completed month')}.`} All figures use sample data.</p>
           <section hidden={view !== 'operations'} aria-label="Totals" className={view === 'operations' ? 'grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4' : ''}>
             {reports.metrics.map(metric => (

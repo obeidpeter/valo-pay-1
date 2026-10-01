@@ -62,7 +62,7 @@ describe("workspace", () => {
 async function refreshWorkspace() {
   await act(async () => { await queryClient.refetchQueries({ queryKey: ["workspace"] }); });
 }
-const refreshNotice = () => (screen.queryByText("Your workspace could not be refreshed.")?.closest('[role="status"]') ?? null) as HTMLElement | null;
+const refreshNotice = () => (screen.queryByText("We could not refresh your workspace.")?.closest('[role="status"]') ?? null) as HTMLElement | null;
 
 describe("a failed background refresh of the workspace", () => {
   it("keeps the page and an open draft, says the workspace could not be refreshed and points to Request history", async () => {

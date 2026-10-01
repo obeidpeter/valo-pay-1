@@ -279,7 +279,7 @@ export default function SettingsPage() {
       </section>}
 
       {/* Collection settings: a failed refresh keeps them, and any draft, on the page with a notice. */}
-      <RefreshProblem what="Collection settings" shown="settings" query={settingsQuery} />
+      <RefreshProblem what="the collection settings" shown="settings" query={settingsQuery} />
       {isLoading ? (
         <Loading what="settings" className="bg-card border rounded-xl" />
       ) : !settings ? (

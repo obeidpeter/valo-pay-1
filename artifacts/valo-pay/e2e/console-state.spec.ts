@@ -101,7 +101,7 @@ test("a failed background refresh keeps the open draft and says the workspace co
   const outage = await breakWorkspace(page, 502);
   await passRefresh(page);
   expect(outage.refused()).toBeGreaterThan(0);
-  const problem = page.getByRole("status").filter({ hasText: "Your workspace could not be refreshed." });
+  const problem = page.getByRole("status").filter({ hasText: "We could not refresh your workspace." });
   await expect(problem).toBeVisible();
   await expect(problem).toContainText("Request history");
   await expect(dialog).toBeVisible();
@@ -121,7 +121,7 @@ test("Try again on a failed refresh's notice refreshes the workspace at once", a
   await expect(page.getByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
   const outage = await breakWorkspace(page, 502);
   await passRefresh(page);
-  const problem = page.getByRole("status").filter({ hasText: "Your workspace could not be refreshed." });
+  const problem = page.getByRole("status").filter({ hasText: "We could not refresh your workspace." });
   await expect(problem).toBeVisible();
   await expect(page.getByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
   await outage.restore();
@@ -148,7 +148,7 @@ test("a save whose answer was lost keeps its recovery through a failed refresh",
 
   const outage = await breakWorkspace(page, 502);
   await passRefresh(page);
-  const problem = page.getByRole("status").filter({ hasText: "Your workspace could not be refreshed." });
+  const problem = page.getByRole("status").filter({ hasText: "We could not refresh your workspace." });
   await expect(problem).toBeVisible();
   await expect(problem.getByRole("link", { name: "Request history" })).toHaveAttribute("href", "/operations");
   await expect(dialog.getByText("Request not confirmed", { exact: true })).toBeVisible();
@@ -167,7 +167,7 @@ test("a 429 on the refresh keeps the page and waits as long as the service asks"
   const limited = await breakWorkspace(page, 429, { "Retry-After": "120" });
   await passRefresh(page);
   expect(limited.refused()).toBe(1);
-  const problem = page.getByRole("status").filter({ hasText: "Your workspace could not be refreshed." });
+  const problem = page.getByRole("status").filter({ hasText: "We could not refresh your workspace." });
   await expect(problem).toBeVisible();
   await expect(problem).toContainText("Too many requests. Try again in 1 minute.");
   await expect(dialog.getByLabel(/^Full name/)).toHaveValue("Half-written customer");

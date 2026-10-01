@@ -66,7 +66,7 @@ export default function OverviewPage() {
     <div className="space-y-6 animate-in fade-in duration-500 motion-reduce:animate-none">
       <OverviewHeader />
 
-      <RefreshProblem what="The overview" query={overviewQuery} />
+      <RefreshProblem what="the overview" query={overviewQuery} />
 
       <GetStarted overview={overview} />
 

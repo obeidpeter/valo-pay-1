@@ -95,7 +95,7 @@ function refreshReason(error: unknown): string {
 /**
  * A refresh of the workspace on the screen that failed: the pages, their
  * forms and dialogs, drafts and requests waiting to be confirmed all stay,
- * and this notice above the page says the workspace could not be refreshed,
+ * and this notice above the page says we could not refresh the workspace,
  * why, when what is shown was loaded, and when the next automatic refresh is
  * if the service asked for a wait. It claims nothing about what changed: a
  * save whose answer was lost is checked in Operations, which it links to.
@@ -108,7 +108,7 @@ export function WorkspaceRefreshProblem({ failure, staff = false }: { failure: W
   return (
     <div role="status" className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-warning-border bg-warning px-4 py-3 text-xs text-warning-foreground print:hidden">
       <div className="min-w-[min(100%,16rem)] flex-1 space-y-1">
-        <p><span className="font-semibold">Your workspace could not be refreshed.</span> {refreshReason(failure.error)} {updated ? <>Showing the workspace loaded <time dateTime={updated}>{formatDate(updated)}</time>.</> : <>Showing the workspace loaded earlier.</>}{next && <> The next automatic refresh is after <time dateTime={next}>{formatDate(next)}</time>.</>}</p>
+        <p><span className="font-semibold">We could not refresh your workspace.</span> {refreshReason(failure.error)} {updated ? <>Showing the workspace loaded <time dateTime={updated}>{formatDate(updated)}</time>.</> : <>Showing the workspace loaded earlier.</>}{next && <> The next automatic refresh is after <time dateTime={next}>{formatDate(next)}</time>.</>}</p>
         <p>Open pages and forms are kept. If a save was not confirmed, check it in <Link href="/operations" className="font-medium underline underline-offset-2">Request history</Link> before you send it again.</p>
         {staff && [401, 403].includes(status) && <StaffSession />}
       </div>

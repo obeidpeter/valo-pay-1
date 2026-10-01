@@ -25,17 +25,18 @@ export interface RefreshableQuery { data?: unknown; error: unknown; dataUpdatedA
 
 /**
  * A background refresh that failed while earlier figures are on the page: the
- * figures stay, with a small notice that they could not be refreshed, when
- * they were last updated and a way to try again. It renders nothing unless a
+ * figures stay, with a small notice that we could not refresh them, when they
+ * were last updated and a way to try again. It renders nothing unless a
  * refresh failed with data in hand, so a page shows it beside its content and
  * keeps LoadProblem for a first load that failed, when there is nothing to show.
+ * `what` names the thing as it reads mid-sentence: "the overview", "Pay by Bank".
  */
 export function RefreshProblem({ what, shown = 'figures', query }: { what: string; shown?: string; query?: Partial<RefreshableQuery> }) {
   if (!query?.error || query.data === undefined) return null;
   const updated = query.dataUpdatedAt ? new Date(query.dataUpdatedAt).toISOString() : '';
   return (
     <div role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-warning-border bg-warning px-4 py-3 text-xs text-warning-foreground">
-      <p><span className="font-semibold">{what} could not be refreshed.</span> {updated ? <>Showing {shown} last updated <time dateTime={updated}>{formatDate(updated)}</time>.</> : <>Showing the {shown} loaded earlier.</>}</p>
+      <p><span className="font-semibold">We could not refresh {what}.</span> {updated ? <>Showing {shown} last updated <time dateTime={updated}>{formatDate(updated)}</time>.</> : <>Showing the {shown} loaded earlier.</>}</p>
       <Button variant="outline" size="sm" busy={Boolean(query.isFetching)} busyLabel="Trying again…" onClick={() => { void query.refetch?.(); }}>Try again</Button>
     </div>
   );

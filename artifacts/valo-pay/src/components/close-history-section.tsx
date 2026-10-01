@@ -240,7 +240,7 @@ export function CloseHistorySection({ active }: { active: boolean }) {
               : "Loading recorded closes…")}
         </p>
         {!validation.error && (
-          <RefreshProblem what="The close history" shown="closes" query={query} />
+          <RefreshProblem what="the close history" shown="closes" query={query} />
         )}
         {validation.error ? (
           <p role="alert" className="text-sm text-destructive">
