@@ -69,7 +69,7 @@ test("a slow committed customer request recovers its lost response without a sec
   await expect(fullName).toHaveValue(name);
   await expect(loanReference).toBeDisabled();
   await expect(loanReference).toHaveValue(reference);
-  await expect(dialog.getByRole("button", { name: "Save", exact: true })).toBeDisabled();
+  await expect(dialog.getByRole("button", { name: "Add customer", exact: true })).toBeDisabled();
 
   // Declining to abandon the uncertain session preserves the draft and retry.
   const closeWarning = new Promise<string>((resolve) => {
@@ -205,7 +205,7 @@ test("real reconciliation search, recorded rejection, reload persistence and aud
   await page.getByLabel("Search reconciliation").fill("DOES-NOT-EXIST");
   await page.getByRole("button", { name: "Search", exact: true }).click();
   await expect(
-    page.getByText("No results match your search", { exact: true }).first(),
+    page.getByText("No matches to review for this search", { exact: true }).first(),
   ).toBeVisible();
   await expect(page).not.toHaveURL(/proposals-page=/);
   await page.getByRole("button", { name: "Clear search" }).click();
