@@ -52,7 +52,7 @@ export function seedMerchant(id: string, smaller = false): DomainState {
     add("evidence",`${key} · ${name}`,"pending",{gateId:key,reference:"",notes:"External evidence required. Sample records cannot satisfy this gate."},0,"",key);
   }
   add("integrations","Sandbox Rail","simulated",{type:"aggregator",description:"Simulated provider for sample data only. No real provider is connected.",capabilities:["mandate tracking","sample payment evidence"],synthetic:true});
-  add("integrations","SMS route","not_connected",{type:"sms",description:"No messages are sent. Delivery through Nigerian transactional routes, including do-not-disturb rules, must be verified first."});
+  add("integrations","SMS route","not_connected",{type:"sms",description:"No messages are sent. Delivery through Nigerian transactional routes, including do-not-disturb rules, must be checked first."});
   add("integrations","Loan management system","csv_only",{type:"lms",description:"Sample CSV import and outcome export only. No direct connection to the loan management system."});
   return state;
 }

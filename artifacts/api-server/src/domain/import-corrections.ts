@@ -542,7 +542,7 @@ export function decideImportCorrection(
   makeRecord(state, "import-correction-events", {
     name:
       input.action === "approve"
-        ? "Import correction approved and applied"
+        ? "Import correction approved"
         : input.action === "withdraw"
           ? "Import correction withdrawn"
           : "Import correction rejected",
