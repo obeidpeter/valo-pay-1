@@ -46,7 +46,7 @@ async function pdfBytes(title:string,data:unknown,signal?:AbortSignal):Promise<B
 }
 /** A PDF export's title in words: the packs by the names Saved exports gives them, a record kind as its plural. */
 function exportTitle(kind:string):string{
- return kind==="gate-pack"?"Evidence pack":kind==="reviewed-close"?"Reviewed close evidence":kind==="billing"?"Billing statement":recordTypeTitle(kind,2);
+ return kind==="gate-pack"?"Go-live evidence pack":kind==="reviewed-close"?"Reviewed close evidence":kind==="billing"?"Billing statement":recordTypeTitle(kind,2);
 }
 /** The export kinds that are a customer's dispute pack (customer-pack is the older name). */
 export const packKinds=["customer-pack","dispute-pack"] as const;

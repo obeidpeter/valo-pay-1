@@ -132,7 +132,33 @@ function eventTime(record: ValopayRecord): string {
   }
 }
 
-function describe(record: ValopayRecord): { event: string; detail: string } {
+/** How payment evidence was resolved, by its stored key, in words. */
+const resolutionText: Record<string, string> = {
+  provider_reference: "matched to its payment by provider reference",
+  canonical_provider_reference: "added to an existing payment as more evidence of it",
+  new_canonical_provider_reference: "recorded as a new payment",
+  separate_payment_after_review: "recorded as a separate payment after Finance’s review",
+  joined_after_review: "added to its payment after Finance’s review",
+  adopted_after_review: "recorded against its payment after Finance accepted the provider’s status",
+  set_aside_after_review: "set aside after Finance’s review",
+  reversal_set_aside_after_review: "set aside after Finance’s review",
+  settlement_batch_net_credit: "matched to a settlement batch’s amount after fees",
+  batch: "part of a settlement batch",
+};
+/** A record named by its reference, never by its internal ID: the pack's files leave the lender. */
+const referenceOf = (byId: ReadonlyMap<string, ValopayRecord>, id: unknown): string => {
+  const found = byId.get(String(id ?? ""));
+  return text(found?.reference) || text(found?.name) || "not found";
+};
+/** Where evidence was resolved to ("exception:<id>", "batch:<id>"), by the record's reference. */
+const resolvedToText = (byId: ReadonlyMap<string, ValopayRecord>, value: unknown): string => {
+  const [kind, id] = String(value ?? "").split(":");
+  if (kind === "exception") return `exception ${referenceOf(byId, id)}`;
+  if (kind === "batch") return `settlement batch ${referenceOf(byId, id)}`;
+  return text(value);
+};
+
+function describe(record: ValopayRecord, byId: ReadonlyMap<string, ValopayRecord>): { event: string; detail: string } {
   const d = record.data;
   const notice = d.noticeRequired as { purpose?: unknown; requiredBy?: unknown; evidenced?: unknown } | undefined;
   const inputs = d.inputs as { code?: unknown; attemptNumber?: unknown; ceiling?: unknown } | undefined;
@@ -142,7 +168,7 @@ function describe(record: ValopayRecord): { event: string; detail: string } {
     case "mandates": return { event: `Mandate: ${status}`, detail: `Activation method: ${activationText(d.workflow)}; origin: ${valueWords(d.origin)}; consent evidence: ${text(d.consentEvidence) || "none"}${Array.isArray(d.consentGaps) && d.consentGaps.length ? `; missing consent evidence: ${d.consentGaps.join(", ")}` : ""}; debit limit ${kobo(record.amountKobo)}.` };
     case "due-items": return { event: `Instalment ${record.reference}: ${status}`, detail: `Due ${d.dueDate ? dayText(d.dueDate) : "date not recorded"}; collected by ${collectionOwnerText(d.owner)}; outstanding ${kobo(Number(d.outstandingKobo ?? record.amountKobo))}${d.experimentArm ? `; recovery test: ${valueWords(d.experimentArm)}` : ""}${d.amendedAt ? `; corrected ${when(d.amendedAt)}` : ""}.` };
     case "attempts": return { event: `Collection attempt${d.number ? ` ${text(d.number)}` : ""}: ${status}`, detail: `${d.source === "external" ? "Recorded from another collection system" : `Source: ${valueWords(d.source)}`}${d.failureCode ? `; failure: ${valueLabel(d.failureCode)} (${d.failureCode})` : ""}${d.rawFailureCode && d.rawFailureCode !== d.failureCode ? `; code as received: ${d.rawFailureCode}` : ""}${d.providerReference ? `; provider reference ${d.providerReference}` : ""}${d.cancellationReason ? `; ${d.cancellationReason}` : ""}.` };
-    case "observations": return { event: `Payment evidence from ${evidenceSourceText(d.source)}`, detail: `${valueLabel(record.status)}${d.resolutionKey ? `, matched by ${valueWords(d.resolutionKey)}` : ""}${d.paymentId ? `; linked to payment record ${d.paymentId}` : ""}${d.resolvedTo ? `; resolved to ${text(d.resolvedTo)}` : ""}${d.batchReference ? `; settlement batch ${d.batchReference}` : ""}.` };
+    case "observations": return { event: `Payment evidence from ${evidenceSourceText(d.source)}`, detail: `${valueLabel(record.status)}${d.resolutionKey ? `: ${resolutionText[String(d.resolutionKey)] ?? "matched by Valo Pay"}` : ""}${d.paymentId ? `; payment ${referenceOf(byId, d.paymentId)}` : ""}${d.resolvedTo ? `; resolved to ${resolvedToText(byId, d.resolvedTo)}` : ""}${d.batchReference ? `; settlement batch ${d.batchReference}` : ""}.` };
     case "payments": return { event: `Payment ${record.reference}: ${status}`, detail: `Channel: ${valueWords(d.channel)}; collection: ${valueWords(d.collectionStatus)}; settlement: ${valueWords(d.settlementStatus)}; reversal: ${valueWords(d.reversalStatus)}; refund: ${valueWords(d.refundStatus)}; allocated ${moneyText(Number(d.allocatedKobo || 0), currencyOf(record))}${d.explanation ? `; ${text(d.explanation).replace(/\.$/, "")}` : ""}.` };
     case "allocations": return { event: `Allocation: ${status}`, detail: `${valueLabel(d.confidence)} match${d.automatic ? ", made automatically" : ""} (rule ${text(d.rule) || "not recorded"}). ${text(d.explanation)}${d.supersededReason ? ` ${noLongerInUse(d.supersededReason)}` : ""}${typeof d.reviewed === "boolean" ? ` Reviewed as ${d.reviewed ? "correct" : "wrong"} by ${text(d.reviewedBy)}.` : ""}` };
     case "exceptions": return { event: `Exception: ${valueLabel(d.type)} (${status})`, detail: `Owner: ${text(d.owner) || "not set"}; severity: ${valueWords(d.severity)}; deadline ${d.dueBy ? when(d.dueBy) : "not set"}${d.resolutionCode ? `; resolved as ${optionText(d.resolutionCode)} by ${text(d.resolvedBy)}` : ""}. ${text(d.notes)}` };
@@ -153,7 +179,7 @@ function describe(record: ValopayRecord): { event: string; detail: string } {
     };
     case "audit": return { event: `Action: ${valueLabel(record.name)}`, detail: `${text(d.actor)}: ${text(d.summary)}` };
     case "case-events": {
-      const evidence = Array.isArray(d.after?.evidenceIds) ? (d.after.evidenceIds as unknown[]).map(String) : [];
+      const evidence = Array.isArray(d.after?.evidenceIds) ? (d.after.evidenceIds as unknown[]).map((id) => referenceOf(byId, id)) : [];
       return { event: record.name, detail: `${text(d.note)} Assigned to: ${text(d.after?.assigneeName) || "no one"}. Next step: ${text(d.after?.nextAction) || "not set"}; follow-up ${d.after?.nextActionAt ? when(d.after.nextActionAt) : "not set"}. Evidence: ${evidence.length ? evidence.join(", ") : "none"}.` };
     }
     default: return { event: `${recordTypeTitle(record.kind)}: ${status}`, detail: text(record.name) };
@@ -176,9 +202,9 @@ export function buildDisputePack(state: DomainState, ctx: Context, customerId: s
     : record.kind === "payments" || record.kind === "observations" ? currencyOf(record) : "NGN";
   const timeline: TimelineEvent[] = [...related, ...actions].map((record) => {
     const at = eventTime(record);
-    const { event, detail } = describe(record);
+    const { event, detail } = describe(record, byId);
     return {
-      at, kind: record.kind, event, status: record.status, reference: record.reference, amountKobo: record.amountKobo, currency: currencyFor(record), detail: detail + (record.data.importIdentity ? ` Imported from ${text(record.data.importIdentity.source)}; source row ID ${text(record.data.importIdentity.rowId)}${record.data.importIdentity.batchId ? `; import batch ${text(record.data.importIdentity.batchId)}` : ''}.` : ''),
+      at, kind: record.kind, event, status: record.status, reference: record.reference, amountKobo: record.amountKobo, currency: currencyFor(record), detail: detail + (record.data.importIdentity ? ` Imported from ${text(record.data.importIdentity.source)}; source row ID ${text(record.data.importIdentity.rowId)}${record.data.importIdentity.batchId ? `; import batch ${referenceOf(byId, record.data.importIdentity.batchId)}` : ''}.` : ''),
       actor: ['audit', 'case-events'].includes(record.kind) ? text(record.data.actor) || null : record.data.confirmedBy || record.data.reviewedBy || record.data.resolvedBy || null,
       policyVersion: governing(documents, "policies", at)?.version ?? null,
       templateVersion: governing(documents, "templates", at)?.version ?? null,
@@ -277,7 +303,7 @@ export async function renderDisputePackPdf(pack: DisputePack, options: PdfOption
     line("Lender", `${pack.merchant.name} · provider ${pack.merchant.provider} · mode: ${lenderModeText(pack.merchant.mode)}`);
     line("Bank", `${text(pack.customer.bankName) || "not recorded"} ${text(pack.customer.accountMasked)} · phone ${text(pack.customer.phoneMasked) || "not recorded"}`);
     line("Prepared", `${when(pack.generatedAt)} by ${pack.generatedBy}`);
-    line("Audit log", `${pack.auditVerification.valid ? "every entry checked and intact" : "the check failed; ask an Admin to investigate"} (${counted(pack.auditVerification.count, "entry", "entries")})`);
+    line("Audit log", `${pack.auditVerification.valid ? "every entry checked and intact" : "the check failed; contact the Valo Pay team"} (${counted(pack.auditVerification.count, "entry", "entries")})`);
     heading("Customer position (from instalments and payments; Valo Pay never holds money)");
     line("Total instalments", kobo(pack.position.obligationsKobo));
     line("Allocated", kobo(pack.position.allocatedKobo));
@@ -335,7 +361,7 @@ export async function renderDisputePackPdf(pack: DisputePack, options: PdfOption
     tableHeader();
     for (const event of pack.timeline) {
       check();
-      const cells: Record<string, string> = { at: when(event.at), event: pdfSafe(`${event.event}${event.actor ? ` (${event.actor})` : ""}`), detail: pdfSafe(event.detail), amount: event.amountKobo ? moneyText(event.amountKobo, event.currency) : "", policy: event.policyVersion ? `v${event.policyVersion}` : "-" };
+      const cells: Record<string, string> = { at: when(event.at).replace(/ WAT$/, ""), event: pdfSafe(`${event.event}${event.actor ? ` (${event.actor})` : ""}`), detail: pdfSafe(event.detail), amount: event.amountKobo ? moneyText(event.amountKobo, event.currency) : "", policy: event.policyVersion ? `v${event.policyVersion}` : "None" };
       const height = Math.max(...columns.map((column) => document.heightOfString(cells[column.key] || " ", { width: column.width }))) + 4;
       if (document.y + height > bottom) { document.addPage(); document.y = margin; tableHeader(); }
       const y = document.y;

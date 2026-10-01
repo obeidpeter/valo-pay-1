@@ -45,6 +45,10 @@ assert.equal((pack.summary as any).retryDecisions, decisionEvents.length);
 assert.equal(pack.position.outstandingKobo, due.amountKobo);
 assert.equal(pack.auditVerification.valid, true);
 checks += 16;
+// The pack leaves the lender: its rows name records by reference, never by internal ID, and never show internal words.
+const internalId = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i;
+const plainRows = (events: typeof pack.timeline) => events.every((event) => !/canonical/i.test(`${event.event} ${event.detail}`) && !internalId.test(`${event.event} ${event.detail}`));
+assert.ok(plainRows(pack.timeline), "no timeline row shows an internal ID or the word canonical"); checks += 1;
 
 // ---- AUD-06: versions as they applied at each event, not the current ones ----
 const policyDocument = pack.documents.find((document) => document.kind === "policies")!;
@@ -103,6 +107,8 @@ checks += 11;
   addObservation(usd, { reference: "CARD-NGN-1", amountKobo: 700_000, source: "card", customerId: payer.id, eventId: "c2", occurredAt: wat("2027-07-01T07:00:00") });
   executeAction(usd, ctxAt(wat("2027-07-02T07:30:00"), "Finance"), { action: "daily_close" });
   const held = buildDisputePack(usd, ctxAt(wat("2027-07-02T09:00:00"), "Finance"), payer.id);
+  const evidenceRows = held.timeline.filter((event) => event.kind === "observations");
+  assert.ok(evidenceRows.length && plainRows(held.timeline) && evidenceRows.every((event) => /^Resolved: recorded as a new payment; payment CARD-(USD|NGN)-1\.$/.test(event.detail)), `resolved evidence names its payment by reference (${evidenceRows.map((event) => event.detail).join(" | ")})`); checks += 1;
   const payments = recordsOf(usd, "payments").filter((item) => item.customerId === payer.id);
   const nairaKobo = payments.filter((item) => String(item.data.currency || "NGN") === "NGN").reduce((sum, item) => sum + item.amountKobo, 0);
   assert.deepEqual(held.summary.payments, { count: payments.length, kobo: nairaKobo, otherCurrencies: { USD: { count: 1, amount: 100_000 } }, reversed: 0 }, "the payments total counts every payment, sums naira only and lists the USD payment beside it");
