@@ -21,6 +21,9 @@ export const valueLabels: Readonly<Record<string, string>> = {
   give_up: "No further retries", defer: "Retry postponed", holdout: "Comparison group",
   engine: "Automated retry group", preregistered: "Plan registered",
   handed_back: "Collection returned",
+  // Why a customer message was sent (notificationPurposes), as Policies and templates and Customer history name it.
+  pre_debit: "Notice before collection", failed_debit: "Failed collection attempt", final_attempt: "Final collection attempt",
+  policy_change: "Policy change notice", confirmation: "Payment confirmation",
   transfer_to_activate: "Activate with a bank transfer", hosted_consent: "Consent through the provider",
   paper_mandate: "Paper mandate", not_ours: "Payment belongs elsewhere",
   allocated_manual: "Allocated manually", held_credit: "Kept unallocated",

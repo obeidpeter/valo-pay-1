@@ -78,6 +78,10 @@ describe('policy and template review', () => {
     expect(within(dialog).getByText(/Example Lender: Your payment of ₦25,000.00 is due on 25 September 2026/)).toBeTruthy();
     expect(within(dialog).getByText(/Example Lender: We plan to collect ₦25,000.00 on 25 September 2026/)).toBeTruthy();
     expect(within(dialog).getByText('This version: message changed')).toBeTruthy();
+    // The purpose reads in words, not as its code spelled out ("Pre debit").
+    expect(within(dialog).getByText(/^Purpose: Notice before collection/)).toBeTruthy();
+    expect(screen.getAllByRole('heading', { name: 'Notice before collection', hidden: true }).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Pre debit/)).toBeNull();
     expect(api.calls.some(call => (call.body as { action?: string })?.action === 'approve_template')).toBe(false);
   });
 
