@@ -22,7 +22,7 @@ it("moves focus into the settings form on Edit, and back to Edit after Cancel or
   await user.click(screen.getByRole("button", { name: "Edit" }));
   const contact = screen.getByLabelText("Lender contact details for customer notices");
   await user.type(contact, " (updated)");
-  await user.click(screen.getByRole("button", { name: "Save" }));
+  await user.click(screen.getByRole("button", { name: "Save changes" }));
   await screen.findByText("Settings saved");
   await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "Edit" })));
 });

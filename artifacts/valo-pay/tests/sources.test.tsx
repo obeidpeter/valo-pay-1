@@ -46,7 +46,8 @@ it.each(["Read-only", "Compliance reviewer"])("gives %s users an actionable sour
   api.role=role;renderApp("/sources");
   await screen.findByText("No source profiles yet. Ask an Admin, Operations or Finance team member to add a source profile.");
   expect(screen.queryByText(/Add one below/)).toBeNull();
-  expect(screen.queryByRole("button",{name:"Save source profile"})).toBeNull();
+  expect(screen.queryByRole("button",{name:"Add source profile"})).toBeNull();
+  expect(screen.queryByRole("button",{name:"Save changes"})).toBeNull();
 });
 
 it("retains loaded source profiles and counts when refreshing fails",async()=>{
@@ -104,7 +105,7 @@ it("reuses a saved source mapping and opens its committed batch from a direct li
   await user.type(await screen.findByLabelText("Profile name"),"Pilot loan feed");
   await user.type(screen.getByLabelText("Source name"),"synthetic-lms");
   await user.type(screen.getByLabelText("Expected rows (optional)"),"1");
-  await user.click(screen.getByRole("button",{name:"Save source profile"}));
+  await user.click(screen.getByRole("button",{name:"Add source profile"}));
   await screen.findByRole("button",{name:"Edit Pilot loan feed"});
   const profile=api.state().records.find(r=>r.kind==='source-profiles')!;
   cleanup();renderApp(`/imports?profile=${profile.id}`);
@@ -130,20 +131,20 @@ it("takes a source profile's expected total in naira, saves exact kobo and shows
   const total=screen.getByLabelText("Expected total (₦, optional)");
   await user.type(total,"1,250.505");await user.tab();
   expect(screen.getByRole("alert").textContent).toMatch(/no more than 2 decimal places/);
-  await user.click(screen.getByRole("button",{name:"Save source profile"}));
+  await user.click(screen.getByRole("button",{name:"Add source profile"}));
   expect(api.calls.filter(call=>call.method==="POST"&&call.path.startsWith("/v1/sources/profiles"))).toHaveLength(0);
   await user.clear(total);await user.type(total,"1,250.50");
-  await user.click(screen.getByRole("button",{name:"Save source profile"}));
+  await user.click(screen.getByRole("button",{name:"Add source profile"}));
   await user.click(await screen.findByRole("button",{name:"Edit Naira totals feed"}));
   const profile=api.state().records.find(record=>record.kind==="source-profiles")!;
   expect(profile.data.expectedAmountKobo).toBe(125050);
   expect((screen.getByLabelText("Expected total (₦, optional)") as HTMLInputElement).value).toBe("1250.50");
   // Saved unchanged, the total stays exactly the same kobo; cleared, the profile has no expected total.
-  await user.click(screen.getByRole("button",{name:"Save source profile"}));
+  await user.click(screen.getByRole("button",{name:"Save changes"}));
   await user.click(await screen.findByRole("button",{name:"Edit Naira totals feed"}));
   expect(api.state().records.find(record=>record.id===profile.id)!.data.expectedAmountKobo).toBe(125050);
   await user.clear(screen.getByLabelText("Expected total (₦, optional)"));
-  await user.click(screen.getByRole("button",{name:"Save source profile"}));
+  await user.click(screen.getByRole("button",{name:"Save changes"}));
   await waitFor(()=>expect(api.state().records.find(record=>record.id===profile.id)!.data.expectedAmountKobo).toBeNull());
 });
 
@@ -162,7 +163,7 @@ it("keeps incomplete delivery edits recoverable and converts valid WAT dates inc
   }
   fireEvent.change(delivery,{target:{value:"2026-09-24T07:30"}});
   expect(screen.queryByRole("alert")).toBeNull();
-  await user.click(screen.getByRole("button",{name:"Save source profile"}));
+  await user.click(screen.getByRole("button",{name:"Add source profile"}));
   await user.click(await screen.findByRole("button",{name:"Edit Editable delivery schedule"}));
   let profile=api.state().records.find(record=>record.kind==="source-profiles")!;
   expect(profile.data.firstExpectedAt).toBe("2026-09-24T06:30:00.000Z");
@@ -172,11 +173,11 @@ it("keeps incomplete delivery edits recoverable and converts valid WAT dates inc
   // Appending ':00' to this value used to throw and unmount the Sources page.
   fireEvent.change(delivery,{target:{value:"2026-09-24T07:30:45.250"}});
   fireEvent.blur(delivery);
-  await user.click(screen.getByRole("button",{name:"Save source profile"}));
+  await user.click(screen.getByRole("button",{name:"Save changes"}));
   await waitFor(()=>expect(api.state().records.find(record=>record.id===profile.id)!.data.firstExpectedAt).toBe("2026-09-24T06:30:45.250Z"));
   await user.click(screen.getByRole("button",{name:"Edit Editable delivery schedule"}));
   await user.type(screen.getByLabelText("Profile name")," revised");
-  await user.click(screen.getByRole("button",{name:"Save source profile"}));
+  await user.click(screen.getByRole("button",{name:"Save changes"}));
   await screen.findByRole("button",{name:"Edit Editable delivery schedule revised"});
   profile=api.state().records.find(record=>record.id===profile.id)!;
   expect(profile.data.firstExpectedAt).toBe("2026-09-24T06:30:45.250Z");
@@ -230,7 +231,8 @@ it("shows missing feeds and omits change controls for a read-only user",async()=
   api.mutate((state,ctx)=>{state.records.push({id:'late-profile',merchantId:state.merchant.id,kind:'source-profiles',name:'Overdue feed',status:'active',reference:'',amountKobo:0,customerId:'',createdAt:ctx.now,updatedAt:ctx.now,data:{source:'late-source',kind:'customers',mapping:{},identityColumn:'source_row_id',amountUnit:'naira',firstExpectedAt:'2026-09-20T07:00:00.000Z',cadenceHours:24,graceMinutes:0}});});
   api.role='Read-only';renderApp("/sources");
   await screen.findByRole("heading",{name:"Overdue feed"});
-  expect(screen.queryByRole("button",{name:"Save source profile"})).toBeNull();
+  expect(screen.queryByRole("button",{name:"Add source profile"})).toBeNull();
+  expect(screen.queryByRole("button",{name:"Save changes"})).toBeNull();
   expect(screen.queryByRole("button",{name:"Simulate a Paystack payment"})).toBeNull();
   expect(screen.getByText("Late",{exact:true})).toBeTruthy();
 });

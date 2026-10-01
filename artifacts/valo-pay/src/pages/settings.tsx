@@ -296,7 +296,7 @@ export default function SettingsPage() {
             ) : (
               <div className="flex gap-2">
                 <Button size="sm" variant="ghost" onClick={cancelExec} disabled={updateExecSettings.isPending || updateExecSettings.hasUnconfirmedOutcome}>Cancel</Button>
-                <Button size="sm" action="update_settings" onClick={saveExec} disabled={refreshingLatest} busy={updateExecSettings.isPending} busyLabel={updateExecSettings.hasUnconfirmedOutcome ? 'Checking original request…' : 'Saving…'}>{updateExecSettings.hasUnconfirmedOutcome ? 'Check original request' : 'Save'}</Button>
+                <Button size="sm" action="update_settings" onClick={saveExec} disabled={refreshingLatest} busy={updateExecSettings.isPending} busyLabel={updateExecSettings.hasUnconfirmedOutcome ? 'Checking original request…' : 'Saving changes…'}>{updateExecSettings.hasUnconfirmedOutcome ? 'Check original request' : 'Save changes'}</Button>
               </div>
             )}
           </div>

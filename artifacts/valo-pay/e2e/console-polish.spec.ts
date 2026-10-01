@@ -42,7 +42,7 @@ test("focus follows Edit, Cancel and Save on Settings instead of falling to the 
   await expect.poll(() => focused(page)).toMatchObject({ tag: "button", text: "Edit" });
   await page.keyboard.press("Enter");
   await page.getByLabel("Lender contact details for customer notices").pressSequentially(" (updated)");
-  await page.getByRole("button", { name: "Save", exact: true }).focus();
+  await page.getByRole("button", { name: "Save changes", exact: true }).focus();
   await page.keyboard.press("Enter");
   await expect(page.getByText("Settings saved").first()).toBeVisible();
   await expect.poll(() => focused(page)).toMatchObject({ tag: "button", text: "Edit" });

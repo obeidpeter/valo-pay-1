@@ -37,12 +37,12 @@ test("source schedules and signed fixture receipts stay clear and usable on smal
   await page.getByLabel("Source name",{exact:true}).fill("synthetic-loan-feed");
   const firstDelivery=page.getByLabel("First delivery expected (WAT)",{exact:true});
   await firstDelivery.fill("");
-  await page.getByRole("button",{name:"Save source profile",exact:true}).click();
+  await page.getByRole("button",{name:"Add source profile",exact:true}).click();
   await expect(page.getByRole("alert")).toContainText("Enter the full date and time of the first delivery, in WAT.");
   await expect(firstDelivery).toHaveValue("");
   await firstDelivery.fill("2026-09-24T07:30:45.25");
   expect(await firstDelivery.evaluate((input:HTMLInputElement)=>input.validity.valid)).toBeTruthy();
-  await page.getByRole("button",{name:"Save source profile",exact:true}).click();
+  await page.getByRole("button",{name:"Add source profile",exact:true}).click();
   await expect(page.getByRole("button",{name:"Edit Scheduled loan feed",exact:true})).toBeVisible();
   await page.getByRole("button",{name:"Simulate a Paystack payment",exact:true}).click();
   await expect(page.getByText(/Practice message.*Waiting for a Paystack check/i)).toBeVisible();

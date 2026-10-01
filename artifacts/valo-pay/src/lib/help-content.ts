@@ -594,7 +594,7 @@ export const helpGuides: HelpGuide[] = [
       "Only Admin can change collection settings or turn the emergency stop on or off. In the sandbox, anyone can switch demo role.",
     steps: [
       "To practise as another role, choose it in Demo role and select Switch role. Switching demo roles is not a second person.",
-      "To change collection settings, select Edit, change the values and select Save.",
+      "To change collection settings, select Edit, change the values and select Save changes.",
       "To stop all collection instructions, enter a reason and select Turn on emergency stop. In a pilot, turning it off needs a second Admin to approve.",
       "In Appearance, choose a theme for this browser. Keyboard lists the shortcuts.",
     ],

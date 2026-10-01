@@ -162,7 +162,7 @@ describe("unconfirmed changes the journal records point to Request history", () 
     await user.clear(amount);
     await user.type(amount, "10.29");
     api.failNext(/^\/v1\/settings$/, "offline", "PATCH");
-    await user.click(screen.getByRole("button", { name: "Save" }));
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
     await screen.findByText(/We do not know yet whether Valo Pay saved your settings/);
     pointsToOperations(/We do not know yet whether Valo Pay saved your settings/);
     // The live-instruction block test and the emergency stop.

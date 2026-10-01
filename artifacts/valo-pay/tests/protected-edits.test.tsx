@@ -66,8 +66,8 @@ describe('protected console drafts', () => {
       return response;
     };
     if (outcome === 'error') api.failNext(/^\/v1\/settings$/, { status: 409, error: 'Earlier draft is outdated. Refresh and review it.' }, 'PATCH');
-    await user.click(screen.getByRole('button', { name: 'Save' }));
-    await screen.findByRole('button', { name: 'Saving…' });
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await screen.findByRole('button', { name: 'Saving changes…' });
     await user.selectOptions(screen.getAllByLabelText('Active lender')[0]!, api.merchantIds[1]!);
     await screen.findByRole('button', { name: 'Edit' });
     await user.click(screen.getByRole('button', { name: 'Edit' }));
@@ -139,7 +139,7 @@ describe('protected console drafts', () => {
     expect(revisions[0]).toBeTruthy();
     expect(revisions.at(-1)).not.toBe(revisions[0]);
     api.failNext(/^\/v1\/settings$/, { status: 409, error: 'Settings changed after this form opened. Refresh and review the latest settings.' }, 'PATCH');
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
     await screen.findByText('Settings changed after this form opened. Refresh and review the latest settings.');
     expect((input as HTMLInputElement).value).toBe('10:15');
     expect(api.calls.find(call => call.method === 'PATCH')?.body).toMatchObject({ expectedRevision: revisions[0], closeTime: '10:15' });

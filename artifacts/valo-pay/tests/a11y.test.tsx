@@ -67,7 +67,7 @@ describe("accessibility", () => {
     const user = userEvent.setup();
     renderApp("/settings");
     await user.click(await screen.findByRole("button", { name: "Edit" }));
-    await screen.findByRole("button", { name: "Save" });
+    await screen.findByRole("button", { name: "Save changes" });
     expect(await violations()).toEqual([]);
   });
 });

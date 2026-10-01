@@ -18,7 +18,7 @@ describe("settings", () => {
     const amount = screen.getByRole('textbox', { name: 'Notification cost alert (₦ per collection)' });
     expect((amount as HTMLInputElement).value).toBe('8.00');
     await user.clear(amount); await user.type(amount, '1,000.50');
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
     expect(await screen.findByText('₦1,000.50')).toBeTruthy();
     expect(api.state().settings.notificationCostAlertKobo).toBe(100050);
     await user.click(screen.getByRole('button', { name: 'Dismiss' }));
@@ -44,7 +44,7 @@ describe("settings", () => {
     const input = screen.getByPlaceholderText("07:00");
     await user.clear(input);
     await user.type(input, "09:30");
-    await user.click(screen.getByRole("button", { name: "Save" }));
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
     expect(await screen.findByText("09:30 WAT")).toBeTruthy();
     const patch = api.calls.find((call) => call.method === "PATCH" && call.path === "/v1/settings");
     expect(patch?.body).toMatchObject({ closeTime: "09:30", scheduledCloseEnabled: true });
@@ -57,7 +57,7 @@ describe("settings", () => {
     const again = screen.getByPlaceholderText("07:00");
     await user.clear(again);
     await user.type(again, "25:00");
-    await user.click(screen.getByRole("button", { name: "Save" }));
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
     // The console checks the format itself before asking the server, and says so at the field.
     expect(await screen.findByText("Enter the close time as HH:MM in West Africa Time, for example 07:00.")).toBeTruthy();
     expect(again.getAttribute("aria-invalid")).toBe("true");
@@ -67,7 +67,7 @@ describe("settings", () => {
     api.failNext(/^\/v1\/settings$/, { status: 400, error: "closeTime must be a WAT time as HH:MM, for example 07:00 (REC-01)." });
     await user.clear(again);
     await user.type(again, "10:00");
-    await user.click(screen.getByRole("button", { name: "Save" }));
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
     expect(await screen.findByText("Settings not saved")).toBeTruthy();
     expect(screen.getByText("Enter the close time as HH:MM in West Africa Time, for example 07:00.")).toBeTruthy();
     expect(again.getAttribute("aria-describedby")).toBe("settings-closeTime-error");
@@ -104,7 +104,7 @@ describe("settings", () => {
     expect(edit.getAttribute("aria-disabled")).toBe("true");
     expect(document.getElementById(edit.getAttribute("aria-describedby")!)?.textContent).toBe("Only Admin can change collection settings.");
     await user.click(edit);
-    expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Save changes" })).toBeNull();
     expect(api.calls.some(call => call.path === '/v1/settings' && call.method === 'PATCH')).toBe(false);
   });
 

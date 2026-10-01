@@ -46,7 +46,7 @@ it("freezes an unconfirmed settings draft and recovers the original revision and
   await user.clear(amount);
   await user.type(amount, "10.29");
   const requests = loseFirstResponse("/v1/settings", "PATCH");
-  await user.click(screen.getByRole("button", { name: "Save" }));
+  await user.click(screen.getByRole("button", { name: "Save changes" }));
   const lost = await screen.findByText(/We do not know yet whether Valo Pay saved your settings/);
   expect(within(lost.closest("[role=alert]") as HTMLElement).getByText("Request not confirmed")).toBeTruthy();
   expect(api.state().settings.notificationCostAlertKobo).toBe(1029);
@@ -209,7 +209,7 @@ async function loseSettingsSave(user: ReturnType<typeof userEvent.setup>) {
   );
   await user.clear(amount);
   await user.type(amount, "10.29");
-  await user.click(screen.getByRole("button", { name: "Save" }));
+  await user.click(screen.getByRole("button", { name: "Save changes" }));
   await screen.findByText(/We do not know yet whether Valo Pay saved your settings/);
 }
 
@@ -266,7 +266,7 @@ it("Discard draft and refresh keeps an interrupted identity until the server can
   );
   await user.clear(amount);
   await user.type(amount, "10.31");
-  await user.click(screen.getByRole("button", { name: "Save" }));
+  await user.click(screen.getByRole("button", { name: "Save changes" }));
   await waitFor(() => expect(traffic.patches).toHaveLength(3));
   expect(traffic.patches[2]).not.toBe(traffic.patches[0]);
 });
@@ -363,7 +363,7 @@ it("the unconfirmed settings notice discards its form, and a server cancellation
   );
   expect(amount.closest("fieldset")?.disabled).toBe(false);
   await cancelInterrupted(user);
-  await user.click(screen.getByRole("button", { name: "Save" }));
+  await user.click(screen.getByRole("button", { name: "Save changes" }));
   await screen.findByText("Settings saved");
   expect(api.state().settings.notificationCostAlertKobo).toBe(1029);
   expect(keys).toHaveLength(2);

@@ -39,7 +39,7 @@ describe('effective daily-close status', () => {
     await screen.findByText('Automatic daily closes are switched off in Valo Pay. Run a daily close on Reports when you need one.');
     await user.click(screen.getByRole('button', { name: 'Edit' }));
     expect(screen.getByText(/Saving it does not start the service/)).toBeTruthy();
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
     expect(await screen.findByText('Automatic daily closes are switched off in Valo Pay. Run a daily close on Reports when you need one.')).toBeTruthy();
     expect(screen.queryByText(/^Next daily close:/)).toBeNull();
   });
