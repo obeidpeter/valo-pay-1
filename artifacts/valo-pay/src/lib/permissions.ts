@@ -41,7 +41,7 @@ const actionWords: Record<string, string> = {
   create_policy: 'draft a retry policy', edit_policy: 'edit a retry policy', submit_policy: 'submit a retry policy for review',
   new_policy_version: 'draft a new version of a retry policy', approve_policy: 'approve a retry policy', reject_policy: 'reject a retry policy',
   create_template: 'draft a message template', edit_template: 'edit a message template', submit_template: 'submit a message template for review',
-  new_template_version: 'draft a new version of a message template', approve_template: 'approve a message template', reject_template: 'reject a message template',
+  new_template_version: 'draft a new version of a message template', approve_template: 'approve a message template', reject_template: 'request changes to a message template',
   run_reconciliation: 'run reconciliation', daily_close: 'run a daily close',
   confirm_allocation: 'confirm a match', reject_allocation: 'reject a match', manual_allocate: 'allocate a payment',
   review_allocation: 'review a match', record_refund: 'record a refund', release_dispute: 'release an instalment from dispute',

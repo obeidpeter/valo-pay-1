@@ -14,7 +14,7 @@ import { PolicyReview, TemplatePreview, TemplateReview } from '@/components/poli
 /** Each dialog's title, named by the same verb and object as the button that opens it. */
 const dialogTitles: Readonly<Record<string, string>> = {
   create_policy: 'Draft a policy', edit_policy: 'Edit policy draft', submit_policy: 'Submit policy for review', approve_policy: 'Approve policy',
-  reject_policy: 'Reject policy', new_policy_version: 'Draft next version', backtest_policy: 'Test this version',
+  reject_policy: 'Reject policy', new_policy_version: 'Draft next version', backtest_policy: 'Test retry policy',
   create_template: 'Draft a template', edit_template: 'Edit template', submit_template: 'Submit template for review',
   approve_template: 'Approve template', reject_template: 'Request changes', new_template_version: 'Draft next version',
 };
@@ -22,13 +22,13 @@ const dialogTitles: Readonly<Record<string, string>> = {
 /** Submit buttons that repeat the opening button's words; the rest keep the dialog's own action names. */
 const submitLabels: Readonly<Record<string, string>> = {
   create_policy: 'Draft a policy', create_template: 'Draft a template', edit_policy: 'Save changes', edit_template: 'Save changes',
-  new_policy_version: 'Draft next version', new_template_version: 'Draft next version', backtest_policy: 'Test this version', reject_template: 'Request changes',
+  new_policy_version: 'Draft next version', new_template_version: 'Draft next version', backtest_policy: 'Test retry policy', reject_template: 'Request changes',
 };
 
 /** Each submit button while its request runs, repeating its verb. */
 const busyLabels: Readonly<Record<string, string>> = {
   create_policy: 'Drafting a policy…', edit_policy: 'Saving changes…', submit_policy: 'Submitting for review…', approve_policy: 'Approving policy…',
-  reject_policy: 'Rejecting policy…', new_policy_version: 'Drafting next version…', backtest_policy: 'Testing this version…',
+  reject_policy: 'Rejecting policy…', new_policy_version: 'Drafting next version…', backtest_policy: 'Testing retry policy…',
   create_template: 'Drafting a template…', edit_template: 'Saving changes…', submit_template: 'Submitting for review…',
   approve_template: 'Approving template…', reject_template: 'Requesting changes…', new_template_version: 'Drafting next version…',
 };
@@ -156,7 +156,7 @@ export default function PoliciesPage() {
                     </>
                   )}
                   {/* A simulation: a draft or submitted version is tried on the instalments its policy governs, as if approved. */}
-                  <Button variant="ghost" size="sm" action="backtest_policy" record={policy} onClick={() => handleAction(policy, 'backtest_policy')}>Test this version</Button>
+                  <Button variant="ghost" size="sm" action="backtest_policy" record={policy} onClick={() => handleAction(policy, 'backtest_policy')}>Test retry policy</Button>
                 </div>
               </div>
             ))

@@ -32,10 +32,10 @@ describe('policy and template review', () => {
     const user = userEvent.setup();
     renderApp('/policies');
     const row = (await screen.findByText('Standard lender retry policy · version 2')).closest('.p-6') as HTMLElement;
-    await user.click(within(row).getByRole('button', { name: 'Test this version' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Test this version' });
+    await user.click(within(row).getByRole('button', { name: 'Test retry policy' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Test retry policy' });
     await user.type(within(dialog).getByLabelText('Reason *'), 'What would version 2 do?');
-    await user.click(within(dialog).getByRole('button', { name: 'Test this version' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Test retry policy' }));
     expect(await within(dialog).findByText(/^Version 2 is not approved: this shows what it would do if it were approved and applied\./)).toBeTruthy();
     expect(within(dialog).queryByText('No instalments use this policy yet.')).toBeNull();
     expect(api.calls.find(call => (call.body as { action?: string })?.action === 'backtest_policy')?.body).toMatchObject({ recordId: 'policy-next' });

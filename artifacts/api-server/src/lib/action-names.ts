@@ -28,20 +28,20 @@ const workspaceActions: Readonly<Record<string, Words>> = {
   submit_policy: words("Submit retry policy for review", "Retry policy submitted for review"),
   approve_policy: words("Approve retry policy", "Retry policy approved"),
   reject_policy: words("Reject retry policy", "Retry policy rejected"),
-  new_policy_version: words("Draft a new retry policy version", "New retry policy version drafted"),
+  new_policy_version: words("Draft next version of retry policy", "Next retry policy version drafted"),
   submit_template: words("Submit message template for review", "Message template submitted for review"),
   approve_template: words("Approve message template", "Message template approved"),
-  reject_template: words("Reject message template", "Message template rejected"),
-  new_template_version: words("Draft a new message template version", "New message template version drafted"),
+  reject_template: words("Request changes to message template", "Changes requested to message template"),
+  new_template_version: words("Draft next version of message template", "Next message template version drafted"),
   confirm_allocation: words("Confirm match", "Match confirmed"),
   reject_allocation: words("Reject match", "Match rejected"),
   manual_allocate: words("Allocate payment", "Payment allocated"),
-  review_allocation: words("Review match", "Match reviewed"),
+  review_allocation: words("Mark match correct or incorrect", "Match marked correct or incorrect"),
   resolve_exception: words("Resolve exception", "Exception resolved"),
   record_refund: words("Record refund", "Refund recorded"),
   release_dispute: words("Release from dispute", "Released from dispute"),
-  simulate_failure: words("Simulate failure", "Failure simulated"),
-  backtest_policy: words("Run policy simulation", "Policy simulation run"),
+  simulate_failure: words("Simulate failed collection attempt", "Failed collection attempt simulated"),
+  backtest_policy: words("Test retry policy", "Retry policy tested"),
   preregister_experiment: words("Register experiment plan", "Experiment plan registered"),
   hand_back: words("Return collection", "Collection returned"),
   issue_invoice: words("Issue invoice", "Invoice issued"),
@@ -57,16 +57,16 @@ const connectedActions: Readonly<Record<string, Words>> = {
   "consent.grant": words("Grant permission", "Permission granted"),
   "consent.revoke": words("Withdraw permission", "Permission withdrawn"),
   "payment.create": words("Create checkout", "Checkout created"),
-  "payment.authorise": words("Simulate bank authorisation", "Bank authorisation simulated"),
+  "payment.authorise": words("Simulate authorisation", "Authorisation simulated"),
   "payment.cancel": words("Cancel checkout", "Checkout cancelled"),
   "payment.return": words("Simulate return from the bank", "Return from the bank simulated"),
   "payment.outcome": words("Simulate payment outcome", "Payment outcome simulated"),
   "payment.refund_request": words("Request refund", "Refund requested"),
-  "payment.refund_confirm": words("Confirm refund", "Refund confirmed"),
+  "payment.refund_confirm": words("Record refund", "Refund recorded"),
   "payment.reverse": words("Record reversal", "Reversal recorded"),
   "credit.assess": words("Run assessment", "Assessment run"),
   "credit.review": words("Record assessment review", "Assessment review recorded"),
-  "cash.initialize": words("Set up with sample data", "Cash Desk set up"),
+  "cash.initialize": words("Set up Cash Desk", "Cash Desk set up"),
   "cash.refresh_sample": words("Refresh sample balances", "Sample balances refreshed"),
   "cash.forecast": words("Save forecast", "Forecast saved"),
   "cash.erp.prepare": words("Prepare accounting draft", "Accounting draft prepared"),
@@ -78,7 +78,7 @@ const connectedActions: Readonly<Record<string, Words>> = {
   "cash.payroll.refresh": words("Refresh payroll funding review", "Payroll funding review refreshed"),
   "cash.payroll.approve": words("Approve payroll funding plan", "Payroll funding plan approved"),
   "cash.payroll.export": words("Prepare payroll export file", "Payroll export file prepared"),
-  "cash.payroll.reconcile": words("Record payroll outcome", "Payroll outcome recorded"),
+  "cash.payroll.reconcile": words("Simulate payroll payment result", "Payroll payment result simulated"),
 };
 /** The product a connected action belongs to, which Request history names before it; a permission names none. */
 const connectedProducts: Readonly<Record<string, string>> = { payment: "Pay by Bank", credit: "Credit Desk", cash: "Cash Desk" };
@@ -90,12 +90,12 @@ const lowerFirst = (text: string) => text.charAt(0).toLowerCase() + text.slice(1
 export function workspaceActionRequest(action: string): string {
   return own(workspaceActions, action)?.request ?? valueLabel(action);
 }
-/** A connected banking action's request in words, with its product: "Pay by Bank: create checkout". */
+/** A connected banking action's request in words, with its product unless its button names it: "Pay by Bank: create checkout", "Set up Cash Desk". */
 export function connectedActionRequest(action: string): string {
   const named = own(connectedActions, action);
   if (!named) return "Connected banking action";
   const product = own(connectedProducts, action.split(".")[0] ?? "");
-  return product ? `${product}: ${lowerFirst(named.request)}` : named.request;
+  return product && !named.request.includes(product) ? `${product}: ${lowerFirst(named.request)}` : named.request;
 }
 /** What a connected banking action did, in words: "Checkout created". */
 export function connectedActionDone(action: string): string {

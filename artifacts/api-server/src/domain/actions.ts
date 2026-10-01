@@ -382,7 +382,7 @@ function runAction(state: DomainState, ctx: Context, input: ActionInput, audit?:
       if (problems.length) throw new Error(problems.join(' '));
       template.status = "submitted"; template.data.submittedAt = now;
     } else {
-      assertActionRole(ctx, ["Compliance reviewer"], input.action === "approve_template" ? "approve a message template" : "reject a message template");
+      assertActionRole(ctx, ["Compliance reviewer"], input.action === "approve_template" ? "approve a message template" : "request changes to a message template");
       if (!template.data.author || template.data.author === ctx.actor || template.status !== "submitted") throw new Error("Submit the message template for review, then ask a Compliance reviewer other than its author to approve or reject it.");
       if (input.action === "approve_template") {
         const problems = templateTextProblems(template.data.text);
@@ -395,7 +395,7 @@ function runAction(state: DomainState, ctx: Context, input: ActionInput, audit?:
       template.data.reviewHistory = [...(Array.isArray(template.data.reviewHistory) ? template.data.reviewHistory : []), { status: template.status, reviewer: ctx.actor, at: now, reason: reason(input) }];
     }
     template.data.lastActionReason = reason(input);
-    touch(template, now); return result(`Message template ${valueWords(template.status)}.`, template);
+    touch(template, now); return result(input.action === "reject_template" ? "Changes requested. The author can edit this version and submit it again." : `Message template ${valueWords(template.status)}.`, template);
   }
   if (input.action === "run_reconciliation") {
     assertActionRole(ctx, ["Admin", "Operations", "Finance"], "run reconciliation");
@@ -614,16 +614,16 @@ function runAction(state: DomainState, ctx: Context, input: ActionInput, audit?:
       data: { dueItemId: due.id, number: countedAttempts(state, due.id).length + 1, source: "external", simulated: true, failureCode: code, rawFailureCode: String(data.failureCode), occurredAt: now, actualInstruction: false },
     });
     if (due.status === "scheduled") { due.status = "in_collection"; touch(due, now); }
-    return result("Sample failure recorded for a policy simulation. No debit was attempted.", attempt);
+    return result("Failed collection attempt recorded as sample data. No money moved.", attempt);
   }
   if (input.action === "backtest_policy") {
-    assertActionRole(ctx, ["Admin", "Operations", "Finance", "Compliance reviewer"], "run a policy simulation");
+    assertActionRole(ctx, ["Admin", "Operations", "Finance", "Compliance reviewer"], "test a retry policy");
     const policy = findRecord(state, String(input.recordId), "policies");
     // Any version, a draft under review included, is tried on the instalments its policy governs, as if it applied.
     const lineage = new Set(policyLineage(state, policy).map((item) => item.id));
     const decisions = recordsOf(state, "due-items").filter((due) => lineage.has(String(policyIdFor(state, due)))).map((due) => evaluateRetry(state, ctx, due, policy, { simulation: true }));
     const unapproved = policy.status === "approved" ? "" : `Version ${policyVersionOf(policy)} is not approved: this shows what it would do if it were approved and applied. `;
-    return result(`${unapproved}This simulation shows whether the policy would allow a retry and when. It does not predict how much money would be recovered.`, policy, { decisions, recoveryEstimate: null, notARecoveryClaim: true });
+    return result(`${unapproved}This test shows whether the policy would allow a retry and when. It does not predict how much money would be recovered.`, policy, { decisions, recoveryEstimate: null, notARecoveryClaim: true });
   }
   if (input.action === "preregister_experiment") {
     assertActionRole(ctx, ["Admin"], "register an experiment plan");

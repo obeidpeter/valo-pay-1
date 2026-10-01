@@ -262,7 +262,7 @@ export const helpGuides: HelpGuide[] = [
       "Access to the chosen lender. An Admin drafts and submits policy and template versions. A Compliance reviewer who is not the author approves or rejects them.",
     steps: [
       "Open the policy or template and check its status and author. To change an approved version, select Draft next version; the approved version and its history stay.",
-      "Check retry limits, the gap between retries, notice periods and quiet hours, or the template’s sample message. Select Test this version to try a policy on sample instalments.",
+      "Check retry limits, the gap between retries, notice periods and quiet hours, or the template’s sample message. Select Test retry policy to try a version on sample instalments.",
       "Select Submit for review. A different Compliance reviewer compares it with the previous version, then approves or rejects it with a reason.",
     ],
     result:
