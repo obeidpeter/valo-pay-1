@@ -21,9 +21,9 @@ const leave = (user: ReturnType<typeof userEvent.setup>) =>
 describe("connected page drafts", () => {
   it.each([
     ["/credit-desk", "Credit Desk", "Reason for this assessment"],
-    ["/pay-by-bank", "Pay-by-bank", "Amount (₦)"],
+    ["/pay-by-bank", "Pay by Bank", "Amount (₦)"],
     ["/cash-desk", "Cash Desk", "Planning buffer (₦)"],
-    ["/connections", "Permissions & readiness", "Reason for granting permission"],
+    ["/connections", "Permissions and readiness", "Reason for granting permission"],
   ])("%s asks before a typed draft is left, and leaves once the person agrees", async (route, title, field) => {
     const user = userEvent.setup();
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
@@ -45,13 +45,13 @@ describe("connected page drafts", () => {
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
     renderApp("/credit-desk");
     await screen.findByRole("heading", { name: "Credit Desk", level: 1 });
-    await user.clear(screen.getByLabelText("Requested principal (₦)"));
-    await user.type(screen.getByLabelText("Requested principal (₦)"), "250000");
+    await user.clear(screen.getByLabelText("Loan amount (₦)"));
+    await user.type(screen.getByLabelText("Loan amount (₦)"), "250000");
     await user.type(screen.getByLabelText("Reason for this assessment"), "Check the capacity for a larger sample loan");
-    await user.click(screen.getByRole("button", { name: /Run sample assessment/ }));
-    await screen.findByText(/A new immutable sample assessment has been recorded/);
+    await user.click(screen.getByRole("button", { name: /Run assessment/ }));
+    await screen.findByText(/Sample assessment saved as a new version/);
     // The inputs stay for the next run, and they are no longer a draft.
-    expect((screen.getByLabelText("Requested principal (₦)") as HTMLInputElement).value).toBe("250000");
+    expect((screen.getByLabelText("Loan amount (₦)") as HTMLInputElement).value).toBe("250000");
     await leave(user);
     await screen.findByRole("heading", { name: "Audit log", level: 1 });
     expect(confirm).not.toHaveBeenCalled();
@@ -62,7 +62,7 @@ describe("connected page drafts", () => {
     expect(confirm).not.toHaveBeenCalled();
   });
 
-  it("releases a revocation reason the person cancelled, and a sent grant", async () => {
+  it("releases a withdrawal reason the person set aside, and a sent grant", async () => {
     api.role = "Operations";
     api.mutate((state) =>
       makeRecord(state, "connected-consents", {
@@ -75,13 +75,13 @@ describe("connected page drafts", () => {
     const user = userEvent.setup();
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
     renderApp("/connections");
-    await user.click(await screen.findByRole("button", { name: "Review revocation" }));
-    await user.type(screen.getByLabelText("Reason for revoking permission"), "The SME withdrew this sample permission");
-    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await user.click(await screen.findByRole("button", { name: "Withdraw Read business accounts for Sample business" }));
+    await user.type(screen.getByLabelText("Reason for withdrawing permission"), "The SME withdrew this sample permission");
+    await user.click(screen.getByRole("button", { name: "Keep permission" }));
     await user.selectOptions(screen.getByLabelText("Purpose"), "erp_draft");
     await user.type(screen.getByLabelText("Reason for granting permission"), "Prepare sample accounting drafts for the SME");
-    await user.click(screen.getByRole("button", { name: "Grant sample permission" }));
-    await screen.findByText("Sample permission recorded.");
+    await user.click(screen.getByRole("button", { name: "Grant permission" }));
+    await screen.findByText("Sample permission granted. The pages that need it can use it now.");
     await waitFor(() => expect(api.state().records.filter((r) => r.kind === "connected-consents")).toHaveLength(2));
     await leave(user);
     await screen.findByRole("heading", { name: "Audit log", level: 1 });

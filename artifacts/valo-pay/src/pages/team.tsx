@@ -17,6 +17,7 @@ import { focusLost, focusMain, useDialogFocusReturn, useFocusWhenLost } from "@/
 import { formatCount, formatDate } from "@/lib/formatters";
 import { useUnsavedChanges } from "@/lib/unsaved-changes";
 import { AccessReadiness } from '@/components/access-readiness';
+import { readableLabel } from "@/components/record-label";
 
 type DirectoryMember = StaffDirectory['members'][number];
 type DirectoryLenders = StaffDirectory['lenders'];
@@ -61,35 +62,37 @@ export default function TeamPage() {
   const admin = directory?.mode === "staff" && workspace?.role === "Admin";
   return (
     <div className="space-y-6">
-      <PilotHeading title="Team & access">
-        Give each person an accountable role. Staff invitations, role changes
-        and revocations are recorded separately from financial approvals.
+      <PilotHeading title="Team and access">
+        Give each person the role they need. Invitations and role changes have
+        their own history, separate from financial approvals.
       </PilotHeading>
       <PilotError
         error={query.error}
+        what="the team"
         retry={() => {
           void query.refetch();
         }}
       />
       <PilotPanel title="Access status">
         <p className="text-sm">
-          {directory?.message || "Checking this environment…"}
+          {directory?.message || "Checking access…"}
         </p>
         {directory?.mode === "staff" ? (
           <StaffSession />
         ) : (
           <p className="text-sm text-muted-foreground">
-            This environment uses demo personas. Pilot staff mode requires a
-            configured organisation, an administrator provisioned by the
-            operator, and MFA. Sample records remain synthetic in either mode.
+            This sandbox uses demo roles. Named staff accounts need the Valo Pay
+            team to set up your organisation and its first Admin, and each
+            person must use two-step sign-in. Records are sample data either
+            way.
           </p>
         )}
       </PilotPanel>
       {directory?.mode === "staff" && (
         <>
-          {workspace?.role !== "Admin" && !workspace?.merchants.length && <PilotPanel title="Waiting for lender access"><p className="text-sm text-muted-foreground">Your staff account is active. An administrator must assign the lenders you may work on before their records appear here.</p></PilotPanel>}
-          <PilotPanel title="Staff members">
-            <p className="text-sm text-muted-foreground">Administrators manage every lender in this workspace. Other roles need explicit lender access. New invitations and role changes start with no lender grants.</p>
+          {workspace?.role !== "Admin" && !workspace?.merchants.length && <PilotPanel title="Waiting for lender access"><p className="text-sm text-muted-foreground">Your staff account is active. An Admin must choose the lenders you can work on before their records appear here.</p></PilotPanel>}
+          <PilotPanel title="Team members">
+            <p className="text-sm text-muted-foreground">Admins can work on every lender in this workspace. Other roles see only the lenders an Admin gives them. New invitations and role changes start with no lenders.</p>
             <div className="space-y-3">
               {directory.members.map((member) => (
                 <Member
@@ -108,13 +111,13 @@ export default function TeamPage() {
           {admin && (
             <PilotPanel title="Invite a team member">
               <p className="text-sm text-muted-foreground">
-                First add the person to this organisation in your identity
-                service. Their Valo Pay invitation requires the same verified
-                email and both authentication factors. Invitations last seven
-                days; accepted pilot membership lasts 90 days.
-                After acceptance, assign the lenders a non-administrator may access.
-                An Admin, Finance or Compliance reviewer invitation can be accepted
-                only after another administrator approves it.
+                First add the person to your organisation in your sign-in
+                service. The invitation works only for that verified email, with
+                two-step sign-in. Invitations last seven days, and access lasts
+                90 days from acceptance. After they accept, choose the lenders
+                they can work on. An Admin, Finance or Compliance reviewer
+                invitation can be accepted only after a second Admin approves
+                it.
               </p>
               <form
                 className="grid items-end gap-3 sm:grid-cols-[1fr_1fr_auto]"
@@ -164,15 +167,22 @@ export default function TeamPage() {
               </form>
               <RecoveryNotice mutation={invite} persistent={false} />
               {link && (
-                <label className="block space-y-2 text-sm">
-                  Share this invitation directly
-                  <input
-                    readOnly
-                    className={pilotField}
-                    value={link}
-                    onFocus={(e) => e.target.select()}
-                  />
-                </label>
+                <div className="space-y-1">
+                  <label className="block space-y-2 text-sm">
+                    Invitation link
+                    <input
+                      readOnly
+                      className={pilotField}
+                      value={link}
+                      aria-describedby="invitation-link-help"
+                      onFocus={(e) => e.target.select()}
+                    />
+                  </label>
+                  <p id="invitation-link-help" className="text-xs text-muted-foreground">
+                    Send this link to the person yourself. Valo Pay does not send
+                    an email.
+                  </p>
+                </div>
               )}
               <p ref={said} role="status" className="text-sm">
                 {message}
@@ -186,7 +196,7 @@ export default function TeamPage() {
                     <span>
                       {item.email} · {item.role}
                       <small className="mt-1 block text-muted-foreground">
-                        {item.status}{item.status === "pending" && item.approval === "awaiting" ? " · waiting for a second administrator" : item.approval === "approved" ? ` · approved by ${item.approvedBy}` : ""} · expires {formatDate(item.expiresAt)}
+                        {readableLabel(item.status)}{item.status === "pending" && item.approval === "awaiting" ? " · waiting for a second Admin" : item.approval === "approved" ? ` · approved by ${item.approvedBy}` : ""} · expires {formatDate(item.expiresAt)}
                       </small>
                     </span>
                     {item.status === "pending" && (
@@ -216,7 +226,7 @@ export default function TeamPage() {
               <ol className="space-y-3 text-sm">
                 {directory.events.map((event) => (
                   <li key={event.id} className="border-b pb-3">
-                    <strong>{event.action.replaceAll(".", " ")}</strong>
+                    <strong>{readableLabel(event.action)}</strong>
                     <p className="text-xs text-muted-foreground">
                       {event.actor} · {formatDate(event.createdAt)}
                     </p>
@@ -230,12 +240,13 @@ export default function TeamPage() {
           )}
         </>
       )}
-      <AccessReadiness />
+      {/* The server's setup checks are for the people who run Valo Pay: Admins see them, closed. */}
+      {workspace?.role === "Admin" && <AccessReadiness />}
       <Link
         href="/pilot"
         className="inline-block text-sm text-primary underline"
       >
-        Return to the pilot journey
+        Back to Pilot journey
       </Link>
     </div>
   );
@@ -266,12 +277,12 @@ function Member({ member, editable, shared, lenders }: { member: DirectoryMember
       <div>
         <h3 className="text-sm font-semibold">{member.name}</h3>
         <p className="text-xs text-muted-foreground">
-          {member.role} · {member.status}
+          {member.role} · {readableLabel(member.status)}
           {member.expiresAt ? ` · expires ${formatDate(member.expiresAt)}` : ""}
         </p>
       </div>
-      {/* Someone who is not an administrator is sent only the lenders they share with a colleague, so that is what a colleague's row counts. */}
-      <p className="text-sm text-muted-foreground">{member.role === "Admin" ? "All lenders in this workspace" : shared ? formatCount(count, "lender you share", "lenders you share") : formatCount(count, "permitted lender")}</p>
+      {/* Someone who is not an Admin is sent only the lenders they share with a colleague, so that is what a colleague's row counts. */}
+      <p className="text-sm text-muted-foreground">{member.role === "Admin" ? "All lenders in this workspace" : shared ? formatCount(count, "lender you share", "lenders you share") : `Can work on ${formatCount(count, "lender")}`}</p>
       {editable && <AccessForm key={`access:${member.updatedAt}`} member={member} mutation={change} answer={() => changed.current ?? problem.current} />}
       <RecoveryNotice mutation={change} persistent={false} noticeRef={problem} />
       {change.data?.message && <p ref={changed} role="status" className="text-sm">{change.data.message}</p>}
@@ -338,23 +349,29 @@ function AccessForm({ member, mutation, answer }: { member: DirectoryMember; mut
               onChange={(e) => setStatus(e.target.value)}
             >
               {["active", "suspended", "revoked"].map((value) => (
-                <option key={value}>{value}</option>
+                <option key={value} value={value}>{readableLabel(value)}</option>
               ))}
             </select>
           </label>
         </div>
-        <label className="block space-y-1 text-sm">
-          Reason for changing {member.name}
-          <input
-            className={pilotField}
-            required
-            minLength={3}
-            maxLength={500}
-            disabled={mutation.isPending || mutation.hasUnconfirmedOutcome}
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-          />
-        </label>
+        <div className="space-y-1">
+          <label className="block space-y-1 text-sm">
+            Reason for changing {member.name}’s access
+            <input
+              className={pilotField}
+              required
+              minLength={3}
+              maxLength={500}
+              disabled={mutation.isPending || mutation.hasUnconfirmedOutcome}
+              value={reason}
+              aria-describedby={`access-reason-help-${member.id}`}
+              onChange={(e) => setReason(e.target.value)}
+            />
+          </label>
+          <p id={`access-reason-help-${member.id}`} className="text-xs text-muted-foreground">
+            At least 3 characters. Saved in the access history.
+          </p>
+        </div>
         <Button
           variant={status === "revoked" ? "destructive" : "outline"}
           type="submit"
@@ -379,7 +396,7 @@ function AccessForm({ member, mutation, answer }: { member: DirectoryMember; mut
           <DialogHeader>
             <DialogTitle>Revoke {member.name}’s access?</DialogTitle>
             <DialogDescription>
-              {member.name} loses access to this workspace and to every lender in it at their next request. Their lender access and any invitation still waiting for them are removed.
+              {member.name} will lose access to this workspace and all its lenders the next time they use Valo Pay. Their lender access and any invitation still waiting for them are removed.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2 text-sm">
@@ -397,9 +414,9 @@ function AccessForm({ member, mutation, answer }: { member: DirectoryMember; mut
 }
 
 /**
- * What waits for a second administrator: Admin, Finance and Compliance reviewer invitations and role changes. The
- * administrator who asked cannot approve (the service refuses it too), but may withdraw a change; the person a change
- * is for neither approves nor declines it (refused too).
+ * What waits for a second Admin: Admin, Finance and Compliance reviewer invitations and role changes. The Admin who
+ * asked cannot approve (the service refuses it too), but may withdraw a change; the person a change is for neither
+ * approves nor rejects it (refused too).
  */
 function Approvals({ directory, actor, decide, choose, message }: { directory: StaffDirectory; actor?: string; decide: MessageMutation; choose: (path: string) => void; message: string }) {
   const invitations = directory.invitations.filter((item) => item.status === "pending" && item.approval === "awaiting");
@@ -408,32 +425,38 @@ function Approvals({ directory, actor, decide, choose, message }: { directory: S
   const decided = useRef<HTMLParagraphElement>(null);
   useFocusWhenLost(decided, message);
   return (
-    <PilotPanel title="Waiting for a second administrator">
+    <PilotPanel title="Waiting for a second Admin">
       <p className="text-sm text-muted-foreground">
-        An invitation or role change that grants Admin, Finance or Compliance reviewer takes effect only when an
-        administrator other than the one who asked approves it. A pilot with one administrator asks the operator to
-        add a second with the provisioning command.
+        Giving someone the Admin, Finance or Compliance reviewer role takes effect only when a second Admin, not the
+        one who asked, approves it.
       </p>
+      <p className="text-sm text-muted-foreground">If your pilot has only one Admin, ask the Valo Pay team to add a second.</p>
+      <details className="rounded-lg border p-3 text-sm">
+        <summary className="min-h-8 cursor-pointer font-medium">Technical setup</summary>
+        <p className="mt-2 text-muted-foreground">
+          The Valo Pay team adds one with the staff set-up command, using its option for adding an Admin.
+        </p>
+      </details>
       {!invitations.length && !directory.changes.length ? <p className="text-sm">Nothing is waiting for approval.</p> : (
         <ul className="space-y-3">
           {invitations.map((item) => (
             <li key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3 text-sm">
               <span>Invitation: {item.email} as {item.role}<small className="mt-1 block text-muted-foreground">Sent by {item.invitedBy} · expires {formatDate(item.expiresAt)}</small></span>
-              {item.invitedBy === actor ? <span className="text-xs text-muted-foreground">You sent it: another administrator approves it.</span> : (
+              {item.invitedBy === actor ? <span className="text-xs text-muted-foreground">You sent this, so another Admin must approve it.</span> : (
                 <Button variant="outline" disabled={busy} onClick={() => choose(`/team/invitations/${item.id}/approve`)}>Approve invitation</Button>
               )}
             </li>
           ))}
           {directory.changes.map((change) => (
             <li key={change.id} className="space-y-2 rounded-lg border p-3 text-sm">
-              <p>{change.name}: {change.from.role} ({change.from.status}) to {change.to.role} ({change.to.status})</p>
+              <p>{change.name}: {change.from.role} ({readableLabel(change.from.status)}) to {change.to.role} ({readableLabel(change.to.status)})</p>
               <p className="text-xs text-muted-foreground">Asked by {change.requestedBy} · {formatDate(change.requestedAt)} · {change.reason}</p>
               <div className="flex flex-wrap gap-2">
-                {directory.members.some((member) => member.id === change.memberId && member.actor === actor) ? <span className="self-center text-xs text-muted-foreground">A change to your own membership: another administrator approves or declines it.</span> : <>
-                  {change.requestedBy === actor ? <span className="self-center text-xs text-muted-foreground">You asked for it: another administrator approves it.</span> : (
+                {directory.members.some((member) => member.id === change.memberId && member.actor === actor) ? <span className="self-center text-xs text-muted-foreground">This change is to your own access, so another Admin must approve or reject it.</span> : <>
+                  {change.requestedBy === actor ? <span className="self-center text-xs text-muted-foreground">You asked for this, so another Admin must approve it.</span> : (
                     <Button variant="outline" disabled={busy} onClick={() => choose(`/team/changes/${change.id}/approve`)}>Approve change</Button>
                   )}
-                  <Button variant="ghost" disabled={busy} onClick={() => choose(`/team/changes/${change.id}/decline`)}>{change.requestedBy === actor ? "Withdraw request" : "Decline change"}</Button>
+                  <Button variant="ghost" disabled={busy} onClick={() => choose(`/team/changes/${change.id}/decline`)}>{change.requestedBy === actor ? "Withdraw request" : "Reject change"}</Button>
                 </>}
               </div>
             </li>
@@ -453,9 +476,9 @@ function LenderGrants({ member, lenders, mutation }: { member: DirectoryMember; 
   // A saved change's reason is spent, even before the new version renews this form.
   useEffect(() => { if (mutation.data) setReason(""); }, [mutation.data]);
   return <form className="space-y-3 border-t pt-4" onSubmit={event => { event.preventDefault(); mutation.mutate({ path: `/team/members/${member.id}/lenders`, lender: false, method: "PATCH", data: { expectedUpdatedAt: member.updatedAt, lenderIds: selected, reason } }); }}>
-    <fieldset disabled={busy} className="space-y-2"><legend className="mb-2 text-sm font-semibold">Lenders available to {member.name}</legend>{lenders.length ? lenders.map(lender => <label key={lender.id} className="flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" checked={selected.includes(lender.id)} onChange={event => setSelected(current => event.target.checked ? [...current, lender.id] : current.filter(id => id !== lender.id))} />{lender.name}</label>) : <p className="text-sm text-muted-foreground">Create a lender from the pilot journey before assigning access.</p>}
-      <label className="block space-y-1 text-sm">Reason for lender access change for {member.name}<textarea className={pilotField} required minLength={10} maxLength={1000} rows={2} value={reason} onChange={event => setReason(event.target.value)} /></label>
-      <p className="text-xs text-muted-foreground">Clearing every selection removes lender access. Saved sessions are checked again on the next request.</p>
+    <fieldset disabled={busy} className="space-y-2"><legend className="mb-2 text-sm font-semibold">Lenders available to {member.name}</legend>{lenders.length ? lenders.map(lender => <label key={lender.id} className="flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" checked={selected.includes(lender.id)} onChange={event => setSelected(current => event.target.checked ? [...current, lender.id] : current.filter(id => id !== lender.id))} />{lender.name}</label>) : <p className="text-sm text-muted-foreground">Create a lender in Pilot journey before you give access.</p>}
+      <div className="space-y-1"><label className="block space-y-1 text-sm">Reason for changing {member.name}’s lenders<textarea className={pilotField} required minLength={10} maxLength={1000} rows={2} value={reason} aria-describedby={`lenders-reason-help-${member.id}`} onChange={event => setReason(event.target.value)} /></label><p id={`lenders-reason-help-${member.id}`} className="text-xs text-muted-foreground">At least 10 characters. Saved in the access history.</p></div>
+      <p className="text-xs text-muted-foreground">If you clear every lender, the person loses lender access. The change applies the next time they use Valo Pay.</p>
       <Button type="submit" variant="outline" busy={mutation.isPending}>Save lender access</Button>
     </fieldset>
   </form>;

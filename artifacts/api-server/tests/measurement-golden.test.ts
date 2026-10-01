@@ -73,7 +73,7 @@ const throughDatabase = (state: DomainState) => {
   check(customerTimeline(state, due.customerId).events.some((event) => event.kind === "retry-decisions"), "AUD-01: the timeline carries every retry decision");
   const before = structuredClone(state);
   moved[0]!.data.reason = "edited";
-  assert.throws(() => assertFinalState(before, state, state.merchant.id), /immutable/, "decision records are immutable evidence");
+  assert.throws(() => assertFinalState(before, state, state.merchant.id), /Saved evidence cannot be changed\. Reload the page and try again\./, "decision records are immutable evidence");
   checks += 7;
 }
 
@@ -210,7 +210,7 @@ const throughDatabase = (state: DomainState) => {
   assert.equal(second.data.positionAlert, false);
   const stored = structuredClone(state);
   next.data.summary = "edited";
-  assert.throws(() => assertFinalState(stored, state, state.merchant.id), /immutable/, "close reports are immutable evidence");
+  assert.throws(() => assertFinalState(stored, state, state.merchant.id), /Saved evidence cannot be changed\. Reload the page and try again\./, "close reports are immutable evidence");
   // A stored outstanding balance that drifts from the allocations is an alert on the next close.
   next.data.summary = stored.records.find((item) => item.id === next.id)!.data.summary;
   due.data.outstandingKobo = 100;

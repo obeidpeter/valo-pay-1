@@ -2,6 +2,7 @@ import {
   allocationDecisionDataSchema, counted, businessDateSchema, discountConfirmationDataSchema,
   DEFAULT_ACTIVATION_WINDOW_DAYS, PLATFORM_OWNER, activationReminderCaps, closeRules, failureCodeList, handBackFallbackOwner, isKnownFailureCode,
   heldEvidenceCodes, heldEvidenceOf, moneyText, nairaText, nextCloseInstant, normaliseFailureCode, otherCurrenciesText, passRuleText, paymentUnappliedKobo, providerIdentityConfirmedCode, providerIdentityOf, providerIdentityParts, resolutionCodesForException, resolutionRuleVersion, resolveExceptionType, unseenReversalCodes, unseenReversalOf, withinQuietHours, templateTextProblems,
+  changedText, collectionOwnerText, dayText, durationText, instantText, listText, monthText, optionText as option, policyGuardrails, valueLabel, valueWords,
   type CloseTrigger,
 } from "@workspace/valopay-schema";
 import { findRecord, makeRecord, recordsOf, touch } from "./records";
@@ -17,7 +18,7 @@ import { watDate } from "./calendar";
 import { issueInvoice } from "./billing";
 import { confirmDiscountTerms } from "./commercial-terms";
 import type { ActionInput, ActionResult, Context, DomainState, TypedRecord, ValopayRecord } from "./types";
-import { assertActionRole } from "./validation";
+import { assertActionRole, roleRefusal } from "./validation";
 import { countedAttempts, evaluateRetry, policyIdFor, policyLineage, policySummary, policyVersionOf, preregisterSample, samePolicyLineage } from "./policy-engine";
 import { buildAlerts, type AuditVerification } from "./alerts";
 
@@ -28,6 +29,30 @@ const requiresReason = new Set([
   "simulate_failure", "backtest_policy", "preregister_experiment", "hand_back", "mark_pack_used", "issue_invoice", "confirm_discount_terms", "notify_policy_change", "apply_policy_version",
 ]);
 const DAY_MS = 24 * 60 * 60 * 1000, MINUTE_MS = 60 * 1000;
+/** An action this API does not run here, such as one another route handles. */
+const UNAVAILABLE_ACTION = "This action is not available. Reload the page and try again.";
+/** Customer messages wait out quiet hours. */
+const QUIET_HOURS = "Customer messages cannot be sent during quiet hours, from 21:00 to 08:00 WAT. Try again after 08:00 WAT.";
+/** A mandate's retry policy changes only to an approved version of the same policy. */
+const SAME_POLICY = "Choose an approved version of this mandate’s retry policy.";
+
+/**
+ * The lender's contact details as a customer message ends with them: "Questions? Contact our collections team."
+ * Contact details saved as a whole instruction ("Contact your lender's collections team") lose their leading verb.
+ */
+function contactText(state: DomainState): string {
+  const route = String(state.settings.contactRoute ?? "").trim().replace(/^contact\s+/i, "").replace(/[\s.]+$/, "");
+  return `Questions? Contact ${route || state.merchant.name}.`;
+}
+
+/** A policy change notice as the customer reads it: short, in the second person, naming the lender. */
+function policyChangeText(state: DomainState, policy: TypedRecord<"policies">): string {
+  const d = policy.data;
+  const tries = counted(Number(d.maxAttempts ?? policyGuardrails.defaultMaxAttempts), "try", "tries");
+  const spacing = d.spacingHours ?? policyGuardrails.defaultSpacingHours;
+  const first = d.firstNoticeHours ?? policyGuardrails.defaultFirstNoticeHours, retry = d.retryNoticeHours ?? policyGuardrails.defaultRetryNoticeHours;
+  return `${state.merchant.name}: the rules for collecting your payments are changing. From now on, up to ${tries} to collect each payment, at least ${spacing} hours apart${d.partialAllowed ? "" : ", each for the full amount"}. You get a notice ${first} hours before the first try and ${retry} hours before any retry. ${contactText(state)}`;
+}
 
 function reason(input: ActionInput): string {
   if (!input.reason?.trim()) throw new Error("Enter a reason for this action. It will be saved in the audit log.");
@@ -60,7 +85,7 @@ function payerIdentified(state: DomainState, message: string, record: ValopayRec
 function payerWithdrawn(state: DomainState, message: string, record: ValopayRecord, payment: TypedRecord<"payments">, customerId: string): ActionResult {
   const customer = recordsOf(state, "customers").find((item) => item.id === customerId);
   const payer = customer?.reference || customerId;
-  return result(`${message} The payer Finance identified through that match, ${customer?.name ? `${customer.name} (${payer})` : payer}, is withdrawn: payment ${payment.reference} has no payer until Finance applies it to its payer's instalment.`, record, {
+  return result(`${message} The payer Finance identified through that match, ${customer?.name ? `${customer.name} (${payer})` : payer}, is withdrawn. Payment ${payment.reference} has no payer until Finance allocates it to the payer’s instalment.`, record, {
     auditNote: `Payer identification of customer ${payer} withdrawn for payment ${payment.reference}: the match that identified the payer is out of use.`,
   });
 }
@@ -92,9 +117,9 @@ function switchStop(state: DomainState, ctx: Context, policyId: string | undefin
   else state.merchant.killSwitch = enabled;
   settleStopRelease(state, policyId);
   const cancelled = enabled
-    ? cancelScheduledAttempts(state, ctx.now, policyId ? "Policy version kill switch" : "Merchant kill switch", (attempt) => !policyId || policyIdFor(state, findRecord(state, String(attempt.data.dueItemId), "due-items")) === policyId)
+    ? cancelScheduledAttempts(state, ctx.now, policyId ? "Emergency stop turned on for this retry policy version." : "Emergency stop turned on for this lender.", (attempt) => !policyId || policyIdFor(state, findRecord(state, String(attempt.data.dueItemId), "due-items")) === policyId)
     : [];
-  return result(`${policyId ? "Policy" : "Lender"} emergency stop is ${enabled ? "on" : "off"}. No collection instruction was sent.`, undefined, { enabled, policyId, cancelledScheduledAttemptIds: cancelled });
+  return result(`${policyId ? "Retry policy" : "Lender"} emergency stop is ${enabled ? "on" : "off"}. No collection instruction was sent.`, undefined, { enabled, policyId, cancelledScheduledAttemptIds: cancelled });
 }
 
 function dueItemsUnderMandate(state: DomainState, mandateId: string): Set<string> {
@@ -139,20 +164,20 @@ export function runDailyClose(state: DomainState, ctx: Context, trigger: CloseTr
   // Waiting payments count in every currency; money in another currency than naira is named beside the count.
   const others = Object.keys(report.unallocated.otherCurrencies ?? {}).length;
   const otherMoney = others ? `, including ${otherCurrenciesText(report.unallocated.otherCurrencies)} in ${others === 1 ? "another currency" : "other currencies"}` : "";
-  const summary = `${counted(report.observations.received, "observation")} received, ${counted(report.allocated.count, "allocation")} confirmed, ${report.unallocated.count} unallocated (${report.unallocated.olderThan24Hours} older than 24h)${otherMoney}, ${counted(report.exceptions.opened.count, "exception")} opened and ${report.exceptions.closed.count} closed, ${counted(report.customerPositionsChanged.length, "customer position")} changed.`;
+  const summary = `${counted(report.observations.received, "payment evidence record")} received, ${counted(report.allocated.count, "allocation")} confirmed, ${report.unallocated.count} unallocated (${report.unallocated.olderThan24Hours} older than 24 hours)${otherMoney}, ${counted(report.exceptions.opened.count, "exception")} opened and ${report.exceptions.closed.count} closed, ${counted(report.customerPositionsChanged.length, "customer position")} changed.`;
   const close = makeRecord(state, "closes", {
-    name: `Daily close ${runDate}${trigger === "scheduled" ? " · scheduled" : ""}${businessDate === runDate ? "" : ` · business date ${businessDate}`}`, status: "completed", createdAt: now,
+    name: `Daily close ${dayText(runDate)}${trigger === "scheduled" ? " · scheduled" : ""}${businessDate === runDate ? "" : ` · business date ${dayText(businessDate)}`}`, status: "completed", createdAt: now,
     data: {
       summary, metrics: reports.metrics, closedAt: now, period: report.period, report, operational: reports.operational, positionAlert: report.positionRebuild.alert,
       sourceBusinessDate: businessDate, schedule: { trigger, scheduledFor, delayMinutes, late, nextAt: state.settings.nextCloseAt }, synthetic: true,
     },
   });
-  const lateness = late ? ` ${counted(delayMinutes, "minute")} after its ${schedule.time} WAT time` : "";
+  const lateness = late ? ` ${durationText(delayMinutes)} after its scheduled time of ${schedule.time} WAT` : "";
   const stillOwed = owed ? ` ${counted(owed, "missed business date is", "missed business dates are")} still to close.` : "";
   const message = trigger === "scheduled"
-    ? `Scheduled daily close of ${businessDate} completed${lateness}.${stillOwed} No data was fetched from the provider or sent to the loan management system.`
+    ? `Scheduled daily close of ${dayText(businessDate)} completed${lateness}.${stillOwed} No data was fetched from the provider or sent to the loan management system.`
     : scheduledFor
-      ? `Daily close of ${businessDate} completed in place of its scheduled close${lateness ? `,${lateness}` : ""}.${stillOwed} No data was fetched from the provider or sent to the loan management system.`
+      ? `Daily close of ${dayText(businessDate)} completed in place of its scheduled close${lateness ? `,${lateness}` : ""}.${stillOwed} No data was fetched from the provider or sent to the loan management system.`
       : `Daily close completed.${stillOwed} No data was fetched from the provider or sent to the loan management system.`;
   return result(message, close, { ...reconciled.data, closeId: close.id, positionAlert: report.positionRebuild.alert, schedule: close.data.schedule });
 }
@@ -179,24 +204,24 @@ export function executeAction(state: DomainState, ctx: Context, input: ActionInp
 
 /** The answer when an instalment left dispute: where it stands now, and the audit note that records how it left. */
 function releasedAnswer(record: ValopayRecord, due: TypedRecord<"due-items">, via: "not_upheld" | "finance_release"): ActionResult {
-  const standing = due.status === "paid" ? "paid" : `${dueStatusText(due.status)} with ${nairaText(Number(due.data.outstandingKobo ?? due.amountKobo))} outstanding`;
-  const next = due.status === "paid" ? "nothing is outstanding" : "collection and allocation can resume";
-  return result(`${via === "not_upheld" ? "Exception resolution recorded. " : ""}Instalment ${due.reference} is out of dispute and is now ${standing}: ${next}.`, record, {
+  const standing = due.status === "paid" ? "paid" : `${dueStatusText(due.status)}, with ${nairaText(Number(due.data.outstandingKobo ?? due.amountKobo))} outstanding`;
+  const next = due.status === "paid" ? "Nothing is outstanding." : "Collection and allocation can resume.";
+  return result(`${via === "not_upheld" ? "Exception resolution recorded. " : ""}Instalment ${due.reference} is out of dispute and is now ${standing}. ${next}`, record, {
     dueStatus: due.status,
     auditNote: via === "not_upheld" ? `Dispute not upheld: instalment ${due.reference} is out of dispute, now ${standing}.` : `Instalment ${due.reference} released from dispute by Finance, now ${standing}.`,
   });
 }
 
 function runAction(state: DomainState, ctx: Context, input: ActionInput, audit?: AuditVerification | null): ActionResult {
-  if (!input.action) throw new Error("action is required.");
+  if (!input.action) throw new Error("This request names no action. Reload the page and try again.");
   if (requiresReason.has(input.action)) reason(input);
   const data = input.data || {};
   const now = ctx.now;
-  if (input.action === "request_instruction") throw new Error("Blocked: this synthetic observation sandbox can never send a provider or bank instruction.");
-  if (input.action === "set_role" || input.action === "verify_audit" || input.action === "create_export") throw new Error(`${input.action} is handled by the API shell, not the domain action engine.`);
+  if (input.action === "request_instruction") throw new Error("This sandbox can never send an instruction to a provider or bank. It only records sample payment evidence.");
+  if (input.action === "set_role" || input.action === "verify_audit" || input.action === "create_export") throw new Error(UNAVAILABLE_ACTION);
 
   if (input.action === "kill_switch") {
-    assertActionRole(ctx, ["Admin"]);
+    assertActionRole(ctx, ["Admin"], "turn the emergency stop on or off");
     if (typeof data.enabled !== "boolean") throw new Error("Choose whether the emergency stop is on or off.");
     // Approved policy versions are immutable, so a version's switch lives in merchant settings (DEB-06).
     const policyId = data.policyId ? findRecord(state, String(data.policyId), "policies").id : undefined;
@@ -204,22 +229,22 @@ function runAction(state: DomainState, ctx: Context, input: ActionInput, audit?:
     if (!data.enabled && on && ctx.accessMode === "staff") {
       // A staff pilot lifts a stop only with a second administrator: this is the request, and the stop stays on (approve_kill_switch_off).
       state.settings.emergencyStopReleases = { ...(state.settings.emergencyStopReleases || {}), [scope]: { requestedBy: ctx.actor, requestedAt: now, reason: reason(input), policyId: policyId ?? null } };
-      return result(`The ${policyId ? "policy" : "lender"} emergency stop stays on until a second administrator approves turning it off. Your request is saved; no collection instruction was sent.`, undefined, { enabled: true, policyId, releaseRequested: true, cancelledScheduledAttemptIds: [] });
+      return result(`The ${policyId ? "retry policy" : "lender"} emergency stop stays on until a different Admin approves turning it off. Your request is saved. No collection instruction was sent.`, undefined, { enabled: true, policyId, releaseRequested: true, cancelledScheduledAttemptIds: [] });
     }
     return switchStop(state, ctx, policyId, data.enabled);
   }
   if (input.action === "approve_kill_switch_off") {
-    assertActionRole(ctx, ["Admin"]);
+    assertActionRole(ctx, ["Admin"], "approve turning off the emergency stop");
     const policyId = data.policyId ? findRecord(state, String(data.policyId), "policies").id : undefined;
     const request = state.settings.emergencyStopReleases?.[stopScope(policyId)];
-    if (!request) throw Object.assign(new Error(`No request to turn off the ${policyId ? "policy" : "lender"} emergency stop is waiting. An administrator asks first; a different administrator approves.`), { status: 409 });
+    if (!request) throw Object.assign(new Error(`No request to turn off the ${policyId ? "retry policy" : "lender"} emergency stop is waiting. Reload the page to see its current state: one Admin asks, then a different Admin approves.`), { status: 409 });
     // A staff actor is the verified Clerk user the principal is derived from, so a different actor is a different person.
-    if (request.requestedBy === ctx.actor) throw Object.assign(new Error("A different administrator must approve turning off the emergency stop: the administrator who asked cannot approve it. A pilot with one administrator asks the operator to add a second with the provisioning command's --add-administrator mode."), { status: 403 });
+    if (request.requestedBy === ctx.actor) throw Object.assign(new Error("A different Admin must approve turning off the emergency stop. If your pilot has only one Admin, ask the Valo Pay team to add a second."), { status: 403 });
     const lifted = switchStop(state, ctx, policyId, false);
-    return { ...lifted, data: { ...lifted.data, requestedBy: request.requestedBy, requestedAt: request.requestedAt, auditNote: `Approved the request by ${request.requestedBy} at ${request.requestedAt}: ${request.reason}` } };
+    return { ...lifted, data: { ...lifted.data, requestedBy: request.requestedBy, requestedAt: request.requestedAt, auditNote: `Approved the request by ${request.requestedBy} at ${instantText(request.requestedAt)}: ${request.reason}` } };
   }
   if (["mandate_suspend", "mandate_cancel", "mandate_reinstate"].includes(input.action)) {
-    assertActionRole(ctx, ["Admin", "Operations"]);
+    assertActionRole(ctx, ["Admin", "Operations"], input.action === "mandate_suspend" ? "suspend a mandate" : input.action === "mandate_cancel" ? "cancel a mandate" : "resume a mandate");
     const mandate = findRecord(state, String(input.recordId), "mandates");
     const dues = dueItemsUnderMandate(state, mandate.id);
     if (input.action === "mandate_suspend") {
@@ -227,28 +252,28 @@ function runAction(state: DomainState, ctx: Context, input: ActionInput, audit?:
       mandate.status = "suspended"; mandate.data.suspendedAt = now;
     }
     if (input.action === "mandate_cancel") {
-      if (!["draft", "submitted", "pending_activation", "active", "suspended"].includes(mandate.status)) throw new Error(`A ${mandate.status} mandate cannot be cancelled.`);
+      if (!["draft", "submitted", "pending_activation", "active", "suspended"].includes(mandate.status)) throw new Error(`This mandate is ${valueWords(mandate.status)}, so it cannot be cancelled.`);
       mandate.status = "cancelled"; mandate.data.cancelledAt = now;
     }
     if (input.action === "mandate_reinstate") {
-      if (mandate.status !== "suspended") throw new Error("Only a suspended mandate can be reinstated.");
+      if (mandate.status !== "suspended") throw new Error("Only a suspended mandate can be resumed.");
       mandate.status = "active"; mandate.data.reinstatedAt = now;
     }
-    const cancelled = input.action === "mandate_reinstate" ? [] : cancelScheduledAttempts(state, now, `Mandate ${mandate.status}; no instruction was sent.`, (attempt) => dues.has(String(attempt.data.dueItemId)));
+    const cancelled = input.action === "mandate_reinstate" ? [] : cancelScheduledAttempts(state, now, `Mandate ${valueWords(mandate.status)}. No instruction was sent.`, (attempt) => dues.has(String(attempt.data.dueItemId)));
     mandate.data.lastActionReason = reason(input); touch(mandate, now);
-    return result(`Mandate ${mandate.status}. An update for the loan management system has been recorded. No external instruction was sent.`, mandate, { cancelledScheduledAttemptIds: cancelled });
+    return result(`Mandate ${input.action === "mandate_reinstate" ? "resumed" : valueWords(mandate.status)}. An update for the loan management system has been recorded. No external instruction was sent.`, mandate, { cancelledScheduledAttemptIds: cancelled });
   }
   if (input.action === "mandate_reissue") {
-    assertActionRole(ctx, ["Admin", "Operations"]);
+    assertActionRole(ctx, ["Admin", "Operations"], "reissue a mandate");
     const old = findRecord(state, String(input.recordId), "mandates");
     if (!["pending_activation", "expired", "cancelled", "failed"].includes(old.status)) throw new Error("You can reissue a mandate only if it expired, was cancelled, failed or is still awaiting activation.");
     if (!data.consentEvidence || typeof data.consentEvidence !== "string") throw new Error("Enter a new consent evidence reference to reissue this mandate.");
     // MAN-02: the new consent may cover a new limit; the limit of an existing mandate never changes.
     const limitKobo = data.amountKobo === undefined || data.amountKobo === null || data.amountKobo === "" ? old.amountKobo : data.amountKobo;
-    if (!Number.isSafeInteger(limitKobo) || Number(limitKobo) < 1) throw new Error("Enter the debit limit the new consent covers, a whole number of kobo greater than 0.");
+    if (!Number.isSafeInteger(limitKobo) || Number(limitKobo) < 1) throw new Error("Enter the debit limit the new consent covers. It must be more than ₦0.");
     // RET-07: fresh consent covers the current approved version of the same policy, or the version named in data.policyId.
     const target = data.policyId ? findRecord(state, String(data.policyId), "policies") : recordsOf(state, "policies").find((item) => item.id === old.data.policyId);
-    if (data.policyId && (target!.status !== "approved" || (old.data.policyId && !samePolicyLineage(state, String(old.data.policyId), target!.id)))) throw new Error("Choose an approved version of this mandate's existing policy.");
+    if (data.policyId && (target!.status !== "approved" || (old.data.policyId && !samePolicyLineage(state, String(old.data.policyId), target!.id)))) throw new Error(SAME_POLICY);
     // MAN-06: a new mandate and a new consent record; the old records are never edited.
     const fresh = makeRecord(state, "mandates", {
       name: `${old.name} · reissued`, status: "pending_activation", customerId: old.customerId, amountKobo: Number(limitKobo), createdAt: now,
@@ -263,72 +288,72 @@ function runAction(state: DomainState, ctx: Context, input: ActionInput, audit?:
     return result("A new mandate and consent record have been created. No instruction was sent to the provider.", fresh, { supersededMandateId: old.id });
   }
   if (input.action === "activation_reminder") {
-    assertActionRole(ctx, ["Admin", "Operations"]);
+    assertActionRole(ctx, ["Admin", "Operations"], "record an activation reminder");
     const mandate = findRecord(state, String(input.recordId), "mandates");
-    if (mandate.status !== "pending_activation") throw new Error("Activation reminders apply only to mandates awaiting activation.");
+    if (mandate.status !== "pending_activation") throw new Error(`This mandate is ${valueWords(mandate.status)}. Activation reminders are only for mandates awaiting activation.`);
     const workflow = String(mandate.data.workflow) as keyof typeof activationReminderCaps;
     const cap = activationReminderCaps[workflow] ?? activationReminderCaps.hosted_consent;
     if (workflow === "hosted_consent" && mandate.data.consentGiven) throw new Error("The customer has already given consent. Activation is now with the bank, so no reminder is needed.");
-    if (withinQuietHours(Date.parse(now))) throw new Error("Customer messages cannot be sent during quiet hours, from 21:00 to 08:00 WAT. Try again after 08:00.");
+    if (withinQuietHours(Date.parse(now))) throw new Error(QUIET_HOURS);
     const count = Number(mandate.data.reminderCount || 0);
-    if (count >= cap) throw new Error(`The limit of ${cap} activation reminders has been reached for this mandate.`);
+    if (count >= cap) throw new Error(`This mandate has had the most activation reminders allowed (${cap}). Reissue the mandate if the customer still needs to activate it.`);
     mandate.data.reminderCount = count + 1; mandate.data.lastReminderAt = now; mandate.data.lastActionReason = reason(input); touch(mandate, now);
     const notification = makeRecord(state, "notifications", {
       name: "Activation reminder", status: "simulated", customerId: mandate.customerId, createdAt: now,
-      data: { purpose: "activation_reminder", channel: "sms", class: "reminder", mandateId: mandate.id, sequence: count + 1, cap, submittedAt: now, acceptedAt: null, deliveredAt: null, renderedText: `Reminder ${count + 1} of ${cap} to complete ${workflow === "hosted_consent" ? "the consent link" : "the activation transfer"}.`, simulated: true },
+      data: { purpose: "activation_reminder", channel: "sms", class: "reminder", mandateId: mandate.id, sequence: count + 1, cap, submittedAt: now, acceptedAt: null, deliveredAt: null, renderedText: `${state.merchant.name}: please ${workflow === "hosted_consent" ? "use the consent link you were sent" : "make the activation transfer"} to set up your direct debit. This is reminder ${count + 1} of ${cap}.`, simulated: true },
     });
-    return result(`Activation reminder ${count + 1} of ${cap} recorded as a simulation; no message left the platform.`, mandate, { notificationId: notification.id });
+    return result(`Activation reminder ${count + 1} of ${cap} recorded as a simulation. No message left Valo Pay.`, mandate, { notificationId: notification.id });
   }
   if (["submit_policy", "approve_policy", "reject_policy", "new_policy_version"].includes(input.action)) {
     const policy = findRecord(state, String(input.recordId), "policies");
     if (input.action === "submit_policy") {
-      assertActionRole(ctx, ["Admin"]);
-      if (!["draft", "rejected"].includes(policy.status)) throw new Error(`A ${policy.status} policy cannot be submitted.`);
+      assertActionRole(ctx, ["Admin"], "submit a retry policy");
+      if (!["draft", "rejected"].includes(policy.status)) throw new Error(`This retry policy is ${valueWords(policy.status)}, so it cannot be submitted.`);
       policy.status = "submitted"; policy.data.author = ctx.actor; policy.data.submittedAt = now;
     }
     if (input.action === "approve_policy") {
-      assertActionRole(ctx, ["Compliance reviewer"]);
-      if (policy.status !== "submitted" || !policy.data.author || policy.data.author === ctx.actor) throw new Error("Submit the policy for review, then ask a Compliance reviewer other than its author to approve it.");
+      assertActionRole(ctx, ["Compliance reviewer"], "approve a retry policy");
+      if (policy.status !== "submitted" || !policy.data.author || policy.data.author === ctx.actor) throw new Error("Submit the retry policy for review, then ask a Compliance reviewer other than its author to approve it.");
       // One approved number names one set of rules: consent records, notices and decisions quote it.
       const version = policyVersionOf(policy);
       if (policyLineage(state, policy).some((item) => item.id !== policy.id && item.status === "approved" && policyVersionOf(item) === version)) {
-        throw Object.assign(new Error(`Version ${version} of this policy is already approved with its own rules. Reject this submission, then draft the next version from the approved one so it gets a new number.`), { status: 409 });
+        throw Object.assign(new Error(`Version ${version} of this retry policy is already approved with its own rules. Reject this submission, then draft the next version from the approved one so it gets a new number.`), { status: 409 });
       }
       policy.status = "approved"; policy.data.reviewer = ctx.actor; policy.data.approvedAt = now;
     }
     if (input.action === "reject_policy") {
-      assertActionRole(ctx, ["Compliance reviewer"]);
-      if (policy.status !== "submitted") throw new Error("Only a submitted policy can be rejected.");
+      assertActionRole(ctx, ["Compliance reviewer"], "reject a retry policy");
+      if (policy.status !== "submitted") throw new Error("Only a submitted retry policy can be rejected.");
       policy.status = "rejected"; policy.data.reviewer = ctx.actor; policy.data.rejectedAt = now;
     }
     if (input.action === "new_policy_version") {
-      assertActionRole(ctx, ["Admin"]);
+      assertActionRole(ctx, ["Admin"], "draft a new version of a retry policy");
       const { reviewer: _reviewer, approvedAt: _approvedAt, submittedAt: _submittedAt, rejectedAt: _rejectedAt, ...carried } = policy.data;
       // Numbered after every version of the policy, drafts and rejected ones included, so two drafts from one version never share a number.
       const versions = policyLineage(state, policy).map(policyVersionOf);
-      if (versions.some((version) => !Number.isSafeInteger(version) || version < 1)) throw new Error("Policy history has an invalid version number.");
+      if (versions.some((version) => !Number.isSafeInteger(version) || version < 1)) throw new Error("This retry policy’s history has an invalid version number. Ask the Valo Pay team to check it.");
       const latest = Math.max(...versions);
-      if (latest >= Number.MAX_SAFE_INTEGER) throw new Error("This policy has reached the supported version limit.");
+      if (latest >= Number.MAX_SAFE_INTEGER) throw new Error("This retry policy has reached the highest version number Valo Pay supports.");
       const copy = makeRecord(state, "policies", { name: policy.name, status: "draft", amountKobo: 0, createdAt: now, data: { ...carried, version: latest + 1, author: ctx.actor, previousVersionId: policy.id } });
       return result("Draft policy version created.", copy);
     }
     policy.data.lastActionReason = reason(input); touch(policy, now);
-    return result(`Policy ${policy.status}.`, policy);
+    return result(`Retry policy ${valueWords(policy.status)}.`, policy);
   }
   if (["submit_template", "approve_template", "reject_template", "new_template_version"].includes(input.action)) {
     const template = findRecord(state, String(input.recordId), "templates");
     if (input.action === "new_template_version") {
-      assertActionRole(ctx, ["Admin"]);
-      if (template.status !== "approved") throw new Error("Create a new version from an approved template. Edit or finish reviewing an existing draft first.");
+      assertActionRole(ctx, ["Admin"], "draft a new version of a message template");
+      if (template.status !== "approved") throw new Error("Draft a new version only from an approved message template. Edit or finish reviewing the existing draft first.");
       const templates = recordsOf(state, "templates");
       const rootOf = (record: TypedRecord<"templates">): string => {
         const visited = new Set<string>();
         let current = record;
         while (current.data.previousVersionId) {
-          if (visited.has(current.id)) throw new Error("Template history contains a cycle. Review its version links before creating a draft.");
+          if (visited.has(current.id)) throw new Error("This message template’s version history is broken, so a new draft cannot be created. Ask the Valo Pay team to check it.");
           visited.add(current.id);
           const previous = templates.find(item => item.id === current.data.previousVersionId);
-          if (!previous) throw new Error("The previous template version is unavailable. Restore its history before creating another version.");
+          if (!previous) throw new Error("An earlier version of this message template is missing, so a new draft cannot be created. Ask the Valo Pay team to restore it.");
           current = previous;
         }
         return current.id;
@@ -343,22 +368,22 @@ function runAction(state: DomainState, ctx: Context, input: ActionInput, audit?:
         remaining = remaining.filter(item => !family.has(item.id));
       }
       const versions = templates.filter(item => family.has(item.id)).map(item => Number(item.data.version || 1));
-      if (versions.some(version => !Number.isSafeInteger(version) || version < 1)) throw new Error("Template history has an invalid version number.");
-      if (Math.max(...versions) >= Number.MAX_SAFE_INTEGER) throw new Error("This template has reached the supported version limit.");
+      if (versions.some(version => !Number.isSafeInteger(version) || version < 1)) throw new Error("This message template’s history has an invalid version number. Ask the Valo Pay team to check it.");
+      if (Math.max(...versions) >= Number.MAX_SAFE_INTEGER) throw new Error("This message template has reached the highest version number Valo Pay supports.");
       const { reviewer: _reviewer, approvedAt: _approved, submittedAt: _submitted, rejectedAt: _rejected, rejectionReason: _rejection, reviewHistory: _history, lastActionReason: _reason, ...carried } = template.data;
       const copy = makeRecord(state, "templates", { name: template.name, status: "draft", createdAt: now, data: { ...carried, version: Math.max(...versions) + 1, author: ctx.actor, previousVersionId: template.id, templateRootId: rootId } });
       return result("Draft template version created. The approved version is unchanged.", copy);
     }
     if (input.action === "submit_template") {
-      assertActionRole(ctx, ["Admin"]);
-      if (!["draft", "rejected"].includes(template.status)) throw new Error(`A ${template.status} template cannot be submitted.`);
-      if (!template.data.author || template.data.author !== ctx.actor) throw new Error("Only the template author can submit it for review.");
+      assertActionRole(ctx, ["Admin"], "submit a message template");
+      if (!["draft", "rejected"].includes(template.status)) throw new Error(`This message template is ${valueWords(template.status)}, so it cannot be submitted.`);
+      if (!template.data.author || template.data.author !== ctx.actor) throw new Error("Only the template’s author can submit it for review.");
       const problems = templateTextProblems(template.data.text);
       if (problems.length) throw new Error(problems.join(' '));
       template.status = "submitted"; template.data.submittedAt = now;
     } else {
-      assertActionRole(ctx, ["Compliance reviewer"]);
-      if (!template.data.author || template.data.author === ctx.actor || template.status !== "submitted") throw new Error("Submit the template for review, then ask a Compliance reviewer other than its author to approve or reject it.");
+      assertActionRole(ctx, ["Compliance reviewer"], input.action === "approve_template" ? "approve a message template" : "request changes to a message template");
+      if (!template.data.author || template.data.author === ctx.actor || template.status !== "submitted") throw new Error("Submit the message template for review, then ask a Compliance reviewer other than its author to approve or reject it.");
       if (input.action === "approve_template") {
         const problems = templateTextProblems(template.data.text);
         if (problems.length) throw new Error(problems.join(' '));
@@ -370,21 +395,21 @@ function runAction(state: DomainState, ctx: Context, input: ActionInput, audit?:
       template.data.reviewHistory = [...(Array.isArray(template.data.reviewHistory) ? template.data.reviewHistory : []), { status: template.status, reviewer: ctx.actor, at: now, reason: reason(input) }];
     }
     template.data.lastActionReason = reason(input);
-    touch(template, now); return result(`Template ${template.status}.`, template);
+    touch(template, now); return result(input.action === "reject_template" ? "Changes requested. The author can edit this version and submit it again." : `Message template ${valueWords(template.status)}.`, template);
   }
   if (input.action === "run_reconciliation") {
-    assertActionRole(ctx, ["Admin", "Operations", "Finance"]);
+    assertActionRole(ctx, ["Admin", "Operations", "Finance"], "run reconciliation");
     const reconciled = reconcile(state, ctx);
     return result(reconciled.message, undefined, reconciled.data);
   }
   if (input.action === "daily_close") {
-    assertActionRole(ctx, ["Admin", "Operations", "Finance"]);
+    assertActionRole(ctx, ["Admin", "Operations", "Finance"], "run a daily close");
     const sourceDate = data.sourceBusinessDate === undefined ? undefined : businessDateSchema.parse(data.sourceBusinessDate);
-    if (sourceDate && sourceDate > watDate(Date.parse(ctx.now))) throw new Error('Choose today or an earlier source business date. Future source coverage cannot be closed.');
+    if (sourceDate && sourceDate > watDate(Date.parse(ctx.now))) throw new Error("Choose today or an earlier business date. A daily close cannot cover a future date.");
     return runDailyClose(state, ctx, "manual", sourceDate, audit);
   }
   if (["confirm_allocation", "reject_allocation", "manual_allocate"].includes(input.action)) {
-    assertActionRole(ctx, ["Admin", "Finance"]);
+    assertActionRole(ctx, ["Admin", "Finance"], input.action === "manual_allocate" ? "allocate a payment" : "confirm or reject a match");
     // A decision names the proposal it was made on: without the pair it is refused, naming what it lacks, before the payment is read.
     const reviewed = input.action === "manual_allocate" ? undefined : allocationDecisionDataSchema.parse(data, { path: ["data"] });
     const payment = findRecord(state, String(input.recordId), "payments");
@@ -399,11 +424,11 @@ function runAction(state: DomainState, ctx: Context, input: ActionInput, audit?:
       return identifying ? payerIdentified(state, "Manual allocation recorded by Finance.", allocation, payment) : result("Manual allocation recorded by Finance.", allocation);
     }
     const allocation = recordsOf(state, "allocations").find((item) => item.data.paymentId === payment.id && item.status === "proposed");
-    if (!allocation) throw new Error("This payment has no proposed allocation to review. Refresh the page to see its current status.");
+    if (!allocation) throw new Error("This payment has no proposed match to review. Reload the page to see its current status.");
     // The decision is on the proposal reviewed, not whichever proposal happens to be current when its request
     // arrives; its version is compared as an instant, as a record's is (assertRecordVersion).
     if (reviewed!.proposalId !== allocation.id || Date.parse(reviewed!.proposalUpdatedAt) !== Date.parse(allocation.updatedAt)) {
-      throw Object.assign(new Error("This proposed match has changed since you opened it. Refresh the queue and review the current proposal before deciding."), { status: 409 });
+      throw Object.assign(new Error(changedText("proposed match")), { status: 409 });
     }
     let withdrawn: string | undefined;
     if (input.action === "reject_allocation") {
@@ -423,10 +448,10 @@ function runAction(state: DomainState, ctx: Context, input: ActionInput, audit?:
     return result(`Allocation ${input.action === "reject_allocation" ? "rejected" : "confirmed"}.`, allocation);
   }
   if (input.action === "review_allocation") {
-    assertActionRole(ctx, ["Admin", "Finance"]);
+    assertActionRole(ctx, ["Admin", "Finance"], "review a match");
     const allocation = findRecord(state, String(input.recordId), "allocations");
     if (typeof data.correct !== "boolean") throw new Error("Choose whether the allocation is correct.");
-    if (allocation.status === "proposed") throw Object.assign(new Error("This match is still a proposal. Confirm or reject it in the proposed matches instead of recording an accuracy review."), { status: 409 });
+    if (allocation.status === "proposed") throw Object.assign(new Error("This match is still a proposal. Confirm or reject it in Matches to review instead."), { status: 409 });
     const payment = findRecord(state, String(allocation.data.paymentId), "payments");
     const why = reason(input);
     // Applying the match again to a payment with no payer identifies the payer again.
@@ -437,9 +462,9 @@ function runAction(state: DomainState, ctx: Context, input: ActionInput, audit?:
         // A match this review had marked wrong is applied again, or refused while the records have moved on.
         reinstateAllocation(state, ctx, allocation, why);
         reinstated = true;
-        message = "Allocation reviewed as correct and applied again.";
+        message = "Allocation reviewed as correct. Its money is allocated to the instalment again.";
       } else {
-        message = allocation.status === "superseded" ? "Allocation reviewed as correct. It stays out of use because it was superseded for another reason." : "Allocation reviewed as correct.";
+        message = allocation.status === "superseded" ? "Allocation reviewed as correct. It stays out of use, because it was taken out of use for another reason, such as a reversal." : "Allocation reviewed as correct.";
       }
     } else {
       // REC-09: the wrong pair is remembered, so the next close does not recreate the same match.
@@ -447,7 +472,7 @@ function runAction(state: DomainState, ctx: Context, input: ActionInput, audit?:
       if (allocation.status === "confirmed") {
         supersedeAllocation(state, ctx, allocation, `${REVIEW_SUPERSESSION}: ${why}`);
         allocation.data.supersededByReview = true;
-        message = "Allocation marked incorrect and no longer applied. The payment and instalment are open for review again, and automatic matching will not pair them again.";
+        message = "Allocation marked incorrect, so it is no longer in use. The payment and instalment are open for review again, and automatic matching will not pair them again.";
       } else {
         touch(payment, now);
         message = "Allocation marked incorrect. It was already out of use, and automatic matching will not pair this payment and instalment again.";
@@ -463,7 +488,7 @@ function runAction(state: DomainState, ctx: Context, input: ActionInput, audit?:
   }
   if (input.action === "release_dispute") {
     // Decision on leaving a dispute: Finance releases an instalment from dispute with a reason; its status then follows its balance.
-    assertActionRole(ctx, ["Admin", "Finance"]);
+    assertActionRole(ctx, ["Admin", "Finance"], "release an instalment from dispute");
     const due = findRecord(state, String(input.recordId), "due-items");
     const closed = releaseDispute(state, ctx, due, { via: "finance_release", reason: reason(input) });
     const answer = releasedAnswer(due, due, "finance_release");
@@ -471,14 +496,14 @@ function runAction(state: DomainState, ctx: Context, input: ActionInput, audit?:
     return note ? { ...answer, data: { ...answer.data, auditNote: `${answer.data.auditNote} ${note}` } } : answer;
   }
   if (input.action === "resolve_exception") {
-    assertActionRole(ctx, ["Admin", "Finance", "Operations"]);
+    assertActionRole(ctx, ["Admin", "Finance", "Operations"], "resolve an exception");
     const item = findRecord(state, String(input.recordId), "exceptions");
-    if (item.data.legacyResolutionReview) assertActionRole(ctx, ["Admin", "Finance"]);
+    if (item.data.legacyResolutionReview) assertActionRole(ctx, ["Admin", "Finance"], "resolve a reversal review");
     // FIN-03: a batch held for its provider identity is released only by Finance's, or an administrator's, confirmation of whose payout it is.
     const identityHold = resolveExceptionType(item.data.type) === "settlement_variance" && providerIdentityOf(item.data.condition) !== undefined;
-    if (identityHold && !["Admin", "Finance"].includes(ctx.role)) throw Object.assign(new Error("Only Finance, or an administrator, resolves the exceptions of a settlement batch's provider identity hold, by confirming whose payout the batch is."), { status: 403 });
-    if (item.data.case?.assignee && item.data.case.assignee !== ctx.actor && ctx.role !== 'Admin') throw Object.assign(new Error('Ask the case assignee or an administrator to record the resolution. Financial review remains a separate action.'), { status: 409 });
-    if (["resolved", "closed"].includes(item.status)) throw new Error("This exception is already resolved.");
+    if (identityHold && !["Admin", "Finance"].includes(ctx.role)) throw Object.assign(new Error(roleRefusal(ctx, ["Admin", "Finance"], "resolve this exception", "resolving it confirms whose payout the settlement batch is")), { status: 403 });
+    if (item.data.case?.assignee && item.data.case.assignee !== ctx.actor && ctx.role !== 'Admin') throw Object.assign(new Error("Only the person this case is assigned to, or an Admin, can resolve this exception. Financial review is a separate step."), { status: 409 });
+    if (["resolved", "closed"].includes(item.status)) throw new Error("This exception is already resolved. Reload the page to see how it was resolved.");
     // Codes that apply to this exception as it stands now: held evidence is re-derived first, so joining it to its payment is
     // accepted only while it is held for its connection alone, whatever condition an earlier state or build recorded.
     if (resolveExceptionType(item.data.type) === "suspected_duplicate") refreshHeldEvidence(state, ctx, item);
@@ -490,26 +515,26 @@ function runAction(state: DomainState, ctx: Context, input: ActionInput, audit?:
     // While its batch is held, any other code would close the exception while the batch stays held with its evidence
     // uncounted, with no way out. Once it is not, an earlier build's hold exception stays open only for the reports it carries.
     const identityHeldNow = identityHold && (heldBatch !== undefined || identityExceptionHeld(state, item));
-    if (identityHeldNow && data.resolutionCode !== providerIdentityConfirmedCode) throw new Error(`Resolution code must be ${providerIdentityConfirmedCode}: a settlement batch held for its provider identity is released only when Finance or an administrator confirms whose payout it is. If the providers cannot attribute the payout to one connection, leave this exception open until the data owner repairs the evidence; the next reconciliation then releases the batch and closes the exception.`);
+    if (identityHeldNow && data.resolutionCode !== providerIdentityConfirmedCode) throw new Error(`Choose ${option(providerIdentityConfirmedCode)}: this settlement batch stays held until Finance or an Admin confirms whose payout it is. If the providers cannot say which connection it belongs to, leave this exception open until the data owner corrects the evidence. The next reconciliation then releases the batch and closes the exception.`);
     const allowed = resolutionCodesForException(item, { identityHeld: identityHeldNow });
-    if (!allowed.includes(String(data.resolutionCode))) throw new Error(`Resolution code must be one of: ${allowed.join(", ")}.`);
+    if (!allowed.includes(String(data.resolutionCode))) throw new Error(`This resolution is not available for this exception now. Choose one of these: ${listText(allowed.map(option))}.`);
     const type = resolveExceptionType(item.data.type);
     // Item 10: an unknown outcome of a pay-by-bank checkout is Finance's to record, with the evidence when it was paid.
     const checkout = type === "unknown_outcome" ? recordsOf(state, "connected-intents").find((record) => record.id === item.data.linkedRecordId) : undefined;
     const evidenceReference = typeof data.evidenceReference === "string" && data.evidenceReference.trim() ? data.evidenceReference.trim() : undefined;
     if (checkout) {
-      if (!["Admin", "Finance"].includes(ctx.role)) throw Object.assign(new Error("Only Finance, or an administrator, records the outcome of a pay-by-bank payment: confirming it as received records a receipt."), { status: 403 });
-      if (data.confirmedFailureCode !== undefined && data.confirmedFailureCode !== null && data.confirmedFailureCode !== "") throw new Error("A failure code belongs to a debit attempt. For a pay-by-bank checkout, choose confirmed successful with its evidence reference, or confirmed failed.");
+      if (!["Admin", "Finance"].includes(ctx.role)) throw Object.assign(new Error(roleRefusal(ctx, ["Admin", "Finance"], "record the outcome of a Pay by Bank checkout", "confirming it as received records a payment")), { status: 403 });
+      if (data.confirmedFailureCode !== undefined && data.confirmedFailureCode !== null && data.confirmedFailureCode !== "") throw new Error(`A failure code is only for a collection attempt. For a Pay by Bank checkout, choose ${option("resolved_succeeded")} with its evidence reference, or ${option("resolved_failed")}.`);
       if (data.resolutionCode === "resolved_succeeded" && !evidenceReference) throw new Error("Enter the evidence reference that shows the payment arrived, such as a masked bank statement line.");
       if (evidenceReference && /\d{8,}/.test(evidenceReference)) throw new Error("Enter a masked evidence reference, such as STMT-***4411. Do not enter a full account or statement number.");
-      if (evidenceReference && data.resolutionCode !== "resolved_succeeded") throw new Error("An evidence reference is recorded only when the payment is confirmed as received.");
-    } else if (evidenceReference) throw new Error("An evidence reference is recorded only when a pay-by-bank payment whose outcome stayed unknown is confirmed as received.");
+      if (evidenceReference && data.resolutionCode !== "resolved_succeeded") throw new Error("Leave the evidence reference blank unless the payment is confirmed as received.");
+    } else if (evidenceReference) throw new Error("Leave the evidence reference blank. It is only for a Pay by Bank checkout whose outcome was unknown and is confirmed as received.");
     // FIN-03: only Finance, or an administrator, confirms whose payout a batch held for its provider identity is, naming one of the identities it was held for.
-    if (data.resolutionCode !== providerIdentityConfirmedCode && identity !== undefined) throw new Error("A provider identity is confirmed only when a settlement batch held for its provider identity is resolved as provider identity confirmed.");
+    if (data.resolutionCode !== providerIdentityConfirmedCode && identity !== undefined) throw new Error(`Leave the provider identity blank unless you resolve a held settlement batch as ${option(providerIdentityConfirmedCode)}.`);
     const confirmedCode = data.confirmedFailureCode === undefined || data.confirmedFailureCode === null || data.confirmedFailureCode === "" ? undefined : data.confirmedFailureCode;
     if (confirmedCode !== undefined) {
-      if (type !== "unknown_outcome" || data.resolutionCode !== "resolved_failed") throw new Error("A confirmed failure code is recorded only when an unknown outcome is resolved as failed.");
-      if (!isKnownFailureCode(confirmedCode) || normaliseFailureCode(confirmedCode) === "TIMEOUT_UNKNOWN") throw new Error(`Choose the failure code the provider confirmed: ${failureCodeList.filter((code) => code !== "TIMEOUT_UNKNOWN").join(", ")}.`);
+      if (type !== "unknown_outcome" || data.resolutionCode !== "resolved_failed") throw new Error(`Leave the failure code blank unless you resolve an unknown outcome as ${option("resolved_failed")}.`);
+      if (!isKnownFailureCode(confirmedCode) || normaliseFailureCode(confirmedCode) === "TIMEOUT_UNKNOWN") throw new Error(`Choose the failure code the provider confirmed: ${listText(failureCodeList.filter((code) => code !== "TIMEOUT_UNKNOWN").map((code) => valueLabel(code)))}.`);
     }
     // The rules the resolution follows, so it keeps the meaning its answer gives it whatever a later build changes.
     item.status = "resolved"; item.data.resolutionCode = data.resolutionCode; item.data.notes = reason(input); item.data.resolvedBy = ctx.actor; item.data.resolvedAt = now; item.data.resolutionRuleVersion = resolutionRuleVersion;
@@ -517,20 +542,20 @@ function runAction(state: DomainState, ctx: Context, input: ActionInput, audit?:
     if (heldBatch) item.data.confirmedProviderIdentity = identity;
     if (!type) item.data.legacyType = true;
     touch(item, now);
-    if (heldBatch) return result(`Exception resolution recorded. The next reconciliation releases settlement batch ${heldBatch.reference} as the payout of ${providerIdentityParts(identity)?.connection ?? identity}: its evidence of that connection, and evidence that names no connection, stays with it; each settlement line of another connection moves to that connection's own batch, and each statement credit of another connection is left to link to its own. Its gross, fee and net leave out the lines that move, unless they were typed by hand, and its expected fee always does. No money moves.`, item, { settlementBatchId: heldBatch.id, providerIdentity: identity });
-    if (item.data.legacyResolutionReview) return result("Renewed reversal review recorded without changing the earlier decision or its history. Run reconciliation to apply this decision. Previously applied allocations or reversals are changed only by the normal reversal/correction workflow. That reconciliation returns each instalment the review paused to the status it had before the hold, unless a dispute was recorded for it meanwhile; a paid instalment, or one unpaid after its final attempt, kept its status throughout.", item);
+    if (heldBatch) return result(`Exception resolution recorded. The next reconciliation releases settlement batch ${heldBatch.reference} as the payout of ${providerIdentityParts(identity)?.connection ?? identity}. Evidence from that connection, and evidence that names no connection, stays with the batch. Settlement lines from other connections move to their own batches, and their statement credits are left to link to theirs. The expected fee leaves out the lines that move. So do the amounts before fees, fee and after fees, unless they were typed by hand. No money moves.`, item, { settlementBatchId: heldBatch.id, providerIdentity: identity });
+    if (item.data.legacyResolutionReview) return result("Reversal review recorded. The earlier decision and its history are unchanged. Run reconciliation to carry out this decision. It returns each instalment the review held to its status before the hold, unless a dispute was recorded for it meanwhile. A paid instalment, or one unpaid after its final attempt, kept its status throughout. Allocations and reversals already recorded change only through the usual reversal or correction steps.", item);
     if (checkout) {
       const settled = resolveUnknownCheckout(state, ctx, item, checkout, { reason: reason(input), evidenceReference });
       const receipt = settled === "confirmed" ? recordsOf(state, "payments").find((record) => record.id === checkout.data.paymentId) : undefined;
-      const applied = receipt ? (paymentUnappliedKobo(receipt) === 0 ? " and applied to its instalment" : "; what it could not apply to its instalment waits for Finance with an exception") : "";
+      const applied = receipt ? (paymentUnappliedKobo(receipt) === 0 ? " and allocated to its instalment" : ". What it could not allocate to its instalment waits for Finance, with an exception") : "";
       const instalment = recordsOf(state, "due-items").find((record) => record.id === checkout.data.dueItemId)?.reference ?? String(checkout.data.dueItemId);
-      const auditNote = settled === "confirmed" ? `Pay-by-bank payment of ${nairaText(checkout.amountKobo)} for instalment ${instalment} recorded as received, with evidence ${evidenceReference}.`
-        : settled === "failed" ? `Pay-by-bank payment of ${nairaText(checkout.amountKobo)} for instalment ${instalment} recorded as failed.` : undefined;
+      const auditNote = settled === "confirmed" ? `Pay by Bank payment of ${nairaText(checkout.amountKobo)} for instalment ${instalment} recorded as received, with evidence ${evidenceReference}.`
+        : settled === "failed" ? `Pay by Bank payment of ${nairaText(checkout.amountKobo)} for instalment ${instalment} recorded as failed.` : undefined;
       return result(settled === "confirmed"
-        ? `Exception resolution recorded. The pay-by-bank payment is recorded as received with evidence ${evidenceReference}${applied}. Its instalment is released: the checkout no longer holds it.`
+        ? `Exception resolution recorded. The Pay by Bank payment is recorded as received with evidence ${evidenceReference}${applied}. Its instalment is released: the checkout no longer holds it.`
         : settled === "failed"
-          ? "Exception resolution recorded. The pay-by-bank payment is recorded as failed, and its instalment is released: a new checkout or retry may be planned."
-          : "Exception resolution recorded. The checkout's outcome was already recorded.", item, settled ? { checkoutStatus: settled, auditNote } : {});
+          ? "Exception resolution recorded. The Pay by Bank payment is recorded as failed, and its instalment is released: a new checkout or retry may be planned."
+          : "Exception resolution recorded. The checkout’s outcome was already recorded.", item, settled ? { checkoutStatus: settled, auditNote } : {});
     }
     // Decision on leaving a dispute: not upheld takes the instalment out of dispute; another resolution leaves it for Finance to release.
     const disputed = type === "customer_dispute" ? recordsOf(state, "due-items").find((record) => record.id === item.data.linkedRecordId && record.status === "in_dispute") : undefined;
@@ -538,10 +563,10 @@ function runAction(state: DomainState, ctx: Context, input: ActionInput, audit?:
       releaseDispute(state, ctx, disputed, { via: "not_upheld", reason: reason(input), exceptionId: item.id });
       return releasedAnswer(item, disputed, "not_upheld");
     }
-    if (disputed) return result(`Exception resolution recorded. Instalment ${disputed.reference} stays in dispute, so collection and allocation stay paused until Finance releases it from dispute with a reason.`, item, { dueStatus: disputed.status });
+    if (disputed) return result(`Exception resolution recorded. Instalment ${disputed.reference} stays in dispute, so collection and allocation stay on hold until Finance releases it from dispute with a reason.`, item, { dueStatus: disputed.status });
     // An unknown outcome's resolution is what the provider confirmed, so the attempt takes that outcome.
     const outcome = type === "unknown_outcome" ? confirmAttemptOutcome(state, ctx, item) : undefined;
-    if (outcome) return result(`Exception resolution recorded. The attempt is now recorded as ${outcome}.`, item, { attemptStatus: outcome });
+    if (outcome) return result(`Exception resolution recorded. The collection attempt is now recorded as ${valueWords(outcome)}.`, item, { attemptStatus: outcome });
     // A suspected duplicate resolved as a separate payment leaves its hold. For held evidence, and a reversal that waited for a
     // payment no connection had seen, the next reconciliation reads Finance's resolution before it looks for any payment
     // (financeDecision in reconciliation), and the answer says what that does.
@@ -550,62 +575,62 @@ function runAction(state: DomainState, ctx: Context, input: ActionInput, audit?:
     const decided = (type === "suspected_duplicate" && heldEvidenceOf(item.data.condition)?.observationId) || (type === "provider_status_mismatch" && unseenReversalOf(item.data.condition));
     const evidence = decided ? recordsOf(state, "observations").find((record) => record.id === decided && record.status === "unresolved") : undefined;
     if (evidence && type === "provider_status_mismatch") return result(data.resolutionCode === unseenReversalCodes.adopted
-      ? `Exception resolution recorded. This reversal evidence keeps waiting for its payment, with no new exception: the reconciliation that records payment ${evidence.reference} reverses it, whichever spelling of the connection the payment comes through, or holds it for you if that payment names another payer, currency or amount.`
+      ? `Exception resolution recorded. This reversal evidence keeps waiting for its payment, with no new exception. The reconciliation that records payment ${evidence.reference} reverses it, or holds it for you if that payment names another payer, currency or amount.`
       : "Exception resolution recorded. This reversal evidence is set aside at the next reconciliation: it reverses nothing, even if its payment arrives later.", item);
     const joinedTo = evidence && data.resolutionCode === heldEvidenceCodes.samePayment ? recordsOf(state, "payments").find((record) => record.id === heldEvidenceOf(item.data.condition)?.paymentId) : undefined;
     if (evidence && joinedTo) return result(`${reportsReversal(evidence)
-      ? `Exception resolution recorded. The next reconciliation applies this reversal evidence to payment ${joinedTo.reference}, which is reversed.`
-      : `Exception resolution recorded. The next reconciliation joins this payment evidence to payment ${joinedTo.reference} as more evidence of it: no second payment is made.`} If payment ${joinedTo.reference} changes before then so that the evidence no longer agrees with it, the evidence is held for you again instead.`, item);
+      ? `Exception resolution recorded. The next reconciliation records this reversal evidence against payment ${joinedTo.reference}, which is reversed.`
+      : `Exception resolution recorded. The next reconciliation adds this payment evidence to payment ${joinedTo.reference}. No second payment is created.`} If payment ${joinedTo.reference} changes before then so that the evidence no longer agrees with it, the evidence is held for you again instead.`, item);
     if (evidence && reportsReversal(evidence)) return result("Exception resolution recorded. This reversal evidence is set aside at the next reconciliation: no payment is made from it only to be reversed, and it reverses nothing, even if its payment is found later.", item);
-    if (evidence && data.resolutionCode === heldEvidenceCodes.notMoney) return result("Exception resolution recorded. This payment evidence is set aside at the next reconciliation: no payment is made from it, and it is merged into none.", item);
+    if (evidence && data.resolutionCode === heldEvidenceCodes.notMoney) return result("Exception resolution recorded. This payment evidence is set aside at the next reconciliation. It does not create a payment and is not added to one.", item);
     if (evidence && type === "suspected_duplicate") return result(`Exception resolution recorded. The next reconciliation records this payment evidence as a payment of its own${data.resolutionCode === "confirmed_duplicate_refund" ? ", held until its refund is recorded" : ""}.`, item);
     return result("Exception resolution recorded.", item);
   }
   if (input.action === "record_refund") {
-    assertActionRole(ctx, ["Admin", "Finance"]);
+    assertActionRole(ctx, ["Admin", "Finance"], "record a refund");
     if (!data.reference || /^\d{8,}$/.test(String(data.reference))) throw new Error("Enter a masked sample reference for the refund recorded outside Valo Pay.");
     const payment = findRecord(state, String(input.recordId), "payments");
     // Reversed money already went back. A refund returns what the payment has not applied, such as an overpayment's
     // excess: money applied to an instalment stays applied, and nothing is left to allocate or hold as credit.
     // One refund is recorded per payment, including one that returned only part of it.
-    if (paymentReversed(payment) || paymentRefunded(payment)) throw Object.assign(new Error(paymentReversed(payment) ? `Payment ${payment.reference} was reversed by the provider, so its money already went back. There is nothing to refund.` : `A refund is already recorded for payment ${payment.reference}.`), { status: 409 });
-    if (paymentUnappliedKobo(payment) <= 0) throw Object.assign(new Error(`Payment ${payment.reference} has all of its money applied to instalments, so there is nothing unapplied to refund. A refund recorded here returns only money the payment has not applied.`), { status: 409 });
+    if (paymentReversed(payment) || paymentRefunded(payment)) throw Object.assign(new Error(paymentReversed(payment) ? `Payment ${payment.reference} was reversed by the provider, so its money already went back. There is nothing to refund.` : `A refund is already recorded for payment ${payment.reference}. Reload the page to see it.`), { status: 409 });
+    if (paymentUnappliedKobo(payment) <= 0) throw Object.assign(new Error(`Payment ${payment.reference} has all of its money allocated to instalments, so there is nothing unallocated to refund. A refund recorded here returns only money the payment has not allocated.`), { status: 409 });
     payment.data.refundReference = String(data.reference); payment.data.refundRecordedAt = now; payment.data.refundRecordedExternally = true;
-    const refundedKobo = recordPaymentRefund(state, ctx, payment, "Superseded: the payment was refunded outside Valo Pay.");
-    return result(`External refund of ${moneyText(refundedKobo, currencyOf(payment))} recorded: the money this payment had not applied. Valo Pay did not move funds.`, payment, { refundedKobo });
+    const refundedKobo = recordPaymentRefund(state, ctx, payment, "No longer in use: the payment was refunded outside Valo Pay.");
+    return result(`External refund of ${moneyText(refundedKobo, currencyOf(payment))} recorded: the money this payment had not allocated. The refund was paid outside Valo Pay. Valo Pay moved no money.`, payment, { refundedKobo });
   }
   if (input.action === "simulate_failure") {
-    assertActionRole(ctx, ["Admin", "Operations"]);
+    assertActionRole(ctx, ["Admin", "Operations"], "record a sample failure");
     const due = findRecord(state, String(input.recordId), "due-items");
     if (!data.failureCode) throw new Error("Choose a failure code.");
-    if (!isKnownFailureCode(data.failureCode)) throw new Error(`Unknown failure code. Use one of: ${failureCodeList.join(", ")}.`);
+    if (!isKnownFailureCode(data.failureCode)) throw new Error(`Choose a failure code from the list: ${listText(failureCodeList.map((code) => valueLabel(code)))}.`);
     if (recordsOf(state, "attempts").some((attempt) => attempt.data.dueItemId === due.id && ["scheduled", "sent", "unknown"].includes(attempt.status))) {
       throw new Error("An earlier attempt for this instalment is still pending or has an unknown outcome. Check its status with the provider before trying again.");
     }
     const code = normaliseFailureCode(data.failureCode);
     const attempt = makeRecord(state, "attempts", {
-      name: code === "TIMEOUT_UNKNOWN" ? "Simulated external attempt with unknown outcome" : "Simulated external failed attempt",
+      name: code === "TIMEOUT_UNKNOWN" ? "Sample collection attempt with unknown outcome" : "Sample failed collection attempt",
       status: code === "TIMEOUT_UNKNOWN" ? "unknown" : "failed", customerId: due.customerId, amountKobo: due.amountKobo, createdAt: now,
       data: { dueItemId: due.id, number: countedAttempts(state, due.id).length + 1, source: "external", simulated: true, failureCode: code, rawFailureCode: String(data.failureCode), occurredAt: now, actualInstruction: false },
     });
     if (due.status === "scheduled") { due.status = "in_collection"; touch(due, now); }
-    return result("Sample failure recorded for a policy simulation. No debit was attempted.", attempt);
+    return result("Failed collection attempt recorded as sample data. No money moved.", attempt);
   }
   if (input.action === "backtest_policy") {
-    assertActionRole(ctx, ["Admin", "Operations", "Finance", "Compliance reviewer"]);
+    assertActionRole(ctx, ["Admin", "Operations", "Finance", "Compliance reviewer"], "test a retry policy");
     const policy = findRecord(state, String(input.recordId), "policies");
     // Any version, a draft under review included, is tried on the instalments its policy governs, as if it applied.
     const lineage = new Set(policyLineage(state, policy).map((item) => item.id));
     const decisions = recordsOf(state, "due-items").filter((due) => lineage.has(String(policyIdFor(state, due)))).map((due) => evaluateRetry(state, ctx, due, policy, { simulation: true }));
     const unapproved = policy.status === "approved" ? "" : `Version ${policyVersionOf(policy)} is not approved: this shows what it would do if it were approved and applied. `;
-    return result(`${unapproved}This simulation shows whether the policy would allow a retry and when. It does not predict how much money would be recovered.`, policy, { decisions, recoveryEstimate: null, notARecoveryClaim: true });
+    return result(`${unapproved}This test shows whether the policy would allow a retry and when. It does not predict how much money would be recovered.`, policy, { decisions, recoveryEstimate: null, notARecoveryClaim: true });
   }
   if (input.action === "preregister_experiment") {
-    assertActionRole(ctx, ["Admin"]);
+    assertActionRole(ctx, ["Admin"], "register an experiment plan");
     const experiment = findRecord(state, String(input.recordId), "experiments");
     if (experiment.status !== "draft") throw new Error("This experiment plan has already been registered and cannot be changed.");
     const policy = recordsOf(state, "policies").find((item) => item.id === experiment.data.policyId && item.status === "approved");
-    if (!policy) throw new Error("Choose an approved policy before registering the experiment plan.");
+    if (!policy) throw new Error("Choose an approved retry policy before registering the experiment plan.");
     const analysis = Date.parse(experiment.data.analysisDate), close = Date.parse(experiment.data.enrolmentClose);
     if (!Number.isFinite(analysis) || !Number.isFinite(close) || close > analysis - 30 * DAY_MS || close <= Date.parse(now)) throw new Error("Enrolment must close in the future and at least 30 days before analysis.");
     const sample = preregisterSample(Number(experiment.data.baselineRate), Number(experiment.data.holdoutShare));
@@ -617,42 +642,42 @@ function runAction(state: DomainState, ctx: Context, input: ActionInput, audit?:
     return result("Experiment plan registered and locked. Instalments will be assigned to a group at their first eligible future failure, not when the plan is registered.", experiment, { assigned: 0 });
   }
   if (input.action === "hand_back") {
-    assertActionRole(ctx, ["Admin", "Operations"]);
+    assertActionRole(ctx, ["Admin", "Operations"], "return collection to its previous owner");
     // DEB-12: ownership reverts to the owner named in the cutover contract; every future instruction is cancelled.
     const contract = recordsOf(state, "cutovers").filter((item) => item.status !== "handed_back").at(-1);
     const fallbackOwner = handBackFallbackOwner(contract?.data.fallbackOwner);
     const reverted = recordsOf(state, "due-items").filter((item) => item.data.owner === PLATFORM_OWNER).map((item) => { item.data.owner = fallbackOwner; item.data.handBackAt = now; touch(item, now); return item.id; });
-    const cancelled = cancelScheduledAttempts(state, now, "Hand-back: no future instruction is held.", () => true);
+    const cancelled = cancelScheduledAttempts(state, now, "Collection returned to its previous owner. No future instruction is held.", () => true);
     state.merchant.killSwitch = true;
     settleStopRelease(state);
-    const checklist = [`Ownership of ${counted(reverted.length, "obligation")} reverted to ${fallbackOwner}`, `${counted(cancelled.length, "scheduled attempt")} cancelled with notices`, "Incumbent schedules re-enabled by the merchant against this checklist", "Full export delivered", "No future instructions are held for this merchant"];
-    const cutover = makeRecord(state, "cutovers", { name: "Hand-back", status: "handed_back", createdAt: now, data: { checklist, fallbackOwner, confirmation: reason(input), revertedDueItemIds: reverted, cancelledAttemptIds: cancelled, handedBackAt: now } });
-    return result("Collection ownership returned to the configured fallback owner. Scheduled attempts were cancelled and no future instructions remain queued.", cutover, { fallbackOwner, reverted: reverted.length, cancelled: cancelled.length });
+    const checklist = [`Collection of ${counted(reverted.length, "instalment")} returned to ${collectionOwnerText(fallbackOwner)}`, `${counted(cancelled.length, "scheduled collection attempt")} cancelled`, "To do: the lender switches its previous collection schedules back on, checking them against this list", "To do: give the lender a full export of its records", "No future instructions are held for this lender"];
+    const cutover = makeRecord(state, "cutovers", { name: "Collection returned", status: "handed_back", createdAt: now, data: { checklist, fallbackOwner, confirmation: reason(input), revertedDueItemIds: reverted, cancelledAttemptIds: cancelled, handedBackAt: now } });
+    return result(`Collection returned to ${collectionOwnerText(fallbackOwner)}. Scheduled collection attempts were cancelled, and no future instructions are queued.`, cutover, { fallbackOwner, reverted: reverted.length, cancelled: cancelled.length });
   }
   if (input.action === "notify_policy_change") {
-    assertActionRole(ctx, ["Admin", "Operations"]);
+    assertActionRole(ctx, ["Admin", "Operations"], "record a policy change notice");
     const mandate = findRecord(state, String(input.recordId), "mandates");
     const target = findRecord(state, String(data.policyId), "policies");
-    if (target.status !== "approved" || (mandate.data.policyId && !samePolicyLineage(state, String(mandate.data.policyId), target.id))) throw new Error("Choose an approved version of this mandate's existing policy.");
-    if (withinQuietHours(Date.parse(now))) throw new Error("Customer messages cannot be sent during quiet hours, from 21:00 to 08:00 WAT. Try again after 08:00.");
+    if (target.status !== "approved" || (mandate.data.policyId && !samePolicyLineage(state, String(mandate.data.policyId), target.id))) throw new Error(SAME_POLICY);
+    if (withinQuietHours(Date.parse(now))) throw new Error(QUIET_HOURS);
     const notification = makeRecord(state, "notifications", {
       name: "Policy change notice", status: "simulated", customerId: mandate.customerId, createdAt: now,
-      data: { purpose: "policy_change", channel: "sms", class: "required", mandateId: mandate.id, policyId: target.id, policyVersion: Number(target.data.version || 1), submittedAt: now, acceptedAt: null, deliveredAt: null, renderedText: `${state.merchant.name}: the retry rules on your mandate change to ${policySummary(target)} Contact: ${state.settings.contactRoute || "your lender"}.`, simulated: true },
+      data: { purpose: "policy_change", channel: "sms", class: "required", mandateId: mandate.id, policyId: target.id, policyVersion: Number(target.data.version || 1), submittedAt: now, acceptedAt: null, deliveredAt: null, renderedText: policyChangeText(state, target), simulated: true },
     });
-    return result("Policy-change notice recorded as a simulation; it is not provider-accepted evidence and no message left the platform.", notification, { notificationId: notification.id, policyId: target.id });
+    return result("Policy change notice recorded as a simulation. It is not evidence that the provider accepted it, and no message left Valo Pay.", notification, { notificationId: notification.id, policyId: target.id });
   }
   if (input.action === "apply_policy_version") {
-    assertActionRole(ctx, ["Admin", "Operations"]);
+    assertActionRole(ctx, ["Admin", "Operations"], "apply a retry policy version");
     const mandate = findRecord(state, String(input.recordId), "mandates");
     const target = findRecord(state, String(data.policyId), "policies");
-    if (target.status !== "approved" || !target.data.reviewer) throw new Error("Only an approved policy version can be applied.");
-    if (mandate.data.policyId && !samePolicyLineage(state, String(mandate.data.policyId), target.id)) throw new Error("The version must belong to the mandate's policy; a different policy needs a re-issued mandate.");
-    if (mandate.data.consentPolicyId === target.id) throw new Error("The consent already covers this version.");
+    if (target.status !== "approved" || !target.data.reviewer) throw new Error("Only an approved retry policy version can be applied.");
+    if (mandate.data.policyId && !samePolicyLineage(state, String(mandate.data.policyId), target.id)) throw new Error("Choose a version of this mandate’s own retry policy. A different policy needs a reissued mandate.");
+    if (mandate.data.consentPolicyId === target.id) throw new Error("The customer’s consent already covers this version, so there is nothing to apply.");
     // RET-07: a notice accepted by the provider, and fresh consent where the merchant's terms require it.
     const notice = recordsOf(state, "notifications").find((item) => (data.noticeId ? item.id === data.noticeId : item.data.mandateId === mandate.id && item.data.policyId === target.id) && item.data.purpose === "policy_change" && item.data.acceptedAt && item.data.synthetic !== true);
-    if (!notice) throw new Error("Before applying a new version, record evidence that the provider accepted the policy-change notice. A simulated notice does not count.");
+    if (!notice) throw new Error("Before applying a new version, record evidence that the provider accepted the policy change notice. A simulated notice does not count.");
     const consentRequired = state.settings.policyChangeRequiresConsent === true;
-    if (consentRequired && (!data.consentEvidence || typeof data.consentEvidence !== "string")) throw new Error("This lender's terms require new consent for a policy change. Enter the new consent evidence reference.");
+    if (consentRequired && (!data.consentEvidence || typeof data.consentEvidence !== "string")) throw new Error("This lender’s terms require new consent for a policy change. Enter the new consent evidence reference.");
     const history = Array.isArray(mandate.data.policyVersionHistory) ? mandate.data.policyVersionHistory : [];
     history.push({ fromPolicyId: mandate.data.consentPolicyId ?? null, fromVersion: mandate.data.consentPolicyVersion ?? null, toPolicyId: target.id, toVersion: Number(target.data.version || 1), noticeId: notice.id, consentEvidence: consentRequired ? String(data.consentEvidence) : null, appliedAt: now, actor: ctx.actor, reason: reason(input) });
     mandate.data.policyVersionHistory = history;
@@ -662,25 +687,25 @@ function runAction(state: DomainState, ctx: Context, input: ActionInput, audit?:
     mandate.data.consentPolicySummary = policySummary(target);
     if (consentRequired) { mandate.data.consentEvidence = String(data.consentEvidence); mandate.data.consentCapturedAt = now; }
     touch(mandate, now);
-    return result(`Policy version ${target.data.version ?? 1} now applies to this mandate after the notice${consentRequired ? " and fresh consent" : ""}; the previous version stays on record.`, mandate, { policyId: target.id, noticeId: notice.id });
+    return result(`Retry policy version ${target.data.version ?? 1} now applies to this mandate, after the notice${consentRequired ? " and fresh consent" : ""}. The previous version stays on record.`, mandate, { policyId: target.id, noticeId: notice.id });
   }
   if (input.action === "confirm_discount_terms") {
     // BIL-02: the second person of a design partner's discount dates, which the record write proposes.
-    assertActionRole(ctx, ["Admin", "Finance"]);
+    assertActionRole(ctx, ["Admin", "Finance"], "confirm discount dates");
     const checked = discountConfirmationDataSchema.parse(data, { path: ["data"] });
     const terms = findRecord(state, String(input.recordId), "commercial");
     const confirmed = confirmDiscountTerms(terms, ctx, checked);
-    const agreed = `50% discount from ${confirmed.discountStartDate}, full price from ${confirmed.fullPriceStartDate} (agreement ${confirmed.termsReference})`;
-    return result(`Discount dates confirmed: ${agreed}, proposed by ${confirmed.reviewedBy}. New invoices are priced from these dates; issued invoices are unchanged.`, terms, {
-      commercialId: terms.id, auditNote: `Confirmed the design-partner discount dates proposed by ${confirmed.reviewedBy} at ${confirmed.reviewedAt}: ${agreed}.`,
+    const agreed = `50% discount from ${dayText(confirmed.discountStartDate)}, full price from ${dayText(confirmed.fullPriceStartDate)} (agreement ${confirmed.termsReference})`;
+    return result(`Discount dates confirmed: ${agreed}, proposed by ${confirmed.reviewedBy}. New invoices are priced from these dates. Issued invoices are unchanged.`, terms, {
+      commercialId: terms.id, auditNote: `Confirmed the design-partner discount dates proposed by ${confirmed.reviewedBy} at ${instantText(confirmed.reviewedAt)}: ${agreed}.`,
     });
   }
   if (input.action === "issue_invoice") {
-    assertActionRole(ctx, ["Admin", "Finance"]);
+    assertActionRole(ctx, ["Admin", "Finance"], "issue an invoice");
     const invoice = issueInvoice(state, ctx, { period: data.period });
     invoice.data.issueReason = reason(input);
-    return result(`Invoice ${invoice.reference} issued for ${invoice.data.period}: ${counted(Number(invoice.data.collectionsCounted), "collection")} counted, ${counted(invoice.data.adjustments.length, "adjustment line")}. Issued invoices cannot be changed. Corrections appear on the next invoice.`, invoice, { invoiceId: invoice.id, period: invoice.data.period, totals: invoice.data.totals });
+    return result(`Invoice ${invoice.reference} issued for ${monthText(invoice.data.period)}: ${counted(Number(invoice.data.collectionsCounted), "collection")} counted, ${counted(invoice.data.adjustments.length, "adjustment line")}. Issued invoices cannot be changed. Corrections appear on the next invoice.`, invoice, { invoiceId: invoice.id, period: invoice.data.period, totals: invoice.data.totals });
   }
-  if (input.action === "mark_pack_used") throw new Error("Synthetic exports can never be counted as real cases.");
-  throw new Error(`Unsupported domain action: ${input.action}.`);
+  if (input.action === "mark_pack_used") throw new Error("Sample dispute packs cannot be recorded as used in a real case.");
+  throw new Error(UNAVAILABLE_ACTION);
 }

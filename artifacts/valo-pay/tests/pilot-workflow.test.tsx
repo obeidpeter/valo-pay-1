@@ -39,9 +39,9 @@ it("saves source rows, reopens them and commits a checked batch exactly once", a
     ).toContain("PILOT-C001"),
   );
   await user.click(
-    screen.getByRole("button", { name: "Commit checked batch" }),
+    screen.getByRole("button", { name: "Import checked batch" }),
   );
-  await screen.findByRole("heading", { name: "Import complete" });
+  await screen.findByRole("heading", { name: "Batch imported" });
   expect(
     api
       .state()
@@ -50,7 +50,7 @@ it("saves source rows, reopens them and commits a checked batch exactly once", a
       ),
   ).toHaveLength(1);
   expect(
-    screen.queryByRole("button", { name: "Commit checked batch" }),
+    screen.queryByRole("button", { name: "Import checked batch" }),
   ).toBeNull();
   expect(JSON.stringify(localStorage)).not.toContain("PILOT-C001");
 });
@@ -72,7 +72,7 @@ it("keeps a rejected batch available for correction and guards unsaved changes",
   expect(
     (
       screen.getByRole("button", {
-        name: "Commit checked batch",
+        name: "Import checked batch",
       }) as HTMLButtonElement
     ).disabled,
   ).toBe(true);
@@ -92,7 +92,7 @@ it("keeps a rejected batch available for correction and guards unsaved changes",
     expect(
       (
         screen.getByRole("button", {
-          name: "Commit checked batch",
+          name: "Import checked batch",
         }) as HTMLButtonElement
       ).disabled,
     ).toBe(false),
@@ -110,7 +110,7 @@ it("claims a case and hands it to Finance with an immutable note, without alloca
   const user = userEvent.setup();
   renderApp(`/cases/${item.id}`);
   await user.type(
-    await screen.findByLabelText("Next action"),
+    await screen.findByLabelText("Next step"),
     "Review the payment evidence",
   );
   await user.type(
@@ -120,7 +120,7 @@ it("claims a case and hands it to Finance with an immutable note, without alloca
   await user.click(
     screen.getByRole("button", { name: "Claim and save next step" }),
   );
-  await screen.findByText("Case update saved with its handover history.");
+  await screen.findByText("Case saved. Its handover history is updated.");
   await user.selectOptions(
     screen.getByLabelText("Assigned to"),
     "Sandbox Finance",
@@ -152,26 +152,35 @@ it("read-only staff can inspect the journey but cannot save imports or claim cas
       })) as HTMLButtonElement
     ).disabled,
   ).toBe(true);
+  // Under a disabled button, only who can do it: the bar above the page shows the role.
+  expect(
+    screen.getByText(
+      "Only Admin, Operations or Finance can import batches. Only Admin or Operations can import mandates or collection attempts.",
+    ),
+  ).toBeTruthy();
   cleanup();
   renderApp(
     `/cases/${api.state().records.find((r) => r.kind === "exceptions")!.id}`,
   );
+  const claim = (await screen.findByRole("button", {
+    name: "Claim and save next step",
+  })) as HTMLButtonElement;
+  expect(claim.disabled).toBe(true);
   expect(
-    (
-      (await screen.findByRole("button", {
-        name: "Claim and save next step",
-      })) as HTMLButtonElement
-    ).disabled,
-  ).toBe(true);
+    document.getElementById(claim.getAttribute("aria-describedby")!)!
+      .textContent,
+  ).toBe(
+    "Only Admin, Operations, Finance or Compliance reviewer can change a case.",
+  );
 });
 
 it("identifies demo access honestly and does not offer working staff invitation controls", async () => {
   renderApp("/team");
-  await screen.findByText("Demo personas are active.");
+  await screen.findByText("Team member accounts are not switched on here. Demo roles are for practice only.");
   expect(
     screen.queryByRole("button", { name: "Create invitation" }),
   ).toBeNull();
-  expect(screen.getByText(/requires a configured organisation/)).toBeTruthy();
+  expect(screen.getByText(/Named staff accounts need the Valo Pay team to set up your organisation and its first Admin/)).toBeTruthy();
 });
 
 it("offers the latest saved version after a colleague saves the batch", async () => {
@@ -225,7 +234,7 @@ it("lets a case claim whose response was lost be discarded deliberately", async 
   const user = userEvent.setup();
   renderApp(`/cases/${item.id}`);
   await user.type(
-    await screen.findByLabelText("Next action"),
+    await screen.findByLabelText("Next step"),
     "Review the payment evidence",
   );
   await user.type(
@@ -236,20 +245,22 @@ it("lets a case claim whose response was lost be discarded deliberately", async 
   await user.click(
     screen.getByRole("button", { name: "Claim and save next step" }),
   );
-  await screen.findByText("Outcome not confirmed");
+  await screen.findByText("Request not confirmed");
   expect(
-    (screen.getByLabelText("Next action") as HTMLInputElement).closest("fieldset")
+    (screen.getByLabelText("Next step") as HTMLInputElement).closest("fieldset")
       ?.disabled,
   ).toBe(true);
   vi.spyOn(window, "confirm").mockReturnValue(true);
   await user.click(
     screen.getByRole("button", { name: "Discard original request" }),
   );
+  // The form's notice goes with the discard. The request itself stays not confirmed, so the page's own notice about
+  // it (the same title, with Check original request and Cancel if unfinished) takes over, without a discard of its own.
   await waitFor(() =>
-    expect(screen.queryByText("Outcome not confirmed")).toBeNull(),
+    expect(screen.queryByRole("button", { name: "Discard original request" })).toBeNull(),
   );
   expect(
-    (screen.getByLabelText("Next action") as HTMLInputElement).closest("fieldset")
+    (screen.getByLabelText("Next step") as HTMLInputElement).closest("fieldset")
       ?.disabled,
   ).toBe(false);
   expect(
@@ -314,14 +325,14 @@ it("offers to check or discard a lost invitation revocation, and discarding it f
   await user.click(
     (await screen.findAllByRole("button", { name: "Revoke invitation" }))[0]!,
   );
-  await screen.findByText("Outcome not confirmed");
+  await screen.findByText("Request not confirmed");
   expect(
     screen.getByRole("button", { name: "Check original request" }),
   ).toBeTruthy();
-  // Team changes are not recorded in Operations, so the notice sends the person to this page, not there.
-  const lost = screen.getByText("Outcome not confirmed").closest('[role="alert"]') as HTMLElement;
-  expect(lost.textContent).toContain("The request could not be completed. Refresh this page to see whether it was saved before you try again.");
-  expect(lost.textContent).not.toMatch(/Operations/);
+  // Team changes are not recorded in Request history, so the notice sends the person to this page, not there.
+  const lost = screen.getByText("Request not confirmed").closest('[role="alert"]') as HTMLElement;
+  expect(lost.textContent).toContain("refresh this page to see whether it was saved");
+  expect(lost.textContent).not.toMatch(/Operations|Request history/);
   const second = () =>
     screen.getAllByRole("button", {
       name: "Revoke invitation",
@@ -332,7 +343,7 @@ it("offers to check or discard a lost invitation revocation, and discarding it f
     screen.getByRole("button", { name: "Discard original request" }),
   );
   await waitFor(() =>
-    expect(screen.queryByText("Outcome not confirmed")).toBeNull(),
+    expect(screen.queryByText("Request not confirmed")).toBeNull(),
   );
   expect(second().disabled).toBe(false);
   await user.click(second());
@@ -361,25 +372,25 @@ it("lists what waits for a second administrator and never offers the asker their
       });
     if (options?.method === "POST" && /^\/api\/v1\/team\/(invitations|changes)\//.test(path)) {
       posted.push(path);
-      return json(path.endsWith("/decline") ? { message: "Change request withdrawn. The membership is unchanged." } : { message: "Invitation approved: finance@example.test can now accept it as Finance." });
+      return json(path.endsWith("/decline") ? { message: "Change request withdrawn. Their access has not changed." } : { message: "Invitation approved: finance@example.test can now accept it as Finance." });
     }
     return send(input, options);
   };
   const user = userEvent.setup();
   renderApp("/team");
-  const panel = (await screen.findByRole("heading", { name: "Waiting for a second administrator" })).closest("section")!;
+  const panel = (await screen.findByRole("heading", { name: "Waiting for a second Admin" })).closest("section")!;
   expect(within(panel).getAllByRole("button", { name: "Approve invitation" })).toHaveLength(1);
-  expect(within(panel).getByText("You sent it: another administrator approves it.")).toBeTruthy();
+  expect(within(panel).getByText("You sent this, so another Admin must approve it.")).toBeTruthy();
   expect(within(panel).getAllByRole("button", { name: "Approve change" })).toHaveLength(1);
-  expect(within(panel).getByText("You asked for it: another administrator approves it.")).toBeTruthy();
-  expect(within(panel).getAllByRole("button", { name: "Decline change" })).toHaveLength(1);
-  expect(within(panel).getByText("A change to your own membership: another administrator approves or declines it.")).toBeTruthy();
-  expect(screen.getByText(/finance@example\.test · Finance/).parentElement?.textContent).toContain("waiting for a second administrator");
-  expect(screen.getByText("Operations · active").textContent).not.toContain("expires");
+  expect(within(panel).getByText("You asked for this, so another Admin must approve it.")).toBeTruthy();
+  expect(within(panel).getAllByRole("button", { name: "Reject change" })).toHaveLength(1);
+  expect(within(panel).getByText("This change is to your own access, so another Admin must approve or reject it.")).toBeTruthy();
+  expect(screen.getByText(/finance@example\.test · Finance/).parentElement?.textContent).toContain("waiting for a second Admin");
+  expect(screen.getByText("Operations · Active").textContent).not.toContain("expires");
   await user.click(within(panel).getByRole("button", { name: "Approve invitation" }));
   expect(await within(panel).findByText("Invitation approved: finance@example.test can now accept it as Finance.")).toBeTruthy();
   await user.click(within(panel).getByRole("button", { name: "Withdraw request" }));
-  expect(await within(panel).findByText("Change request withdrawn. The membership is unchanged.")).toBeTruthy();
+  expect(await within(panel).findByText("Change request withdrawn. Their access has not changed.")).toBeTruthy();
   expect(posted).toEqual(["/api/v1/team/invitations/invite-theirs/approve", "/api/v1/team/changes/change-mine/decline"]);
 });
 
@@ -425,7 +436,7 @@ it("keeps the draft and the conflict when the latest version cannot be loaded", 
   api.failNext(/^\/v1\/pilot\/batches\/[^/]+$/, "offline", "GET");
   await user.click(screen.getByRole("button", { name: "Load latest version" }));
   await screen.findByText(
-    "The latest version could not be loaded. Your draft is still here. Try again.",
+    "We could not load the latest version. Your draft is still here. Try again.",
   );
   expect(csvValue()).toContain("MYDRAFT");
   expect(screen.getByText(/This batch changed after you opened it/)).toBeTruthy();
@@ -439,7 +450,7 @@ it("keeps the draft and the conflict when the latest version cannot be loaded", 
   await user.click(screen.getByRole("button", { name: "Load latest version" }));
   await screen.findByRole("heading", { name: "Colleague version" });
   expect(csvValue()).toBe(colleagueCsv);
-  expect(screen.queryByText(/could not be loaded/)).toBeNull();
+  expect(screen.queryByText(/could not load the latest version/)).toBeNull();
 });
 
 it("offers a newer version that a refresh shows, before any save is refused", async () => {
@@ -466,7 +477,7 @@ it("offers the latest version only when the refusal says the batch changed", asy
     /^\/v1\/pilot\/batches\/[^/]+\/save$/,
     {
       status: 409,
-      error: "Review your pending operations before submitting more requests.",
+      error: "You have 100 requests that Valo Pay has not confirmed. Check them in Request history before you send more.",
     },
     "POST",
   );
@@ -474,7 +485,7 @@ it("offers the latest version only when the refusal says the batch changed", asy
   await user.click(
     screen.getByRole("button", { name: "Save and check batch" }),
   );
-  await screen.findByText(/Review your pending operations/);
+  await screen.findByText(/You have 100 requests that Valo Pay has not confirmed/);
   expect(screen.queryByText(/This batch changed after you opened it/)).toBeNull();
   expect(screen.queryByRole("button", { name: "Load latest version" })).toBeNull();
   expect(csvValue()).toMatch(/ $/);
@@ -498,7 +509,7 @@ it("does not offer a newer version while the save's own outcome is unconfirmed",
   await user.click(
     screen.getByRole("button", { name: "Save and check batch" }),
   );
-  await screen.findByText("Outcome not confirmed");
+  await screen.findByText("Request not confirmed");
   const reads = api.calls.filter((c) => c.method === "GET" && /^\/v1\/pilot\/batches\/[^/]+$/.test(c.path)).length;
   await queryClient.invalidateQueries();
   await waitFor(() =>
@@ -510,7 +521,7 @@ it("does not offer a newer version while the save's own outcome is unconfirmed",
   expect(screen.queryByText(/A newer version of this batch was saved/)).toBeNull();
   expect(screen.queryByRole("button", { name: "Load latest version" })).toBeNull();
   await user.click(screen.getByRole("button", { name: "Check original request" }));
-  await waitFor(() => expect(screen.queryByText("Outcome not confirmed")).toBeNull());
+  await waitFor(() => expect(screen.queryByText("Request not confirmed")).toBeNull());
   expect(screen.queryByText(/A newer version of this batch was saved/)).toBeNull();
   expect(answers.size).toBe(1);
 });
@@ -520,20 +531,25 @@ it("says a failed read on a pilot page changed nothing, and sends a lost change 
   // A read that got no answer asked the service only to read: no request is waiting anywhere.
   api.failNext(/^\/v1\/lifecycle$/, "offline");
   renderApp("/lifecycle");
-  const problem = await screen.findByText("This information could not be loaded. Check your connection and try again.");
-  expect(problem.closest('[role="alert"]')!.textContent).not.toMatch(/Operations/);
+  // Headed as every failed load is, with what could not be loaded.
+  const problem = await screen.findByText("Valo Pay could not be reached. Check your connection and try again.");
+  expect(problem.closest('[role="alert"]')!.textContent).toMatch(/^We could not load data retention/);
+  expect(problem.closest('[role="alert"]')!.textContent).not.toMatch(/Operations|Request history/);
   cleanup();
   api.failNext(/^\/v1\/pilot\/close-reviews$/, { status: 502, error: "" });
   renderApp("/close-review");
-  expect(await screen.findByText(/^This information could not be loaded\. Check your connection and try again\. Support reference: fake-\w+\.$/)).toBeTruthy();
+  const reviews = await screen.findByText(/^Valo Pay could not be reached\. Check your connection and try again\. Support reference: fake-\w+\.$/);
+  expect(reviews.closest('[role="alert"]')!.textContent).toMatch(/^We could not load close reviews/);
   cleanup();
-  // A batch save is recorded in Operations, so a save whose answer was lost is checked there.
+  // A batch save is recorded in Request history, so a save whose answer was lost is checked there.
   renderApp("/imports");
   await user.click(await screen.findByRole("button", { name: "Use sample" }));
   api.failNext(/^\/v1\/pilot\/batches$/, "offline", "POST");
   await user.click(screen.getByRole("button", { name: "Save and check batch" }));
-  const lost = (await screen.findByText("Outcome not confirmed")).closest('[role="alert"]') as HTMLElement;
-  expect(lost.textContent).toContain("The request could not be completed. If it reached the service, Operations lists it with its outcome.");
+  const lost = (await screen.findByText("Request not confirmed")).closest('[role="alert"]') as HTMLElement;
+  expect(lost.textContent).toContain("If Valo Pay received it, you can find it in Request history, even after you leave or reload.");
+  // The notice says it once: without Valo Pay's own words or a support reference there is no second line repeating it.
+  expect(lost.textContent).not.toContain("The request was not confirmed.");
 });
 
 
@@ -557,7 +573,7 @@ it("asks for confirmation before revoking a staff member, and keeps their access
   const user = userEvent.setup();
   renderApp("/team");
   await user.selectOptions(await screen.findByLabelText("Access for Bola Sample"), "revoked");
-  await user.type(screen.getByLabelText("Reason for changing Bola Sample"), "Left the collections team");
+  await user.type(screen.getByLabelText("Reason for changing Bola Sample’s access"), "Left the collections team");
   const save = screen.getByRole("button", { name: "Save access change" });
   await user.click(save);
   // One more step, which says what revoking does and cannot undo; nothing is sent yet.
@@ -599,11 +615,11 @@ for (const page of ["/pilot", "/team"] as const) it(`asks before leaving ${page}
     expect(leaving()).toBe(false);
     await user.click(screen.getByRole("button", { name: "Create lender" }));
   } else {
-    const verify = await screen.findByRole("button", { name: "Verify encryption access" });
+    const verify = await screen.findByRole("button", { name: "Check the encryption key" });
     expect(leaving()).toBe(false);
     await user.click(verify);
   }
-  await screen.findByText("Outcome not confirmed");
+  await screen.findByText("Request not confirmed");
   expect(leaving()).toBe(true);
   const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
   await user.click(screen.getAllByRole("link", { name: "Overview" })[0]!);
@@ -611,7 +627,7 @@ for (const page of ["/pilot", "/team"] as const) it(`asks before leaving ${page}
   expect(window.location.pathname).toBe(page);
   confirm.mockReturnValue(true);
   await user.click(screen.getByRole("button", { name: "Discard original request" }));
-  await waitFor(() => expect(screen.queryByText("Outcome not confirmed")).toBeNull());
+  await waitFor(() => expect(screen.queryByText("Request not confirmed")).toBeNull());
   expect(leaving()).toBe(false);
 });
 
@@ -640,4 +656,11 @@ for (const recovered of [false, true]) it(`selects a new lender without asking t
   await screen.findByText("Lender created. Open Import batches to add its sample records.");
   expect(confirm).not.toHaveBeenCalled();
   await waitFor(() => expect(Object.keys(sessionStorage).filter((key) => key.startsWith("valopay-lender:")).map((key) => sessionStorage.getItem(key))).toContain("lender-new"));
+});
+
+it("tells a sandbox member who is not an Admin which role creates a lender and where to change their demo role", async () => {
+  api.role = "Finance";
+  renderApp("/pilot");
+  expect(await screen.findByText("Only Admin can create a lender. Your role is Finance. Change your demo role in Settings.")).toBeTruthy();
+  expect((screen.getByRole("button", { name: "Create lender" }) as HTMLButtonElement).disabled).toBe(true);
 });

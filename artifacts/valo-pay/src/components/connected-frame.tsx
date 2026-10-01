@@ -4,14 +4,17 @@ import {
   KeyRound,
   Landmark,
   ShieldCheck,
-  Sparkles,
 } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { DiscardOriginalRequest } from "@/components/discard-original-request";
 import { RefreshProblem, type RefreshableQuery } from "@/components/load-problem";
+import { fieldMessageId } from "@/components/form-field";
+import { StatusBadge } from "@/components/record-label";
 import { requestClosed, savedAnswerWithheld } from "@/lib/safe-mutations";
 import { errorWords } from "@/lib/notify";
+import { onlyRoles } from "@/lib/permissions";
+import { valueLabel, valueLabels } from "@workspace/valopay-schema";
 import "@/connected.css";
 /** The connected workspace's held request and, for a failed refresh, its query. */
 type Recovery = {
@@ -49,7 +52,7 @@ export function ConnectedFrame({
       <fieldset
         disabled={recovery?.pending || recovery?.hasUnconfirmedOutcome}
         className="space-y-6 min-w-0"
-        aria-label="Connected workspace actions and records"
+        aria-label="Connected banking actions and records"
       >
         {children}
       </fieldset>
@@ -57,9 +60,11 @@ export function ConnectedFrame({
   );
 }
 /**
- * A connected page's heading and the tabs between the four modules. The page
- * shows them while its workspace loads and when it cannot be loaded too, so
- * every state has its h1 and a way to the other modules.
+ * A connected page's heading and the tabs between the four Connected banking
+ * pages. The page shows them while its data loads and when it cannot be
+ * loaded too, so every state has its h1 and a way to the other pages. The
+ * heading is the page's name with no eyebrow above it (docs/design/writing.md);
+ * the tabs carry the group's name.
  */
 export function ConnectedHeader({ title, description }: { title: string; description: string }) {
   const [location] = useLocation();
@@ -67,26 +72,23 @@ export function ConnectedHeader({ title, description }: { title: string; descrip
     <>
       <header className="connected-heading">
         <div>
-          <p className="connected-eyebrow">
-            <Sparkles size={14} aria-hidden="true" /> Connected workspace
-          </p>
           <h1>{title}</h1>
           <p className="text-sm text-muted-foreground max-w-2xl mt-2">
             {description}
           </p>
         </div>
         <span className="connected-mode">
-          Sample journeys · no live instructions
+          Sample data only · No live payments
         </span>
       </header>
-      <nav className="connected-tabs" aria-label="Connected modules">
+      <nav className="connected-tabs" aria-label="Connected banking">
         {[
-          { href: "/pay-by-bank", label: "Pay-by-bank", icon: Landmark },
+          { href: "/pay-by-bank", label: "Pay by Bank", icon: Landmark },
           { href: "/credit-desk", label: "Credit Desk", icon: ShieldCheck },
           { href: "/cash-desk", label: "Cash Desk", icon: Building2 },
           {
             href: "/connections",
-            label: "Permissions & readiness",
+            label: "Permissions and readiness",
             icon: KeyRound,
           },
         ].map((i) => (
@@ -140,17 +142,16 @@ export function ConnectedRecovery({
       {recovery?.hasUnconfirmedOutcome && (
         <div className="connected-note" role="alert">
           <h2 className="font-semibold text-foreground">
-            Previous action outcome unconfirmed
+            Request not confirmed
           </h2>
           <p className="mt-2">
-            The response was lost or unavailable. Your action may already have
-            been saved. Retry the original request to recover its result. If it
-            cannot be recovered, check Operations before you start a new action.
+            We do not know yet whether Valo Pay saved this. Check the original
+            request before you change anything.
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-3">
             <Button
               busy={recovery.pending}
-              busyLabel="Recovering result…"
+              busyLabel="Checking original request…"
               onClick={async () => {
                 const submittedScope = recovery.scope;
                 setRecoveryError("");
@@ -174,17 +175,17 @@ export function ConnectedRecovery({
                     setRecoveryError(
                       errorWords(error, "The original request was saved earlier, but its result is no longer available."),
                     );
-                  } else setRecoveryError(errorWords(error, "The service did not confirm the result."));
+                  } else setRecoveryError(errorWords(error, "Valo Pay did not confirm the result. Check the original request again."));
                 }
               }}
             >
-              Retry original sample request
+              Check original request
             </Button>
             <Link
               href="/operations"
               className="inline-flex min-h-10 items-center text-primary underline"
             >
-              Open Operations
+              Open Request history
             </Link>
             <DiscardOriginalRequest
               disabled={recovery.pending}
@@ -205,8 +206,8 @@ export function ConnectedRecovery({
       )}
       {recovered && (
         <p className="connected-note" role="status">
-          Original sample request confirmed. Review the refreshed records below.
-          No live financial instruction was sent.
+          Original request confirmed. Check the updated records below. Nothing
+          was sent to a bank.
         </p>
       )}
     </>
@@ -231,12 +232,62 @@ export function ConnectedPanel({
     </section>
   );
 }
-export function ConnectedStatus({ status }: { status: string }) {
+/**
+ * The help under a written field such as a reason: its minimum length and
+ * where what is written is kept (a reason goes to the audit log).
+ */
+export function FieldHint({ id, minLength, note = "Saved in the audit log." }: { id: string; minLength: number; note?: string }) {
   return (
-    <span
-      className={`connected-status ${["confirmed", "active", "approved", "complete"].includes(status) ? "good" : ["unknown", "expired", "revoked", "failed", "blocked", "refused"].includes(status) ? "attention" : ""}`}
-    >
-      {status.replaceAll("_", " ")}
-    </span>
+    <p id={id} className="mt-1 text-xs text-muted-foreground">
+      At least {minLength} characters. {note}
+    </p>
   );
+}
+/**
+ * The page's own words for a written field that is too short ("Enter a
+ * reason (at least 8 characters)."), or nothing when it is long enough. The
+ * service trims what it is sent, so the page does too.
+ */
+export function tooShort(value: string, what: string, minLength: number): string {
+  return value.trim().length < minLength ? `Enter ${what} (at least ${minLength} characters).` : "";
+}
+/** A written field's description: its help, and its message when there is one. */
+export function describedBy(id: string, error?: string): string {
+  return error ? `${id}-help ${fieldMessageId(id)}` : `${id}-help`;
+}
+/**
+ * Why a role cannot take an action, under its disabled button, in one shape on every connected page and the rest of
+ * the console (the shared onlyRoles, which names roles as the standard lists them, with no article): "Only Admin or
+ * Operations can grant a permission." The bar above every page already shows the reader's role and, in the sandbox,
+ * how to change it, so the reason does not repeat them (docs/design/writing.md, Notices).
+ */
+export function roleRefusal(roles: readonly string[], action: string): string {
+  return onlyRoles(roles, action, { brief: true });
+}
+/** The records whose statuses these pages show. */
+export type ConnectedStatusRecord =
+  | "checkout"
+  | "permission"
+  | "assessment"
+  | "accounting-draft"
+  | "vat-schedule"
+  | "payroll-run"
+  | "payroll-item"
+  | "payroll-funding";
+/**
+ * A connected status's key in the shared labels: its record's own entry
+ * ("checkout.created"), for a code other pages show in other words, else the
+ * code itself. The stored code never changes.
+ */
+export function connectedStatusKey(record: ConnectedStatusRecord, status: string): string {
+  const key = `${record}.${status}`;
+  return Object.hasOwn(valueLabels, key) ? key : status;
+}
+/** A connected status in the shared words, where it is read as text rather than as a badge. */
+export function connectedStatusLabel(record: ConnectedStatusRecord, status: string): string {
+  return valueLabel(connectedStatusKey(record, status));
+}
+/** A connected status as the shared badge shows every status. */
+export function ConnectedStatus({ record, status }: { record: ConnectedStatusRecord; status: string }) {
+  return <StatusBadge status={connectedStatusKey(record, status)} />;
 }

@@ -33,10 +33,10 @@ export function BatchCommitDialog({
     >
       <DialogContent onCloseAutoFocus={restoreFocus}>
         <DialogHeader>
-          <DialogTitle>Commit with fallback values?</DialogTitle>
+          <DialogTitle>Import with default values?</DialogTitle>
           <DialogDescription>
-            The check found values that would be saved from a fallback rather
-            than from the file.
+            Some values are not in the file, so Valo Pay will save default
+            values instead.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-2 text-sm">
@@ -44,7 +44,7 @@ export function BatchCommitDialog({
             <p key={warning}>{warning}</p>
           ))}
           <p>
-            Committed records keep these values until a reviewed correction
+            Imported records keep these values until a reviewed correction
             changes them.
           </p>
         </div>
@@ -58,7 +58,7 @@ export function BatchCommitDialog({
               onCommit();
             }}
           >
-            Commit anyway
+            Import anyway
           </Button>
         </DialogFooter>
       </DialogContent>

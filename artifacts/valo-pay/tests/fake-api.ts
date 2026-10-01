@@ -38,6 +38,8 @@ import { allocatableOnly, allocationChoices, pageRecords } from "../../api-serve
 import { pageQueue } from '../../api-server/src/lib/valopay-queues';
 import { importCsv, withRowIdColumn } from "../../api-server/src/lib/valopay-import";
 import { exportJobView, publicExportRecord, queueExport, retryExport } from '../../api-server/src/lib/export-jobs';
+import { connectedActionDone, recordTypeName, recordTypesName, withAuditName } from '../../api-server/src/lib/action-names';
+import { LENDER_NOT_FOUND, UNKNOWN_DEMO_ROLE, notFound, onlyRoles } from '../../api-server/src/lib/refusal-words';
 import { buildConsoleOverview, buildConsoleReports, buildConsoleSettings } from "../../api-server/src/lib/valopay-close-views";
 import type { CloseRuntime } from "../../api-server/src/domain/effective-close-schedule";
 import { auditEntryData, canonicalDigest, verifyAuditChain, walkAuditChain } from "../../api-server/src/lib/digests";
@@ -110,7 +112,7 @@ function toHttpError(error: unknown): { status: number; body: unknown } {
   const message = error instanceof Error ? error.message : String(error);
   const carried = (error as { status?: number } | null)?.status;
   const status = carried || (/not permitted|requires.*role|only.*admin|read-only|disabled|gate|instruction mode/i.test(message) ? 403 : 400);
-  return { status, body: { error: message || "The operation was rejected." } };
+  return { status, body: { error: message || "This request was refused." } };
 }
 
 type Handler = (params: Record<string, string>, query: Record<string, string>, body: any) => unknown;
@@ -125,7 +127,7 @@ export function installFakeApi(options: { now?: string; role?: string; queuedExp
   const api: FakeApi = {
     merchantIds: [], role: options.role ?? "Admin", principalId: 'synthetic-console-person-1', staff: [], now, calls: [],
     scheduler: { state: 'running', intervalMs: 60_000, lastTickAt: now, lastSuccessAt: now, lastErrorAt: null },
-    state(merchantId) { const id = merchantId ?? api.merchantIds[0]!; return states.get(id) ?? fail("Lender not found in this workspace.", 404); },
+    state(merchantId) { const id = merchantId ?? api.merchantIds[0]!; return states.get(id) ?? fail(LENDER_NOT_FOUND, 404); },
     mutate(fn, merchantId) { return withState(merchantId ?? api.merchantIds[0]!, fn, { action: "test.mutation", objectId: "workspace", summary: "Arranged by a console test" }); },
     lifecycleExternal: [],
     lifecycleStepBudgetMs: 0,
@@ -146,14 +148,14 @@ export function installFakeApi(options: { now?: string; role?: string; queuedExp
     const state = seedMerchant(randomUUID(), smaller);
     state.settings.anonymousWorkspace = true;
     state.settings.nextCloseAt = nextCloseInstant(api.now, closeTimeOf(state.settings));
-    appendAudit(state, { actor: "System · sandbox seed", role: "Admin", now: api.now }, "sandbox.created", "workspace", "Created an isolated synthetic lender. Not live evidence.");
+    appendAudit(state, { actor: "System · sandbox seed", role: "Admin", now: api.now }, "sandbox.created", "workspace", "Created a sample lender. Sample data only.");
     states.set(state.merchant.id, state);
   }
   api.merchantIds = [...states.keys()].sort();
 
   /** A request-shaped mutation: work on a copy, and only a completed operation replaces the lender's state (the server rolls back otherwise). */
   function withState<T>(merchantId: string, fn: (state: DomainState, ctx: Context) => T, audit?: { action: string; objectId: string; summary: string }): T {
-    const current = states.get(merchantId) ?? fail("Lender not found in this workspace.", 404);
+    const current = states.get(merchantId) ?? fail(LENDER_NOT_FOUND, 404);
     const ctx = context();
     if (!audit) return fn(current, ctx);
     const draft = structuredClone(current);
@@ -164,7 +166,7 @@ export function installFakeApi(options: { now?: string; role?: string; queuedExp
   }
   /** withState for an operation that waits on something outside the lender, as a retention run's external deletions do: the state is replaced only once it finishes. */
   async function withStateAsync<T>(merchantId: string, fn: (state: DomainState, ctx: Context) => Promise<T>, audit: { action: string; objectId: string; summary: string }): Promise<T> {
-    const current = states.get(merchantId) ?? fail("Lender not found in this workspace.", 404);
+    const current = states.get(merchantId) ?? fail(LENDER_NOT_FOUND, 404);
     const ctx = context(), draft = structuredClone(current), before = canonicalDigest(draft);
     const result = await fn(draft, ctx);
     commit(merchantId, current, draft, ctx, before, audit);
@@ -182,8 +184,8 @@ export function installFakeApi(options: { now?: string; role?: string; queuedExp
   const roster = () => [...roles.filter(role => role !== 'Read-only').map(role => ({ actor: 'Sandbox ' + role, name: 'Sandbox ' + role, role })), ...api.staff];
   const pilotWrite = (q: Record<string,string>, fn: (s: DomainState,c: Context)=>ValopayRecord) => withState(merchantOf(q), (state,ctx) => { const before=structuredClone(state); const result=fn(state,ctx); advanceRecordVersions(before,state,ctx.now); return contract(valopayRecordSchema, result); }, { action:'pilot.change',objectId:'workspace',summary:'Synthetic pilot workflow' });
   const routes: Array<[string, RegExp, Handler]> = [
-    ['GET', /^\/v1\/team$/, () => contract(staffDirectorySchema, {mode:'sandbox', actor:context().actor, members:[], lenders:[], invitations:[], changes:[], events:[], message:'Demo personas are active.'})],
-    ['GET', /^\/v1\/team\/readiness$/, () => contract(accessReadinessSchema, {syntheticOnly:true,canCommission:false,checkedAt:api.now,checks:[{id:'identity',name:'Staff identity',state:'not_configured',detail:'Configure a separate Clerk staging organisation and provision its first administrator.'},{id:'mfa',name:'Multi-factor authentication',state:'not_configured',detail:'Demo role changes do not verify a staff member or a second factor.'},{id:'origin',name:'Allowed staff origins',state:'not_configured',detail:'Staff changes need a configured staging address.'},{id:'database',name:'Restricted database access',state:'not_configured',detail:'The offline console test does not verify a restricted database connection.'},{id:'encryption',name:'Managed payload encryption',state:'not_configured',detail:'No external wrapping key is configured in this offline test.'}]})],
+    ['GET', /^\/v1\/team$/, () => contract(staffDirectorySchema, {mode:'sandbox', actor:context().actor, members:[], lenders:[], invitations:[], changes:[], events:[], message:'Team member accounts are not switched on here. Demo roles are for practice only.'})],
+    ['GET', /^\/v1\/team\/readiness$/, () => contract(accessReadinessSchema, {syntheticOnly:true,canCommission:false,checkedAt:api.now,checks:[{id:'identity',name:'Team member sign-in',state:'not_configured',detail:'Not set up. The Valo Pay team sets up sign-in and the first Admin for a pilot.'},{id:'mfa',name:'Two-step verification',state:'not_configured',detail:'Demo roles do not check a team member or two-step verification.'},{id:'origin',name:'Allowed web addresses',state:'not_configured',detail:'Team members can make changes only from the address set up for the pilot.'},{id:'database',name:'Restricted database access',state:'not_configured',detail:'Not set up. The Valo Pay team sets up restricted database access for a pilot.'},{id:'encryption',name:'Data encryption',state:'not_configured',detail:'Not set up. The Valo Pay team sets up an encryption key. No key is stored on this page.'}]})],
     ['GET', /^\/v1\/operations$/, () => contract(operationListSchema, {items:[],total:0,offset:0})],
     ['GET', /^\/v1\/operations\/pending$/, () => contract(pendingOperationsSchema, {pending:0})],
     ['GET', /^\/v1\/pilot\/journey$/, (_p,q) => {const s=api.state(merchantOf(q)),count=(kind:string,statuses?:string[])=>s.records.filter(r=>r.kind===kind&&(!statuses||statuses.includes(r.status))).length,open=s.records.filter(r=>r.kind==='exceptions'&&!['closed','resolved'].includes(r.status));return contract(pilotJourneySchema,{lender:s.merchant,accessMode:'sandbox',actor:context().actor,syntheticOnly:true,counts:{customers:count('customers'),batches:count('import-batches',['committed']),receipts:count('payments'),openCases:open.length,unassignedCases:open.filter(r=>!r.data.case?.assignee).length,closes:count('closes'),exports:count('exports',['ready'])}});}],
@@ -198,7 +200,7 @@ export function installFakeApi(options: { now?: string; role?: string; queuedExp
     ['POST', /^\/v1\/pilot\/close-reviews\/prepare$/, (_p,q,b) => pilotWrite(q,(s,c)=>prepareCloseReview(s,c,prepareCloseReviewSchema.parse(b),roster()))],
     ['POST', /^\/v1\/pilot\/close-reviews\/(?<id>[^/]+)\/decision$/, (p,q,b) => pilotWrite(q,(s,c)=>decideCloseReview(s,c,p.id!,decideCloseReviewSchema.parse(b)))],
     ['POST', /^\/v1\/pilot\/close-reviews\/(?<id>[^/]+)\/reassign$/, (p,q,b) => pilotWrite(q,(s,c)=>reassignCloseReview(s,c,p.id!,reassignCloseReviewSchema.parse(b),roster()))],
-    ['GET', /^\/v1\/sources$/, (_p,q) => {const s=api.state(merchantOf(q)), events=s.records.filter(r=>r.kind==='provider-events').sort((a,b)=>b.createdAt.localeCompare(a.createdAt));return contract(sourcesViewSchema, {...sourceQuality(s,api.now,q.businessDate||undefined),paystack:{mode:'test_only',externalConnectionVerified:false,canRunFixtures:['Admin','Operations','Finance'].includes(api.role),state:'configuration_required',message:'A Paystack account, test credentials and an operator-provisioned connection are required for an external test. Local fixture results do not verify a Paystack connection.',events:events.slice(0,50).map(providerEventView),total:events.length,quarantined:events.filter(e=>e.status==='quarantined').length,duplicates:events.reduce((sum,e)=>sum+Math.max(0,Number(e.data.deliveryCount||0)-1),0)}});}],
+    ['GET', /^\/v1\/sources$/, (_p,q) => {const s=api.state(merchantOf(q)), events=s.records.filter(r=>r.kind==='provider-events').sort((a,b)=>b.createdAt.localeCompare(a.createdAt));return contract(sourcesViewSchema, {...sourceQuality(s,api.now,q.businessDate||undefined),paystack:{mode:'test_only',externalConnectionVerified:false,canRunFixtures:['Admin','Operations','Finance'].includes(api.role),state:'configuration_required',message:'An external test needs a Paystack account, test keys and a connection set up by the Valo Pay team. Practice messages on this page do not check a real Paystack connection.',events:events.slice(0,50).map(providerEventView),total:events.length,quarantined:events.filter(e=>e.status==='quarantined').length,duplicates:events.reduce((sum,e)=>sum+Math.max(0,Number(e.data.deliveryCount||0)-1),0)}});}],
     ['POST', /^\/v1\/sources\/manifests$/, (_p,q,b) => pilotWrite(q,(s,c)=>saveSourceManifest(s,c,b as any))],
     ['POST', /^\/v1\/sources\/profiles$/, (_p,q,b) => pilotWrite(q,(s,c)=>saveSourceProfile(s,c,sourceProfileInputSchema.parse(b)))],
     ['POST', /^\/v1\/sources\/profiles\/(?<id>[^/]+)\/save$/, (p,q,b) => pilotWrite(q,(s,c)=>saveSourceProfile(s,c,sourceProfileInputSchema.parse(b),p.id))],
@@ -208,29 +210,29 @@ export function installFakeApi(options: { now?: string; role?: string; queuedExp
     ['POST', /^\/v1\/work\/notifications\/read$/, (_p,q,b) => withState(merchantOf(q),(s,c)=>workReceiptSchema.parse(recordWorkReceipt(s,c,roster(),'read',workReceiptInputSchema.parse(b))),{action:'work.read',objectId:'work',summary:'Read in-app notification'})],
     ['POST', /^\/v1\/work\/handovers\/acknowledge$/, (_p,q,b) => withState(merchantOf(q),(s,c)=>workReceiptSchema.parse(recordWorkReceipt(s,c,roster(),'acknowledge',workReceiptInputSchema.parse(b))),{action:'work.acknowledge',objectId:'work',summary:'Acknowledge case handover'})],
     ['GET', /^\/v1\/lifecycle$/, (_p,q) => contract(lifecycleViewSchema, lifecycleView(api.state(merchantOf(q)),context(),api.lifecycleExternal,Number(q.offset||0)))],
-    ['GET', /^\/v1\/lifecycle\/runs\/(?<id>[^/]+)$/, (p,q) => {if(api.role!=='Admin')fail('An administrator is required.',403);const s=api.state(merchantOf(q)),r=s.records.find(r=>r.kind==='retention-runs'&&r.id===p.id);if(!r)fail('Retention run not found in this lender.',404);return contract(lifecycleRunViewSchema, lifecycleRunView(s,r));}],
+    ['GET', /^\/v1\/lifecycle\/runs\/(?<id>[^/]+)$/, (p,q) => {if(api.role!=='Admin')fail(onlyRoles(['Admin'],'view data retention',undefined),403);const s=api.state(merchantOf(q)),r=s.records.find(r=>r.kind==='retention-runs'&&r.id===p.id);if(!r)fail('Deletion run not found. It may belong to another lender.',404);return contract(lifecycleRunViewSchema, lifecycleRunView(s,r));}],
     ['POST', /^\/v1\/lifecycle\/policy$/, (_p,q,b) => withState(merchantOf(q),(s,c)=>{saveLifecyclePolicy(s,c,b);return lifecycleView(s,c,api.lifecycleExternal);},{action:'retention.policy',objectId:'retention',summary:'Save synthetic retention policy'})],
     ['POST', /^\/v1\/lifecycle\/holds$/, (_p,q,b) => withState(merchantOf(q),(s,c)=>{setLifecycleHold(s,c,b,api.lifecycleExternal);return lifecycleView(s,c,api.lifecycleExternal);},{action:'retention.hold',objectId:'retention',summary:'Change preservation hold'})],
     ['POST', /^\/v1\/lifecycle\/runs$/, (_p,q,b) => withState(merchantOf(q),(s,c)=>lifecyclePreview(s,c,b,api.lifecycleExternal),{action:'retention.preview',objectId:'retention',summary:'Save bounded deletion preview'})],
     ['POST', /^\/v1\/lifecycle\/runs\/(?<id>[^/]+)\/approve$/, (p,q,b) => withState(merchantOf(q),(s,c)=>approveLifecycleRun(s,c,p.id!,b,api.lifecycleExternal),{action:'retention.approve',objectId:p.id!,summary:'Approve exact retention preview'})],
-    ['POST', /^\/v1\/lifecycle\/runs\/(?<id>[^/]+)\/execute$/, (p,q,b) => withStateAsync(merchantOf(q),async(s,c)=>{if(c.role!=='Admin')fail('An administrator is required.',403);const run=s.records.find(r=>r.kind==='retention-runs'&&r.id===p.id);if(!run||run.data.previewDigest!==b.previewDigest)fail('The approved preview does not match.',409);
+    ['POST', /^\/v1\/lifecycle\/runs\/(?<id>[^/]+)\/execute$/, (p,q,b) => withStateAsync(merchantOf(q),async(s,c)=>{if(c.role!=='Admin')fail(onlyRoles(['Admin'],'carry out a deletion run',c.accessMode),403);const run=s.records.find(r=>r.kind==='retention-runs'&&r.id===p.id);if(!run||run.data.previewDigest!==b.previewDigest)fail('This deletion run changed after you opened it. Reload the page and try again.',409);
       // No journal or private storage here: a request payload is simply gone, and an export file is marked deleted on its record.
       const remove=async(candidate:{kind:string;sourceId:string}):Promise<'deleted'|'already_absent'>=>{if(candidate.kind!=='export_file')return 'deleted';const file=s.records.find(r=>r.kind==='exports'&&r.id===candidate.sourceId);if(!file)return 'already_absent';file.data.fileDeletedAt=c.now;file.data.fileRetentionRunId=run.id;return 'deleted';};
       return executeApprovedRun(s,c,run.id,api.lifecycleExternal,remove,{budgetMs:api.lifecycleStepBudgetMs});},{action:'retention.execute',objectId:p.id!,summary:'Execute approved synthetic retention run'})],
     ['GET', /^\/v1\/pilot\/batches$/, (_p,q)=>{const all=api.state(merchantOf(q)).records.filter(r=>r.kind==='import-batches');return contract(importBatchListSchema, {items:all.slice(Number(q.offset||0),Number(q.offset||0)+25).map(r=>batchView(r)),total:all.length,offset:Number(q.offset||0)});}],
-    ['GET', /^\/v1\/pilot\/batches\/(?<id>[^/]+)$/, (p,q)=>{const s=api.state(merchantOf(q)), batch=s.records.find(r=>r.kind==='import-batches'&&r.id===p.id);if(!batch)fail('Batch not found.',404);if(!['Admin','Operations','Finance'].includes(api.role))fail('An import operator role is required.',403);return contract(importBatchDetailSchema, {batch,revisions:s.records.filter(r=>r.kind==='import-revisions'&&r.data.batchId===p.id)});}],
+    ['GET', /^\/v1\/pilot\/batches\/(?<id>[^/]+)$/, (p,q)=>{const s=api.state(merchantOf(q)), batch=s.records.find(r=>r.kind==='import-batches'&&r.id===p.id);if(!batch)fail(notFound('Import batch'),404);if(!['Admin','Operations','Finance'].includes(api.role))fail(onlyRoles(['Admin','Operations','Finance'],'open the rows of an import batch',undefined),403);return contract(importBatchDetailSchema, {batch,revisions:s.records.filter(r=>r.kind==='import-revisions'&&r.data.batchId===p.id)});}],
     ['POST', /^\/v1\/pilot\/batches$/, (_p,q,b)=>pilotWrite(q,(s,c)=>saveImportBatch(s,c,b))],
     ['POST', /^\/v1\/pilot\/batches\/(?<id>[^/]+)\/save$/, (p,q,b)=>pilotWrite(q,(s,c)=>saveImportBatch(s,c,b,p.id))],
     ['POST', /^\/v1\/pilot\/batches\/(?<id>[^/]+)\/commit$/, (p,q,b)=>pilotWrite(q,(s,c)=>commitImportBatch(s,c,p.id!,b.expectedUpdatedAt))],
-    ['GET', /^\/v1\/pilot\/cases\/(?<id>[^/]+)$/, (p,q)=>{const s=api.state(merchantOf(q)),record=s.records.find(r=>r.kind==='exceptions'&&r.id===p.id);if(!record)fail('Exception not found.',404);return contract(caseDetailSchema, {record,assignees:roster(),events:s.records.filter(r=>r.kind==='case-events'&&r.data.exceptionId===p.id),evidence:s.records.filter(r=>r.kind==='payments').map(r=>({id:r.id,name:r.name,reference:r.reference,kind:r.kind}))});}],
+    ['GET', /^\/v1\/pilot\/cases\/(?<id>[^/]+)$/, (p,q)=>{const s=api.state(merchantOf(q)),record=s.records.find(r=>r.kind==='exceptions'&&r.id===p.id);if(!record)fail(notFound('Exception'),404);return contract(caseDetailSchema, {record,assignees:roster(),events:s.records.filter(r=>r.kind==='case-events'&&r.data.exceptionId===p.id),evidence:s.records.filter(r=>r.kind==='payments').map(r=>({id:r.id,name:r.name,reference:r.reference,kind:r.kind}))});}],
     ['POST', /^\/v1\/pilot\/cases\/(?<id>[^/]+)$/, (p,q,b)=>pilotWrite(q,(s,c)=>coordinateCase(s,c,p.id!,b,roster()))],
-    ['GET', /^\/v1\/customers\/(?<id>[^/]+)\/history$/, (params,query)=>{const parsed=S.GetCustomerHistoryQueryParams.parse(query);return S.GetCustomerHistoryResponse.parse(withState(parsed.merchantId,state=>pageCustomerHistory(state,params.id!,parsed)));}],
+    ['GET', /^\/v1\/customers\/(?<id>[^/]+)\/history$/, (params,query)=>{const parsed=S.GetCustomerHistoryQueryParams.parse(query);return S.GetCustomerHistoryResponse.parse(withState(parsed.merchantId,state=>{const history=pageCustomerHistory(state,params.id!,parsed);return {...history,events:history.events.map(withAuditName),...(history.focusedRecord?{focusedRecord:withAuditName(history.focusedRecord)}:{})};}));}],
     ['GET', /^\/v1\/reconciliation\/(?<queue>[^/]+)$/, (params,query)=>{
       const {queue:name}=S.ListReconciliationParams.parse(params), parsed=S.ListReconciliationQueryParams.parse(query);
       return S.ListReconciliationResponse.parse(withState(parsed.merchantId,(state,ctx)=>pageReconciliation(state,name,parsed,ctx.now)));
     }],
     ['GET', /^\/v1\/close-history$/, (_p,query)=>{const parsed=S.ListCloseHistoryQueryParams.parse(query);return S.ListCloseHistoryResponse.parse(pageCloseHistory(api.state(parsed.merchantId).records,parsed));}],
-    ['GET', /^\/v1\/close-history\/(?<id>[^/]+)$/, (params,query)=>{const row=api.state(merchantOf(query)).records.find(r=>r.kind==='closes' && r.id===params.id);if(!row) fail('Close record not found in this lender.',404);return S.GetCloseDetailResponse.parse(row);}],
+    ['GET', /^\/v1\/close-history\/(?<id>[^/]+)$/, (params,query)=>{const row=api.state(merchantOf(query)).records.find(r=>r.kind==='closes' && r.id===params.id);if(!row) fail(notFound('Daily close'),404);return S.GetCloseDetailResponse.parse(row);}],
     ['GET', /^\/v1\/queues\/(?<queue>[^/]+)$/, (params, query) => {
       const { queue: name } = S.ListQueueParams.parse(params), filters = S.ListQueueQueryParams.parse(query);
       return S.ListQueueResponse.parse(withState(filters.merchantId, (state, ctx) => pageQueue(state.records, name, filters, ctx.now)));
@@ -240,7 +242,7 @@ export function installFakeApi(options: { now?: string; role?: string; queuedExp
       merchants: api.merchantIds.map((id) => states.get(id)!.merchant), roles: [...roles], productionEnabled: false,
     })],
     ['GET', /^\/v1\/connected$/, (_p,query)=>withState(merchantOf(query),(state,ctx)=>contract(connectedViewSchema, connectedView(state,ctx)))],
-    ['POST', /^\/v1\/connected\/actions$/, (_p,query,raw)=>{const input=connectedActionSchema.parse(raw);return withState(merchantOf(query),(state,ctx)=>contract(connectedActionResultSchema, {message:'Sample workspace updated.',record:runConnectedAction(state,ctx,input),mode:'synthetic',externalInstructionPerformed:false}),{action:input.action,objectId:input.recordId||'connected-workspace',summary:input.reason});}],
+    ['POST', /^\/v1\/connected\/actions$/, (_p,query,raw)=>{const input=connectedActionSchema.parse(raw);return withState(merchantOf(query),(state,ctx)=>contract(connectedActionResultSchema, {message:`${connectedActionDone(input.action)}. Sample data only.`,record:runConnectedAction(state,ctx,input),mode:'synthetic',externalInstructionPerformed:false}),{action:input.action,objectId:input.recordId||'connected-workspace',summary:input.reason});}],
     ["GET", /^\/v1\/overview$/, (_p, query) => S.GetOverviewResponse.parse(withState(merchantOf(query), (state, ctx) => buildConsoleOverview(state, ctx.now, overviewAudit(state), api.scheduler)))],
     ["GET", /^\/v1\/records\/(?<kind>[^/]+)$/, (params, query) => {
       if (!kinds.has(params.kind!)) fail("Unknown resource.", 404);
@@ -248,11 +250,11 @@ export function installFakeApi(options: { now?: string; role?: string; queuedExp
       allocatableOnly(params.kind!, parsed);
       return S.ListRecordsResponse.parse(withState(parsed.merchantId, (state) => {
         // One payment's allocation choices (paymentId) as the server's list reads them: the payer rule of its manual allocation.
-        const payment = parsed.paymentId === undefined ? undefined : state.records.find((record) => record.kind === "payments" && record.id === parsed.paymentId) ?? fail("Payment not found in this lender. Refresh the payments and choose one again.", 404);
+        const payment = parsed.paymentId === undefined ? undefined : state.records.find((record) => record.kind === "payments" && record.id === parsed.paymentId) ?? fail("Payment not found. Reload the payments and choose one again.", 404);
         const named = payment && !payment.customerId && payment.data.dueItemId ? state.records.find((record) => record.kind === "due-items" && record.id === payment.data.dueItemId)?.customerId : undefined;
         const query = payment ? allocationChoices(parsed, allocationPayer(payment, named)) : parsed;
         const page = query ? pageRecords(state.records.filter((record) => record.kind === params.kind), query, params.kind) : { items: [], total: 0 };
-        return { ...page, items: page.items.map((record) => record.kind === "exports" ? publicExportRecord(record) : record) };
+        return { ...page, items: page.items.map((record) => record.kind === "exports" ? publicExportRecord(record) : withAuditName(record)) };
       }));
     }],
     ["POST", /^\/v1\/records\/(?<kind>[^/]+)$/, (params, query, raw) => {
@@ -265,9 +267,9 @@ export function installFakeApi(options: { now?: string; role?: string; queuedExp
         if (kind === "due-items") input.data.outstandingKobo = body.amountKobo;
         if (kind === "attempts") { input.data.source = "external"; input.data.simulated = true; }
         validateRecord(state, ctx, kind, input);
-        if (body.reference && state.records.some((record) => record.kind === kind && record.reference === body.reference && kind !== "observations")) fail("Reference already exists. Use an idempotency key for safe replay.", 409);
+        if (body.reference && state.records.some((record) => record.kind === kind && record.reference === body.reference && kind !== "observations")) fail("This reference is already used. Enter a different reference.", 409);
         return makeRecord(state, kind, input);
-      }, { action: `post.records.${kind}`, objectId: "workspace", summary: "Synthetic workspace operation" }));
+      }, { action: `post.records.${kind}`, objectId: "workspace", summary: "Change to sample data." }));
     }],
     ["PATCH", /^\/v1\/records\/(?<kind>[^/]+)\/(?<id>[^/]+)$/, (params, query, raw) => {
       const kind = params.kind!;
@@ -275,7 +277,7 @@ export function installFakeApi(options: { now?: string; role?: string; queuedExp
       const body = S.UpdateRecordBody.parse(raw);
       return S.UpdateRecordResponse.parse(withState(merchantOf(query), (state, ctx) => {
         const old = state.records.find((record) => record.kind === kind && record.id === params.id);
-        if (!old) fail("Record not found.", 404);
+        if (!old) fail(notFound(recordTypeName(kind)), 404);
         const {expectedUpdatedAt:_expected,...changes}=body;
         const input = { ...old, ...changes, data: { ...mergeData(old.data, body.data), synthetic: true } as Record<string, any>, updatedAt: ctx.now };
         assertNoDirectImportedCorrection(old,input);
@@ -283,67 +285,67 @@ export function installFakeApi(options: { now?: string; role?: string; queuedExp
         validateRecord(state, ctx, kind, input, true);
         Object.assign(old, input);
         return old;
-      }, { action: `patch.records.${kind}.${params.id}`, objectId: params.id!, summary: "Synthetic workspace operation" }));
+      }, { action: `patch.records.${kind}.${params.id}`, objectId: params.id!, summary: "Change to sample data." }));
     }],
     ["POST", /^\/v1\/actions$/, (_p, query, raw) => {
       const body = S.PerformActionBody.parse(raw);
       const merchantId = merchantOf(query);
       if (body.action === "set_role") {
         const role = String(body.data?.role);
-        if (!(roles as readonly string[]).includes(role)) fail("Unknown sandbox persona.");
-        return S.PerformActionResponse.parse(withState(merchantId, () => { api.role = role; return { message: `Now using ${role} demo persona. No real-world permissions were changed.`, data: { role } }; }, { action: "set_role", objectId: "workspace", summary: body.reason || "Synthetic workspace operation" }));
+        if (!(roles as readonly string[]).includes(role)) fail(UNKNOWN_DEMO_ROLE);
+        return S.PerformActionResponse.parse(withState(merchantId, () => { api.role = role; return { message: `Demo role changed to ${role}. It gives no access to real data or live payments.`, data: { role } }; }, { action: "set_role", objectId: "workspace", summary: body.reason || "Change to sample data." }));
       }
-      if (body.action === "verify_audit") return S.PerformActionResponse.parse(withState(merchantId, (state) => ({ message: "Audit-chain verification completed.", data: verifyAudit(state) }), { action: "verify_audit", objectId: "workspace", summary: body.reason || "Synthetic workspace operation" }));
-      if (body.action === "mark_pack_used") fail("Synthetic packs cannot be recorded as evidence used in a real case.", 403);
-      return S.PerformActionResponse.parse(withState(merchantId, (state, ctx) => executeAction(state, ctx, body), { action: body.action, objectId: body.recordId || "workspace", summary: body.reason || "Synthetic workspace operation" }));
+      if (body.action === "verify_audit") return S.PerformActionResponse.parse(withState(merchantId, (state) => ({ message: "Audit log check complete.", data: verifyAudit(state) }), { action: "verify_audit", objectId: "workspace", summary: body.reason || "Change to sample data." }));
+      if (body.action === "mark_pack_used") fail("A dispute pack made from sample data cannot be recorded as used in a real case.", 403);
+      return S.PerformActionResponse.parse(withState(merchantId, (state, ctx) => executeAction(state, ctx, body), { action: body.action, objectId: body.recordId || "workspace", summary: body.reason || "Change to sample data." }));
     }],
     ["POST", /^\/v1\/imports$/, (_p, query, raw) => {
       const body = S.ImportRecordsBody.parse(withRowIdColumn(raw));
       return S.ImportRecordsResponse.parse(withState(merchantOf(query), (state, ctx) => importCsv(state, ctx, body), body.commit ? { action: 'post.imports', objectId: 'workspace', summary: 'Synthetic CSV import' } : undefined));
     }],
-    ["GET", /^\/v1\/customers\/(?<id>[^/]+)\/timeline$/, (params, query) => S.GetCustomerTimelineResponse.parse(withState(merchantOf(query), (state) => customerTimeline(state, params.id!)))],
+    ["GET", /^\/v1\/customers\/(?<id>[^/]+)\/timeline$/, (params, query) => S.GetCustomerTimelineResponse.parse(withState(merchantOf(query), (state) => { const timeline = customerTimeline(state, params.id!); return { ...timeline, events: timeline.events.map(withAuditName) }; }))],
     ["GET", /^\/v1\/reports$/, (_p, query) => S.GetReportsResponse.parse(withState(merchantOf(query), (state, ctx) => ({...buildConsoleReports(state, ctx.now, api.scheduler), ...(query.includeCloses === 'false' ? {closes:[]} : {})})))],
     ["GET", /^\/v1\/gates$/, (_p, query) => S.GetGatesResponse.parse(withState(merchantOf(query), (state) => getGates(state)))],
     ["GET", /^\/v1\/settings$/, (_p, query) => S.GetSettingsResponse.parse(withState(merchantOf(query), (state, ctx) => buildConsoleSettings(state, ctx.role, ctx.now, api.scheduler)))],
     ["PATCH", /^\/v1\/settings$/, (_p, query, raw) => {
       const body = S.UpdateSettingsBody.parse(raw);
       return S.UpdateSettingsResponse.parse(withState(merchantOf(query), (state, ctx) => {
-        if (ctx.role !== "Admin") fail("Only an Admin can change lender settings.", 403);
+        if (ctx.role !== "Admin") fail(onlyRoles(["Admin"], "change lender settings", ctx.accessMode), 403);
         const start = body.executionStart ?? state.settings.executionStart ?? executionWindow.defaultStartHour, end = body.executionEnd ?? state.settings.executionEnd ?? executionWindow.defaultEndHour;
-        if (start < executionWindow.earliestHour || end > executionWindow.latestHour || start >= end) fail(`Execution window must be WAT hours within ${executionWindow.earliestHour}:00 to ${executionWindow.latestHour}:00 with the start before the end (DEB-01).`);
-        if (body.minimumTicketKobo !== undefined && body.minimumTicketKobo < ABSOLUTE_TICKET_FLOOR_KOBO) fail("The ₦5,000 floor cannot be overridden.");
-        if (body.defaultOwner && !(handBackOwners as readonly string[]).includes(body.defaultOwner)) fail("Valo execution ownership requires a verified production cutover.");
-        if (body.authorisationMode && !(authorisationModes as readonly string[]).includes(body.authorisationMode)) fail(`Authorisation mode must be one of: ${authorisationModes.join(", ")}.`);
-        for (const key of ["unallocatedAlertThreshold", "notificationCostAlertKobo"] as const) if (body[key] !== undefined && (!Number.isInteger(body[key]) || Number(body[key]) < 0)) fail(`${key} must be a non-negative integer.`);
-        if (body.closeTime !== undefined && !isCloseTime(body.closeTime)) fail("closeTime must be a WAT time as HH:MM, for example 07:00 (REC-01).");
+        if (start < executionWindow.earliestHour || end > executionWindow.latestHour || start >= end) fail(`Set the collection window between ${String(executionWindow.earliestHour).padStart(2, "0")}:00 and ${String(executionWindow.latestHour).padStart(2, "0")}:00 WAT, with the start before the end.`);
+        if (body.minimumTicketKobo !== undefined && body.minimumTicketKobo < ABSOLUTE_TICKET_FLOOR_KOBO) fail("The minimum debit is ₦5,000.00. This limit cannot be overridden.");
+        if (body.defaultOwner && !(handBackOwners as readonly string[]).includes(body.defaultOwner)) fail("Choose the loan management system, the lender team or the provider. Valo Pay can own collection only after a collection transfer for live use.");
+        if (body.authorisationMode && !(authorisationModes as readonly string[]).includes(body.authorisationMode)) fail("Choose Daily approval or Standing approval.");
+        for (const key of ["unallocatedAlertThreshold", "notificationCostAlertKobo"] as const) if (body[key] !== undefined && (!Number.isInteger(body[key]) || Number(body[key]) < 0)) fail(`${key} must be a whole number of zero or more.`);
+        if (body.closeTime !== undefined && !isCloseTime(body.closeTime)) fail("closeTime must use HH:MM in West Africa Time, for example 07:00.");
         const previous = { time: closeTimeOf(state.settings), enabled: state.settings.scheduledCloseEnabled !== false };
         // The version the edit names is not a preference, as the API keeps it out of the saved settings.
         const { expectedRevision: _revision, ...preferences } = body;
         Object.assign(state.settings, preferences);
         rescheduleAfterSettings(state, previous, ctx.now);
         return buildConsoleSettings(state, ctx.role, ctx.now, api.scheduler);
-      }, { action: "patch.settings", objectId: "workspace", summary: "Synthetic workspace operation" }));
+      }, { action: "patch.settings", objectId: "workspace", summary: "Change to sample data." }));
     }],
     ["POST", /^\/v1\/exports$/, (_p, query, raw) => {
       const body = S.CreateExportBody.parse(raw);
-      if (!kinds.has(body.kind) && !exportKinds.includes(body.kind)) fail("Unknown export kind.");
-      if (packKinds.includes(body.kind) && !body.customerId) fail("customerId is required for a pack.");
+      if (!kinds.has(body.kind) && !exportKinds.includes(body.kind)) fail("Choose what to export from the list.");
+      if (packKinds.includes(body.kind) && !body.customerId) fail("Choose a customer for the dispute pack.");
       const merchantId = merchantOf(query);
       return S.CreateExportResponse.parse(withState(merchantId, (state, ctx) => {
         if(options.queuedExports)return queueExport(state,ctx,body,'/private/test');
         // export_sensitive, as queueExport checks it.
         if (!exportPermitted(ctx.role, body.kind)) fail(sensitiveExportRefusal, 403);
-        if (body.customerId && !state.records.some((record) => record.kind === "customers" && record.id === body.customerId)) fail("Customer not found.", 404);
+        if (body.customerId && !state.records.some((record) => record.kind === "customers" && record.id === body.customerId)) fail(notFound("Customer"), 404);
         const review = body.kind === 'reviewed-close' ? state.records.find(r=>r.kind==='close-reviews'&&r.id===(body as any).closeReviewId) : undefined;
         if(body.kind==='reviewed-close'&&(!review||review.status!=='approved'||!reviewIsCurrent(state,review)))fail('An approved, current close review is required.',409);
         const checksum = canonicalDigest({ kind: body.kind, format: body.format, customerId: body.customerId ?? null, at: ctx.now, records: state.records.length });
-        const record = makeRecord(state, "exports", { name: `${body.kind} ${body.format}`, status: "ready", customerId: body.customerId ?? "", createdAt: ctx.now, data: { kind: body.kind, format: body.format, checksum, usedInRealCase: false, byteLength: 0, generationMs: 0, synthetic: true,...(review?{closeReviewId:review.id,closeSnapshotDigest:review.data.snapshotDigest}:{}) } });
+        const record = makeRecord(state, "exports", { name: `${recordTypesName(body.kind)} (${body.format.toUpperCase()})`, status: "ready", customerId: body.customerId ?? "", createdAt: ctx.now, data: { kind: body.kind, format: body.format, checksum, usedInRealCase: false, byteLength: 0, generationMs: 0, synthetic: true,...(review?{closeReviewId:review.id,closeSnapshotDigest:review.data.snapshotDigest}:{}) } });
         return { id: record.id, downloadUrl: `/api/v1/exports/${record.id}/download?merchantId=${merchantId}`, checksum, generatedAt: ctx.now };
-      }, { action: "post.exports", objectId: "workspace", summary: "Synthetic workspace operation" }));
+      }, { action: "post.exports", objectId: "workspace", summary: "Change to sample data." }));
     }],
     ["GET", /^\/v1\/exports\/(?<id>[^/]+)$/, ({id}, query) => {
       const record=states.get(merchantOf(query))!.records.find(record=>record.kind==='exports'&&record.id===id);
-      if(!record)fail('Export not found in this lender.',404);
+      if(!record)fail(notFound('Export'),404);
       return S.GetExportJobResponse.parse(exportJobView(record));
     }],
     ["POST", /^\/v1\/exports\/(?<id>[^/]+)\/retry$/, ({id}, query) => S.RetryExportJobResponse.parse(withState(merchantOf(query),(state,ctx)=>retryExport(state,ctx,id),{action:'export.retry',objectId:id,summary:'Retry saved export'}))],

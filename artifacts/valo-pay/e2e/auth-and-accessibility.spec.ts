@@ -60,11 +60,11 @@ test('enlarged root text uses the drawer and preserves keyboard navigation witho
   for (const route of ['/sources', '/lifecycle', '/reports', '/settings']) {
     await page.goto(route);
     await expect(page.locator('#main h1')).toBeVisible();
-    await expect(page.getByRole('complementary', { name: 'Console sidebar' })).toBeHidden();
-    await expect(page.getByRole('button', { name: 'Menu', exact: true })).toBeVisible();
+    await expect(page.getByRole('complementary', { name: 'Sidebar' })).toBeHidden();
+    await expect(page.getByRole('button', { name: 'Open menu', exact: true })).toBeVisible();
     await expect.poll(() => page.locator('#main').evaluate(main => main.scrollWidth - main.clientWidth), route).toBeLessThanOrEqual(1);
   }
-  const menu = page.getByRole('button', { name: 'Menu', exact: true });
+  const menu = page.getByRole('button', { name: 'Open menu', exact: true });
   await menu.focus();
   await page.keyboard.press('Enter');
   const drawer = page.getByRole('dialog', { name: 'Menu' });
@@ -82,7 +82,7 @@ test('enlarged root text uses the drawer and preserves keyboard navigation witho
   await expect(drawer).toBeVisible();
   await page.evaluate(() => document.documentElement.style.removeProperty('font-size'));
   await page.setViewportSize({ width: 1280, height: 960 });
-  await expect(page.getByRole('complementary', { name: 'Console sidebar' })).toBeVisible();
+  await expect(page.getByRole('complementary', { name: 'Sidebar' })).toBeVisible();
   await expect(drawer).toBeHidden();
   await expect(page.locator('#main')).toBeFocused();
 });
@@ -120,14 +120,14 @@ test('a failed auth entry is fetched again at a fresh URL without reloading the 
     return route.fulfill({ response });
   });
   await page.goto('http://auth.valopay.test/sign-in');
-  await expect(page.getByRole('alert')).toContainText('Sign-in could not be loaded');
+  await expect(page.getByRole('alert')).toContainText('We could not load sign-in.');
   await page.evaluate(() => {
     const draft = document.createElement('input');
     draft.setAttribute('aria-label', 'Open draft');
     draft.value = 'Unsaved sample work';
     document.getElementById('main')!.append(draft);
   });
-  await page.getByRole('button', { name: 'Try loading sign-in again' }).click();
+  await page.getByRole('alert').getByRole('button', { name: 'Try again', exact: true }).click();
   await expect(page.getByRole('form', { name: 'Recovered test sign-in' })).toBeVisible();
   await expect(page.getByLabel('Open draft')).toHaveValue('Unsaved sample work');
   expect(attempts).toHaveLength(2);
@@ -143,7 +143,7 @@ test('the built auth entry keeps its provider, forms and verification exports', 
   const loaded: string[] = [];
   page.on('request', request => loaded.push(request.url()));
   await page.goto('/sign-in');
-  await expect(page.getByRole('heading', { level: 1, name: 'Sign in to your workspace' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Sign in', exact: true })).toBeVisible();
   expect(loaded.filter(url => url.includes('/clerk-session-'))).toEqual([]);
   const exported = await page.evaluate(async url => Object.keys(await import(url)), `/assets/${entry}`);
   expect(exported.sort()).toEqual(['ClerkSession', 'ClerkSignIn', 'ClerkSignUp', 'VerifiedSession']);

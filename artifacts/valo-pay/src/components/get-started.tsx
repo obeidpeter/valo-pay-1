@@ -12,25 +12,26 @@ type NextAction = { title: string; description: string; label: string; href: str
 /** Guidance uses the server's role. Choosing or reading a guide never grants authority. */
 function nextAction(role: string, overview?: Overview): NextAction {
   const waiting = (key: string) => overview?.queues.some(queue => queue.key === key && queue.value > 0);
-  if (role === 'Read-only') return { title: 'Start with a customer’s history', description: 'You can inspect records and reports. An authorised colleague must make changes or record financial decisions.', label: 'Explore customer records', href: '/customers' };
-  if (role === 'Compliance reviewer') return { title: 'Find work awaiting compliance review', description: 'Review policy and notice wording in its context. A different reviewer must decide on anything you prepared yourself.', label: 'Review policies and templates', href: '/policies' };
+  if (role === 'Read-only') return { title: 'Start with a customer’s history', description: 'You can look at records and reports. A team member with the right role must make changes or record financial decisions.', label: 'Open Customers', href: '/customers' };
+  if (role === 'Compliance reviewer') return { title: 'Find work waiting for compliance review', description: 'Check policy and message wording where it is used. A different person must review anything you prepared.', label: 'Open Policies and templates', href: '/policies' };
   if (role === 'Finance') return waiting('review')
-    ? { title: 'A payment match needs review', description: 'Compare the payment, instalment and explanation before recording a decision. A proposed match has not yet applied the payment.', label: 'Review proposed payment matches', href: '/reconciliation?view=review' }
-    : { title: 'Check the evidence behind the daily close', description: 'Inspect the latest close and its review status. Preparing a close does not approve it; a separate Finance reviewer must decide.', label: 'Open close review', href: '/close-review' };
+    ? { title: 'A payment match needs review', description: 'Compare the payment, instalment and explanation before you decide. A match waiting for review has not allocated the payment yet.', label: 'Review matches', href: '/reconciliation?view=review' }
+    : { title: 'Check the evidence behind the daily close', description: 'Look at the latest close and its review status. Preparing a close does not approve it. A different person, a Finance team member, must review it.', label: 'Open Close review', href: '/close-review' };
   if (role === 'Operations') return waiting('overdue')
-    ? { title: 'An overdue issue needs an owner and next step', description: 'Open the issue, check its evidence and coordinate the next action. Admin or Finance must decide payment matches and financial holds.', label: 'Review overdue issues', href: '/exceptions?view=overdue' }
-    : { title: 'Start with your assigned work', description: 'Find issues, handovers and deadlines for this lender. If records have not arrived yet, use Import batches to review a sample file first.', label: 'Open my work', href: '/work' };
+    ? { title: 'An overdue exception needs an owner and a next step', description: 'Open the exception, check its evidence and agree the next step. Admin or Finance must decide matches and financial holds.', label: 'Open overdue exceptions', href: '/exceptions?view=overdue' }
+    : { title: 'Start with your assigned work', description: 'Find cases, handovers and deadlines for this lender. If records have not arrived yet, use Import batches to check a sample file first.', label: 'Open My work', href: '/work' };
   if (role === 'Admin') return waiting('review')
-    ? { title: 'A payment match needs review', description: 'Check the underlying records or ask Finance to review them. Starting a task does not bypass its required approval.', label: 'Review proposed payment matches', href: '/reconciliation?view=review' }
-    : { title: 'Bring the lender’s sample records together', description: 'Start with customers, then their instalments and payment evidence. Preview each import and correct its errors before committing it.', label: 'Open import batches', href: '/imports' };
-  return { title: 'Check what your workspace allows', description: 'Your role could not be recognised here. Read the access guide before asking an administrator to confirm your membership.', label: 'Read the access guide', href: helpHref('access', '/overview') };
+    ? { title: 'A payment match needs review', description: 'Check the records behind it, or ask Finance to review them. Starting a task does not skip its approval.', label: 'Review matches', href: '/reconciliation?view=review' }
+    : { title: 'Bring the lender’s sample records together', description: 'Start with customers, then their instalments and payment evidence. Save and check each batch, and correct its errors, before you import it.', label: 'Open Import batches', href: '/imports' };
+  return { title: 'Check what your workspace allows', description: 'Your role could not be recognised here. Read the access guide before you ask an Admin to confirm your membership.', label: 'Read the access guide', href: helpHref('access', '/overview') };
 }
 
-const stateLabels = { not_started: 'Not started', in_progress: 'In progress', awaiting_review: 'Awaiting review', completed: 'Recorded', blocked: 'Needs attention' };
-const checklist: Array<{ id: string; title: string; completedLabel: string; href: string; help: HelpTopicId }> = [
-  { id: 'ingest', title: 'Bring in sample records', completedLabel: 'Committed', href: '/imports', help: 'imports' },
-  { id: 'reconcile', title: 'Match payments to instalments', completedLabel: 'Matched', href: '/reconciliation', help: 'matching' },
-  { id: 'close', title: 'Review the daily close', completedLabel: 'Approved', href: '/close-review', help: 'close' },
+/** The progress words, the same on Pilot journey and in the shared labels (docs/design/writing.md, Status words). */
+const stateLabels = { not_started: 'Not started', in_progress: 'In progress', awaiting_review: 'Waiting for review', completed: 'Completed', blocked: 'Blocked' };
+const checklist: Array<{ id: string; title: string; completedLabel: string; href: string; page: string; help: HelpTopicId }> = [
+  { id: 'ingest', title: 'Bring in sample records', completedLabel: 'Imported', href: '/imports', page: 'Import batches', help: 'imports' },
+  { id: 'reconcile', title: 'Match payments to instalments', completedLabel: 'Matched', href: '/reconciliation', page: 'Reconciliation', help: 'matching' },
+  { id: 'close', title: 'Review the daily close', completedLabel: 'Approved', href: '/close-review', page: 'Close review', help: 'close' },
 ];
 
 function Checklist({ role }: { role: string }) {
@@ -39,26 +40,26 @@ function Checklist({ role }: { role: string }) {
   const progress = usePilotQuery('/pilot/progress', pilotProgressSchema);
   const mayImport = ['Admin', 'Finance', 'Operations'].includes(role);
   return <div className="border-t pt-4">
-    <p className="text-sm text-muted-foreground">Optional guide · Progress belongs to this lender and comes from saved records, not clicks. You can leave and return at any time.</p>
+    <p className="text-sm text-muted-foreground">Optional. Progress is saved for this lender from its records, not from what you click. You can leave and come back at any time.</p>
     {progress.isLoading && <p role="status" className="mt-4 text-sm">Checking the lender’s saved progress…</p>}
-    {progress.error && <div role="alert" className="mt-4 rounded-lg border p-3 text-sm"><p>{progress.data ? 'Progress could not be refreshed. The last loaded status is shown below; check the task before acting.' : 'We could not check saved progress. No steps are being marked complete.'}</p><Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => { void progress.refetch(); }} busy={progress.isFetching}>Check progress again</Button></div>}
+    {progress.error && <div role="alert" className="mt-4 rounded-lg border p-3 text-sm"><p>{progress.data ? 'We could not refresh your progress. The last status we loaded is shown below. Check the task before you act on it.' : 'We could not check your saved progress, so no step is shown as done. Select Check progress again.'}</p><Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => { void progress.refetch(); }} busy={progress.isFetching}>Check progress again</Button></div>}
     {progress.data && <ol className="mt-4 grid gap-3 lg:grid-cols-3">
       {checklist.map((item, index) => {
         const step = progress.data.steps.find(candidate => candidate.id === item.id);
         const recorded = step?.state === 'completed';
         const restricted = item.id === 'ingest' && !mayImport;
-        const boundary = item.id === 'ingest' ? (mayImport ? 'A saved batch is a draft until you commit it.' : 'Admin, Operations or Finance must import records. You can read the guide and inspect customer records.') : item.id === 'reconcile' ? (['Admin', 'Finance'].includes(role) ? 'Confirm a match only after checking the payment and instalment.' : 'Admin or Finance must decide proposed matches. You can inspect the evidence.') : 'A close needs a separate authorised Finance reviewer; running it is not approval.';
+        const boundary = item.id === 'ingest' ? (mayImport ? 'A saved batch is not imported until you select Import checked batch.' : 'Admin, Operations or Finance must import records. You can read the guide and look at customer records.') : item.id === 'reconcile' ? (['Admin', 'Finance'].includes(role) ? 'Confirm a match only after checking the payment and instalment.' : 'Admin or Finance must decide matches. You can read the evidence.') : 'Running a close is not approval. A different person, a Finance team member, must review it.';
         return <li key={item.id} className="min-w-0 rounded-lg border bg-background/70 p-4">
-          <p className="flex items-center gap-2 text-xs font-medium text-muted-foreground">{recorded ? <CheckCircle2 aria-hidden="true" className="h-4 w-4 text-success" /> : <Circle aria-hidden="true" className="h-4 w-4" />}Step {index + 1} · {recorded ? item.completedLabel : step ? stateLabels[step.state] : 'Status unavailable'}</p>
+          <p className="flex items-center gap-2 text-xs font-medium text-muted-foreground">{recorded ? <CheckCircle2 aria-hidden="true" className="h-4 w-4 text-success" /> : <Circle aria-hidden="true" className="h-4 w-4" />}Step {index + 1} · {recorded ? item.completedLabel : step ? stateLabels[step.state] : 'Not recorded'}</p>
           <h3 className="mt-2 text-sm font-semibold">{item.title}</h3>
           <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{boundary}</p>
-          {step?.missing[0] && <p className="mt-2 text-xs leading-relaxed"><span className="font-medium">Still needed in this lender: </span>{step.missing[0]}</p>}
-          <Link className="mt-3 inline-flex min-h-10 items-center gap-1 text-sm font-semibold text-primary underline-offset-4 hover:underline" href={restricted ? helpHref(item.help, '/overview') : item.href}>{restricted ? 'Read the import guide' : recorded ? 'Inspect saved evidence' : 'Open this task'}<ArrowRight aria-hidden="true" className="h-4 w-4" /></Link>
+          {step?.missing[0] && <p className="mt-2 text-xs leading-relaxed"><span className="font-medium">Still needed for this lender: </span>{step.missing[0]}</p>}
+          <Link className="mt-3 inline-flex min-h-10 items-center gap-1 text-sm font-semibold text-primary underline-offset-4 hover:underline" href={restricted ? helpHref(item.help, '/overview') : item.href}>{restricted ? 'Read the import guide' : `Open ${item.page}`}<ArrowRight aria-hidden="true" className="h-4 w-4" /></Link>
         </li>;
       })}
     </ol>}
-    <div className="mt-4 flex items-start gap-2 rounded-lg bg-secondary/40 p-3 text-xs leading-relaxed text-muted-foreground"><Info aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" /><p><strong className="font-medium text-foreground">Separate administrator and external setup.</strong> Staff invitations, provider connections and acceptance for real data are separate checks. {role === 'Admin' ? 'Review the Pilot journey and Team & access with the responsible owners.' : 'Ask your administrator to arrange them; you do not need bank credentials to review these sample records.'} Sample progress does not establish live readiness.</p></div>
-    <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm"><Link href="/pilot" className="inline-flex min-h-10 items-center text-primary underline">View the full pilot journey</Link><Link href={helpHref('access', '/overview')} className="inline-flex min-h-10 items-center text-primary underline">Understand your access</Link></div>
+    <div className="mt-4 flex items-start gap-2 rounded-lg bg-secondary/40 p-3 text-xs leading-relaxed text-muted-foreground"><Info aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" /><p><strong className="font-medium text-foreground">Setting up a pilot is separate.</strong> Team access, provider connections and approval to use real data are separate steps. {role === 'Admin' ? 'Go through Pilot journey and Team and access with the people responsible.' : 'Ask an Admin to arrange them. You do not need bank details to look at these sample records.'} Progress with sample data does not mean you are ready to go live.</p></div>
+    <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm"><Link href="/pilot" className="inline-flex min-h-10 items-center text-primary underline">Open Pilot journey</Link><Link href={helpHref('access', '/overview')} className="inline-flex min-h-10 items-center text-primary underline">Read the access guide</Link></div>
   </div>;
 }
 
@@ -82,7 +83,7 @@ function WorkspaceStart({ scope, role, overview }: { scope: string; role: string
       <div className="max-w-2xl"><p className="text-xs font-semibold text-primary">Your next step · {role}</p><h2 className="mt-2 text-lg font-semibold">{action.title}</h2><p className="mt-2 text-sm leading-relaxed text-muted-foreground">{action.description}</p></div>
       <Button asChild className="max-w-full whitespace-normal text-left h-auto min-h-11 py-2"><Link href={action.href}>{action.label}<ArrowRight aria-hidden="true" className="ml-2 h-4 w-4 shrink-0" /></Link></Button>
     </div>
-    <button type="button" aria-expanded={expanded} aria-controls="get-started-checklist" onClick={toggle} className="mt-4 flex min-h-11 items-center gap-2 rounded-md text-sm font-semibold underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">{expanded ? 'Hide getting started' : 'Get started · 3 steps'}<ChevronDown aria-hidden="true" className={`h-4 w-4 ${expanded ? 'rotate-180' : ''}`} /></button>
+    <button type="button" aria-expanded={expanded} aria-controls="get-started-checklist" onClick={toggle} className="mt-4 flex min-h-11 items-center gap-2 rounded-md text-sm font-semibold underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">{expanded ? 'Hide first steps' : 'Show first steps'}<ChevronDown aria-hidden="true" className={`h-4 w-4 ${expanded ? 'rotate-180' : ''}`} /></button>
     <div id="get-started-checklist" hidden={!expanded}>{expanded && <Checklist role={role} />}</div>
   </section>;
 }

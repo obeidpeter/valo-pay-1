@@ -15,7 +15,7 @@ export type ListRecordsParams = {
  */
 merchantId: string;
 /**
- * Text matched, ignoring case and accents, against the record's name, its reference and the text and number values in its data, nested ones included; never a field's name, true, false or null.
+ * Text matched, ignoring case and accents, against the record's name, its reference and the text and number values in its data, nested ones included; never a field's name, true, false or null. An audit log entry is also matched by the name in words its list shows for its action.
  */
 search?: string;
 /**

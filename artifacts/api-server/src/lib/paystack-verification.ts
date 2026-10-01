@@ -93,7 +93,7 @@ export async function verifyStoredPaystackTestEvent(
             ctx,
             "paystack.test_verification",
             eventId,
-            `An operator independently checked stored test evidence${typeof found === "string" ? ` (${found.replaceAll("_", " ")})` : ""}. No financial instruction was created.`,
+            `The Valo Pay team checked a saved Paystack test event${typeof found === "string" ? ` (${found.replaceAll("_", " ")})` : ""}. No money moved.`,
           );
           await saveState(ctx, state);
         }

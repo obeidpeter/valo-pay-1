@@ -10,8 +10,8 @@ import { saveImportBatch, commitImportBatch } from '../../api-server/src/domain/
 import { previewImportCorrection, proposeImportCorrection } from '../../api-server/src/domain/import-corrections';
 import type { DomainState } from '../../api-server/src/domain/types';
 
-const context = vi.hoisted(() => ({ merchantId: 'work-ui', actor: 'Clerk:alice', role: 'Operations' }));
-vi.mock('@/lib/workspace-context', () => ({ useWorkspace: () => ({ merchantId: context.merchantId, workspace: { actor: context.actor, role: context.role } }) }));
+const context = vi.hoisted(() => ({ merchantId: 'work-ui', actor: 'Clerk:alice', role: 'Operations', accessMode: undefined as string | undefined }));
+vi.mock('@/lib/workspace-context', () => ({ useWorkspace: () => ({ merchantId: context.merchantId, workspace: { actor: context.actor, role: context.role, accessMode: context.accessMode } }) }));
 const people = [{ actor: 'Clerk:alice', name: 'Alice', role: 'Operations' }, { actor: 'Clerk:bob', name: 'Bob', role: 'Finance' }, { actor: 'Clerk:admin', name: 'Administrator', role: 'Admin' }];
 const now = '2026-09-25T10:00:00.000Z';
 let state: DomainState, originalFetch: typeof fetch;
@@ -26,7 +26,7 @@ function assigned(actor: string, name: string, handover = false) {
 }
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 beforeEach(() => {
-  context.merchantId = 'work-ui'; context.actor = 'Clerk:alice'; context.role = 'Operations';
+  context.merchantId = 'work-ui'; context.actor = 'Clerk:alice'; context.role = 'Operations'; context.accessMode = undefined;
   state = seedMerchant(context.merchantId, true); requests = []; receipts = new Map(); responseMode = 'normal';
   originalFetch = globalThis.fetch;
   globalThis.fetch = async (input, options) => {
@@ -65,11 +65,11 @@ it('includes pending import corrections in Finance reviews with age and an exact
   const proposal = proposeImportCorrection(state, proposer, { ...input, previewDigest: preview.previewDigest, reviewer: 'Clerk:bob', reason: 'Correct the name in the source file.', evidence: 'SOURCE-CORRECTION-QUEUE' }, people);
   context.actor = 'Clerk:bob'; context.role = 'Finance';
   const user = userEvent.setup(); mount();
-  await screen.findByRole('heading', { name: 'Import correction awaiting review' });
+  await screen.findByRole('heading', { name: 'Import correction waiting for review' });
   expect(screen.getByRole('link', { name: 'Review import correction' }).getAttribute('href')).toBe(`/imports?batch=${batch.id}&correction=${proposal.id}`);
   expect(screen.getByText(/Awaiting decision since/)).toBeTruthy();
   await user.selectOptions(screen.getByRole('combobox', { name: 'Show' }), 'review');
-  expect(await screen.findByRole('heading', { name: 'Import correction awaiting review' })).toBeTruthy();
+  expect(await screen.findByRole('heading', { name: 'Import correction waiting for review' })).toBeTruthy();
   await user.click(screen.getByRole('button', { name: 'Mark as read' }));
   await screen.findByText(/Notification marked as read/);
   expect(state.records.filter(record => record.kind === 'import-correction-events')).toHaveLength(0);
@@ -101,7 +101,7 @@ it('records reading without resolving the case and retains history', async () =>
 it.each(['Cancel', 'Escape'] as const)('returns keyboard focus to the handover opener after %s', async close => {
   assigned('Clerk:alice', 'Handover to review', true);
   const user = userEvent.setup(); mount();
-  const opener = await screen.findByRole('button', { name: 'Review handover' });
+  const opener = await screen.findByRole('button', { name: 'Acknowledge handover' });
   opener.focus();
   await user.keyboard('{Enter}');
   const dialog = screen.getByRole('dialog');
@@ -118,7 +118,7 @@ it.each(['Cancel', 'Escape'] as const)('returns keyboard focus to the handover o
 it.each([false, true])('handles a delayed acknowledged-queue refresh without losing or stealing focus (moved on: %s)', async movedOn => {
   assigned('Clerk:alice', 'Delayed handover refresh', true);
   const user = userEvent.setup(); mount();
-  const opener = await screen.findByRole('button', { name: 'Review handover' });
+  const opener = await screen.findByRole('button', { name: 'Acknowledge handover' });
   opener.focus();
   await user.keyboard('{Enter}');
   const dialog = screen.getByRole('dialog');
@@ -137,7 +137,7 @@ it.each([false, true])('handles a delayed acknowledged-queue refresh without los
   const filter = screen.getByRole('combobox', { name: 'Show' });
   if (movedOn) filter.focus();
   release();
-  await waitFor(() => expect(screen.queryByRole('button', { name: 'Review handover' })).toBeNull());
+  await waitFor(() => expect(screen.queryByRole('button', { name: 'Acknowledge handover' })).toBeNull());
   await waitFor(() => expect(document.activeElement).toBe(movedOn ? filter : confirmation));
   expect(requests).toHaveLength(1);
 });
@@ -146,12 +146,12 @@ it.each(['lost', 'malformed'] as const)('recovers %s handover responses with the
   const record = assigned('Clerk:alice', 'Handover sample', true);
   responseMode = mode;
   const user = userEvent.setup(); mount();
-  await user.click(await screen.findByRole('button', { name: 'Review handover' }));
+  await user.click(await screen.findByRole('button', { name: 'Acknowledge handover' }));
   const dialog = screen.getByRole('dialog');
   expect((within(dialog).getByRole('button', { name: 'Acknowledge handover' }) as HTMLButtonElement).disabled).toBe(true);
   await user.click(within(dialog).getByRole('checkbox'));
   await user.click(within(dialog).getByRole('button', { name: 'Acknowledge handover' }));
-  await within(dialog).findByText('Outcome not confirmed');
+  await within(dialog).findByText('Request not confirmed');
   expect((within(dialog).getByRole('button', { name: 'Cancel' }) as HTMLButtonElement).disabled).toBe(true);
   expect((within(dialog).getByRole('checkbox') as HTMLInputElement).disabled).toBe(true);
   await user.keyboard('{Escape}');
@@ -169,7 +169,7 @@ it.each(['lost', 'malformed'] as const)('recovers %s handover responses with the
 it('rejects a handover changed after the review opened and explains the current assignment check', async () => {
   const record = assigned('Clerk:alice', 'Stale handover', true);
   const user = userEvent.setup(); mount();
-  await user.click(await screen.findByRole('button', { name: 'Review handover' }));
+  await user.click(await screen.findByRole('button', { name: 'Acknowledge handover' }));
   record.data.case.nextAction = 'New next action'; record.updatedAt = '2026-09-25T10:01:00.000Z';
   const dialog = screen.getByRole('dialog');
   await user.click(within(dialog).getByRole('checkbox'));
@@ -183,13 +183,25 @@ it('shows administrators a scoped team workload without another person’s ackno
   context.actor = 'Clerk:admin'; context.role = 'Admin';
   assigned('Clerk:alice', 'Alice handover', true); assigned('Clerk:bob', 'Bob case');
   const user = userEvent.setup(); mount();
-  await screen.findByText('No work assigned here');
+  await screen.findByText('No work assigned yet');
   await user.selectOptions(screen.getByRole('combobox', { name: 'Work queue' }), 'team');
-  await screen.findByRole('heading', { name: 'Workload by staff member' });
+  await screen.findByRole('heading', { name: 'Workload by team member' });
   expect(screen.getByRole('heading', { name: 'Alice handover' })).toBeTruthy();
   expect(screen.getByRole('heading', { name: 'Bob case' })).toBeTruthy();
-  expect(screen.queryByRole('button', { name: 'Review handover' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Acknowledge handover' })).toBeNull();
   expect(screen.queryByRole('button', { name: 'Mark as read' })).toBeNull();
+});
+
+it('says who can mark work as read or acknowledge a handover, in the refusal pattern, to someone who cannot', async () => {
+  const rule = 'Only Admin, Operations, Finance or Compliance reviewer can mark notifications as read or acknowledge handovers, and only with access to this lender.';
+  context.actor = 'Clerk:reader'; context.role = 'Read-only';
+  mount();
+  expect(await screen.findByText(`${rule} Your role is Read-only. Change your demo role in Settings.`)).toBeTruthy();
+  cleanup();
+  // A staff member in a work role who is not on this lender's list: their role is not a demo role, so an Admin checks their access.
+  context.actor = 'Clerk:carol'; context.role = 'Operations'; context.accessMode = 'staff';
+  mount();
+  expect(await screen.findByText(`${rule} Your role is Operations. Ask an Admin to check your access in Team and access.`)).toBeTruthy();
 });
 
 it('keeps keyboard focus off the page body while the next page of work loads, then moves it to the list', async () => {

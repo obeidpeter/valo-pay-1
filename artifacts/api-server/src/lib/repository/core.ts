@@ -13,6 +13,7 @@ import { recordChanged, nextRecordVersion } from "../edit-versions";
 import type { Request, Response } from "express";
 import { pool, poolSize, type PoolClient } from "@workspace/db";
 import { createLenderGate } from "../lender-gate";
+import { LENDER_NOT_FOUND, UNKNOWN_DEMO_ROLE } from "../refusal-words";
 import {
   beginStatement,
   checkOut,
@@ -230,7 +231,7 @@ export function fail(message: string, status = 400): never {
   throw Object.assign(new Error(message), { status });
 }
 export const conflict = (
-  message = "Operation conflicts with the current lender state.",
+  message = "This change conflicts with the lender’s latest records. Reload the page and try again.",
 ): never => fail(message, 409);
 /** Anonymous sandboxes expire after this many days without a change; the cookie carries the same lifetime. */
 export const ANONYMOUS_WORKSPACE_DAYS = 30;
@@ -252,7 +253,7 @@ function principalFor(req: Request, res: Response) {
   const userId = signedInUser(req);
   if (staffMode() && !userId)
     fail(
-      "Sign in with your pilot staff account. Anonymous access is unavailable in this environment.",
+      "Sign in with your team member account to continue. This address is for team members only.",
       401,
     );
   if (userId)
@@ -283,7 +284,7 @@ function principalFor(req: Request, res: Response) {
 export function sessionFor(context: StoreContext): Session {
   const session = sessions.get(context);
   if (!session || !session.active)
-    fail("This workspace transaction is no longer available.", 409);
+    fail("This request was stopped before it finished. Try again.", 409);
   return session;
 }
 /** Whether this request's own transaction verified the restricted database: the readiness page reports this, never the configuration alone. */
@@ -303,7 +304,7 @@ export async function verifyWorkspaceEncryption(context: StoreContext) {
   const session = teamAdmin(context);
   if (!payloadEncryptionKey())
     fail(
-      "Configure managed payload encryption before running this check.",
+      "Data encryption is not set up yet. Contact the Valo Pay team.",
       503,
     );
   const scope = {
@@ -314,7 +315,8 @@ export async function verifyWorkspaceEncryption(context: StoreContext) {
     value = { synthetic: true, nonce: randomUUID() };
   const sealed = await protectStored(value, scope),
     opened = await revealStored(sealed, scope);
-  if (!sameJson(value, opened)) fail("The encryption check failed.", 503);
+  if (!sameJson(value, opened))
+    fail("The encryption check failed. Contact the Valo Pay team.", 503);
   await staffEvent(
     session.client,
     session.workspace.id,
@@ -325,7 +327,7 @@ export async function verifyWorkspaceEncryption(context: StoreContext) {
   );
   return {
     message:
-      "Managed encryption and decryption succeeded for a synthetic payload.",
+      "Encryption works: a sample value was encrypted and read back.",
     checkedAt: context.now,
     verified: true,
   };
@@ -335,7 +337,7 @@ export async function verifyWorkspaceEncryption(context: StoreContext) {
 export async function protectWorkspacePayloads(context: StoreContext) {
   const session = teamAdmin(context);
   if (!payloadEncryptionKey())
-    fail("Configure managed payload encryption first.", 503);
+    fail("Data encryption is not set up yet. Contact the Valo Pay team.", 503);
   // One record per request bounds managed-key calls and keeps progress restartable.
   const batch = 1;
   let protectedCount = 0;
@@ -412,8 +414,8 @@ export async function protectWorkspacePayloads(context: StoreContext) {
   );
   return {
     message: protectedCount
-      ? "Protected another batch of stored payloads. Run again until no payloads remain."
-      : "No unprotected import or recovery payloads remain in this workspace.",
+      ? "Encrypted another batch of saved import files and requests. Run it again until none remain."
+      : "Every saved import file and request in this workspace is encrypted.",
     protectedCount,
     mayHaveMore: protectedCount > 0,
   };
@@ -561,7 +563,7 @@ export async function inWorkspace<T>(
         auth = getAuth(req) as unknown as VerifiedClerkSession;
         if (access === "persona")
           fail(
-            "Staff roles are assigned by an administrator. Demo role switching is unavailable.",
+            "Your role is set by an Admin in Team and access.",
             403,
           );
         // Lock the organisation before its membership, consistently with team
@@ -574,7 +576,7 @@ export async function inWorkspace<T>(
         ).rows[0];
         if (!found)
           fail(
-            "This organisation has not been provisioned for the pilot.",
+            "Your organisation is not set up for a pilot yet. Contact the Valo Pay team.",
             403,
           );
         await lockWorkspace(client, found.id, lockMode, write);
@@ -586,7 +588,7 @@ export async function inWorkspace<T>(
         ).rows[0];
         if (!workspace)
           fail(
-            "This organisation has not been provisioned for the pilot.",
+            "Your organisation is not set up for a pilot yet. Contact the Valo Pay team.",
             403,
           );
         try {
@@ -612,7 +614,7 @@ export async function inWorkspace<T>(
         }
         if (!staff)
           fail(
-            "An active staff membership is required. Accept an invitation or contact your administrator.",
+            "You are not a team member of this organisation yet. Accept your invitation, or ask an Admin for one.",
             403,
           );
         now = (
@@ -676,7 +678,7 @@ export async function inWorkspace<T>(
       if (inserted) await lockWorkspace(client, inserted.id, lockMode, write);
       workspace = inserted || (await lockedSandbox());
       if (!workspace)
-        throw new Error("Workspace bootstrap could not be completed.");
+        throw new Error("Valo Pay could not open your sandbox. Reload the page and try again.");
       if (inserted) {
         await seedWorkspace(
           client,
@@ -772,7 +774,7 @@ export async function inWorkspace<T>(
         (error as { code?: string } | undefined)?.code || "",
       )
     ) {
-      conflict("Operation conflicts with the current lender state.");
+      conflict();
     }
     throw error;
   } finally {
@@ -849,7 +851,7 @@ export async function readMerchant(
       [merchantId, session.workspace.id, session.principal],
     )
   ).rows[0];
-  if (!merchant) fail("Lender not found in this workspace.", 404);
+  if (!merchant) fail(LENDER_NOT_FOUND, 404);
   if (context.accessMode === "staff" && context.role !== "Admin") {
     const grant = (
       await session.client.query(
@@ -858,7 +860,10 @@ export async function readMerchant(
       )
     ).rows[0];
     if (!grant)
-      fail("Lender not found in your permitted workspace access.", 404);
+      fail(
+        "You do not have access to this lender. Choose another lender, or ask an Admin for access.",
+        404,
+      );
   }
   if (session.operationId && lock === "update") {
     const operation = (
@@ -876,7 +881,7 @@ export async function readMerchant(
       operation.status === "cancelled"
     )
       fail(
-        "This request has been cancelled or your authority changed. Refresh Operations.",
+        "This request was cancelled, or your access has changed. Reload Request history to check it.",
         409,
       );
   }
@@ -1547,15 +1552,16 @@ export function auditObject(
 export async function changeRole(context: StoreContext, role: string) {
   const session = sessionFor(context);
   if (context.accessMode === "staff")
-    fail("Staff cannot switch demo personas.", 403);
+    fail("Your role is set by an Admin in Team and access.", 403);
   if (session.access !== "persona")
     conflict("A persona change requires an exclusive workspace transaction.");
-  if (!roles.includes(role)) fail("Unknown sandbox persona.");
+  if (!roles.includes(role)) fail(UNKNOWN_DEMO_ROLE);
   const result = await session.client.query(
     "UPDATE valopay_workspaces SET role=$3 WHERE id=$1 AND principal_hash=$2",
     [session.workspace.id, session.principal, role],
   );
-  if (!rowsAffected(result)) fail("Workspace not found.", 404);
+  if (!rowsAffected(result))
+    fail("Your workspace was not found. Reload the page to open it again.", 404);
   session.workspace.role = role;
 }
 
@@ -1589,7 +1595,7 @@ export async function saveState(
   const { changed, unchanged } = changesSince(snapshot, state);
   // A summarised close would overwrite its full stored report; closes are evidence and never change.
   if (changed.some((record) => session.summarised?.has(record.id)))
-    conflict("Evidence records are immutable.");
+    conflict("Saved evidence cannot be changed. Reload the page and try again.");
   advanceChanged(snapshot, changed, context.now);
   // An unchanged record is its own "before": identical JSON is identical content.
   const current = new Map(state.records.map((record) => [record.id, record]));
@@ -1608,7 +1614,7 @@ export async function saveState(
     session.workspace.id,
     session.principal,
   ]);
-  if (!owned.rows[0]) fail("Lender not found in this workspace.", 404);
+  if (!owned.rows[0]) fail(LENDER_NOT_FOUND, 404);
   // Explicit synthetic staging dual-write only. A typed failure rolls back the
   // same transaction as the v1 write; no migration runs here or on startup.
   const projectionMode = process.env.VALOPAY_FINANCIAL_PROJECTION || "off";
@@ -1686,8 +1692,10 @@ export async function saveState(
     );
     if ((result.rowCount || 0) !== batch.length) {
       if (existing)
-        conflict("Record was changed concurrently; reload before retrying.");
-      fail("Lender not found in this workspace.", 404);
+        conflict(
+          "Another change saved this record at the same moment. Reload the page and try again.",
+        );
+      fail(LENDER_NOT_FOUND, 404);
     }
     start = end;
   }
@@ -1703,7 +1711,7 @@ export async function saveState(
     ],
   );
   if (!rowsAffected(merchantUpdate))
-    fail("Lender not found in this workspace.", 404);
+    fail(LENDER_NOT_FOUND, 404);
   // A subsequent repository save in this transaction validates against what
   // was just written, never a caller-supplied "previous" array.
   for (const record of changed)
@@ -1733,7 +1741,7 @@ async function seedWorkspace(
       { actor: `${SYSTEM_ACTOR_PREFIX}sandbox seed`, role: "Admin", now },
       "sandbox.created",
       "workspace",
-      "Created an isolated synthetic lender. Not live evidence.",
+      "Created a sample lender. Sample data only.",
     );
     const merchant = await client.query(
       `INSERT INTO valopay_merchants(id,workspace_id,info,settings)

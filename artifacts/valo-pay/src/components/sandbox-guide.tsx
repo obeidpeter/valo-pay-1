@@ -13,11 +13,11 @@ function guideSteps(role: string, returnTo: string) {
   const coordinator = role === 'Compliance reviewer';
   const mayExport = exportPermitted(role, 'customer-pack');
   return [
-    { title: 'Inspect a customer', href: '/customers', action: 'Open customers', instruction: 'Choose a sample customer and open their timeline.', outcome: 'Find their permission for recurring debits, instalments and payment evidence together. Account-read permission is a different permission from permission to debit.' },
-    { title: 'Understand a payment match', href: '/reconciliation?view=review', action: 'Review proposed matches', instruction: `Compare a proposed payment with its instalment and read the matching explanation. ${finance ? 'Check both records before deciding to confirm or reject a match.' : 'Admin or Finance must confirm or reject the match; your role can inspect the evidence.'} If the queue is empty, inspect an existing match instead.`, outcome: 'A proposed match has not yet applied the payment. Confirmed matching does not itself prove external settlement.' },
-    { title: 'Follow an issue to its next step', href: '/exceptions?view=overdue', action: 'Review overdue issues', instruction: `Open an issue and check the customer, owner, deadline and case history. ${operator ? 'Record a next step or handover when appropriate. Some financial holds require Admin or Finance.' : coordinator ? 'Claim an unassigned issue, then record a next step or handover when appropriate. Admin, Operations or Finance must record its resolution.' : 'Ask the assigned operator to record the next action; your role cannot resolve the issue.'} If no items are overdue, switch to All open.`, outcome: 'Assigning or handing over an issue does not resolve it. The recorded resolution and its reason remain in the case history.' },
-    { title: 'Understand the daily close', href: '/close-review', action: 'Open close review', instruction: `Inspect the latest close and any unresolved items. ${operator ? 'When a close is needed, an authorised operator can run it in Reports, then prepare it for review.' : 'Admin, Operations or Finance must run and prepare a close.'} A separate authorised Finance reviewer must decide on the submitted review.`, outcome: 'A recorded close, an approved close and an exported report are distinct states. Opening this page does not advance any of them.' },
-    { title: 'Find the evidence you can use', href: mayExport ? '/customers' : helpHref('exports', returnTo), action: mayExport ? 'Open a customer timeline' : 'Read the evidence guide', instruction: mayExport ? 'Choose a customer, then request Export dispute pack (PDF). Wait for the export to be ready before downloading it. You can check the result again in Saved exports.' : 'Admin, Finance or a Compliance reviewer must request or download a customer dispute pack. Read the evidence guide and ask an authorised colleague for the appropriate review.', outcome: 'A sample report is not evidence of a real collection. Reading this tip does not request or download an export.' },
+    { title: 'Look up a customer', href: '/customers', action: 'Open Customers', instruction: 'Choose a sample customer and open their history.', outcome: 'You see their mandate, instalments and payment evidence in one place. Permission to read an account is not permission to take money from it.' },
+    { title: 'Understand a payment match', href: '/reconciliation?view=review', action: 'Open Matches to review', instruction: `Compare a payment with its instalment and read the matching explanation. ${finance ? 'Check both records before you confirm or reject the match.' : 'Admin or Finance must confirm or reject the match. You can read the evidence.'} If the list is empty, look at an existing match instead.`, outcome: 'A match waiting for review has not allocated the payment yet. Confirming a match does not show that the provider has paid the money out.' },
+    { title: 'Follow an exception to its next step', href: '/exceptions?view=overdue', action: 'Open overdue exceptions', instruction: `Open an exception and check the customer, owner, deadline and case history. ${operator ? 'Record a next step or a handover when needed. Some financial holds need Admin or Finance.' : coordinator ? 'Claim an exception that has no owner, then record a next step or a handover. Admin, Operations or Finance must record how it was resolved.' : 'Your role cannot resolve this exception. Ask its owner to record the next step.'} If none are overdue, choose All open.`, outcome: 'Assigning or handing over an exception does not resolve it. How it was resolved, and why, stays in the case history.' },
+    { title: 'Understand the daily close', href: '/close-review', action: 'Open Close review', instruction: `Look at the latest daily close and anything still open. ${operator ? 'When a close is needed, Admin, Operations or Finance runs it on Reports, then prepares it for review.' : 'Admin, Operations or Finance must run and prepare a daily close.'} A different person, a Finance team member, must review it.`, outcome: 'Running a close, approving it and exporting a report are separate steps. Opening this page does none of them.' },
+    { title: 'Find the evidence you can use', href: mayExport ? '/customers' : helpHref('exports', returnTo), action: mayExport ? 'Open Customers' : 'Read the export guide', instruction: mayExport ? 'Choose a customer, open their history, then select Export dispute pack (PDF). Download it from Saved exports when it is ready.' : 'Only Admin, Finance or Compliance reviewer can export a customer dispute pack. Read the export guide, then ask one of them to export it.', outcome: 'A sample report is not evidence of a real collection. Reading this tip exports nothing.' },
   ];
 }
 
@@ -31,7 +31,7 @@ function readProgress(key: string, length: number): Progress {
   return { ...initial };
 }
 
-/** Optional reading tips. Browser preferences never represent completed operational work. */
+/** Tips: optional reading, hidden on Overview, which has Your next step. Browser preferences never represent completed work. */
 export function SandboxGuide() {
   const { merchantId, workspace } = useWorkspace();
   if (!merchantId || !workspace || workspace.environment !== 'sandbox') return null;
@@ -51,20 +51,20 @@ function LenderGuide({ scope, role }: { scope: string; role: string }) {
   }
   const step = steps[progress.step]!;
   return (
-    <section aria-label="Sandbox guide" className="mb-5 rounded-xl border bg-card print:hidden">
+    <section aria-label="Tips" className="mb-5 rounded-xl border bg-card print:hidden">
       <button ref={toggle} type="button" aria-expanded={!progress.hidden} aria-controls="sandbox-guide-details" className="flex min-h-12 w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm hover:bg-secondary/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary" onClick={() => save({ ...progress, hidden: !progress.hidden })}>
         <BookOpen aria-hidden="true" className="h-4 w-4 shrink-0 text-primary" />
-        <span className="font-medium">Sandbox guide</span>
+        <span className="font-medium">Tips</span>
         <span className="hidden text-muted-foreground sm:inline">{progress.read ? 'All tips read' : `Tip ${progress.step + 1} of ${steps.length} · ${step.title}`}</span>
-        <span className="ml-auto text-xs text-muted-foreground">{progress.hidden ? 'Open' : 'Collapse'}</span>
+        <span className="ml-auto text-xs text-muted-foreground">{progress.hidden ? 'Show' : 'Hide'}</span>
         <ChevronDown aria-hidden="true" className={`h-4 w-4 shrink-0 ${progress.hidden ? '' : 'rotate-180'}`} />
       </button>
       <div id="sandbox-guide-details" hidden={progress.hidden} className="border-t p-4 sm:p-5">
-        <p className="mb-3 text-xs text-muted-foreground">Optional reading tips · Sample data only · You can close this guide and return here later.</p>
-        <h2 aria-live="polite" className="font-semibold">{progress.read ? 'You have read the workflow tips' : step.title}</h2>
+        <p className="mb-3 text-xs text-muted-foreground">Optional tips. Sample data only. You can hide these tips and come back to them later.</p>
+        <h2 aria-live="polite" className="font-semibold">{progress.read ? 'You have read all the tips' : step.title}</h2>
         {progress.read ? <>
-          <p className="mt-2 text-sm text-muted-foreground">This saves only your reading position in this browser. It does not confirm that operational tasks or readiness checks passed. The Pilot journey shows progress from saved records.</p>
-          <div className="mt-3 flex flex-wrap gap-2"><Button variant="outline" size="sm" onClick={() => { toggle.current?.focus(); save({ ...initial, hidden: false }); }}>Read the tips again</Button><Button asChild size="sm"><Link href="/pilot">View saved pilot progress</Link></Button></div>
+          <p className="mt-2 text-sm text-muted-foreground">This saves only how far you have read, in this browser. It does not show that any task or check is done. Pilot journey shows progress from saved records.</p>
+          <div className="mt-3 flex flex-wrap gap-2"><Button variant="outline" size="sm" onClick={() => { toggle.current?.focus(); save({ ...initial, hidden: false }); }}>Read the tips again</Button><Button asChild size="sm"><Link href="/pilot">Open Pilot journey</Link></Button></div>
         </> : <>
           <p className="mt-2 text-sm text-muted-foreground">{step.instruction}</p>
           <p className="mt-2 text-sm"><span className="font-medium">What to look for: </span>{step.outcome}</p>
@@ -72,10 +72,10 @@ function LenderGuide({ scope, role }: { scope: string; role: string }) {
             <Button asChild size="sm" className="gap-2"><Link href={step.href}>{step.action}<ArrowRight className="h-4 w-4" aria-hidden="true" /></Link></Button>
             <Button variant="outline" size="sm" onClick={() => { if (progress.step === steps.length - 1) toggle.current?.focus(); save({ ...progress, step: Math.min(progress.step + 1, steps.length - 1), read: progress.step === steps.length - 1 }); }}>{progress.step === steps.length - 1 ? 'Finish reading' : 'Next tip'}</Button>
             {progress.step > 0 && <Button variant="ghost" size="sm" onClick={() => save({ ...progress, step: progress.step - 1 })}>Previous tip</Button>}
-            <span className="text-xs text-muted-foreground">Tip {progress.step + 1} of {steps.length} · Reading does not complete a task</span>
+            <span className="text-xs text-muted-foreground">Tip {progress.step + 1} of {steps.length}. Reading a tip does not complete a task.</span>
           </div>
         </>}
-        <Button variant="ghost" size="sm" className="mt-2" onClick={() => { toggle.current?.focus(); save({ ...progress, hidden: true }); }}>Close for now</Button>
+        <Button variant="ghost" size="sm" className="mt-2" onClick={() => { toggle.current?.focus(); save({ ...progress, hidden: true }); }}>Hide for now</Button>
       </div>
     </section>
   );

@@ -55,11 +55,12 @@ describe('money in another currency: one figure in the API and in every browser'
     expect(formatMinor(5, ' ')).toBe('5 in the smallest unit of an unnamed currency');
   });
 
-  it('prints the same figure on both sides for every other currency the runtime knows', () => {
-    // Naira keeps its own ways: ₦ on the console's pages, NGN in the API's messages.
-    for (const code of Intl.supportedValuesOf('currency').filter(code => code !== 'NGN')) for (const amount of [0, 7, 123_456, 9_007_199_254_740_991]) {
+  it('prints the same figure on both sides for every currency the runtime knows, naira included', () => {
+    // Naira reads ₦25,000.00 on the console's pages and in the API's messages alike.
+    for (const code of Intl.supportedValuesOf('currency')) for (const amount of [0, 7, 123_456, 9_007_199_254_740_991]) {
       expect(asTheApiWrites(formatMinor(amount, code)), code).toBe(moneyText(amount, code));
     }
+    expect(moneyText(2_500_000, 'NGN')).toBe('₦25,000.00');
   });
 
   // Review of the integration fixes, finding 1: a currency column imported onto a kind with no currency field is kept as

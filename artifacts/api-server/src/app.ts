@@ -228,7 +228,7 @@ app.use("/api/v1",(req,res,next)=>{
   res.setHeader("X-Frame-Options","DENY");
   res.setHeader("Cross-Origin-Resource-Policy","same-origin");
   const origin=req.get("Origin"),host=getClerkProxyHost(req);
-  if (staffMode() && !['GET','HEAD','OPTIONS'].includes(req.method) && (!origin || !staffPolicy().authorisedParties.includes(origin))) { res.status(403).json({error:'Use the configured pilot origin for staff changes.',requestId:req.id}); return; }
+  if (staffMode() && !['GET','HEAD','OPTIONS'].includes(req.method) && (!origin || !staffPolicy().authorisedParties.includes(origin))) { res.status(403).json({error:'Open Valo Pay from your pilot’s usual address to make changes.',requestId:req.id}); return; }
   if(origin){
     try{if(new URL(origin).host!==host){req.log.warn({event:"request.refused",reason:"origin"},"Cross-origin request refused");res.status(403).json({error:"Cross-origin requests are not permitted.",requestId:req.id});return;}}
     catch{req.log.warn({event:"request.refused",reason:"origin_malformed"},"Malformed request origin refused");res.status(403).json({error:"Invalid request origin.",requestId:req.id});return;}
@@ -240,7 +240,7 @@ app.use("/api/v1",(req,res,next)=>{
 // A staff host refuses anonymous requests, and does not start without Clerk (index.ts).
 app.use("/api/v1",(req,res,next)=>{
   if(signInEnabled())return clerk(req,res,next);
-  if(staffMode())return next(Object.assign(new Error("Staff sign-in is not configured on this host."),{status:503}));
+  if(staffMode())return next(Object.assign(new Error("Team member sign-in is not set up at this address. Contact the Valo Pay team."),{status:503}));
   return next();
 });
 // Each principal's own quota: a signed-in person, a sandbox this process has served, otherwise the network.

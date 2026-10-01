@@ -1,4 +1,4 @@
-import type { LifecycleCandidate, LifecycleExternalCandidate } from '@workspace/valopay-schema';
+import { notFoundText, type LifecycleCandidate, type LifecycleExternalCandidate } from '@workspace/valopay-schema';
 import type { Context, DomainState } from './types';
 import { eraseLifecycleRawCsv, lifecycleCandidateCheck, lifecycleRunView, recordLifecycleReceipt } from './lifecycle';
 
@@ -31,7 +31,7 @@ const key = (candidate: Pick<LifecycleCandidate, 'kind' | 'sourceId'>) => `${can
 export async function executeApprovedRun(state: DomainState, ctx: Context, runId: string, external: LifecycleExternalCandidate[], remove: LifecycleRemoval, options: LifecycleStepOptions = {}) {
   const { budgetMs = LIFECYCLE_STEP_BUDGET_MS, fatal = () => false, clock = () => performance.now() } = options;
   const run = state.records.find(record => record.kind === 'retention-runs' && record.id === runId && record.merchantId === state.merchant.id);
-  if (!run) throw Object.assign(new Error('Retention run not found in this lender.'), { status: 404 });
+  if (!run) throw Object.assign(new Error(notFoundText('deletion run')), { status: 404 });
   if (run.status === 'completed') return lifecycleRunView(state, run);
   const attempted = new Set(state.records.filter(record => record.kind === 'retention-receipts' && record.data.runId === runId).map(record => `${record.data.kind}:${record.data.sourceId}`));
   const candidates = [...run.data.candidates as LifecycleCandidate[]].sort((a, b) => Number(attempted.has(key(a))) - Number(attempted.has(key(b))));
@@ -41,7 +41,7 @@ export async function executeApprovedRun(state: DomainState, ctx: Context, runId
     try {
       if (!check(candidate)) continue;
     } catch {
-      recordLifecycleReceipt(state, ctx, runId, candidate, 'blocked', 'This source changed, is held or no longer meets the approved policy. Review the source and prepare a fresh preview.');
+      recordLifecycleReceipt(state, ctx, runId, candidate, 'blocked', 'This file has changed, is on hold or no longer meets the approved policy. Review it and prepare a new preview.');
       break;
     }
     let result: 'deleted' | 'already_absent' = 'deleted';
@@ -50,10 +50,10 @@ export async function executeApprovedRun(state: DomainState, ctx: Context, runId
       else result = await remove(candidate);
     } catch (error) {
       if (fatal(error)) throw error;
-      recordLifecycleReceipt(state, ctx, runId, candidate, 'failed', 'Deletion could not be confirmed. Resume this saved run to check the same source; do not create a replacement export.');
+      recordLifecycleReceipt(state, ctx, runId, candidate, 'failed', 'Valo Pay could not confirm the deletion. Resume this saved run to check the same file again. Do not start a new run.');
       break;
     }
-    recordLifecycleReceipt(state, ctx, runId, candidate, result, 'Retention action completed. Financial records, provenance, request identities and audit history were retained.');
+    recordLifecycleReceipt(state, ctx, runId, candidate, result, 'Deletion completed. Financial records, their import details, request records and the audit log were kept.');
     if (clock() - started >= budgetMs) break;
   }
   return lifecycleRunView(state, run);

@@ -67,7 +67,7 @@ export function useSubmissionAttempt<Input, Payload>(options: Options<Input, Pay
       const fingerprint = (options.fingerprint ?? submissionFingerprint)(input);
       if (attempt.current?.pending) throw problem(options.pendingMessage);
       if (attempt.current?.unconfirmed && attempt.current.fingerprint !== fingerprint) {
-        throw problem('The previous request has an unconfirmed outcome. Retry the original request before changing it.');
+        throw problem('We do not know yet whether Valo Pay saved your previous request. Check the original request before you change anything.');
       }
       const identity = options.identity(input);
       if (identity) recovery?.assertAvailable(attempt.current?.key);
@@ -109,7 +109,7 @@ export function useSubmissionAttempt<Input, Payload>(options: Options<Input, Pay
       }
     },
     unconfirmedInput(): Input {
-      if (!attempt.current?.unconfirmed) throw problem('There is no unconfirmed request to retry.');
+      if (!attempt.current?.unconfirmed) throw problem('There is no request waiting to be checked.');
       return attempt.current.input;
     },
     /** Discards private fields only. A journaled identity remains until server recovery settles it. */

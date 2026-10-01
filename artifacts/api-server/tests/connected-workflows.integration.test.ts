@@ -80,7 +80,7 @@ async function dispatch(
     const prior = await findIdempotency(ctx, id);
     if (prior) {
       if (prior.request_hash !== fingerprint)
-        fail("This request key was already used for different input.", 409);
+        fail("This request was already sent with different details. Reload the page and try again.", 409);
       return prior.response as { recordId?: string; action: string };
     }
     const result = runConnectedAction(state, ctx, command);
@@ -417,7 +417,7 @@ try {
         )!.data.result.score.value = 0;
         await saveState(ctx, state);
       }),
-    (error: any) => error.status === 409 && /immutable/.test(error.message),
+    (error: any) => error.status === 409 && /Saved evidence cannot be changed/.test(error.message),
   );
   await inWorkspace(
     request(a),
@@ -450,7 +450,7 @@ try {
           "Changed old decision";
         await saveState(ctx, state);
       }),
-    (error: any) => error.status === 409 && /immutable/.test(error.message),
+    (error: any) => error.status === 409 && /Saved evidence cannot be changed/.test(error.message),
   );
   await assert.rejects(
     () =>

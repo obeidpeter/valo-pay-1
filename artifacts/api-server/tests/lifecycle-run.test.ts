@@ -56,7 +56,7 @@ const csvLeft = (batches: Array<{ data: Record<string, unknown> }>) => batches.f
   const stopped = await executeApprovedRun(state, ctx, run.id, [], unexpected);
   check(stopped.status === 'attention' && stopped.successful === 1 && stopped.receipts.length === 2, 'the source before is removed, the held one is blocked and the one after is not attempted');
   const blocked = stopped.receipts.find(receipt => receipt.status === 'blocked')!;
-  check(blocked.sourceId === run.candidates[1]!.sourceId && /is held/.test(blocked.detail), 'the blocked receipt names the source and says why');
+  check(blocked.sourceId === run.candidates[1]!.sourceId && /is on hold/.test(blocked.detail), 'the blocked receipt names the source and says why');
   check(csvLeft(batches) === 2, 'nothing held or unattempted was removed');
   hold(state, run.candidates[1]!.sourceId, false);
   const resumed = await executeApprovedRun(state, ctx, run.id, [], unexpected);
@@ -70,7 +70,7 @@ const csvLeft = (batches: Array<{ data: Record<string, unknown> }>) => batches.f
   const run = approved(state, external), removed: string[] = [];
   const failing = async (candidate: LifecycleCandidate): Promise<'deleted'> => { removed.push(candidate.sourceId); throw new Error('Storage timed out.'); };
   const failed = await executeApprovedRun(state, ctx, run.id, external, failing);
-  check(failed.status === 'attention' && failed.receipts.some(receipt => receipt.status === 'failed' && /could not be confirmed/.test(receipt.detail)), 'a failed deletion is recorded and stops the run');
+  check(failed.status === 'attention' && failed.receipts.some(receipt => receipt.status === 'failed' && /could not confirm the deletion/.test(receipt.detail)), 'a failed deletion is recorded and stops the run');
   check(removed.length === 1, 'nothing after the failed source is attempted');
   const fatal = Object.assign(new Error('could not serialize access'), { code: '40001' });
   await assert.rejects(executeApprovedRun(state, ctx, run.id, external, async () => { throw fatal; }, { fatal: error => (error as { code?: unknown }).code === '40001' }), error => error === fatal);

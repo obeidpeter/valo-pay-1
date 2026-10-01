@@ -12,14 +12,14 @@ afterEach(() => api.uninstall());
 it("requires an explicit applicant before granting authority", async () => {
   const user = userEvent.setup();
   renderApp("/connections");
-  const subject = await screen.findByLabelText("Subject");
+  const subject = await screen.findByLabelText("Who it covers");
   expect((subject as HTMLSelectElement).value).toBe("");
   await user.type(
     screen.getByLabelText("Reason for granting permission"),
     "Review the sample applicant permission",
   );
   await user.click(
-    screen.getByRole("button", { name: "Grant sample permission" }),
+    screen.getByRole("button", { name: "Grant permission" }),
   );
   expect(
     api.calls.filter(
@@ -29,18 +29,24 @@ it("requires an explicit applicant before granting authority", async () => {
   expect(
     api.state().records.filter((r) => r.kind === "connected-consents"),
   ).toHaveLength(0);
+  // The page says what is missing in its own words, beside the field.
+  expect(screen.getByText("Choose who the permission covers.")).toBeTruthy();
+  expect(subject.getAttribute("aria-invalid")).toBe("true");
 });
 
-it("shows a Finance viewer why granting and revoking permissions are unavailable", async () => {
+it("shows a Finance viewer why granting and withdrawing permissions are unavailable", async () => {
   api.role = "Finance";
   renderApp("/connections");
   const grant = await screen.findByRole("button", {
-    name: "Grant sample permission",
+    name: "Grant permission",
   });
   expect((grant as HTMLButtonElement).disabled).toBe(true);
-  expect(screen.getByText(/Your role: Finance/).textContent).toContain(
-    "Compliance reviewer can revoke",
-  );
+  expect(
+    screen.getByText(
+      "Only Admin or Operations can grant a permission. Only Admin, Operations or Compliance reviewer can withdraw one.",
+    ),
+  ).toBeTruthy();
+  expect(screen.queryByText(/Your role is/)).toBeNull();
 });
 
 it("allows Compliance to review revocation while keeping permission grants unavailable; cancellation returns focus and clears the revocation note", async () => {
@@ -63,25 +69,25 @@ it("allows Compliance to review revocation while keeping permission grants unava
   const user = userEvent.setup();
   renderApp("/connections");
   const trigger = await screen.findByRole("button", {
-    name: "Review revocation",
+    name: "Withdraw Read business accounts for Sample business",
   });
   expect((trigger as HTMLButtonElement).disabled).toBe(false);
   expect(
     (
       screen.getByRole("button", {
-        name: "Grant sample permission",
+        name: "Grant permission",
       }) as HTMLButtonElement
     ).disabled,
   ).toBe(true);
   await user.click(trigger);
   expect(
-    screen.getByRole("region", { name: "Permission to revoke" }).textContent,
-  ).toContain("Sample SME · separate legal entity");
+    screen.getByRole("region", { name: "Permission to withdraw" }).textContent,
+  ).toContain("Sample business");
   await user.type(
-    screen.getByLabelText("Reason for revoking permission"),
+    screen.getByLabelText("Reason for withdrawing permission"),
     "Do not reuse this as a grant reason",
   );
-  await user.click(screen.getByRole("button", { name: "Cancel" }));
+  await user.click(screen.getByRole("button", { name: "Keep permission" }));
   expect(document.activeElement).toBe(trigger);
   expect(
     (
@@ -101,19 +107,19 @@ it("does not offer a Compliance viewer payment actions rejected by the server", 
   expect(
     (
       (await screen.findByRole("button", {
-        name: /Create sample checkout/,
+        name: /Create checkout/,
       })) as HTMLButtonElement
     ).disabled,
   ).toBe(true);
   expect(
-    screen.getByText(/Your role, Compliance reviewer, can view this journey/),
+    screen.getByText("Only Admin, Operations or Finance can create or change a checkout."),
   ).toBeTruthy();
 });
 
 it("lets an operator clear and correct a checkout amount without restoring the full debt or rounding it", async () => {
   const user = userEvent.setup();
   renderApp("/pay-by-bank");
-  await screen.findByRole("heading", { name: "Pay-by-bank", level: 1 });
+  await screen.findByRole("heading", { name: "Pay by Bank", level: 1 });
   const due = api
     .state()
     .records.find((r) => r.reference === "DEMO-LOAN-1005")!;
@@ -126,7 +132,7 @@ it("lets an operator clear and correct a checkout amount without restoring the f
   expect((amount as HTMLInputElement).value).toBe("");
   await user.type(amount, "125.005");
   await user.click(
-    screen.getByRole("button", { name: /Create sample checkout/ }),
+    screen.getByRole("button", { name: /Create checkout/ }),
   );
   expect(amount.getAttribute("aria-invalid")).toBe("true");
   expect(document.activeElement).toBe(amount);
@@ -136,7 +142,7 @@ it("lets an operator clear and correct a checkout amount without restoring the f
   await user.clear(amount);
   await user.type(amount, "125.29");
   await user.click(
-    screen.getByRole("button", { name: /Create sample checkout/ }),
+    screen.getByRole("button", { name: /Create checkout/ }),
   );
   await waitFor(() =>
     expect(

@@ -4,14 +4,14 @@ import { recordsWhere } from "./record-index";
 import { touch, recordsOf } from "./records";
 import { outstanding } from "./reconciliation-values";
 import { attemptsFor } from "./policy-engine";
-import { sumMoney } from "@workspace/valopay-schema";
+import { nairaText, sumMoney } from "@workspace/valopay-schema";
 import { isDeepStrictEqual } from "node:util";
 import { validateRecord } from "./validation";
 
 export function cancelUnsentAttempts(state: DomainState, dueItemId: string, now: string): void {
   recordsWhere(state, "attempts", "data.dueItemId", dueItemId).filter((item) => item.status === "scheduled").forEach((item) => {
     item.status = "cancelled";
-    item.data.cancellationReason = "Due item settled by another channel; no instruction was sent.";
+    item.data.cancellationReason = "Instalment paid another way. No instruction was sent.";
     touch(item, now);
   });
 }
@@ -42,7 +42,7 @@ export function derivedDueStatus(state: DomainState, due: TypedRecord<"due-items
 }
 
 /** An instalment's status in words, for messages. */
-export const dueStatusText = (status: string): string => ({ in_collection: "in collection", partially_paid: "part-paid", unpaid_final: "unpaid after its final attempt", in_dispute: "in dispute" } as Record<string, string>)[status] ?? status;
+export const dueStatusText = (status: string): string => ({ in_collection: "in collection", partially_paid: "partially paid", unpaid_final: "unpaid after its final attempt", in_dispute: "in dispute" } as Record<string, string>)[status] ?? status;
 
 /** Moves an instalment to the status its balance implies; a settled one has its unsent attempts cancelled. True when the status changed. */
 export function settleDueStatus(state: DomainState, ctx: Context, due: TypedRecord<"due-items">, reopenFinal = false): boolean {
@@ -62,12 +62,12 @@ export function settleDueStatus(state: DomainState, ctx: Context, due: TypedReco
  */
 export function amendDueItem(state: DomainState, ctx: Context, due: TypedRecord<"due-items">, input: TypedRecord<"due-items">): TypedRecord<"due-items"> {
   const allocated = sumMoney(recordsOf(state, "allocations").filter((item) => item.status === "confirmed" && item.data.dueItemId === due.id).map((item) => item.amountKobo));
-  if (input.amountKobo < allocated) throw new Error("Due amount cannot be reduced below confirmed allocations.");
+  if (input.amountKobo < allocated) throw new Error(`The amount cannot be less than the ${nairaText(allocated)} already allocated to this instalment. Enter ${nairaText(allocated)} or more.`);
   for (const key of ["experimentId", "experimentArm", "firstFailureAt"] as const) {
-    if (JSON.stringify(input.data[key]) !== JSON.stringify(due.data[key])) throw new Error("Experiment assignment is immutable.");
+    if (JSON.stringify(input.data[key]) !== JSON.stringify(due.data[key])) throw new Error("The experiment group of this instalment cannot be changed.");
   }
   // The engine reads the release to leave a released disputed debit alone; compared by value, as jsonb reorders keys.
-  if (!isDeepStrictEqual(input.data.disputeRelease, due.data.disputeRelease)) throw new Error("A release from dispute is recorded by its action and cannot be changed here.");
+  if (!isDeepStrictEqual(input.data.disputeRelease, due.data.disputeRelease)) throw new Error("Use Release from dispute to take an instalment out of dispute. You cannot change it here.");
   input.data.outstandingKobo = input.amountKobo - allocated;
   // RET-10: an obligation amended after its first failure leaves the experiment's eligible set.
   if (input.amountKobo !== due.amountKobo || String(input.data.dueDate) !== String(due.data.dueDate)) input.data.amendedAt = ctx.now;

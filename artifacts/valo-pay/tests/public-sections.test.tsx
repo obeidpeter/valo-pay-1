@@ -24,7 +24,7 @@ describe("public connected-product walkthrough", () => {
     });
     const products = [
       { name: "Collections", route: "/overview" },
-      { name: "Pay-by-bank", route: "/pay-by-bank" },
+      { name: "Pay by Bank", route: "/pay-by-bank" },
       { name: "Credit Desk", route: "/credit-desk" },
       { name: "Cash Desk", route: "/cash-desk" },
     ];
@@ -36,14 +36,14 @@ describe("public connected-product walkthrough", () => {
       expect(document.querySelector("iframe")).toBeNull();
       expect(
         screen
-          .getByRole("link", { name: "Open full screen" })
+          .getByRole("link", { name: "Open the full page" })
           .getAttribute("href"),
       ).toBe(product.route);
       await user.click(
         screen.getByRole("button", { name: "Load interactive preview" }),
       );
       const frame = screen.getByTitle(
-        `Interactive Valo Pay ${product.name.toLowerCase()} preview — sample data`,
+        `Interactive preview of ${product.name}, with sample data`,
       );
       expect(frame.getAttribute("src")).toBe(`${product.route}?embedded=1`);
       fireEvent.load(frame);
@@ -70,7 +70,7 @@ describe("public connected-product walkthrough", () => {
     );
     expect(
       screen
-        .getByTitle("Interactive Valo Pay cash desk preview — sample data")
+        .getByTitle("Interactive preview of Cash Desk, with sample data")
         .getAttribute("src"),
     ).toBe("/pilot/cash-desk?embedded=1");
   });
@@ -86,15 +86,26 @@ describe("public connected-product walkthrough", () => {
     await user.click(question);
     expect(disclosure.open).toBe(true);
     expect(disclosure.textContent).toContain(
-      "anonymous sample work does not transfer",
+      "Work you do in the sandbox is not copied to your workspace.",
+    );
+    // Your workspace holds sample data only too, so the warning covers both places.
+    expect(disclosure.textContent).toContain(
+      "Do not enter real customer or bank details in the sandbox or in your workspace.",
     );
     await user.click(question);
     expect(disclosure.open).toBe(false);
+    // A direct answer first: neither provider is connected, and no demo stands in for a connection.
+    const providers = screen
+      .getByText("Are Paystack and Xero already connected?")
+      .closest("details")!;
+    expect(providers.querySelector("p")!.textContent).toMatch(
+      /^No\. Paystack is the preferred first payment provider, .* Neither is connected yet\. .*A provider’s name or a working demo is not a live connection\./,
+    );
     expect(document.querySelector("iframe")).toBeNull();
     const contact = new URL(pilotContact());
     expect(contact.pathname).toBe("pilots@example.test");
     expect(contact.searchParams.get("body")).toContain(
-      "Collections / Pay-by-bank / Credit Desk / Cash Desk",
+      "Collections / Pay by Bank / Credit Desk / Cash Desk",
     );
     expect(contact.searchParams.get("body")).toContain("names only");
   });

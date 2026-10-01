@@ -55,10 +55,10 @@ try {
     // A settings change cannot name a customer or carry a reassuring story: neither field is in its schema.
     const settings = ok(await call(q("/v1/settings")));
     ok(await call(q("/v1/settings"), "PATCH", { minimumTicketKobo: 500000, expectedRevision: settings.revision, recordId: victim.id, reason: "Routine review of customer contact preferences; no financial settings changed." }));
-    assert.deepEqual(await lastAudit().then(({ action, objectId, summary }) => ({ action, objectId, summary })), { action: "patch.settings", objectId: "workspace", summary: "Synthetic workspace operation" }, "a settings change is recorded against the lender, in the route's words");
+    assert.deepEqual(await lastAudit().then(({ action, objectId, summary }) => ({ action, objectId, summary })), { action: "patch.settings", objectId: "workspace", summary: "Change to sample data." }, "a settings change is recorded against the lender, in the route's words");
     // A new record is the entry's object, whatever the body names; its data cannot add a note to the summary either.
     const created = ok(await call(q("/v1/records/customers"), "POST", { name: "Audit integrity customer", data: { consentProvenance: "Synthetic fixture", auditNote: "Approved by the board." }, recordId: victim.id, reason: "Corrected the victim's name at their request." }));
-    assert.deepEqual(await lastAudit().then(({ objectId, summary }) => ({ objectId, summary })), { objectId: created.id, summary: "Synthetic workspace operation" }, "a created record is the object, and neither the body's reason nor its data's note reaches the summary");
+    assert.deepEqual(await lastAudit().then(({ objectId, summary }) => ({ objectId, summary })), { objectId: created.id, summary: "Change to sample data." }, "a created record is the object, and neither the body's reason nor its data's note reaches the summary");
     // An action keeps its own reason, and names the record it applies to only when it acted on it.
     ok(await call(q("/v1/actions"), "POST", { action: "run_reconciliation", recordId: victim.id, reason: "Reconcile the morning's payment evidence." }));
     assert.deepEqual(await lastAudit().then(({ action, objectId, summary }) => ({ action, objectId, summary })), { action: "run_reconciliation", objectId: "workspace", summary: "Reconcile the morning's payment evidence." }, "an action that ignores recordId does not name the record");
@@ -83,7 +83,7 @@ try {
     assert.equal(ok(await call(q(`/v1/records/customers?updatedSince=${encodeURIComponent(withOffset)}`))).items.some((item: any) => item.id === latest.id), true, "an offset names the same instant");
     const before = ok(await call(q("/v1/records/exceptions"))).total;
     const impossible = await call(q("/v1/records/exceptions"), "POST", { name: "Due on 30 February", data: { type: "unallocated_payment", severity: "low", dueBy: "2026-02-30" } });
-    assert.deepEqual([impossible.status, /dueBy: Enter a valid date/.test(impossible.data.error), ok(await call(q("/v1/records/exceptions"))).total], [400, true, before], `an impossible deadline is refused, not rolled over to 2 March, and nothing is saved: ${JSON.stringify(impossible.data)}`);
+    assert.deepEqual([impossible.status, /^Due by: Enter a real date\.$/.test(impossible.data.error), ok(await call(q("/v1/records/exceptions"))).total], [400, true, before], `an impossible deadline is refused, not rolled over to 2 March, and nothing is saved: ${JSON.stringify(impossible.data)}`);
     checks += 9;
   }
 
@@ -99,11 +99,11 @@ try {
     field(await call(q("/v1/records/exceptions"), "POST", { name: "Long customer", customerId: long, data: { type: "unallocated_payment", severity: "low" } }), "customerId");
     field(await call(q(`/v1/records/customers/${victim.id}`), "PATCH", { reference: long, expectedUpdatedAt: victim.updatedAt }), "reference");
     const evidence = await call(q("/v1/records/observations"), "POST", { name: "Long event", reference: "OBS-LONG-EVENT", customerId: victim.id, amountKobo: 150000, data: { source: "webhook", eventId: long } });
-    assert.deepEqual([evidence.status, /eventId/.test(evidence.data.error)], [400, true], `an over-long event ID is refused, naming eventId: ${JSON.stringify(evidence.data).slice(0, 300)}`);
+    assert.deepEqual([evidence.status, /Event ID/.test(evidence.data.error)], [400, true], `an over-long event ID is refused, naming the event ID: ${JSON.stringify(evidence.data).slice(0, 300)}`);
     // An imported row is checked the same way: invalid in a preview, and a commit saves nothing.
     const csv = `row_id,name,reference,consentProvenance\nrow-1,Long row,${long},Synthetic fixture\n`;
     const preview = ok(await call(q("/v1/imports"), "POST", { kind: "customers", csv, identityColumn: "row_id", syntheticOnly: true, commit: false }));
-    assert.deepEqual([preview.invalid, preview.rows[0].message, /reference is at most 200 characters/.test(preview.rows[0].detail)], [1, "Loan software reference (column reference): Use at most 200 characters.", true], "an imported row with an over-long reference is invalid, naming its column");
+    assert.deepEqual([preview.invalid, preview.rows[0].message, /Loan software reference: Use at most 200 characters\./.test(preview.rows[0].detail)], [1, "Loan software reference (column reference): Use at most 200 characters.", true], "an imported row with an over-long reference is invalid, naming its column");
     const customerCount = await saved("customers");
     const commit = await call(q("/v1/imports"), "POST", { kind: "customers", csv, identityColumn: "row_id", syntheticOnly: true, commit: true });
     assert.deepEqual([commit.status, await saved("customers"), await saved("costs")], [200, customerCount, costs], "nothing over-long is saved");
@@ -152,7 +152,7 @@ try {
     const empty = await call(q("/v1/records/customers"), "POST", { name: "", data: { consentProvenance: "Synthetic fixture" } });
     assert.deepEqual([empty.status, (empty.data.details ?? []).map((detail: { field: string }) => detail.field)], [400, ["name"]], "an empty name is refused, naming name");
     const blank = await call(q("/v1/records/customers"), "POST", { name: "   ", data: { consentProvenance: "Synthetic fixture" } });
-    assert.deepEqual([blank.status, /name cannot be empty/.test(blank.data.error)], [400, true], "a blank name is refused");
+    assert.deepEqual([blank.status, /Enter a name for this record\./.test(blank.data.error)], [400, true], "a blank name is refused");
     const renamed = await call(q(`/v1/records/customers/${named.id}`), "PATCH", { name: "", expectedUpdatedAt: named.updatedAt });
     assert.deepEqual([renamed.status, (renamed.data.details ?? []).map((detail: { field: string }) => detail.field)], [400, ["name"]], "an edit cannot empty a name");
     checks += 7;

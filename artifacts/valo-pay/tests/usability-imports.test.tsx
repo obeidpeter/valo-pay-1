@@ -29,7 +29,7 @@ describe('UX-I01 import outcome and correction guidance', () => {
     await screen.findByRole('heading', { name: 'Check results' });
     expect(within(screen.getByRole('region', { name: 'Check results' })).getByText(/Row 2 · Already imported:/)).toBeTruthy();
     expect(screen.getByText('This was a check only. No records were saved.')).toBeTruthy();
-    expect(screen.getByText('All rows already exist. There is nothing new to import; existing records have not been changed.')).toBeTruthy();
+    expect(screen.getByText('All rows already exist, so there is nothing new to import. Existing records have not changed.')).toBeTruthy();
     expect(screen.queryByText('Checked and ready. Review the preview, then select Import data.')).toBeNull();
     expect(screen.getByRole('button', { name: 'Import data' })).toHaveProperty('disabled', true);
     expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Check results' }));
@@ -41,18 +41,18 @@ describe('UX-I01 import outcome and correction guidance', () => {
     const csv = 'row_id,name,reference,consentProvenance\nr1,Valid,UX-I01-VALID,Synthetic\nr2,Invalid,UX-I01-INVALID,';
     const user = await customerImport(csv);
     const results = screen.getByRole('region', { name: 'Check results' });
-    expect(within(results).getByText(/Row 3 · Invalid/)).toBeTruthy();
+    expect(within(results).getByText(/Row 3 · Needs fixing/)).toBeTruthy();
     expect(within(results).getByText('Consent source or reference (column consentProvenance): Enter a value; it is blank on this row.')).toBeTruthy();
     expect(within(results).queryByText(/Row 2 · Valid/)).toBeNull();
     expect(api.state().records.some(record => record.reference === 'UX-I01-VALID')).toBe(false);
     await user.click(screen.getByRole('button', { name: 'Show all row results' }));
     expect(within(results).getByText(/Row 2 · Valid/)).toBeTruthy();
-    await user.click(screen.getByRole('button', { name: 'Correct CSV' }));
+    await user.click(screen.getByRole('button', { name: 'Edit CSV' }));
     expect(document.activeElement).toBe(screen.getByLabelText('CSV content'));
     expect(screen.getByLabelText('CSV content')).toHaveProperty('value', csv);
     const referenceMap = screen.getByLabelText('Map reference');
     expect(within(referenceMap).getByRole('option', { name: 'Full name' })).toHaveProperty('disabled', true);
-    expect(screen.getByText(/Every row needs a source row ID: a row imported before with the same ID and data is skipped/)).toBeTruthy();
+    expect(screen.getByText(/Every row needs a source row ID\. A row already imported with the same ID and data is skipped\./)).toBeTruthy();
   });
 
   it('recovers a lost committed import response with the same key and blocks a changed batch', async () => {
@@ -70,17 +70,17 @@ describe('UX-I01 import outcome and correction guidance', () => {
       throw new TypeError('Connection interrupted after commit');
     };
     await user.click(screen.getByRole('button', { name: 'Import data' }));
-    await screen.findByText('Import outcome not confirmed');
+    await screen.findByText('Request not confirmed');
     expect(screen.getByLabelText('CSV content')).toHaveProperty('disabled', true);
     expect(screen.getByLabelText('Import as')).toHaveProperty('disabled', true);
     expect(screen.getByRole('button', { name: 'Check data' })).toHaveProperty('disabled', true);
     expect(screen.getByRole('button', { name: 'Clear import' })).toHaveProperty('disabled', true);
-    await user.click(screen.getByRole('button', { name: 'Retry same import' }));
+    await user.click(screen.getByRole('button', { name: 'Check original request' }));
     await screen.findByRole('heading', { name: 'Import results' });
     expect(keys).toHaveLength(2);
     expect(keys[0]).toBe(keys[1]);
     expect(api.state().records.filter(record => record.name === 'Reference-free sample')).toHaveLength(1);
-    expect(screen.queryByText('Import outcome not confirmed')).toBeNull();
+    expect(screen.queryByText('Request not confirmed')).toBeNull();
   });
 
   it('discards a lost import deliberately, which frees the wizard for a new import under a new key', async () => {
@@ -93,10 +93,11 @@ describe('UX-I01 import outcome and correction guidance', () => {
     };
     api.failNext(/^\/v1\/imports$/, 'offline', 'POST');
     await user.click(screen.getByRole('button', { name: 'Import data' }));
-    const notice = (await screen.findByText('Import outcome not confirmed')).closest('[role=alert]') as HTMLElement;
+    const notice = (await screen.findByText('Request not confirmed')).closest('[role=alert]') as HTMLElement;
     expect(screen.getByLabelText('CSV content')).toHaveProperty('disabled', true);
     await user.click(within(notice).getByRole('button', { name: 'Discard original request' }));
-    await waitFor(() => expect(screen.queryByText('Import outcome not confirmed')).toBeNull());
+    // The wizard's own notice goes. The request stays in the notice above the page, also headed Request not confirmed, until it is cancelled.
+    await waitFor(() => expect(notice.isConnected).toBe(false));
     expect(screen.getByLabelText('CSV content')).toHaveProperty('disabled', false);
     await cancelInterrupted(user);
     await user.click(screen.getByRole('button', { name: 'Import data' }));
@@ -110,11 +111,11 @@ describe('UX-I01 import outcome and correction guidance', () => {
 describe('UX-I02 shared form recovery and UX-I03 review correction', () => {
   it('starts a consequential review at its title before moving to any invalid reason', async () => {
     const user = userEvent.setup(); renderApp('/reconciliation?view=review');
-    const opener = await screen.findByRole('button', { name: 'Confirm' });
+    const opener = await screen.findByRole('button', { name: 'Confirm match' });
     await user.click(opener);
-    const dialog = await screen.findByRole('dialog', { name: 'Confirm payment allocation' });
-    expect(document.activeElement).toBe(within(dialog).getByRole('heading', { name: 'Confirm payment allocation' }));
-    await user.click(within(dialog).getByRole('button', { name: 'Confirm allocation' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Confirm match' });
+    expect(document.activeElement).toBe(within(dialog).getByRole('heading', { name: 'Confirm match' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Confirm match' }));
     expect(document.activeElement).toBe(within(dialog).getByLabelText('Reason *'));
     expect(api.calls.filter(call => call.method === 'POST')).toHaveLength(0);
     await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
@@ -128,7 +129,7 @@ describe('UX-I02 shared form recovery and UX-I03 review correction', () => {
     await user.click(opener);
     const dialog = await screen.findByRole('dialog');
     await user.type(within(dialog).getByLabelText(/^Full name/), 'Retained sample name');
-    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Add customer' }));
     const correction = within(dialog).getByRole('button', { name: /Consent source or reference: Consent source or reference is required/ });
     await user.click(correction);
     expect(document.activeElement).toBe(within(dialog).getByLabelText(/^Consent source or reference/));
@@ -145,9 +146,9 @@ describe('UX-I02 shared form recovery and UX-I03 review correction', () => {
     await user.type(within(dialog).getByLabelText(/^Full name/), 'Sample name');
     await user.type(within(dialog).getByLabelText(/^Loan software reference/), 'UX-CONFLICT');
     await user.type(within(dialog).getByLabelText(/^Consent source or reference/), 'Synthetic consent');
-    api.failNext(/^\/v1\/records\/customers$/, { status: 409, error: 'Reference already exists. Use an idempotency key for safe replay.' }, 'POST');
-    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
-    await within(dialog).findByText('Reference already exists. Use an idempotency key for safe replay.');
+    api.failNext(/^\/v1\/records\/customers$/, { status: 409, error: 'This reference is already used. Enter a different reference.' }, 'POST');
+    await user.click(within(dialog).getByRole('button', { name: 'Add customer' }));
+    await within(dialog).findByText('This reference is already used. Enter a different reference.');
     expect(within(dialog).queryByRole('button', { name: 'Discard draft and refresh' })).toBeNull();
     expect(within(dialog).getByLabelText(/^Loan software reference/)).toHaveProperty('value', 'UX-CONFLICT');
   });
@@ -158,8 +159,8 @@ describe('UX-I02 shared form recovery and UX-I03 review correction', () => {
     await user.click(await screen.findByRole('button', { name: 'Edit draft' }));
     const dialog = await screen.findByRole('dialog');
     api.failNext(/^\/v1\/records\/policies\//, { status: 400, error: 'Validation failed', details: [{ field: 'data.partialAllowed', message: 'Review whether partial collections are allowed.' }] }, 'PATCH');
-    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
-    const box = within(dialog).getByRole('checkbox', { name: 'Allow partial collections' });
+    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
+    const box = within(dialog).getByRole('checkbox', { name: 'Allow collecting part of an instalment' });
     await waitFor(() => expect(box.getAttribute('aria-invalid')).toBe('true'));
     expect(box.getAttribute('aria-describedby')).toContain('record-partialAllowed-error');
     expect(document.activeElement).toBe(box);
@@ -169,10 +170,10 @@ describe('UX-I02 shared form recovery and UX-I03 review correction', () => {
 
   it('clears corrected review errors and returns focus after cancelling a partial review', async () => {
     const user = userEvent.setup(); renderApp('/evidence');
-    const opener = await screen.findByRole('button', { name: 'Log review' });
+    const opener = await screen.findByRole('button', { name: 'Record review' });
     await user.click(opener);
     const dialog = await screen.findByRole('dialog');
-    await user.click(within(dialog).getByRole('button', { name: 'Save review' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Record review' }));
     await user.click(within(dialog).getByRole('button', { name: /Review notes: Describe what was checked/ }));
     const note = within(dialog).getByLabelText('Review notes');
     expect(document.activeElement).toBe(note);
@@ -192,30 +193,30 @@ describe('UX-I02 shared form recovery and UX-I03 review correction', () => {
     await user.type(within(dialog).getByLabelText(/^Loan software reference/), 'UX-RECOVERY');
     await user.type(within(dialog).getByLabelText(/^Consent source or reference/), 'Synthetic consent');
     api.failNext(/^\/v1\/records\/customers$/, 'offline', 'POST');
-    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
-    await within(dialog).findByText('Outcome not confirmed');
-    expect(within(dialog).getByRole('button', { name: 'Save' })).toHaveProperty('disabled', true);
+    await user.click(within(dialog).getByRole('button', { name: 'Add customer' }));
+    await within(dialog).findByText('Request not confirmed');
+    expect(within(dialog).getByRole('button', { name: 'Add customer' })).toHaveProperty('disabled', true);
     expect(within(dialog).getByLabelText(/^Full name/).closest('fieldset')).toHaveProperty('disabled', true);
     vi.mocked(window.confirm).mockReturnValue(false);
     await user.keyboard('{Escape}');
     expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining('Closing does not cancel the request'));
     expect(screen.getByRole('dialog')).toBe(dialog);
-    await user.click(within(dialog).getByRole('button', { name: 'Retry same request' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Check original request' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(api.state().records.filter(record => record.reference === 'UX-RECOVERY')).toHaveLength(1);
   });
 
   it('retains an uncertain partial review and recovers its exact submitted tasks', async () => {
     const user = userEvent.setup(); renderApp('/evidence');
-    await user.click(await screen.findByRole('button', { name: 'Log review' }));
+    await user.click(await screen.findByRole('button', { name: 'Record review' }));
     const dialog = await screen.findByRole('dialog');
     await user.click(within(dialog).getByRole('checkbox', { name: 'Payment matching' }));
     await user.type(within(dialog).getByLabelText('Review notes'), 'Sample matching reviewed; other tasks remain.');
     api.failNext(/^\/v1\/records\/reviews$/, 'offline', 'POST');
-    await user.click(within(dialog).getByRole('button', { name: 'Save review' }));
-    await within(dialog).findByText('Review outcome not confirmed');
-    expect(within(dialog).getByRole('button', { name: 'Save review' })).toHaveProperty('disabled', true);
-    await user.click(within(dialog).getByRole('button', { name: 'Retry same review' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Record review' }));
+    await within(dialog).findByText('Request not confirmed');
+    expect(within(dialog).getByRole('button', { name: 'Record review' })).toHaveProperty('disabled', true);
+    await user.click(within(dialog).getByRole('button', { name: 'Check original request' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(api.state().records.filter(record => record.kind === 'reviews')).toHaveLength(1);
     expect(api.state().records.find(record => record.kind === 'reviews')?.data.confirmedJobs).toEqual(['reconciliation']);
@@ -242,19 +243,19 @@ describe('UX-I02 shared form recovery and UX-I03 review correction', () => {
       if (attempts.length === 2) return new Response(JSON.stringify({ error: guidance }), { status: 403, headers: { 'Content-Type': 'application/json' } });
       return committed.clone();
     };
-    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
-    await within(dialog).findByText('Outcome not confirmed');
+    await user.click(within(dialog).getByRole('button', { name: 'Add customer' }));
+    await within(dialog).findByText('Request not confirmed');
     expect(api.state().records.filter(record => record.reference === 'UX-REPLAY-FORBIDDEN')).toHaveLength(1);
-    await user.click(within(dialog).getByRole('button', { name: 'Retry same request' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Check original request' }));
     await within(dialog).findByText(guidance);
-    expect(within(dialog).getByText('Outcome not confirmed')).toBeTruthy();
+    expect(within(dialog).getByText('Request not confirmed')).toBeTruthy();
     expect(within(dialog).getByText('Latest response')).toBeTruthy();
-    expect(within(dialog).getByRole('button', { name: 'Save' })).toHaveProperty('disabled', true);
+    expect(within(dialog).getByRole('button', { name: 'Add customer' })).toHaveProperty('disabled', true);
     const name = within(dialog).getByLabelText(/^Full name/);
     expect(name.closest('fieldset')).toHaveProperty('disabled', true);
     await user.type(name, 'changed');
     expect(name).toHaveProperty('value', 'Already committed sample');
-    await user.click(within(dialog).getByRole('button', { name: 'Retry same request' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Check original request' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(attempts).toHaveLength(3);
     expect(attempts[0]!.key).toBeTruthy();
@@ -265,7 +266,7 @@ describe('UX-I02 shared form recovery and UX-I03 review correction', () => {
 
   it('shows review replay guidance while retaining its unknown outcome and submitted tasks', async () => {
     const user = userEvent.setup(); renderApp('/evidence');
-    await user.click(await screen.findByRole('button', { name: 'Log review' }));
+    await user.click(await screen.findByRole('button', { name: 'Record review' }));
     const dialog = await screen.findByRole('dialog');
     await user.click(within(dialog).getByRole('checkbox', { name: 'Payment matching' }));
     await user.type(within(dialog).getByLabelText('Review notes'), 'Matching reviewed; remaining tasks pending.');
@@ -283,16 +284,16 @@ describe('UX-I02 shared form recovery and UX-I03 review correction', () => {
       if (attempts.length === 2) return new Response(JSON.stringify({ error: guidance }), { status: 403, headers: { 'Content-Type': 'application/json' } });
       return committed.clone();
     };
-    await user.click(within(dialog).getByRole('button', { name: 'Save review' }));
-    await within(dialog).findByText('Review outcome not confirmed');
-    await user.click(within(dialog).getByRole('button', { name: 'Retry same review' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Record review' }));
+    await within(dialog).findByText('Request not confirmed');
+    await user.click(within(dialog).getByRole('button', { name: 'Check original request' }));
     await within(dialog).findByText(guidance);
-    expect(within(dialog).getByText('Review outcome not confirmed')).toBeTruthy();
+    expect(within(dialog).getByText('Request not confirmed')).toBeTruthy();
     expect(within(dialog).getByText('Latest response')).toBeTruthy();
     expect(within(dialog).queryByText('Review not saved')).toBeNull();
-    expect(within(dialog).getByRole('button', { name: 'Save review' })).toHaveProperty('disabled', true);
+    expect(within(dialog).getByRole('button', { name: 'Record review' })).toHaveProperty('disabled', true);
     expect(within(dialog).getByLabelText('Review notes').closest('fieldset')).toHaveProperty('disabled', true);
-    await user.click(within(dialog).getByRole('button', { name: 'Retry same review' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Check original request' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(attempts).toHaveLength(3);
     expect(attempts[0]!.key).toBeTruthy();

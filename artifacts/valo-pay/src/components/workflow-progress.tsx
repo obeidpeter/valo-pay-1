@@ -4,7 +4,7 @@ export type WorkflowStep = {
   label: string;
   state: "complete" | "current" | "waiting" | "attention";
 };
-const stateLabels = { complete: "Recorded", current: "Next step", waiting: "Waiting", attention: "Needs attention" };
+const stateLabels = { complete: "Completed", current: "Next step", waiting: "Waiting", attention: "Needs attention" };
 const icons = { complete: Check, current: Clock3, waiting: Circle, attention: AlertCircle };
 
 /** Read-only progress: callers describe saved evidence, never optimistic mutation state. */

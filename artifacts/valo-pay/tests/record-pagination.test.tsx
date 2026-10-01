@@ -32,7 +32,7 @@ describe('large customer directory', () => {
     await screen.findByText('Scale customer 09999');
     const table = screen.getByRole('table');
     expect(within(table).getAllByRole('row')).toHaveLength(26);
-    const pages = screen.getByRole('navigation', { name: 'customers pagination' });
+    const pages = screen.getByRole('navigation', { name: 'Pages of customers' });
     expect(pages.textContent).toContain('1–25 of 10,000 customers');
     await user.click(within(pages).getByRole('button', { name: 'Next page of customers' }));
     await screen.findByText('Scale customer 09974');
@@ -51,7 +51,7 @@ describe('large customer directory', () => {
     expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(2);
     await user.clear(screen.getByRole('textbox', { name: 'Search customers' }));
     await screen.findByText('Scale customer 09999');
-    await user.selectOptions(screen.getByRole('combobox', { name: 'customers per page' }), '100');
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Rows per page of customers' }), '100');
     await waitFor(() => expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(101));
     expect(calls().at(-1)?.query).toMatchObject({ limit: '100', offset: '0' });
   });
@@ -61,7 +61,7 @@ describe('large customer directory', () => {
     api.failNext(/^\/v1\/records\/customers$/, { status: 503, error: 'Directory temporarily unavailable.' });
     renderApp('/customers');
     const alert = await screen.findByRole('alert');
-    expect(alert.textContent).toContain('Unable to load customers');
+    expect(alert.textContent).toContain('We could not load customers');
     expect(screen.queryByText('No customers yet')).toBeNull();
     await user.click(within(alert).getByRole('button', { name: 'Try again' }));
     await screen.findByText('Ada Okonkwo');
@@ -87,7 +87,7 @@ describe('paging by keyboard', () => {
     sixtyCustomers();
     renderApp('/customers');
     await screen.findByText('Pager customer 59');
-    const pages = screen.getByRole('navigation', { name: 'customers pagination' });
+    const pages = screen.getByRole('navigation', { name: 'Pages of customers' });
     const next = within(pages).getByRole('button', { name: 'Next page of customers' });
     const release = api.hold(/^\/v1\/records\/customers$/);
     await press(user, next);
@@ -101,7 +101,7 @@ describe('paging by keyboard', () => {
     await press(user, next);
     await screen.findByText('Pager customer 00');
     expect(document.activeElement).toBe(within(pages).getByRole('button', { name: 'Previous page of customers' }));
-    const size = within(pages).getByRole('combobox', { name: 'customers per page' });
+    const size = within(pages).getByRole('combobox', { name: 'Rows per page of customers' });
     size.focus();
     await user.selectOptions(size, '50');
     await screen.findByText('Pager customer 59');
@@ -138,8 +138,8 @@ describe('paging by keyboard', () => {
     const user = userEvent.setup();
     sixtyCustomers();
     renderApp('/mandates');
-    await user.click(await screen.findByRole('button', { name: 'Create synthetic mandate' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Create synthetic mandate' });
+    await user.click(await screen.findByRole('button', { name: 'Add mandate' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Add mandate' });
     await within(dialog).findByText('1–25 of 60 customer choices');
     const next = within(dialog).getByRole('button', { name: 'Next page of customer choices' });
     const release = api.hold(/^\/v1\/records\/customers$/);
@@ -165,9 +165,9 @@ describe('paging by keyboard', () => {
     renderApp('/reconciliation');
     const payments = (await screen.findByRole('heading', { name: 'Unallocated payments' })).parentElement!.parentElement!;
     const row = (await within(payments).findByText('SBX-UNIDENTIFIED-001')).closest('tr')!;
-    await user.click(within(row).getByRole('button', { name: 'Allocate' }));
+    await user.click(within(row).getByRole('button', { name: 'Allocate payment' }));
     const dialog = await screen.findByRole('dialog', { name: 'Allocate payment' });
-    const pager = await within(dialog).findByRole('navigation', { name: 'instalment choices pagination' });
+    const pager = await within(dialog).findByRole('navigation', { name: 'Pages of instalment choices' });
     const total = Number(within(pager).getByText(/^1–25 of \d+ instalment choices$/).textContent!.match(/of (\d+)/)![1]);
     expect(total).toBeGreaterThan(50);
     const next = within(pager).getByRole('button', { name: 'Next page of instalment choices' });
@@ -188,7 +188,7 @@ describe('paging by keyboard', () => {
    */
   async function pageThrough(user: ReturnType<typeof userEvent.setup>, label: string, request: RegExp, rows: () => number) {
     // A page of several tables (Reconciliation's six) can take a few seconds to render under load.
-    const pager = await screen.findByRole('navigation', { name: `${label} pagination` }, { timeout: 10_000 });
+    const pager = await screen.findByRole('navigation', { name: `Pages of ${label}` }, { timeout: 10_000 });
     const next = within(pager).getByRole('button', { name: `Next page of ${label}` });
     const release = api.hold(request);
     await press(user, next);
@@ -298,20 +298,20 @@ describe('paging a fixed-step list by keyboard', () => {
     expect(document.activeElement).toBe(next);
   }, 30_000);
 
-  it('keeps focus on Next sources while the next page of retained sources loads, and on Previous sources at the last page', async () => {
+  it('keeps focus on Next items while the next page of kept items loads, and on Previous items at the last page', async () => {
     api.mutate((state, ctx) => {
       for (let index = 0; index < 205; index++) makeRecord(state, 'import-batches', { name: `Aged import ${index}`, status: 'committed', createdAt: '2026-01-01T10:00:00.000Z', updatedAt: '2026-01-01T10:00:00.000Z', data: { csv: `reference,name\nAGED-${index},Sample customer`, committedAt: '2026-01-01T10:00:00.000Z', rowIds: [`aged-${index}`], recordIds: [], check: { valid: 1, invalid: 0, imported: 1, rows: [], preview: [] } } });
       saveLifecyclePolicy(state, ctx, { policy: { rawCsvDays: 30, journalPayloadDays: null, exportFileDays: null, auditTrail: 'retain' }, expectedRevision: lifecyclePolicy(state).revision, reason: 'The aged sample sources have passed their retention review.' });
     });
     const user = userEvent.setup();
     renderApp('/lifecycle');
-    const next = await nextWhileHeld(user, 'Next sources', () => api.hold(/^\/v1\/lifecycle$/));
+    const next = await nextWhileHeld(user, 'Next items', () => api.hold(/^\/v1\/lifecycle$/));
     expect(document.activeElement).toBe(next);
-    await nextWhileHeld(user, 'Next sources', () => api.hold(/^\/v1\/lifecycle$/), 'Previous sources');
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Previous sources' }));
+    await nextWhileHeld(user, 'Next items', () => api.hold(/^\/v1\/lifecycle$/), 'Previous items');
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Previous items' }));
   }, 30_000);
 
-  it('keeps focus on Next while the next page of Operations loads', async () => {
+  it('keeps focus on Next requests while the next page of Request history loads', async () => {
     // The offline API keeps no journal: sixty saved requests are answered here, and each answer can be held.
     const send = globalThis.fetch;
     let gate: Promise<void> | null = null;
@@ -327,7 +327,7 @@ describe('paging a fixed-step list by keyboard', () => {
     const user = userEvent.setup();
     renderApp('/operations');
     await screen.findByText('Saved request 0');
-    const next = await nextWhileHeld(user, 'Next', hold);
+    const next = await nextWhileHeld(user, 'Next requests', hold);
     expect(document.activeElement).toBe(next);
     await screen.findByText('Saved request 25');
   }, 30_000);
@@ -357,11 +357,11 @@ describe('a page that fails to load', () => {
     await screen.findByText('Pager customer 59');
     api.failNext(/^\/v1\/records\/customers$/, unavailable);
     await press(user, screen.getByRole('button', { name: 'Next page of customers' }));
-    expect(await screen.findByText('Unable to load customers')).toBeTruthy();
+    expect(await screen.findByText('We could not load customers')).toBeTruthy();
     // Fetched again, as a refresh or a return to the tab does: the page waits as a page of its own, with none of page 1's rows.
     const release = api.hold(/^\/v1\/records\/customers$/);
     const again = queryClient.refetchQueries({ type: 'active' });
-    await waitFor(() => expect(screen.queryByText('Unable to load customers')).toBeNull());
+    await waitFor(() => expect(screen.queryByText('We could not load customers')).toBeNull());
     expect(screen.queryByText('Pager customer 59')).toBeNull();
     expect(screen.queryByText(/^26–50 of 60 customers$/)).toBeNull();
     release();
@@ -387,21 +387,21 @@ describe('a page that fails to load', () => {
     sixty('exceptions', record => record.status === 'open');
     sixty('payments', record => record.reference === 'SBX-UNIDENTIFIED-001');
     const { unmount } = renderApp('/customers');
-    await failingNext(user, await screen.findByRole('button', { name: 'Next page of customers' }), /^\/v1\/records\/customers$/, /^Unable to load customers/);
+    await failingNext(user, await screen.findByRole('button', { name: 'Next page of customers' }), /^\/v1\/records\/customers$/, /^We could not load customers/);
     unmount();
     const exceptions = renderApp('/exceptions');
-    await failingNext(user, await screen.findByRole('button', { name: 'Next page of exceptions' }), /^\/v1\/queues\/exceptions$/, /^Exceptions could not be loaded/);
+    await failingNext(user, await screen.findByRole('button', { name: 'Next page of exceptions' }), /^\/v1\/queues\/exceptions$/, /^We could not load exceptions/);
     exceptions.unmount();
     renderApp('/reconciliation');
     // A table's notice has no button of its own (Refresh queue sits above), so the notice itself takes the focus.
-    await failingNext(user, await screen.findByRole('button', { name: 'Next page of unallocated payments' }, { timeout: 10_000 }), /^\/v1\/reconciliation\/payments$/, /^Unallocated payments could not be loaded/);
+    await failingNext(user, await screen.findByRole('button', { name: 'Next page of unallocated payments' }, { timeout: 10_000 }), /^\/v1\/reconciliation\/payments$/, /^We could not load unallocated payments/);
   }, 30_000);
 
   it('moves focus to the notice that replaced the page buttons of a pilot list', async () => {
     api.mutate((state, ctx) => { for (let index = 0; index < 60; index++) saveImportBatch(state, ctx, { name: `Paged batch ${index}`, kind: 'customers', source: 'Pilot sample', sourceBatchId: `paged-${index}`, csv: `source_row_id,name,reference\nrow-${index},Paged customer ${index},PAGED-${index}`, mapping: {}, amountUnit: 'naira', identityColumn: 'source_row_id', syntheticOnly: true }); });
     const user = userEvent.setup();
     renderApp('/imports');
-    await failingNext(user, await screen.findByRole('button', { name: 'Next batches' }, { timeout: 10_000 }), /^\/v1\/pilot\/batches$/, /^The service is unavailable for a moment\./);
+    await failingNext(user, await screen.findByRole('button', { name: 'Next batches' }, { timeout: 10_000 }), /^\/v1\/pilot\/batches$/, /^We could not load import batchesThe service is unavailable for a moment\./);
   }, 30_000);
 
   it('moves focus to the notice that replaced a picker\'s pager, inside its dialog', async () => {
@@ -410,10 +410,10 @@ describe('a page that fails to load', () => {
     renderApp('/reconciliation');
     const payments = (await screen.findByRole('heading', { name: 'Unallocated payments' })).parentElement!.parentElement!;
     const row = (await within(payments).findByText('SBX-UNIDENTIFIED-001')).closest('tr')!;
-    await user.click(within(row).getByRole('button', { name: 'Allocate' }));
+    await user.click(within(row).getByRole('button', { name: 'Allocate payment' }));
     const dialog = await screen.findByRole('dialog', { name: 'Allocate payment' });
     await within(dialog).findByText(/^1–25 of \d+ instalment choices$/);
-    await failingNext(user, within(dialog).getByRole('button', { name: 'Next page of instalment choices' }), /^\/v1\/records\/due-items$/, /^Unable to load instalment choices/);
+    await failingNext(user, within(dialog).getByRole('button', { name: 'Next page of instalment choices' }), /^\/v1\/records\/due-items$/, /^We could not load instalment choices/);
     expect(dialog.contains(document.activeElement)).toBe(true);
   });
 });
@@ -445,7 +445,7 @@ describe('the notice of the list whose page failed', () => {
     const user = userEvent.setup();
     render(<Lists />);
     await press(user, screen.getByRole('button', { name: 'Next' }));
-    const notice = (await screen.findByText('Unable to load things')).parentElement!;
+    const notice = (await screen.findByText('We could not load things')).parentElement!;
     await waitFor(() => expect(document.activeElement).toBe(within(notice).getByRole('button', { name: 'Try again' })));
   });
 
@@ -458,15 +458,15 @@ describe('the notice of the list whose page failed', () => {
     // The proposed matches cannot be read when the page opens, so their table shows its problem notice.
     api.failNext(/^\/v1\/reconciliation\/proposals$/, unavailable);
     renderApp('/reconciliation');
-    await screen.findByText(/Proposed matches could not be loaded/, undefined, { timeout: 10_000 });
+    await screen.findByText(/We could not load matches to review/, undefined, { timeout: 10_000 });
     const payments = (await screen.findByRole('heading', { name: 'Unallocated payments' })).parentElement!.parentElement!;
     const row = (await within(payments).findByText('SBX-UNIDENTIFIED-001')).closest('tr')!;
-    await user.click(within(row).getByRole('button', { name: 'Allocate' }));
+    await user.click(within(row).getByRole('button', { name: 'Allocate payment' }));
     const dialog = await screen.findByRole('dialog', { name: 'Allocate payment' });
     await within(dialog).findByText(/^1–25 of \d+ instalment choices$/);
     api.failNext(/^\/v1\/records\/due-items$/, unavailable);
     await press(user, within(dialog).getByRole('button', { name: 'Next page of instalment choices' }));
-    const notice = (await within(dialog).findByText('Unable to load instalment choices')).parentElement!;
+    const notice = (await within(dialog).findByText('We could not load instalment choices')).parentElement!;
     await waitFor(() => expect(document.activeElement).toBe(within(notice).getByRole('button', { name: 'Try again' })));
     expect(dialog.contains(document.activeElement)).toBe(true);
   }, 30_000);
@@ -478,10 +478,10 @@ describe('the notice of the list whose page failed', () => {
     });
     api.failNext(/^\/v1\/reconciliation\/proposals$/, unavailable);
     renderApp('/reconciliation');
-    await screen.findByText(/Proposed matches could not be loaded/, undefined, { timeout: 10_000 });
+    await screen.findByText(/We could not load matches to review/, undefined, { timeout: 10_000 });
     api.failNext(/^\/v1\/reconciliation\/observations$/, unavailable);
     await press(user, await screen.findByRole('button', { name: 'Next page of payment evidence' }, { timeout: 10_000 }));
-    const notice = await screen.findByText(/^Payment evidence could not be loaded/);
+    const notice = await screen.findByText(/^We could not load payment evidence/);
     await waitFor(() => expect(document.activeElement).toBe(notice));
   }, 30_000);
 
@@ -524,7 +524,7 @@ describe('the notice of the list whose page failed', () => {
     });
     renderApp('/customers');
     await screen.findByText('Pager customer 59');
-    await tryAgain(user, screen.getByRole('button', { name: 'Next page of customers' }), /^\/v1\/records\/customers$/, /^Unable to load customers/, () => screen.findByText('Pager customer 34'));
+    await tryAgain(user, screen.getByRole('button', { name: 'Next page of customers' }), /^\/v1\/records\/customers$/, /^We could not load customers/, () => screen.findByText('Pager customer 34'));
   }, 30_000);
 
   it('keeps the focus through Try again on the Exceptions queue', async () => {
@@ -534,13 +534,13 @@ describe('the notice of the list whose page failed', () => {
       state.records.push(...Array.from({ length: 60 }, (_, index) => ({ ...structuredClone(sample), id: randomUUID(), reference: `PAGER-exceptions-${index}` })));
     });
     renderApp('/exceptions');
-    await tryAgain(user, await screen.findByRole('button', { name: 'Next page of exceptions' }), /^\/v1\/queues\/exceptions$/, /^Exceptions could not be loaded/, () => screen.findByText(/^26–50 of \d+ exceptions$/));
+    await tryAgain(user, await screen.findByRole('button', { name: 'Next page of exceptions' }), /^\/v1\/queues\/exceptions$/, /^We could not load exceptions/, () => screen.findByText(/^26–50 of \d+ exceptions$/));
   }, 30_000);
 
   it('keeps the focus through Try again on Saved exports', async () => {
     api.mutate((state, ctx) => { for (let index = 0; index < 60; index++) { const { id } = queueExport(state, ctx, { kind: 'customers', format: 'csv' }, 'sample/private'); const job = state.records.find(record => record.id === id)!; job.status = 'failed'; job.data.error = 'Sample failure.'; } });
     const user = userEvent.setup();
     renderApp('/exports');
-    await tryAgain(user, await screen.findByRole('button', { name: 'Next exports' }, { timeout: 10_000 }), /^\/v1\/records\/exports$/, /^The service is unavailable for a moment\./, () => screen.findByText(/^26–50 of \d+$/));
+    await tryAgain(user, await screen.findByRole('button', { name: 'Next exports' }, { timeout: 10_000 }), /^\/v1\/records\/exports$/, /^We could not load the export historyThe service is unavailable for a moment\./, () => screen.findByText(/^26–50 of \d+$/));
   }, 30_000);
 });

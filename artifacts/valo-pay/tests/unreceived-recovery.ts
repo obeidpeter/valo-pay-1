@@ -18,11 +18,11 @@ export function unreceivedRecovery(api: FakeApi) {
 
 /** The user must obtain the server's cancellation and review its outcome; discarding a form alone is not cancellation. */
 export async function cancelInterrupted(user: ReturnType<typeof userEvent.setup>) {
-  const region = await screen.findByRole('region', { name: 'Interrupted requests' });
+  const region = await screen.findByRole('region', { name: /^Requests? not confirmed$/ });
   for (const card of [...region.querySelectorAll('article')]) {
     const cancel = await within(card).findByRole('button', { name: 'Cancel if unfinished' });
     await user.click(cancel);
-    await user.click(await within(card).findByRole('button', { name: 'I have reviewed the outcome' }));
+    await user.click(await within(card).findByRole('button', { name: 'Mark as checked' }));
   }
-  await waitFor(() => { if (screen.queryByRole('region', { name: 'Interrupted requests' })) throw new Error('Cancellation not yet confirmed'); });
+  await waitFor(() => { if (screen.queryByRole('region', { name: /^Requests? not confirmed$/ })) throw new Error('Cancellation not yet confirmed'); });
 }

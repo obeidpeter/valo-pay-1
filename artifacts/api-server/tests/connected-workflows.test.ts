@@ -75,7 +75,7 @@ check(() => {
 check(() => {
   const s = fresh();
   s.settings.environment = "production";
-  assert.throws(() => checkout(s), /synthetic/);
+  assert.throws(() => checkout(s), /works only with sample data/);
 });
 check(() => {
   const s = fresh();
@@ -88,7 +88,7 @@ check(() => {
         undefined,
         { ...ctx, role: "Read-only" },
       ),
-    /Read-only/,
+    /Only Admin, Operations, Finance or Compliance reviewer can make changes in connected banking\. Change your demo role in Settings\.$/,
   );
 });
 check(() => {
@@ -104,9 +104,9 @@ check(() => {
 });
 check(() => {
   const s = fresh();
-  assert.throws(() => checkout(s, 0), /greater/);
+  assert.throws(() => checkout(s, 0), /Enter more than 0/);
   assert.throws(() => checkout(s, openDue(s).amountKobo + 1), /outstanding/);
-  assert.throws(() => checkout(s, 1.5), /integer/);
+  assert.throws(() => checkout(s, 1.5), /Enter a whole number/);
 });
 check(() => {
   const s = fresh();
@@ -175,7 +175,7 @@ check(() => {
     createdAt: ctx.now,
     data: { dueItemId: due.id },
   });
-  assert.throws(() => run(s, "payment.authorise", {}, i.id), /flight/);
+  assert.throws(() => run(s, "payment.authorise", {}, i.id), /scheduled or in progress/);
 });
 check(() => {
   const s = fresh(),
@@ -200,7 +200,7 @@ check(() => {
   run(s, "payment.authorise", {}, i.id);
   run(s, "payment.outcome", { outcome: "unknown" }, i.id);
   assert.throws(() => checkout(s), /pending|unknown/);
-  assert.throws(() => run(s, "payment.cancel", {}, i.id), /in-flight/);
+  assert.throws(() => run(s, "payment.cancel", {}, i.id), /only before it is authorised/);
   const due = openDue(s);
   const decision = evaluateRetry(
     s,
@@ -270,7 +270,7 @@ check(() => {
   run(s, "payment.outcome", { outcome: "confirmed" }, i.id);
   assert.throws(
     () => run(s, "payment.refund_confirm", {}, i.id, finance),
-    /maker/,
+    /Someone other than you must request the refund/,
   );
   run(s, "payment.refund_request", {}, i.id);
   assert.throws(() => run(s, "payment.refund_confirm", {}, i.id), /Finance/);
@@ -340,7 +340,7 @@ check(() => {
         purpose: "account_read",
         subjectId: "foreign",
       }),
-    /subject/,
+    /Choose a customer of this lender, or the sample business/,
   );
   assert.throws(
     () =>
@@ -348,7 +348,7 @@ check(() => {
         purpose: "payroll_prepare",
         subjectId: openDue(s).customerId,
       }),
-    /subject/,
+    /Choose a customer of this lender, or the sample business/,
   );
 });
 check(() => {
@@ -381,7 +381,7 @@ check(() => {
   });
   assert.throws(
     () => assertFinalState(before, s, s.merchant.id),
-    /flight together/,
+    /Pay by Bank checkout and another collection in progress at the same time/,
   );
 });
 check(() => {
@@ -393,7 +393,7 @@ check(() => {
   });
   const before = structuredClone(s);
   s.records.at(-1)!.data.result.score = 99;
-  assert.throws(() => assertFinalState(before, s, s.merchant.id), /immutable/);
+  assert.throws(() => assertFinalState(before, s, s.merchant.id), /Saved evidence cannot be changed\. Reload the page and try again\./);
 });
 check(() => {
   const s = fresh(),
@@ -409,9 +409,9 @@ check(() => {
     });
   assert.throws(
     () => run(s, "credit.assess", { customerId: i.customerId }),
-    /record limit/,
+    /limit for connected banking records/,
   );
-  assert.throws(() => run(s, "cash.vat.export"), /record limit/);
+  assert.throws(() => run(s, "cash.vat.export"), /limit for connected banking records/);
   assert.doesNotThrow(() =>
     run(s, "consent.revoke", {}, String(i.data.consentId)),
   );

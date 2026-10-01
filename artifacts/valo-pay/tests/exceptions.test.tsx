@@ -11,16 +11,59 @@ let api: FakeApi;
 beforeEach(() => { api = installFakeApi(); });
 afterEach(() => api.uninstall());
 
+/** An exception's notes as the list shows them in one paragraph: its lines, each choice included, joined by spaces. */
+const inOneLine = (notes: unknown) => String(notes).replace(/\s+/g, ' ').trim();
+
 describe("exceptions", () => {
+  it("shows a note's choices each on its own line, on the list and on the case", async () => {
+    const notes = "The outcome of this payment is unknown.\nResolve this exception as one of these:\nConfirmed successful: the money arrived.\nConfirmed failed: the money did not arrive.\nEither way, the checkout stops holding the instalment.";
+    const exception = api.mutate(state => { const record = state.records.find(item => item.kind === "exceptions" && item.status === "open")!; record.data.notes = notes; return record; });
+    renderApp("/exceptions");
+    const listed = await screen.findByText(inOneLine(notes));
+    // The text keeps its line breaks, and the paragraph shows them as lines.
+    expect(listed.textContent).toBe(notes);
+    expect(listed.className).toContain("whitespace-pre-line");
+    renderApp(`/cases/${exception.id}`);
+    const onCase = (await screen.findAllByText(inOneLine(notes))).find(element => element !== listed)!;
+    expect(onCase.className).toContain("whitespace-pre-line");
+  });
+
   it('keeps Compliance review available without offering a generic exception edit or create', async () => {
     api.role = 'Compliance reviewer';
     renderApp('/exceptions');
     await screen.findByRole('tab', { name: 'All open (4)' });
-    expect(screen.queryByRole('button', { name: 'Edit' })).toBeNull();
-    expect(screen.getAllByRole('link', { name: 'Case & handover' })).toHaveLength(4);
-    expect(screen.getByText(/An Admin, Operations or Finance colleague can edit exception details/)).toBeTruthy();
-    expect(permissionReason({ role: 'Compliance reviewer', actor: 'reviewer' }, { kind: 'exceptions' })).toBe('Requires Admin, Operations or Finance.');
+    expect(screen.queryByRole('button', { name: 'Edit exception' })).toBeNull();
+    expect(screen.getAllByRole('link', { name: 'Open case' })).toHaveLength(4);
+    expect(screen.getByText('You can view exceptions and work on their cases. Only Admin, Operations or Finance can edit or resolve an exception.')).toBeTruthy();
+    expect(permissionReason({ role: 'Compliance reviewer', actor: 'reviewer' }, { kind: 'exceptions' })).toBe('Only Admin, Operations or Finance can edit exceptions. Your role is Compliance reviewer. Change your demo role in Settings.');
+    // A staff pilot's role is not a demo role, so the refusal does not send the reader to Settings.
+    expect(permissionReason({ role: 'Compliance reviewer', actor: 'reviewer', accessMode: 'staff' }, { kind: 'exceptions' })).toBe('Only Admin, Operations or Finance can edit exceptions. Your role is Compliance reviewer.');
+    // Under a disabled button the reason says who can, once; the bar above the page shows the role and links to Change demo role.
+    expect(permissionReason({ role: 'Compliance reviewer', actor: 'reviewer' }, { kind: 'exceptions' }, { brief: true })).toBe('Only Admin, Operations or Finance can edit exceptions.');
+    // A single role is named as the standard lists it, with no article.
+    expect(permissionReason({ role: 'Finance', actor: 'finance' }, { action: 'kill_switch' })).toBe('Only Admin can turn the emergency stop on or off. Your role is Finance. Change your demo role in Settings.');
     expect(api.calls.some(call => call.method === 'POST')).toBe(false);
+  });
+
+  // Review of the language pass, F15: an exception Valo Pay closed because its cause went away says so in its status and
+  // names no outcome, while one a person resolved shows Resolved and the outcome they recorded.
+  it('shows an exception Valo Pay closed as Closed automatically, and a resolved one with its outcome', async () => {
+    const [cleared, resolved] = api.mutate(state => {
+      const exceptions = state.records.filter(record => record.kind === 'exceptions');
+      const gap = exceptions.find(record => record.data.type === 'imported_consent_gap')!;
+      const other = exceptions.find(record => record.id !== gap.id)!;
+      other.status = 'closed'; other.data.resolutionCode = 'condition_cleared';
+      gap.status = 'resolved'; gap.data.resolutionCode = 'gap_accepted_in_writing';
+      return [other, gap];
+    });
+    renderApp('/exceptions?view=resolved');
+    await screen.findByRole('tab', { name: 'Resolved (2)' });
+    const row = (record: { id: string }) => document.getElementById(`record-${record.id}`)!;
+    await waitFor(() => expect(row(cleared)).toBeTruthy());
+    expect(within(row(cleared)).getByText('Closed automatically')).toBeTruthy();
+    expect(row(cleared).textContent).not.toContain('Outcome:');
+    expect(within(row(resolved)).getByText('Resolved')).toBeTruthy();
+    expect(row(resolved).textContent).toContain('Outcome: Gap accepted in writing');
   });
 
   it('preserves terminal exception details and offers case history instead of generic edits', async () => {
@@ -31,11 +74,11 @@ describe("exceptions", () => {
     });
     renderApp('/exceptions?view=resolved');
     await screen.findByRole('tab', { name: 'Resolved (2)' });
-    expect(screen.queryByRole('button', { name: 'Edit' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Resolve' })).toBeNull();
-    expect(screen.getAllByRole('link', { name: 'Case & handover' })).toHaveLength(2);
+    expect(screen.queryByRole('button', { name: 'Edit exception' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Resolve exception' })).toBeNull();
+    expect(screen.getAllByRole('link', { name: 'Open case' })).toHaveLength(2);
     for (const status of ['resolved', 'closed']) {
-      expect(permissionReason({ role: 'Admin', actor: 'admin' }, { kind: 'exceptions', record: { status } })).toContain('details are preserved');
+      expect(permissionReason({ role: 'Admin', actor: 'admin' }, { kind: 'exceptions', record: { status } })).toContain('You cannot edit a resolved or closed exception');
     }
     expect(permissionReason({ role: 'Finance', actor: 'finance' }, { kind: 'exceptions', record: { status: 'open' } })).toBeNull();
   });
@@ -54,7 +97,7 @@ describe("exceptions", () => {
     expect(within(screen.getByRole('table')).queryByText("Unallocated payment")).toBeNull();
 
     await user.click(screen.getByRole("tab", { name: "Resolved (0)" }));
-    expect(await screen.findByText("Nothing resolved yet")).toBeTruthy();
+    expect(await screen.findByText("No resolved exceptions yet")).toBeTruthy();
   });
 
   it('keeps the issue evidence and a return to the filtered queue in customer review', async () => {
@@ -63,11 +106,11 @@ describe("exceptions", () => {
     const customer = api.state().records.find(record => record.id === exception.customerId)!;
     renderApp('/exceptions?view=open&owner=Finance&type=unallocated_payment');
     const row = (await screen.findByText(customer.name)).closest('tr')!;
-    await user.click(within(row).getByRole('button', { name: 'Resolve' }));
+    await user.click(within(row).getByRole('button', { name: 'Resolve exception' }));
     const dialog = await screen.findByRole('dialog', { name: 'Resolve exception' });
     const context = within(dialog).getByRole('region', { name: 'Exception context' });
     expect(context.textContent).toContain(String(exception.data.notes));
-    const destination = within(context).getByRole('link', { name: 'Review customer history' }).getAttribute('href')!;
+    const destination = within(context).getByRole('link', { name: 'Open Customer history' }).getAttribute('href')!;
     const params = new URL(destination, 'https://test.invalid').searchParams;
     const returnParams = new URL(params.get('returnTo')!, 'https://test.invalid');
     expect(returnParams.pathname).toBe('/exceptions');
@@ -94,15 +137,15 @@ describe("exceptions", () => {
     renderApp('/exceptions?view=open&type=suspected_duplicate');
     const codesFor = async (evidence: { id: string }) => {
       const exception = api.state().records.find(record => record.kind === 'exceptions' && record.data.linkedRecordId === evidence.id)!;
-      const row = (await screen.findByText(String(exception.data.notes))).closest('tr')!;
-      await user.click(within(row).getByRole('button', { name: 'Resolve' }));
+      const row = (await screen.findByText(inOneLine(exception.data.notes))).closest('tr')!;
+      await user.click(within(row).getByRole('button', { name: 'Resolve exception' }));
       const dialog = await screen.findByRole('dialog', { name: 'Resolve exception' });
-      const labels = within(within(dialog).getByLabelText(/How was this resolved/)).getAllByRole('option').map(option => option.textContent);
+      const labels = within(within(dialog).getByLabelText(/^Outcome/)).getAllByRole('option').map(option => option.textContent);
       await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
       await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Resolve exception' })).toBeNull());
       return labels;
     };
-    expect(await codesFor(line)).toEqual(expect.arrayContaining(['Same payment; evidence joined to it', 'Not money; evidence set aside', 'Distinct payments']));
+    expect(await codesFor(line)).toEqual(expect.arrayContaining(['Same payment; evidence joined to it', 'Not money; evidence set aside', 'Separate payments']));
     const conflictCodes = await codesFor(clash);
     expect(conflictCodes).toContain('Not money; evidence set aside');
     expect(conflictCodes).not.toContain('Same payment; evidence joined to it');
@@ -123,21 +166,21 @@ describe("exceptions", () => {
     });
     const exception = api.state().records.find(record => record.kind === 'exceptions' && record.data.linkedRecordId === line.id)!;
     renderApp('/exceptions?view=open&type=suspected_duplicate');
-    const row = (await screen.findByText(String(exception.data.notes))).closest('tr')!;
-    await user.click(within(row).getByRole('button', { name: 'Resolve' }));
+    const row = (await screen.findByText(inOneLine(exception.data.notes))).closest('tr')!;
+    await user.click(within(row).getByRole('button', { name: 'Resolve exception' }));
     const dialog = await screen.findByRole('dialog', { name: 'Resolve exception' });
-    const code = within(dialog).getByLabelText(/How was this resolved/);
+    const code = within(dialog).getByLabelText(/^Outcome/);
     const outcome = () => within(dialog).getByText(/^Record outcome:/).parentElement!.textContent!;
     const generic = 'It does not allocate a payment, issue a refund, reissue a mandate or move money.';
     await user.selectOptions(code, 'same_payment');
     expect(outcome()).toContain('The next reconciliation joins this evidence to the payment this exception names');
     expect(outcome()).not.toContain(generic);
     await user.selectOptions(code, 'not_money');
-    expect(outcome()).toContain('The next reconciliation sets this evidence aside for good');
+    expect(outcome()).toContain('The next reconciliation sets this evidence aside permanently');
     await user.selectOptions(code, 'distinct_payments');
-    expect(outcome()).toContain('The next reconciliation records this evidence as a payment of its own.');
+    expect(outcome()).toContain('The next reconciliation records this evidence as a separate payment.');
     await user.selectOptions(code, 'confirmed_duplicate_refund');
-    expect(outcome()).toContain('The next reconciliation records this evidence as a payment of its own, held until its refund is recorded.');
+    expect(outcome()).toContain('The next reconciliation records this evidence as a separate payment, held until its refund is recorded.');
     expect(outcome()).not.toContain(generic);
 
     await user.selectOptions(code, 'same_payment');
@@ -145,9 +188,9 @@ describe("exceptions", () => {
     await user.click(within(dialog).getByRole('button', { name: 'Resolve exception' }));
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Resolve exception' })).toBeNull());
     const answer = await screen.findByRole('status', { name: 'Resolution recorded' });
-    expect(answer.textContent).toContain('Exception resolution recorded. The next reconciliation joins this payment evidence to payment PSK-SET-1 as more evidence of it: no second payment is made.');
+    expect(answer.textContent).toContain('Exception resolution recorded. The next reconciliation adds this payment evidence to payment PSK-SET-1. No second payment is created.');
     // The resolved exception leaves the open queue with its Resolve button, so reading continues from the answer.
-    await waitFor(() => expect(screen.queryByText(String(exception.data.notes))).toBeNull());
+    await waitFor(() => expect(screen.queryByText(inOneLine(exception.data.notes))).toBeNull());
     await waitFor(() => expect(document.activeElement).toBe(answer));
   });
 
@@ -161,25 +204,25 @@ describe("exceptions", () => {
     const exception = api.state().records.find(record => record.kind === 'exceptions' && record.data.linkedRecordId === reversal.id)!;
     expect(exception.data.type).toBe('provider_status_mismatch');
     renderApp(`/exceptions?record=${exception.id}`);
-    await user.click(await screen.findByRole('button', { name: 'Resolve' }));
+    await user.click(await screen.findByRole('button', { name: 'Resolve exception' }));
     const dialog = await screen.findByRole('dialog', { name: 'Resolve exception' });
-    const code = within(dialog).getByLabelText(/How was this resolved/);
+    const code = within(dialog).getByLabelText(/^Outcome/);
     // Only the two codes that decide it are offered, each named for what it does to the reversal rather than by the
     // generic mismatch's labels, and the box says to leave the exception open while Finance checks.
-    expect(within(code).getAllByRole('option').map(option => option.textContent)).toEqual(['Choose an option', 'Provider state adopted; reversal waits for its payment', 'Platform state confirmed; reversal set aside for good']);
+    expect(within(code).getAllByRole('option').map(option => option.textContent)).toEqual(['Choose an option', 'Provider status accepted; reversal waits for its payment', 'Valo Pay status kept; reversal set aside permanently']);
     // A payment that arrives meanwhile is reversed only through the reversal's own connection (fourth review, finding 4),
     // and only when it agrees with the reversal: one naming another payer, currency or amount is held too (its review).
     const before = within(dialog).getByText('Record an outcome after reviewing the evidence.').parentElement!.textContent;
-    expect(before).toContain('Leave this exception open while you check with the provider which collection the reversal reverses: if its payment arrives meanwhile through the same connection and agrees with it, the reversal applies to it; if the payment comes through another connection, or names another payer, currency or amount, the reversal is held for you with an exception of its own. Either way this exception closes.');
+    expect(before).toContain('Leave this exception open: Do this while you ask the provider which payment the reversal belongs to. If that payment arrives through the same connection and matches, the reversal applies to it. If it arrives through another connection, or names a different payer, currency or amount, the reversal is held for you as a new exception. Either way, this exception then closes.');
     expect(before).not.toContain('if its payment arrives meanwhile, the reversal applies to it');
     expect(before).not.toContain('through the same connection, the reversal applies to it');
     const outcome = () => within(dialog).getByText(/^Record outcome:/).parentElement!.textContent!;
     await user.selectOptions(code, 'provider_state_adopted');
-    expect(within(dialog).getByText(/^Record outcome:/).textContent).toBe('Record outcome: Provider state adopted; reversal waits for its payment');
-    expect(outcome()).toContain('The reversal keeps waiting for its payment, with no new exception: the reconciliation that records that payment reverses it');
+    expect(within(dialog).getByText(/^Record outcome:/).textContent).toBe('Record outcome: Provider status accepted; reversal waits for its payment');
+    expect(outcome()).toContain('The reversal keeps waiting for its payment, and no new exception is raised. When reconciliation records that payment, it reverses it.');
     await user.selectOptions(code, 'platform_state_confirmed');
-    expect(within(dialog).getByText(/^Record outcome:/).textContent).toBe('Record outcome: Platform state confirmed; reversal set aside for good');
-    expect(outcome()).toContain('The next reconciliation sets the reversal aside for good: it reverses nothing, even if its payment arrives later.');
+    expect(within(dialog).getByText(/^Record outcome:/).textContent).toBe('Record outcome: Valo Pay status kept; reversal set aside permanently');
+    expect(outcome()).toContain('The next reconciliation sets the reversal aside permanently. It reverses nothing, even if its payment arrives later.');
     expect(outcome()).not.toContain('It does not allocate a payment');
     await user.type(within(dialog).getByLabelText(/^Reason/), 'The provider confirmed no such collection.');
     await user.click(within(dialog).getByRole('button', { name: 'Resolve exception' }));
@@ -187,19 +230,19 @@ describe("exceptions", () => {
     expect(answer.textContent).toMatch(/Exception resolution recorded\. This reversal evidence is set aside at the next reconciliation/);
     // Its Resolve button goes with the resolution, so focus moves to the answer; the exception, shown alone, names its resolution the same way.
     await waitFor(() => expect(document.activeElement).toBe(answer));
-    expect(await screen.findByText('Resolution: Platform state confirmed; reversal set aside for good')).toBeTruthy();
+    expect(await screen.findByText('Outcome: Valo Pay status kept; reversal set aside permanently')).toBeTruthy();
   });
 
   it('keeps the generic labels and words for a provider status mismatch that is not a waiting reversal', async () => {
     const user = userEvent.setup();
     const mismatch = api.mutate((state, ctx) => raiseException(state, ctx, 'provider_status_mismatch', { notes: 'The provider shows the mandate active; the platform shows it pending activation.' }));
     renderApp(`/exceptions?record=${mismatch.id}`);
-    await user.click(await screen.findByRole('button', { name: 'Resolve' }));
+    await user.click(await screen.findByRole('button', { name: 'Resolve exception' }));
     const dialog = await screen.findByRole('dialog', { name: 'Resolve exception' });
-    const code = within(dialog).getByLabelText(/How was this resolved/);
-    expect(within(code).getAllByRole('option').map(option => option.textContent)).toEqual(['Choose an option', 'Provider state adopted', 'Platform state confirmed', 'Escalated to provider']);
+    const code = within(dialog).getByLabelText(/^Outcome/);
+    expect(within(code).getAllByRole('option').map(option => option.textContent)).toEqual(['Choose an option', 'Provider status accepted', 'Valo Pay status kept', 'Escalated to provider']);
     await user.selectOptions(code, 'provider_state_adopted');
-    expect(within(dialog).getByText(/^Record outcome:/).textContent).toBe('Record outcome: Provider state adopted');
+    expect(within(dialog).getByText(/^Record outcome:/).textContent).toBe('Record outcome: Provider status accepted');
     expect(within(dialog).getByText(/^Record outcome:/).parentElement!.textContent).toContain('It does not allocate a payment, issue a refund, reissue a mandate or move money.');
   });
 
@@ -215,11 +258,11 @@ describe("exceptions", () => {
     });
     expect([exception.amountKobo, exception.data.currency]).toEqual([100_000, 'USD']);
     renderApp(`/exceptions?record=${exception.id}`);
-    const row = (await screen.findByRole('button', { name: 'Resolve' })).closest('tr')!;
+    const row = (await screen.findByRole('button', { name: 'Resolve exception' })).closest('tr')!;
     const shown = (element: Element) => element.textContent!.replace(/ /g, ' ');
     expect(shown(row)).toContain('USD 1,000.00');
     expect(shown(row)).not.toContain('₦1,000.00');
-    await user.click(within(row).getByRole('button', { name: 'Resolve' }));
+    await user.click(within(row).getByRole('button', { name: 'Resolve exception' }));
     const context = within(await screen.findByRole('dialog', { name: 'Resolve exception' })).getByRole('region', { name: 'Exception context' });
     expect(shown(within(context).getByText('Amount').nextElementSibling!)).toBe('USD 1,000.00');
   });
@@ -244,17 +287,17 @@ describe("exceptions", () => {
     });
     expect((carrier.data.countedTwice as string[]).length).toBe(1);
     renderApp(`/exceptions?record=${carrier.id}`);
-    await user.click(await screen.findByRole('button', { name: 'Resolve' }));
+    await user.click(await screen.findByRole('button', { name: 'Resolve exception' }));
     const dialog = await screen.findByRole('dialog', { name: 'Resolve exception' });
-    const settles = 'This exception also carries the provider\'s report of a collection counted in two settlement batches. Resolving it settles that report too, whichever outcome you record: it is not raised again, so check both payouts with the provider first.';
+    const settles = 'This exception also includes the provider’s report of a payment counted in two settlement batches. Resolving the exception also closes that report, whatever outcome you choose, and it will not be raised again. Check both payouts with the provider first.';
     expect(within(dialog).getByText('Record an outcome after reviewing the evidence.').parentElement!.textContent).toContain(settles);
-    await user.selectOptions(within(dialog).getByLabelText(/How was this resolved/), 'provider_corrected');
+    await user.selectOptions(within(dialog).getByLabelText(/^Outcome/), 'provider_corrected');
     const outcome = within(dialog).getByText(/^Record outcome:/).parentElement!.textContent!;
     expect(outcome).toContain(settles);
     expect(outcome).toContain('It does not allocate a payment, issue a refund, reissue a mandate or move money.');
     // An exception that carries no such report says nothing of one, and one that carries several names how many.
     expect(countedTwiceEffect({ ...carrier, data: { ...carrier.data, countedTwice: [] } })).toBeUndefined();
-    expect(countedTwiceEffect({ ...carrier, data: { ...carrier.data, countedTwice: ['a', 'b'] } })).toContain('carries 2 of the provider\'s reports of collections counted in two settlement batches. Resolving it settles those reports too');
+    expect(countedTwiceEffect({ ...carrier, data: { ...carrier.data, countedTwice: ['a', 'b'] } })).toContain('includes 2 provider reports of payments counted in two settlement batches. Resolving the exception also closes those reports');
   });
 
   // Decision on currencies in settlement batches: a line in another currency than its batch is reported, and an
@@ -274,12 +317,12 @@ describe("exceptions", () => {
     });
     expect((carrier.data.otherCurrencyLines as string[]).length).toBe(1);
     renderApp(`/exceptions?record=${carrier.id}`);
-    await user.click(await screen.findByRole('button', { name: 'Resolve' }));
+    await user.click(await screen.findByRole('button', { name: 'Resolve exception' }));
     const dialog = await screen.findByRole('dialog', { name: 'Resolve exception' });
-    const settles = 'This exception also carries the report of a settlement line in another currency than its batch, which the batch does not count. Resolving it settles that report too, whichever outcome you record: it is not raised again, so check with the provider which batch pays the line out first.';
+    const settles = 'This exception also includes a report of a settlement line in a different currency from its batch. The batch does not count that line. Resolving the exception also closes the report, whatever outcome you choose, and it will not be raised again. First ask the provider which batch pays out the line.';
     expect(within(dialog).getByText('Record an outcome after reviewing the evidence.').parentElement!.textContent).toContain(settles);
     expect(otherCurrencyLinesEffect({ ...carrier, data: { ...carrier.data, otherCurrencyLines: [] } })).toBeUndefined();
-    expect(otherCurrencyLinesEffect({ ...carrier, data: { ...carrier.data, otherCurrencyLines: ['a', 'b'] } })).toContain('carries 2 reports of settlement lines in another currency than their batch');
+    expect(otherCurrencyLinesEffect({ ...carrier, data: { ...carrier.data, otherCurrencyLines: ['a', 'b'] } })).toContain('includes 2 reports of settlement lines in a different currency from their batch');
   });
 
   it('shows a stored exception without a severity as having none, never as low', async () => {
@@ -290,8 +333,8 @@ describe("exceptions", () => {
       return record;
     });
     renderApp(`/exceptions?record=${exception.id}`);
-    const row = (await screen.findByRole('button', { name: 'Edit' })).closest('tr')!;
-    expect(row.textContent).toContain('No severity');
+    const row = (await screen.findByRole('button', { name: 'Edit exception' })).closest('tr')!;
+    expect(row.textContent).toContain('No severity set');
     expect(row.textContent).not.toMatch(/\blow\b/i);
   });
 
@@ -299,19 +342,19 @@ describe("exceptions", () => {
     const user = userEvent.setup();
     const exception = api.state().records.find((record) => record.kind === 'exceptions' && record.status === 'open' && record.data.severity === 'high' && !record.data.case)!;
     renderApp(`/exceptions?record=${exception.id}`);
-    await user.click(await screen.findByRole('button', { name: 'Edit' }));
+    await user.click(await screen.findByRole('button', { name: 'Edit exception' }));
     const dialog = await screen.findByRole('dialog', { name: 'Edit exception' });
     const severity = within(dialog).getByLabelText(/^Severity/) as HTMLSelectElement;
     expect(severity.value).toBe('high');
     await user.selectOptions(severity, '');
-    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
     expect(await within(dialog).findByText('Severity is required. Choose an option.')).toBeTruthy();
     expect(document.activeElement).toBe(severity);
     expect(api.calls.filter((call) => call.method === 'PATCH')).toEqual([]);
     expect(api.state().records.find((record) => record.id === exception.id)!.data.severity).toBe('high');
     // Choosing one saves it.
     await user.selectOptions(severity, 'medium');
-    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(api.state().records.find((record) => record.id === exception.id)!.data.severity).toBe('medium');
   });
@@ -335,20 +378,22 @@ describe("exceptions", () => {
     const user = userEvent.setup();
     const hold = heldBatch();
     renderApp(`/exceptions?record=${hold.id}`);
-    await user.click(await screen.findByRole('button', { name: 'Resolve' }));
+    await user.click(await screen.findByRole('button', { name: 'Resolve exception' }));
     const dialog = await screen.findByRole('dialog', { name: 'Resolve exception' });
-    const code = within(dialog).getByLabelText(/How was this resolved/);
-    expect(within(code).getAllByRole('option').map(option => option.textContent)).toEqual(['Choose an option', 'Provider identity confirmed']);
-    const identity = await within(dialog).findByLabelText(/Connection whose payout this batch is/);
+    const code = within(dialog).getByLabelText(/^Outcome/);
+    expect(within(code).getAllByRole('option').map(option => option.textContent)).toEqual(['Choose an option', 'Connection confirmed']);
+    const identity = await within(dialog).findByLabelText(/Connection that paid out this batch/);
     await waitFor(() => expect(within(identity).getAllByRole('option').map(option => option.textContent)).toEqual(['Choose an option', 'connection-a (batch SHARED)', 'connection-b (batch SHARED)']));
     const outcome = () => within(dialog).getByText(/^Record outcome:|^Record an outcome/).parentElement!.textContent!;
-    expect(outcome()).toContain('Once the providers have confirmed whose payout this settlement batch is, choose Provider identity confirmed and that connection. If they cannot attribute it to one connection, leave this exception open: once the data owner has repaired the evidence, the next reconciliation releases the batch and closes this exception.');
+    expect(outcome()).toContain('This settlement batch is on hold. Its evidence is not counted until Finance or an Admin confirms which connection paid it out.');
+    expect(outcome()).toContain('Connection confirmed: Choose this with the connection the providers confirmed. The next reconciliation then releases the batch.');
+    expect(outcome()).toContain('Leave this exception open: Do this if the providers cannot say which connection it was. When the person who manages this data has corrected it, the next reconciliation releases the batch and closes this exception.');
     await user.selectOptions(code, 'provider_identity_confirmed');
-    expect(outcome()).toContain('The next reconciliation releases this settlement batch as the payout of the connection you choose.');
-    expect(outcome()).toContain('Each settlement line of another connection moves to that connection\'s own batch, and each statement credit of another connection is left to link to its own');
+    expect(outcome()).toContain('The next reconciliation releases this settlement batch as a payout of the connection you choose.');
+    expect(outcome()).toContain('Settlement lines for other connections move to their own batches, and bank statement lines for them are left to link to their own.');
     await user.type(within(dialog).getByLabelText(/^Reason/), 'Both providers confirmed whose payout this is.');
     await user.click(within(dialog).getByRole('button', { name: 'Resolve exception' }));
-    expect(await within(dialog).findByText('Choose the connection the providers confirmed this batch pays out.')).toBeTruthy();
+    expect(await within(dialog).findByText('Choose the connection the providers confirmed for this batch.')).toBeTruthy();
     expect(api.calls.some(call => call.method === 'POST')).toBe(false);
     await user.selectOptions(identity, identities[1]!);
     await user.click(within(dialog).getByRole('button', { name: 'Resolve exception' }));
@@ -363,14 +408,14 @@ describe("exceptions", () => {
     api.role = 'Finance';
     const review = heldBatch(true);
     renderApp(`/exceptions?record=${review.id}`);
-    await user.click(await screen.findByRole('button', { name: 'Resolve' }));
+    await user.click(await screen.findByRole('button', { name: 'Resolve exception' }));
     const dialog = await screen.findByRole('dialog', { name: 'Resolve exception' });
-    const code = within(dialog).getByLabelText(/How was this resolved/);
-    expect(within(code).getAllByRole('option').map(option => option.textContent)).toEqual(['Choose an option', 'Provider identity confirmed']);
+    const code = within(dialog).getByLabelText(/^Outcome/);
+    expect(within(code).getAllByRole('option').map(option => option.textContent)).toEqual(['Choose an option', 'Connection confirmed']);
     const outcome = () => within(dialog).getByText(/^Record outcome:|^Record an outcome/).parentElement!.textContent!;
-    expect(outcome()).toContain('An earlier resolution of this batch\'s hold keeps its meaning, but the batch stays held, with its evidence uncounted, until Finance or an administrator confirms whose payout it is.');
-    expect(outcome()).toContain('leave this review open: once the data owner has repaired the evidence, the next reconciliation releases the batch and closes this review.');
-    const identity = await within(dialog).findByLabelText(/Connection whose payout this batch is/);
+    expect(outcome()).toContain('An earlier resolution of this batch’s hold still stands, but the batch stays on hold. Its evidence is not counted until Finance or an Admin confirms which connection paid it out.');
+    expect(outcome()).toContain('Leave this review open: Do this if the providers cannot say which connection it was. When the person who manages this data has corrected it, the next reconciliation releases the batch and closes this review.');
+    const identity = await within(dialog).findByLabelText(/Connection that paid out this batch/);
     await waitFor(() => expect(within(identity).getAllByRole('option')).toHaveLength(3));
     await user.selectOptions(code, 'provider_identity_confirmed');
     await user.selectOptions(identity, identities[0]!);
@@ -392,14 +437,14 @@ describe("exceptions", () => {
       return exception;
     });
     renderApp(`/exceptions?record=${hold.id}`);
-    await user.click(await screen.findByRole('button', { name: 'Resolve' }));
+    await user.click(await screen.findByRole('button', { name: 'Resolve exception' }));
     const dialog = await screen.findByRole('dialog', { name: 'Resolve exception' });
-    const code = within(dialog).getByLabelText(/How was this resolved/);
-    await waitFor(() => expect(within(code).getAllByRole('option').map(option => option.textContent)).toEqual(['Choose an option', 'Fee schedule updated', 'Provider corrected', 'Accepted variance']));
-    expect(within(dialog).queryByLabelText(/Connection whose payout this batch is/)).toBeNull();
+    const code = within(dialog).getByLabelText(/^Outcome/);
+    await waitFor(() => expect(within(code).getAllByRole('option').map(option => option.textContent)).toEqual(['Choose an option', 'Fee schedule updated', 'Provider corrected', 'Difference accepted']));
+    expect(within(dialog).queryByLabelText(/Connection that paid out this batch/)).toBeNull();
     const outcome = within(dialog).getByText('Record an outcome after reviewing the evidence.').parentElement!.textContent!;
-    expect(outcome).not.toContain('Once the providers have confirmed whose payout');
-    expect(outcome).toContain('This exception also carries the provider\'s report of a collection counted in two settlement batches.');
+    expect(outcome).not.toContain('confirms which connection paid it out');
+    expect(outcome).toContain('This exception also includes the provider’s report of a payment counted in two settlement batches.');
     await user.selectOptions(code, 'accepted_variance');
     await user.type(within(dialog).getByLabelText(/^Reason/), 'Both payouts checked with the provider.');
     await user.click(within(dialog).getByRole('button', { name: 'Resolve exception' }));
@@ -415,19 +460,19 @@ describe("exceptions", () => {
     const claim = (identity: string) => ({ identity, batchId: 'other-batch', reference: 'SHARED', handEntered: true });
     const partly = heldBatch(false, { providerIdentityClaimedBy: [claim(identities[0]!)] });
     const { unmount } = renderApp(`/exceptions?record=${partly.id}`);
-    await user.click(await screen.findByRole('button', { name: 'Resolve' }));
+    await user.click(await screen.findByRole('button', { name: 'Resolve exception' }));
     let dialog = await screen.findByRole('dialog', { name: 'Resolve exception' });
-    const identity = await within(dialog).findByLabelText(/Connection whose payout this batch is/);
+    const identity = await within(dialog).findByLabelText(/Connection that paid out this batch/);
     await waitFor(() => expect(within(identity).getAllByRole('option').map(option => option.textContent)).toEqual(['Choose an option', 'connection-b (batch SHARED)']));
     unmount();
     const fully = heldBatch(false, { providerIdentityClaimedBy: identities.map(claim) });
     renderApp(`/exceptions?record=${fully.id}`);
-    await user.click(await screen.findByRole('button', { name: 'Resolve' }));
+    await user.click(await screen.findByRole('button', { name: 'Resolve exception' }));
     dialog = await screen.findByRole('dialog', { name: 'Resolve exception' });
     const box = () => within(dialog).getByText('Record an outcome after reviewing the evidence.').parentElement!.textContent!;
-    await waitFor(() => expect(box()).toContain('No connection can be confirmed for this settlement batch now: settlement batch SHARED, entered by hand, also records or claims connection-a (batch SHARED); settlement batch SHARED, entered by hand, also records or claims connection-b (batch SHARED). A confirmation settles which connection\'s payout a batch is, not a collision between two batches: the data owner corrects the duplicate batch\'s reference or provider, and the next reconciliation then releases the genuine batch and closes this exception.'));
-    expect(within(within(dialog).getByLabelText(/How was this resolved/)).getAllByRole('option').map(option => option.textContent)).toEqual(['Choose an option']);
-    expect(within(dialog).queryByLabelText(/Connection whose payout this batch is/)).toBeNull();
+    await waitFor(() => expect(box()).toContain('You cannot confirm a connection for this settlement batch yet. Other batches name the same connections: settlement batch SHARED (entered by hand) also names connection-a (batch SHARED); settlement batch SHARED (entered by hand) also names connection-b (batch SHARED). Confirming a connection cannot settle two batches that claim one payout. Ask the person who manages this data to correct the reference or provider of the duplicate batch. The next reconciliation then releases the correct batch and closes this exception.'));
+    expect(within(within(dialog).getByLabelText(/^Outcome/)).getAllByRole('option').map(option => option.textContent)).toEqual(['Choose an option']);
+    expect(within(dialog).queryByLabelText(/Connection that paid out this batch/)).toBeNull();
   });
 
   // Re-review fix: confirming whose payout a held batch is settles no report its exception carries; the report comes back.
@@ -436,13 +481,13 @@ describe("exceptions", () => {
     api.role = 'Finance';
     const hold = heldBatch(false, {}, ['settlement_variance:batch:counted:payment-1']);
     renderApp(`/exceptions?record=${hold.id}`);
-    await user.click(await screen.findByRole('button', { name: 'Resolve' }));
+    await user.click(await screen.findByRole('button', { name: 'Resolve exception' }));
     const dialog = await screen.findByRole('dialog', { name: 'Resolve exception' });
-    await user.selectOptions(within(dialog).getByLabelText(/How was this resolved/), 'provider_identity_confirmed');
-    await waitFor(() => expect(within(dialog).getByText(/^Record outcome:/).parentElement!.textContent).toContain('This exception also carries the provider\'s report of a collection counted in two settlement batches. Confirming whose payout the batch is settles no report: after the release, the report comes back as an exception of its own, to resolve once you have checked with the provider.'));
+    await user.selectOptions(within(dialog).getByLabelText(/^Outcome/), 'provider_identity_confirmed');
+    await waitFor(() => expect(within(dialog).getByText(/^Record outcome:/).parentElement!.textContent).toContain('This exception also includes the provider’s report of a payment counted in two settlement batches. Confirming the connection does not settle it. After the batch is released, the report comes back as its own exception. Resolve it after you have checked with the provider.'));
     const box = within(dialog).getByText(/^Record outcome:/).parentElement!.textContent!;
-    expect(box).not.toContain('Resolving it settles that report too');
-    expect(box).toContain('the batch\'s gross, fee and net leave out the lines that move, unless they were typed by hand, and its expected fee always does.');
+    expect(box).not.toContain('Resolving the exception also closes that report');
+    expect(box).toContain('The batch’s amounts before fees, fee and after fees leave out the lines that move, unless someone typed them by hand. The expected fee always leaves them out.');
   });
 
   for (const review of [false, true]) {
@@ -450,9 +495,9 @@ describe("exceptions", () => {
       api.role = 'Operations';
       const exception = heldBatch(review);
       renderApp(`/exceptions?record=${exception.id}`);
-      const resolve = await screen.findByRole('button', { name: 'Resolve' });
+      const resolve = await screen.findByRole('button', { name: 'Resolve exception' });
       expect(resolve.getAttribute('aria-disabled')).toBe('true');
-      expect(screen.getByText('Requires Admin or Finance: the exceptions of a settlement batch’s provider identity hold are Finance’s to resolve, by confirming whose payout the batch is.')).toBeTruthy();
+      expect(screen.getByText('Only Admin or Finance can resolve this exception. Resolving it confirms whose payout the settlement batch is.')).toBeTruthy();
       await userEvent.setup().click(resolve);
       expect(screen.queryByRole('dialog', { name: 'Resolve exception' })).toBeNull();
       expect(api.calls.some(call => call.method === 'GET' && call.path.includes('/v1/records/settlement-batches'))).toBe(false);

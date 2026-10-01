@@ -50,19 +50,19 @@ for (const link of ["attempt", "allocation", "observation", "payment"] as const)
   if (link === "observation") reversal.data.dueItemId = due.id;
   const proposal = makeRecord(state, "allocations", { name: "Earlier proposal", status: "proposed", customerId: due.customerId, amountKobo: due.amountKobo, data: { paymentId: payment.id, dueItemId: link === "allocation" ? due.id : "unrelated", rule: "R5", confidence: "probable", automatic: true } });
   const snapshot = structuredClone(state);
-  assert.throws(() => allocatePayment(state, finance, payment, due, due.amountKobo, "manual", "manual", false), /renewed Finance review/);
+  assert.throws(() => allocatePayment(state, finance, payment, due, due.amountKobo, "manual", "manual", false), /on hold while Finance reviews an earlier reversal decision again/);
   assert.deepEqual(state, snapshot, "refusal does not first rewrite historical state");
   proposal.data.dueItemId = due.id;
-  assert.throws(() => applyConfirmedAllocation(state, finance, proposal), /renewed Finance review/);
+  assert.throws(() => applyConfirmedAllocation(state, finance, proposal), /on hold while Finance reviews an earlier reversal decision again/);
   proposal.data.dueItemId = link === "allocation" ? due.id : "unrelated";
   const policy = recordsOf(state, "policies")[0]!;
   assert.equal(evaluateRetry(state, finance, due, policy).rule, "reversal_review");
   due.status = "in_dispute";
-  assert.throws(() => releaseDispute(state, finance, due, { via: "not_upheld", reason: "Ordinary dispute release" }), /renewed reversal review/);
+  assert.throws(() => releaseDispute(state, finance, due, { via: "not_upheld", reason: "Ordinary dispute release" }), /on hold while Finance reviews an earlier reversal decision again/);
   due.status = "scheduled";
-  assert.throws(() => runConnectedAction(state, finance, { action: "payment.create", reason: "New checkout", recordId: "", data: { dueItemId: due.id, amountKobo: due.amountKobo }, expectedRevision: connectedRevision(state) }), /renewed Finance review/);
+  assert.throws(() => runConnectedAction(state, finance, { action: "payment.create", reason: "New checkout", recordId: "", data: { dueItemId: due.id, amountKobo: due.amountKobo }, expectedRevision: connectedRevision(state) }), /on hold while Finance reviews an earlier reversal decision again/);
   const intent = makeRecord(state, "connected-intents", { name: "Earlier checkout", status: "created", customerId: due.customerId, amountKobo: due.amountKobo, data: { dueItemId: due.id, expiresAt: wat("2027-07-03T10:10:00"), events: [] } });
-  assert.throws(() => runConnectedAction(state, finance, { action: "payment.authorise", reason: "Continue checkout", recordId: intent.id, data: {}, expectedRevision: connectedRevision(state) }), /renewed Finance review/);
+  assert.throws(() => runConnectedAction(state, finance, { action: "payment.authorise", reason: "Continue checkout", recordId: intent.id, data: {}, expectedRevision: connectedRevision(state) }), /on hold while Finance reviews an earlier reversal decision again/);
   intent.status = "pending"; // An earlier authorised checkout can still deliver evidence while the hold exists.
   runConnectedAction(state, finance, { action: "payment.outcome", reason: "Existing checkout receipt", recordId: intent.id, data: { outcome: "confirmed" }, expectedRevision: connectedRevision(state) });
   const receipt = recordsOf(state, "payments").find((record) => record.id === intent.data.paymentId)!;
@@ -83,8 +83,8 @@ for (const code of ["provider_state_adopted", "platform_state_confirmed", "escal
   assert.equal(review.status, "open");
   assert.equal(payment.data.allocatedKobo, 0);
   assert.equal(due.status, "in_dispute");
-  assert.throws(() => allocatePayment(state, finance, payment, due, due.amountKobo, "manual", "manual", false), /dispute|renewed Finance review/);
-  assert.throws(() => releaseDispute(state, finance, due, { via: "finance_release", reason: "Attempt to bypass review" }), /renewed reversal review/);
+  assert.throws(() => allocatePayment(state, finance, payment, due, due.amountKobo, "manual", "manual", false), /dispute|on hold while Finance reviews an earlier reversal decision again/);
+  assert.throws(() => releaseDispute(state, finance, due, { via: "finance_release", reason: "Attempt to bypass review" }), /on hold while Finance reviews an earlier reversal decision again/);
   assert.throws(() => executeAction(structuredClone(state), ctxAt(now, "Operations"), { action: "resolve_exception", recordId: review.id, reason: "Attempt to bypass Finance", data: { resolutionCode: "provider_state_adopted" } }), (error: any) => error.status === 403);
   resolve(state, review, "provider_state_adopted");
   run(state); run(state);
@@ -356,7 +356,7 @@ function heldLine(state: DomainState, batch: TypedRecord<"settlement-batches">, 
   assert.deepEqual([own.line.data.providerIdentityHeld, elsewhere.line.data.providerIdentityHeld, elsewhere.line.data.settlementBatchId, theirs?.data.providerIdentityKey, theirs?.data.lineObservationIds], [undefined, undefined, theirs?.id, JSON.stringify(["sandbox rail", "B-1"]), [elsewhere.line.id]], "a held line of another connection is counted in that connection's own batch");
   assert.deepEqual([hold.status, hold.data.resolutionCode], ["closed", "condition_cleared"], "the hold's exception closes as its condition cleared");
   assert.equal(answer.data.settlementProviderIdentityReleases, 1);
-  assert.match(String(answer.data.auditNote), /Released settlement batch B-1 from its provider identity hold, as its evidence names one provider connection, Sandbox Rail Settlements, which no other batch claims; 2 settlement lines it held meanwhile, never counted, were read as new lines are\./);
+  assert.match(String(answer.data.auditNote), /Released settlement batch B-1 from its provider identity hold: all its evidence now comes from Sandbox Rail Settlements, and no other batch claims it; 2 settlement lines held meanwhile are now counted as new lines\./);
   const saved = JSON.stringify(state.records.filter((item) => item.kind === "settlement-batches" || item.kind === "observations"));
   const again = run(state);
   assert.equal(JSON.stringify(state.records.filter((item) => item.kind === "settlement-batches" || item.kind === "observations")), saved, "the release happens once");
@@ -415,7 +415,7 @@ function refusal(state: DomainState, exception: TypedRecord<"exceptions">, role:
   try { confirm(structuredClone(state), structuredClone(exception), role, data, at); } catch (error) { return [(error as { status?: number }).status ?? 400, (error as Error).message]; }
   return [200, ""];
 }
-const onlyConfirmation = /^Resolution code must be provider_identity_confirmed: a settlement batch held for its provider identity is released only when Finance or an administrator confirms whose payout it is\. If the providers cannot attribute the payout to one connection, leave this exception open until the data owner repairs the evidence/;
+const onlyConfirmation = /^Choose ‘Connection confirmed’: this settlement batch stays held until Finance or an Admin confirms whose payout it is\. If the providers cannot say which connection it belongs to, leave this exception open until the data owner corrects the evidence\./;
 {
   // Decision: the hold's exception offers and accepts only provider_identity_confirmed, the one code that decides it. The
   // settlement codes would close it while the batch stays held with its evidence uncounted, with no way out.
@@ -430,7 +430,7 @@ const onlyConfirmation = /^Resolution code must be provider_identity_confirmed: 
     assert.match(message, onlyConfirmation, `${code}: the refusal names the one code allowed`);
   }
   for (const data of [{ confirmedProviderIdentity: identityOf("connection-a") }, { resolutionCode: "accepted_variance" }]) assert.equal(refusal(state, hold, "Operations", data)[0], 403, "only Admin or Finance resolves the hold");
-  assert.deepEqual(refusal(state, hold, "Finance", { confirmedProviderIdentity: identityOf("connection-c") }), [400, `Choose one of the identities settlement batch SHARED was held for: ${identityOf("connection-a")}, ${identityOf("connection-b")}.`], "an identity the batch was not held for is refused");
+  assert.deepEqual(refusal(state, hold, "Finance", { confirmedProviderIdentity: identityOf("connection-c") }), [400, "Choose one of the connections settlement batch SHARED was held for: connection-a or connection-b."], "an identity the batch was not held for is refused");
   assert.equal(refusal(state, hold, "Finance", {})[0], 400, "the identity is required");
   assert.equal(refusal(state, hold, "Admin", { confirmedProviderIdentity: identityOf("connection-a") })[0], 200, "an administrator may confirm it");
 }
@@ -445,8 +445,8 @@ const onlyConfirmation = /^Resolution code must be provider_identity_confirmed: 
   const release = batch.data.providerIdentityRelease as Record<string, unknown>;
   assert.deepEqual([release.identity, release.confirmedBy, batch.data.providerIdentityKey, batch.status, own.status], [identityOf("connection-a"), undefined, identityOf("connection-a"), "reconciled", "reconciled"], "the repaired batch is released as the one connection its evidence names, and both payouts reconcile");
   assert.deepEqual([hold.status, hold.data.resolutionCode, answer.data.settlementProviderIdentityReleases], ["closed", "condition_cleared", 1], "the hold's exception closes as its condition cleared");
-  assert.match(String((hold.data.conditionCleared as { reason: string }).reason), /names one provider connection, connection-a, which no other batch claims/);
-  assert.match(String(answer.data.auditNote), /Released settlement batch SHARED from its provider identity hold, as its evidence names one provider connection, connection-a, which no other batch claims\./);
+  assert.match(String((hold.data.conditionCleared as { reason: string }).reason), /all the evidence of settlement batch SHARED now comes from connection-a, and no other batch claims it/);
+  assert.match(String(answer.data.auditNote), /Released settlement batch SHARED from its provider identity hold: all its evidence now comes from connection-a, and no other batch claims it\./);
   const saved = kinds(state);
   run(state);
   assert.equal(kinds(state), saved, "reconciling again changes nothing");
@@ -465,7 +465,7 @@ const onlyConfirmation = /^Resolution code must be provider_identity_confirmed: 
   run(state);
   assert.deepEqual([batch.status, batch.data.providerIdentityRelease !== undefined, hold.status], ["reconciled", true, "open"], "the batch is released, and the exception stays open for the report it carries");
   assert.match(String(hold.data.notes), /so its provider identity hold is released\. It stays open for the collection the provider reports in two batches/);
-  assert.deepEqual(refusal(state, hold, "Finance", { confirmedProviderIdentity: identityOf("connection-a") }), [409, "This settlement batch is no longer held for its provider identity. Refresh the exception to see where it stands."], "a confirmation, as from a dialog open while the batch was released, is told to refresh");
+  assert.deepEqual(refusal(state, hold, "Finance", { confirmedProviderIdentity: identityOf("connection-a") }), [409, "This settlement batch is no longer on hold for its provider identity. Reload the page to see where it stands."], "a confirmation, as from a dialog open while the batch was released, is told to refresh");
   assert.deepEqual(resolutionCodesForException(hold, { identityHeld: false }), ["fee_schedule_updated", "provider_corrected", "accepted_variance"], "the codes it offers now are the settlement codes");
   transaction(state, () => executeAction(state, finance, { action: "resolve_exception", recordId: hold.id, reason: "Both payouts checked with the provider.", data: { resolutionCode: "accepted_variance" } }));
   run(state); run(state);
@@ -510,9 +510,9 @@ const onlyConfirmation = /^Resolution code must be provider_identity_confirmed: 
     const [review] = reviewsOf();
     assert.deepEqual([review!.status, review!.name, review!.data.type, review!.data.owner, review!.data.condition], ["open", "Review earlier settlement identity decision", "settlement_variance", "Finance", `settlement_variance:${batch.id}:provider_identity:review:${earlier.id}`], `${shape}: a Finance-owned settlement variance names the earlier exception`);
     assert.deepEqual(review!.data.legacyIdentityReview, { priorExceptionId: earlier.id, priorStatus: earlier.status, priorResolutionCode: earlier.data.resolutionCode, priorResolvedBy: "Earlier Finance", priorResolvedAt: earlier.data.resolvedAt }, `${shape}: it records the earlier decision`);
-    assert.match(String(review!.data.notes), /That resolution keeps its meaning, but the batch stays held until Finance or an administrator confirms whose payout it is\./, `${shape}: its notes say what the earlier resolution means now`);
+    assert.match(String(review!.data.notes), /That decision stands, but the batch stays on hold until Finance or an Admin confirms whose payout it is\./, `${shape}: its notes say what the earlier resolution means now`);
     assert.deepEqual([resolutionCodesForException(review), answer.data.settlementProviderIdentityReviews], [["provider_identity_confirmed"], 1], `${shape}: its only code is the confirmation`);
-    assert.match(String(answer.data.auditNote), /Raised a renewed Finance review for 1 settlement batch still held for its provider identity/);
+    assert.match(String(answer.data.auditNote), /Raised a renewed Finance review for 1 settlement batch still on hold for its provider identity/);
     assert.deepEqual(earlier, decided, `${shape}: the earlier resolution is kept as it was recorded`);
     run(state); run(state);
     assert.equal(reviewsOf().length, 1, `${shape}: no second review while one is open`);
@@ -557,7 +557,7 @@ function duplicateBatches(merchantId: string) {
   const { state } = liveFixture({ withFailure: false, merchantId: "duplicate-reference" });
   addObservation(state, { reference: "PAY-1", amountKobo: 99_500, grossAmountKobo: 100_000, feeKobo: 500, batchReference: "R-1", source: "settlement", eventId: "l1", occurredAt: wat("2027-07-01T08:00:00"), providerConnection: "connection-a" } as any);
   run(state);
-  const duplicate = /^Another settlement batch already has this reference\. A batch is one provider connection's payout/;
+  const duplicate = /^Another settlement batch already has this reference\. Each batch is one provider connection’s payout/;
   const refusedWith409 = (run: () => unknown) => assert.throws(run, (error) => (error as { status?: number }).status === 409 && duplicate.test((error as Error).message));
   const hand = () => ({ name: "Settlement batch R-1B", status: "pending", reference: "R-1B", amountKobo: 0, customerId: "", data: { batchReference: "R-1B", provider: "connection-a", grossKobo: 100_000, feeKobo: 500, netKobo: 99_500 } });
   refusedWith409(() => validateRecord(state, finance, "settlement-batches", { ...hand(), reference: "R-1", data: { ...hand().data, batchReference: "R-1" } }));
@@ -588,9 +588,9 @@ function duplicateBatches(merchantId: string) {
   const { state, built, typed, holdOf } = duplicateBatches("duplicate-identity");
   assert.deepEqual([built.status, !!built.data.providerIdentityReview, typed.status, !!typed.data.providerIdentityReview], ["variance", true, "variance", true], "both batches are held");
   assert.deepEqual([built.data.providerIdentityClaimedBy, typed.data.providerIdentityClaimedBy], [[{ identity: idR1, batchId: typed.id, reference: "R-1", handEntered: true }], [{ identity: idR1, batchId: built.id, reference: "R-1", handEntered: false }]], "each records the other batch that claims its identity");
-  const collision = (other: string) => `Settlement batch R-1 cannot be confirmed as this payout: settlement batch R-1, ${other} also records or claims the payout of connection-a (${idR1}). A confirmation settles which connection's payout a batch is, not a collision between two batches: the data owner corrects the duplicate batch's reference or provider, and the next reconciliation then releases the genuine batch.`;
+  const collision = (other: string) => `Settlement batch R-1 cannot be confirmed as this payout: settlement batch R-1, ${other} also records or claims the payout of connection-a. Confirming whose payout a batch is does not settle two batches claiming the same payout: the lender’s data owner must correct the duplicate batch’s reference or provider. The next reconciliation then releases the right batch.`;
   assert.deepEqual(refusal(state, holdOf(built)!, "Finance", { confirmedProviderIdentity: idR1 }), [409, collision("entered by hand")], "the provider's batch cannot be confirmed as the payout the copy also claims");
-  assert.deepEqual(refusal(state, holdOf(typed)!, "Finance", { confirmedProviderIdentity: idR1 }), [409, collision("built from the provider's lines")], "nor can the copy");
+  assert.deepEqual(refusal(state, holdOf(typed)!, "Finance", { confirmedProviderIdentity: idR1 }), [409, collision("built from the provider’s lines")], "nor can the copy");
   run(state);
   const saved = kinds(state);
   run(state);
@@ -616,10 +616,10 @@ function duplicateBatches(merchantId: string) {
   }
   const answer = run(state);
   assert.deepEqual([identityHeldOf(built), identityHeldOf(typed), answer.data.settlementProviderIdentityReleases], [true, true, undefined], "neither confirmation is applied");
-  for (const [batch, other] of [[built, "entered by hand"], [typed, "built from the provider's lines"]] as const) {
+  for (const [batch, other] of [[built, "entered by hand"], [typed, "built from the provider’s lines"]] as const) {
     const open = holdOf(batch)!;
     assert.ok(open && ![builtHold.id, typedHold.id].includes(open.id), "the batch has a new open exception for its hold");
-    assert.match(String(open.data.notes), new RegExp(`Update on .* \\(WAT\\): the confirmation recorded on exception .*, of settlement batch R-1 as the payout of connection-a, was not applied: settlement batch R-1, ${other} also records or claims the payout of connection-a`));
+    assert.match(String(open.data.notes), new RegExp(`Update on [^:]*: the confirmation recorded on exception .*, of settlement batch R-1 as the payout of connection-a, was not carried out: settlement batch R-1, ${other} also records or claims the payout of connection-a`));
   }
   assert.deepEqual([builtHold.status, typedHold.status, builtHold.data.resolutionCode], ["resolved", "resolved", "provider_identity_confirmed"], "the decisions are kept as they were recorded");
   const saved = kinds(state);
@@ -676,7 +676,7 @@ function duplicateBatches(merchantId: string) {
   runAt(state, wat("2027-07-04T10:00:00"));
   const copyHold = exceptionsOf(state, copy).find((item) => item.status === "open" && item.data.condition === `settlement_variance:${copy.id}:provider_identity`)!;
   assert.deepEqual([identityHeldOf(batch), identityHeldOf(copy), copy.data.providerIdentityClaimedBy], [false, true, [{ identity: identityOf("connection-a"), batchId: batch.id, reference: "SHARED", handEntered: false }]]);
-  assert.match(refusal(state, copyHold, "Finance", { confirmedProviderIdentity: identityOf("connection-a") }, wat("2027-07-04T11:00:00"))[1], /cannot be confirmed as this payout: settlement batch SHARED, built from the provider's lines also records or claims the payout of connection-a/);
+  assert.match(refusal(state, copyHold, "Finance", { confirmedProviderIdentity: identityOf("connection-a") }, wat("2027-07-04T11:00:00"))[1], /cannot be confirmed as this payout: settlement batch SHARED, built from the provider’s lines also records or claims the payout of connection-a/);
 }
 {
   // Decision on a later hold: the release it ends stays in the batch's history, a confirmation of the earlier hold does not
@@ -695,7 +695,7 @@ function duplicateBatches(merchantId: string) {
   const again = exceptionsOf(state, batch).filter((item) => item.data.condition === `settlement_variance:${batch.id}:provider_identity` && item.status === "open");
   assert.equal(again.length, 1, "the new hold has an open exception of its own");
   // The batch records its identity, which the store keeps, so only that identity can be confirmed now.
-  assert.deepEqual(refusal(state, again[0]!, "Finance", { confirmedProviderIdentity: identityOf("connection-b") }), [400, `Choose one of the identities settlement batch SHARED was held for: ${identityOf("connection-a")}.`]);
+  assert.deepEqual(refusal(state, again[0]!, "Finance", { confirmedProviderIdentity: identityOf("connection-b") }), [400, "Choose one of the connections settlement batch SHARED was held for: connection-a."]);
   confirm(state, again[0]!, "Finance", { confirmedProviderIdentity: identityOf("connection-a") }, after);
   runAt(state, after);
   const second = batch.data.providerIdentityRelease as Record<string, unknown>;
@@ -711,7 +711,7 @@ function duplicateBatches(merchantId: string) {
   confirm(state, hold, "Finance", { confirmedProviderIdentity: identityOf("connection-a") });
   const answer = run(state);
   assert.deepEqual([batch.data.grossKobo, batch.data.feeKobo, batch.data.netKobo, batch.data.expectedFeeKobo, batch.data.feeVarianceKobo], [200_000, 1_100, 198_900, 500, 600], "the typed totals stay and the moved line's expected fee leaves the batch");
-  assert.match(String(answer.data.auditNote), /Its gross, fee and net were typed by hand, so they were left as typed and only the expected fee of the lines that moved was taken out/);
+  assert.match(String(answer.data.auditNote), /Its amounts before fees, fee and after fees were typed by hand, so they were left as typed\. Only the expected fee of the lines that moved was taken out/);
   Object.assign(batch.data, { grossKobo: 100_000, feeKobo: 500, netKobo: 99_500 }); // Finance corrects the typed totals.
   run(state);
   assert.deepEqual([batch.data.feeVarianceKobo, batch.status], [0, "reconciled"]);
@@ -785,7 +785,7 @@ function holdAsPr61(review: TypedRecord<"exceptions">, dues: TypedRecord<"due-it
   run(held.state); run(held.state);
   assert.deepEqual([held.due.status, final.status, collectable.status, pauseOf(collectable)?.status], ["paid", "unpaid_final", "in_dispute", "in_collection"], "a paid or finally unpaid instalment keeps its status; a collectable one is paused with the status it had");
   assert.deepEqual([held.due, final, collectable].map((due) => due.data.legacyReversalReviewIds), [[reviewOf(held.state).id], [reviewOf(held.state).id], [reviewOf(held.state).id]], "each is still held");
-  for (const due of [held.due, final, collectable]) assert.throws(() => releaseDispute(structuredClone(held.state), finance, structuredClone(due), { via: "finance_release", reason: "Bypass" }), /renewed reversal review/);
+  for (const due of [held.due, final, collectable]) assert.throws(() => releaseDispute(structuredClone(held.state), finance, structuredClone(due), { via: "finance_release", reason: "Bypass" }), /on hold while Finance reviews an earlier reversal decision again/);
   resolve(held.state, reviewOf(held.state), "provider_state_adopted");
   const answer = run(held.state); run(held.state); run(held.state);
   assert.deepEqual([collectable.status, pauseOf(collectable), collectable.data.legacyReversalReviewIds, collectable.data.disputeRelease], ["in_collection", undefined, undefined, undefined], "the collectable instalment gets exactly its status back, with no release");
@@ -864,7 +864,7 @@ function reversalElsewhere(merchantId: string) {
   run(state);
   const review = reviewOf(state);
   assert.deepEqual([review.status, holdsOf(payment), holdsOf(due), due.status, pauseOf(due)?.status], ["open", [review.id], [review.id], "in_dispute", "scheduled"], "the payment an adoption would reverse, and the instalment its evidence names, are held");
-  assert.throws(() => transaction(state, () => allocatePayment(state, finance, payment, due, due.amountKobo, "manual", "manual", false)), /held for renewed Finance review/);
+  assert.throws(() => transaction(state, () => allocatePayment(state, finance, payment, due, due.amountKobo, "manual", "manual", false)), /on hold while Finance reviews an earlier reversal decision again/);
   resolve(state, review, "provider_state_adopted");
   run(state); run(state);
   assert.deepEqual([payment.data.reversalStatus, reversal.data.paymentId, reversal.data.resolutionKey, due.status, holdsOf(payment), holdsOf(due), pauseOf(due)], ["reversed", payment.id, "adopted_after_review", "scheduled", undefined, undefined, undefined], "adopted, the reversal reverses that payment, which was never applied, and the instalment gets its status back");

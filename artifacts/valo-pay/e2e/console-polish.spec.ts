@@ -42,27 +42,27 @@ test("focus follows Edit, Cancel and Save on Settings instead of falling to the 
   await expect.poll(() => focused(page)).toMatchObject({ tag: "button", text: "Edit" });
   await page.keyboard.press("Enter");
   await page.getByLabel("Lender contact details for customer notices").pressSequentially(" (updated)");
-  await page.getByRole("button", { name: "Save", exact: true }).focus();
+  await page.getByRole("button", { name: "Save changes", exact: true }).focus();
   await page.keyboard.press("Enter");
   await expect(page.getByText("Settings saved").first()).toBeVisible();
   await expect.poll(() => focused(page)).toMatchObject({ tag: "button", text: "Edit" });
 });
 
-test("a pay-by-bank step that removes its button moves focus to what it did", async ({ page }) => {
+test("a Pay by Bank step that removes its button moves focus to what it did", async ({ page }) => {
   await page.goto("/pay-by-bank");
-  await page.getByRole("button", { name: /Create sample checkout/ }).click();
-  await page.getByRole("button", { name: "Review & authorise" }).click();
+  await page.getByRole("button", { name: /Create checkout/ }).click();
+  await page.getByRole("button", { name: "Simulate authorisation" }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel("Reason").fill("Review sample payment details");
-  await dialog.getByRole("button", { name: "Confirm sample action" }).click();
-  const browserReturn = page.getByRole("button", { name: "Simulate browser return" });
+  await dialog.getByRole("button", { name: "Simulate authorisation" }).click();
+  const browserReturn = page.getByRole("button", { name: "Simulate return from bank" });
   await browserReturn.focus();
   await page.keyboard.press("Enter");
   await expect(browserReturn).toHaveCount(0);
-  await expect.poll(() => focused(page)).toMatchObject({ tag: "p", text: expect.stringMatching(/^Browser return recorded\./) });
+  await expect.poll(() => focused(page)).toMatchObject({ tag: "p", text: expect.stringMatching(/^Return from the bank recorded\./) });
 });
 
-test("a decision on Team & access moves focus to what it did, and a staff administrator is still warned", async ({ page }) => {
+test("a decision on Team and access moves focus to what it did, and a staff administrator is still warned", async ({ page }) => {
   // Console review of 24 September, item 3, with the staff answers at the network edge.
   await staffAdministrator(page);
   const member = (id: string, name: string, role: string, expiresAt: string) => ({ id, actor: `Clerk:user_${id}`, name, role, status: "active", expiresAt, updatedAt: inDays(-1), lenderIds: [], allLenders: role === "Admin" });
@@ -77,14 +77,14 @@ test("a decision on Team & access moves focus to what it did, and a staff admini
     if (kind === "invitations") { invitations = []; return route.fulfill({ json: { message: "Invitation approved: finance.new@example.test can now accept it as Finance." } }); }
     const request = changes.find((item) => item.id === id)!;
     changes = changes.filter((item) => item !== request);
-    if (decision === "decline") return route.fulfill({ json: { message: "Change request declined. The membership is unchanged." } });
+    if (decision === "decline") return route.fulfill({ json: { message: "Change request declined. Their access has not changed." } });
     return route.fulfill({ json: { id: request.memberId, actor: `Clerk:user_${request.memberId}`, name: request.name, role: request.to.role, status: "active", expiresAt: inDays(80), updatedAt: new Date().toISOString(), message: `Change approved: ${request.name} is now ${request.to.role} (active).`, pendingChange: null } });
   });
   await page.goto("/team");
   // Administrator A's access ends within 14 days: the warning's code loads for a staff administrator.
-  await expect(page.getByRole("status", { name: "Administrator access" })).toContainText("Your administrator access ends on");
-  const panel = page.locator("section").filter({ has: page.getByRole("heading", { name: "Waiting for a second administrator" }) });
-  for (const [name, said] of [["Approve invitation", /^Invitation approved/], ["Approve change", /^Change approved: Chidi Ops/], ["Decline change", /^Change request declined/]] as const) {
+  await expect(page.getByRole("status", { name: "Admin access" })).toContainText("Your Admin access ends on");
+  const panel = page.locator("section").filter({ has: page.getByRole("heading", { name: "Waiting for a second Admin" }) });
+  for (const [name, said] of [["Approve invitation", /^Invitation approved/], ["Approve change", /^Change approved: Chidi Ops/], ["Reject change", /^Change request declined/]] as const) {
     const count = await panel.getByRole("button", { name }).count();
     await panel.getByRole("button", { name }).first().focus();
     await page.keyboard.press("Enter");
@@ -143,18 +143,18 @@ test("loading and error states keep an h1", async ({ page }) => {
   await expect(page.getByRole("status").filter({ hasText: "Loading your workspace…" })).toBeVisible();
   expect(await headingOne(page)).toEqual([]);
   release();
-  await expect(page.getByRole("heading", { level: 1, name: "Operations overview" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
   await page.unroute("**/api/v1/workspace");
 
   // A page whose first load failed, with nothing to show.
   for (const [route, api, problem] of [
-    ["/overview", "**/api/v1/overview?*", "Unable to load the overview"],
-    ["/pay-by-bank", "**/api/v1/connected?*", "Unable to load pay-by-bank"],
-    ["/credit-desk", "**/api/v1/connected?*", "Unable to load Credit Desk"],
-    ["/cash-desk", "**/api/v1/connected?*", "Unable to load Cash Desk"],
-    ["/connections", "**/api/v1/connected?*", "Unable to load permissions"],
+    ["/overview", "**/api/v1/overview?*", "We could not load the overview"],
+    ["/pay-by-bank", "**/api/v1/connected?*", "We could not load Pay by Bank"],
+    ["/credit-desk", "**/api/v1/connected?*", "We could not load Credit Desk"],
+    ["/cash-desk", "**/api/v1/connected?*", "We could not load Cash Desk"],
+    ["/connections", "**/api/v1/connected?*", "We could not load Permissions and readiness"],
   ] as const) {
-    await page.route(api, (request) => request.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ error: "Lender not found in this workspace.", requestId: "browser-missing" }) }));
+    await page.route(api, (request) => request.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ error: "Lender not found. Reload the page and choose a lender from the list.", requestId: "browser-missing" }) }));
     await page.goto(route);
     await expect(page.getByText(problem)).toBeVisible();
     expect(await page.locator("h1").count(), route).toBe(1);
@@ -187,7 +187,7 @@ test("the anonymous sandbox on a host without sign-in never fetches Clerk's code
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   await page.goto("/overview");
-  await expect(page.getByRole("heading", { level: 1, name: "Operations overview" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
   // The console fetches every page's code while the browser is idle, Team & access among them.
   await expect.poll(() => [...scripts].some((url) => /\/team-[\w-]+\.js$/.test(url)), { timeout: 15_000 }).toBe(true);
   await page.waitForLoadState("networkidle");
@@ -201,7 +201,7 @@ test("the landing page and the anonymous sandbox carry no shared schemas, zod or
   const scripts = new Set<string>();
   page.on("request", (sent) => { if (sent.resourceType() === "script" || sent.url().endsWith(".js")) scripts.add(sent.url()); });
   // Text the minifier keeps: zod's type names, a message of the shared record schemas and the warning's heading.
-  const signatures = { zod: /ZodObject/, "shared schemas": /Use YYYY-MM-DD or a UTC timestamp/, "administrator warning": /Administrator access is ending/ };
+  const signatures = { zod: /ZodObject/, "shared schemas": /Use YYYY-MM-DD or a UTC timestamp/, "administrator warning": /Admin access is ending/ };
   const entryCarries = async (route: string) => {
     const entry = await page.locator('script[type="module"][src]').getAttribute("src");
     const code = await (await request.get(entry!)).text();
@@ -211,7 +211,7 @@ test("the landing page and the anonymous sandbox carry no shared schemas, zod or
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   expect(await entryCarries("/")).toEqual([]);
   await page.goto("/overview");
-  await expect(page.getByRole("heading", { level: 1, name: "Operations overview" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
   expect(await entryCarries("/overview")).toEqual([]);
   // The console fetches every page's code while idle; none of it is the warning, which only a staff administrator loads.
   await expect.poll(() => [...scripts].some((url) => /\/team-[\w-]+\.js$/.test(url)), { timeout: 15_000 }).toBe(true);
@@ -242,7 +242,7 @@ const focusFell = (page: Page) => page.evaluate(() => (window as unknown as { fo
  */
 async function pageToTheEnd(page: Page, path: string, label: string) {
   await page.goto(path);
-  const pager = page.getByRole("navigation", { name: `${label} pagination` });
+  const pager = page.getByRole("navigation", { name: `Pages of ${label}` });
   const next = pager.getByRole("button", { name: `Next page of ${label}` });
   const pages = Number((await pager.getByText(/^Page 1 of [\d,]+$/).innerText()).replace(/^Page 1 of |,/g, ""));
   expect(pages, path).toBeGreaterThan(2);
@@ -312,8 +312,8 @@ test("paging either picker by keyboard keeps the focus on the pager control pres
   expect((await request.post(`/api/v1/imports?merchantId=${lender}`, { data: { kind: "customers", csv: "name,reference,consentProvenance,bankName,accountMasked\n" + rows.join("\n"), mapping: {}, identityColumn: "reference", syntheticOnly: true, commit: true } })).ok()).toBeTruthy();
   await page.route(/\/api\/v1\/records\/(customers|due-items)\?/, async (route) => { await pause(700); await route.fallback(); });
   for (const { path, open, dialog: name, label } of [
-    { path: "/mandates", open: () => page.getByRole("button", { name: "Create synthetic mandate" }).first().click(), dialog: "Create synthetic mandate", label: "customer choices" },
-    { path: "/reconciliation", open: () => page.getByRole("row").filter({ hasText: "SBX-UNIDENTIFIED-001" }).getByRole("button", { name: "Allocate", exact: true }).click(), dialog: "Allocate payment", label: "instalment choices" },
+    { path: "/mandates", open: () => page.getByRole("button", { name: "Add mandate" }).first().click(), dialog: "Add mandate", label: "customer choices" },
+    { path: "/reconciliation", open: () => page.getByRole("row").filter({ hasText: "SBX-UNIDENTIFIED-001" }).getByRole("button", { name: "Allocate payment", exact: true }).click(), dialog: "Allocate payment", label: "instalment choices" },
   ]) {
     await page.goto(path);
     await open();
@@ -355,7 +355,7 @@ test("paging either picker with its form complete, or pressing Enter in its sear
     await expect(dialog).toBeVisible();
   }
   await page.goto("/reconciliation");
-  await page.getByRole("row").filter({ hasText: "SBX-UNIDENTIFIED-001" }).getByRole("button", { name: "Allocate", exact: true }).click();
+  await page.getByRole("row").filter({ hasText: "SBX-UNIDENTIFIED-001" }).getByRole("button", { name: "Allocate payment", exact: true }).click();
   const allocation = page.getByRole("dialog", { name: "Allocate payment" });
   await expect(allocation.getByText(/^1–25 of [\d,]+ instalment choices$/)).toBeVisible();
   await allocation.getByLabel(/^Instalment/).selectOption({ index: 1 });
@@ -364,8 +364,8 @@ test("paging either picker with its form complete, or pressing Enter in its sear
   await lookFurther(allocation, "instalment choices", "Find an instalment", "BROWSER-DUE-1");
 
   await page.goto("/mandates");
-  await page.getByRole("button", { name: "Create synthetic mandate" }).first().click();
-  const mandate = page.getByRole("dialog", { name: "Create synthetic mandate" });
+  await page.getByRole("button", { name: "Add mandate" }).first().click();
+  const mandate = page.getByRole("dialog", { name: "Add mandate" });
   await expect(mandate.getByText(/^1–25 of [\d,]+ customer choices$/)).toBeVisible();
   await mandate.locator("#mandate-customerId").selectOption({ index: 1 });
   await mandate.getByLabel(/Mandate name/).fill("Mandate made by paging");
@@ -418,7 +418,7 @@ test("confirming Revoke access moves focus to what the revocation did once it is
   await page.goto("/team");
   const card = page.locator("article").filter({ has: page.getByRole("heading", { name: "Chidi Ops" }) });
   await card.getByLabel("Access for Chidi Ops").selectOption("revoked");
-  await card.getByLabel("Reason for changing Chidi Ops").fill("Left the pilot team this week");
+  await card.getByLabel("Reason for changing Chidi Ops’s access").fill("Left the pilot team this week");
   await card.getByRole("button", { name: "Save access change" }).focus();
   await page.keyboard.press("Enter");
   const dialog = page.getByRole("dialog", { name: "Revoke Chidi Ops’s access?" });
@@ -428,7 +428,7 @@ test("confirming Revoke access moves focus to what the revocation did once it is
   // While the answer is on its way (1.5 s), focus waits on the page's main region, never on the body.
   await expect.poll(() => focused(page), { timeout: 1000 }).toMatchObject({ tag: "main", id: "main" });
   await expect.poll(() => focused(page)).toMatchObject({ tag: "p", text: expect.stringMatching(/^Chidi Ops’s access is revoked\./) });
-  await expect(card.getByText(/^Operations · revoked/)).toBeVisible();
+  await expect(card.getByText(/^Operations · Revoked/)).toBeVisible();
   await expect.poll(() => focused(page)).toMatchObject({ tag: "p", text: expect.stringMatching(/^Chidi Ops’s access is revoked\./) });
 });
 
@@ -443,7 +443,7 @@ const badGateway = { status: 502, contentType: "text/html", body: "<html>Bad gat
 async function tryAgainKeepsFocus(page: Page, scope: Page | Locator, label: string, answer: { failing: boolean }) {
   await scope.getByRole("button", { name: `Next page of ${label}` }).focus();
   await page.keyboard.press("Enter");
-  const retry = scope.getByRole("alert").filter({ hasText: `Unable to load ${label}` }).getByRole("button", { name: "Try again" });
+  const retry = scope.getByRole("alert").filter({ hasText: `We could not load ${label}` }).getByRole("button", { name: "Try again" });
   await expect(retry).toBeFocused({ timeout: 15_000 });
   await page.keyboard.press("Enter");
   await expect(retry).toHaveCount(0);
@@ -463,8 +463,8 @@ test("a failed page of the allocation picker moves focus to its own notice, insi
     return answer.failing ? route.fulfill(badGateway) : route.fallback();
   });
   await page.goto("/reconciliation");
-  await expect(page.getByText(/^Proposed matches could not be loaded/)).toBeVisible();
-  await page.getByRole("row").filter({ hasText: "SBX-UNIDENTIFIED-001" }).getByRole("button", { name: "Allocate", exact: true }).click();
+  await expect(page.getByText(/^We could not load matches to review/)).toBeVisible();
+  await page.getByRole("row").filter({ hasText: "SBX-UNIDENTIFIED-001" }).getByRole("button", { name: "Allocate payment", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Allocate payment" });
   await expect(dialog.getByText(/^1–25 of [\d,]+ instalment choices$/)).toBeVisible();
   await tryAgainKeepsFocus(page, dialog, "instalment choices", answer);
@@ -501,7 +501,7 @@ for (const how of ["refused", "lost"] as const) test(`a ${how} Save lender acces
   await page.goto("/team");
   const card = page.locator("article").filter({ has: page.getByRole("heading", { name: "Chidi Ops" }) });
   await card.getByRole("checkbox", { checked: false }).first().check();
-  await card.getByLabel("Reason for lender access change for Chidi Ops").fill("Needs the second lender for cover");
+  await card.getByLabel("Reason for changing Chidi Ops’s lenders").fill("Needs the second lender for cover");
   const save = card.getByRole("button", { name: "Save lender access" });
   await save.focus();
   await page.keyboard.press("Enter");
@@ -509,7 +509,7 @@ for (const how of ["refused", "lost"] as const) test(`a ${how} Save lender acces
   // the disabled button is made to do the same, so every browser checks where it goes from there.
   await expect(save).toBeDisabled();
   await page.evaluate(() => { const active = document.activeElement as HTMLElement | null; if (active?.matches(":disabled")) active.blur(); });
-  const notice = card.getByRole("alert").filter({ hasText: how === "refused" ? "This membership changed after you opened it." : "Outcome not confirmed" }).first();
+  const notice = card.getByRole("alert").filter({ hasText: how === "refused" ? "This membership changed after you opened it." : "Request not confirmed" }).first();
   await expect(notice).toBeVisible();
   await expect(notice).toBeFocused();
 });
@@ -528,12 +528,12 @@ test("an invitation's answer takes the focus, not a member's Save lender access 
   });
   await page.route(/\/api\/v1\/team\/invitations$/, async (route) => {
     await slowly();
-    return route.fulfill({ status: 201, json: { id: "inv-1", token: "a".repeat(64), approval: "not_required", message: "Invitation created. Share the link directly with this person; no email has been sent. It expires in seven days." } });
+    return route.fulfill({ status: 201, json: { id: "inv-1", token: "a".repeat(64), approval: "not_required", message: "Invitation created. No email has been sent, so share the link with this person yourself. It expires in 7 days." } });
   });
   await page.goto("/team");
   const card = page.locator("article").filter({ has: page.getByRole("heading", { name: "Chidi Ops" }) });
   await card.getByRole("checkbox", { checked: false }).first().check();
-  await card.getByLabel("Reason for lender access change for Chidi Ops").fill("Needs the second lender for cover");
+  await card.getByLabel("Reason for changing Chidi Ops’s lenders").fill("Needs the second lender for cover");
   const save = card.getByRole("button", { name: "Save lender access" });
   await save.focus();
   await page.keyboard.press("Enter");
@@ -550,5 +550,5 @@ test("an invitation's answer takes the focus, not a member's Save lender access 
   // The button waits disabled for the answer; a browser that leaves the focus on it is made to drop it to the page body.
   await expect(create).toBeDisabled();
   await page.evaluate(() => { const active = document.activeElement as HTMLElement | null; if (active?.matches(":disabled")) active.blur(); });
-  await expect.poll(() => focused(page)).toMatchObject({ tag: "p", text: expect.stringMatching(/^Invitation created\. Share the link directly/) });
+  await expect.poll(() => focused(page)).toMatchObject({ tag: "p", text: expect.stringMatching(/^Invitation created\. No email has been sent, so share the link/) });
 });

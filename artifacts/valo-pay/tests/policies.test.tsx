@@ -12,13 +12,13 @@ describe('policy and template review', () => {
     api.failNext(/^\/v1\/records\/templates$/, { status: 503, error: 'Templates temporarily unavailable.' });
     const user = userEvent.setup();
     renderApp('/policies');
-    const policyAlert = (await screen.findByText('Unable to load retry policies')).closest('[role="alert"]')!;
-    const templateAlert = (await screen.findByText('Unable to load notification templates')).closest('[role="alert"]')!;
+    const policyAlert = (await screen.findByText('We could not load retry policies')).closest('[role="alert"]')!;
+    const templateAlert = (await screen.findByText('We could not load message templates')).closest('[role="alert"]')!;
     expect(screen.queryByText('No retry policies yet')).toBeNull();
-    expect(screen.queryByText('No notification templates yet')).toBeNull();
+    expect(screen.queryByText('No message templates yet')).toBeNull();
     await user.click(within(policyAlert as HTMLElement).getByRole('button', { name: 'Try again' }));
-    await screen.findByText('Version 1');
-    expect(screen.getByText('Unable to load notification templates')).toBeTruthy();
+    await screen.findByText('Standard lender retry policy · version 1');
+    expect(screen.getByText('We could not load message templates')).toBeTruthy();
     await user.click(within(templateAlert as HTMLElement).getByRole('button', { name: 'Try again' }));
     await screen.findByText(/Example Lender: Your payment of ₦25,000.00/);
   });
@@ -31,11 +31,11 @@ describe('policy and template review', () => {
     });
     const user = userEvent.setup();
     renderApp('/policies');
-    const row = (await screen.findByText('Version 2')).closest('.p-6') as HTMLElement;
-    await user.click(within(row).getByRole('button', { name: 'Test this version' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Test this policy version' });
+    const row = (await screen.findByText('Standard lender retry policy · version 2')).closest('.p-6') as HTMLElement;
+    await user.click(within(row).getByRole('button', { name: 'Test retry policy' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Test retry policy' });
     await user.type(within(dialog).getByLabelText('Reason *'), 'What would version 2 do?');
-    await user.click(within(dialog).getByRole('button', { name: 'Run policy simulation' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Test retry policy' }));
     expect(await within(dialog).findByText(/^Version 2 is not approved: this shows what it would do if it were approved and applied\./)).toBeTruthy();
     expect(within(dialog).queryByText('No instalments use this policy yet.')).toBeNull();
     expect(api.calls.find(call => (call.body as { action?: string })?.action === 'backtest_policy')?.body).toMatchObject({ recordId: 'policy-next' });
@@ -50,14 +50,14 @@ describe('policy and template review', () => {
     });
     const user = userEvent.setup();
     renderApp('/policies');
-    await user.click(await screen.findByRole('button', { name: 'Approve' }));
+    await user.click(await screen.findByRole('button', { name: 'Approve policy' }));
     const dialog = await screen.findByRole('dialog', { name: 'Approve policy' });
     expect(within(dialog).getByText(/Previous version: 1/)).toBeTruthy();
     expect(within(dialog).getAllByText('Changed')).toHaveLength(4);
     expect(within(dialog).getByText('This version: 4')).toBeTruthy();
     expect(within(dialog).getAllByText('This version: 72 hours')).toHaveLength(2);
     expect(within(dialog).getByText('This version: 48 hours')).toBeTruthy();
-    expect(within(dialog).getByText(/Example Lender: Your retry rules allow up to 4 attempts/)).toBeTruthy();
+    expect(within(dialog).getByText(/Example Lender: We may try to collect each payment up to 4 times/)).toBeTruthy();
     expect(api.calls.some(call => (call.body as { action?: string })?.action === 'approve_policy')).toBe(false);
     await user.type(within(dialog).getByLabelText('Reason *'), 'Reviewed changes and notice periods.');
     await user.click(within(dialog).getByRole('button', { name: 'Approve policy' }));
@@ -72,12 +72,16 @@ describe('policy and template review', () => {
     });
     const user = userEvent.setup();
     renderApp('/policies');
-    await user.click(await screen.findByRole('button', { name: 'Approve' }));
+    await user.click(await screen.findByRole('button', { name: 'Approve template' }));
     const dialog = await screen.findByRole('dialog', { name: 'Approve template' });
     expect(within(dialog).getByText(/Previous version: 1/)).toBeTruthy();
     expect(within(dialog).getByText(/Example Lender: Your payment of ₦25,000.00 is due on 25 September 2026/)).toBeTruthy();
     expect(within(dialog).getByText(/Example Lender: We plan to collect ₦25,000.00 on 25 September 2026/)).toBeTruthy();
-    expect(within(dialog).getByText('This version — message changed')).toBeTruthy();
+    expect(within(dialog).getByText('This version: message changed')).toBeTruthy();
+    // The purpose reads in words, not as its code spelled out ("Pre debit").
+    expect(within(dialog).getByText(/^Purpose: Notice before collection/)).toBeTruthy();
+    expect(screen.getAllByRole('heading', { name: 'Notice before collection', hidden: true }).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Pre debit/)).toBeNull();
     expect(api.calls.some(call => (call.body as { action?: string })?.action === 'approve_template')).toBe(false);
   });
 
@@ -90,9 +94,9 @@ describe('policy and template review', () => {
     });
     const user = userEvent.setup();
     renderApp('/policies');
-    await user.click(await screen.findByRole('button', { name: 'Approve' }));
+    await user.click(await screen.findByRole('button', { name: 'Approve policy' }));
     const dialog = await screen.findByRole('dialog', { name: 'Approve policy' });
-    expect(within(dialog).getByText(/The linked previous version is unavailable/)).toBeTruthy();
+    expect(within(dialog).getByText(/The previous version is not available/)).toBeTruthy();
     expect(within(dialog).queryByText('Changed')).toBeNull();
   });
 
@@ -103,10 +107,10 @@ describe('policy and template review', () => {
     const user = userEvent.setup();
     renderApp('/policies');
     await user.click(await screen.findByRole('button', { name: 'Draft next version' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Draft next policy version' });
+    const dialog = await screen.findByRole('dialog', { name: 'Draft next version' });
     await user.type(within(dialog).getByLabelText('Reason *'), 'Prepare the next review.');
-    await user.click(within(dialog).getByRole('button', { name: 'Create draft version' }));
-    await screen.findByText('Version 2');
+    await user.click(within(dialog).getByRole('button', { name: 'Draft next version' }));
+    await screen.findByText('Standard lender retry policy · version 2');
     expect(api.state().records.find(record => record.kind === 'policies' && record.data.version === 2)?.data.previousVersionId).toBe(previous.id);
   });
 
@@ -120,29 +124,44 @@ describe('policy and template review', () => {
     expect(within(dialog).queryByLabelText(/^Version/)).toBeNull();
     const spacing = within(dialog).getByLabelText(/^Time between attempts/);
     await user.clear(spacing); await user.type(spacing, '72');
-    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
     await waitFor(() => expect(api.state().records.find(record => record.id === seeded.id)?.data.spacingHours).toBe(72));
     expect(api.state().records.find(record => record.id === seeded.id)?.data.version).toBe(1);
 
     await user.click(screen.getByRole('button', { name: 'Draft a policy' }));
-    dialog = await screen.findByRole('dialog', { name: 'Draft new policy' });
+    dialog = await screen.findByRole('dialog', { name: 'Draft a policy' });
     expect(within(dialog).queryByLabelText(/^Version/)).toBeNull();
     await user.type(within(dialog).getByLabelText(/^Policy name/), 'Short-term loan policy');
-    for (const [label, value] of [[/^Maximum attempts/, '3'], [/^Time between attempts/, '48'], [/^Notice before first attempt/, '48'], [/^Notice before each retry/, '24'], [/^How the policy meets each required rule/, 'Synthetic mapping for review.']] as const) {
+    for (const [label, value] of [[/^Maximum attempts/, '3'], [/^Time between attempts/, '48'], [/^Notice before first attempt/, '48'], [/^Notice before each retry/, '24'], [/^How this policy meets each required rule/, 'Synthetic mapping for review.']] as const) {
       await user.type(within(dialog).getByLabelText(label), value);
     }
-    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Draft a policy' }));
     await waitFor(() => expect(api.state().records.find(record => record.kind === 'policies' && record.name === 'Short-term loan policy')?.data.version).toBe(1));
-    await waitFor(() => expect(screen.getAllByText('Version 1')).toHaveLength(2));
+    await waitFor(() => expect(screen.getAllByText(/ · version 1$/)).toHaveLength(2));
+  });
+
+  it('passes the preview check for a template written with {{lender}}, as for one written with {{merchant}}', async () => {
+    api.role = 'Admin';
+    const user = userEvent.setup();
+    renderApp('/policies');
+    await user.click(await screen.findByRole('button', { name: 'Edit template' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Edit template' });
+    const text = within(dialog).getByLabelText(/^Message/);
+    for (const placeholder of ['{{lender}}', '{{merchant}}']) {
+      await user.clear(text);
+      await user.paste(`${placeholder} will collect {{amount}} on {{date}}. Questions? Contact {{contact}}.`);
+      expect(within(dialog).getByText(/^Example Lender will collect ₦25,000\.00 on /)).toBeTruthy();
+      expect(within(dialog).queryByText('This message needs changes before it can be saved or submitted.')).toBeNull();
+    }
   });
 
   it('updates the synthetic template preview while editing without interpreting markup', async () => {
     api.role = 'Admin';
     const user = userEvent.setup();
     renderApp('/policies');
-    await user.click(await screen.findByRole('button', { name: 'Edit' }));
+    await user.click(await screen.findByRole('button', { name: 'Edit template' }));
     const dialog = await screen.findByRole('dialog', { name: 'Edit template' });
-    const text = within(dialog).getByLabelText(/Message \(include/);
+    const text = within(dialog).getByLabelText(/^Message/);
     await user.clear(text);
     await user.paste('<script>sample</script> {{merchant}}');
     expect(within(dialog).getByText('<script>sample</script> Example Lender')).toBeTruthy();

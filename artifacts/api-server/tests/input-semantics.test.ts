@@ -30,9 +30,9 @@ const refused = (run: () => unknown, pattern: RegExp, message: string) => { asse
   eq([isRealDate("2026-02-29"), isRealDate("2024-02-29"), isRealDate("2026-09-23T07:00:00+01:00")], [false, true, false], "only a day or a UTC timestamp is a date here, and only a real one");
   const state = seedMerchant("input-dates"), ctx = ctxAt(wat("2026-09-23T12:53:00"), "Admin");
   const customer = recordsOf(state, "customers")[0]!, mandate = recordsOf(state, "mandates").find((item) => item.customerId === customer.id)!;
-  refused(() => validateRecord(state, ctx, "due-items", { name: "Impossible instalment", status: "scheduled", customerId: customer.id, amountKobo: 1_500_000, data: { dueDate: "2026-02-30", owner: "lms", mandateId: mandate.id } }), /dueDate must use YYYY-MM-DD/, "an instalment due on 30 February is refused, not moved to 2 March");
-  refused(() => validateRecord(state, ctx, "mandates", { name: "Impossible activation", status: "pending_activation", customerId: customer.id, amountKobo: 5_000_000, data: { workflow: "hosted_consent", consentEvidence: "Synthetic consent", activationDeadline: "2026-02-31" } }), /activationDeadline must use YYYY-MM-DD/, "an activation deadline of 31 February is refused");
-  refused(() => validateRecord(state, ctx, "exceptions", { name: "Impossible deadline", status: "open", data: { type: "unallocated_payment", severity: "low", dueBy: "2026-02-30" } }), /dueBy: Enter a valid date/, "an exception due on 30 February is refused");
+  refused(() => validateRecord(state, ctx, "due-items", { name: "Impossible instalment", status: "scheduled", customerId: customer.id, amountKobo: 1_500_000, data: { dueDate: "2026-02-30", owner: "lms", mandateId: mandate.id } }), /Due date: Enter a real date as YYYY-MM-DD/, "an instalment due on 30 February is refused, not moved to 2 March");
+  refused(() => validateRecord(state, ctx, "mandates", { name: "Impossible activation", status: "pending_activation", customerId: customer.id, amountKobo: 5_000_000, data: { workflow: "hosted_consent", consentEvidence: "Synthetic consent", activationDeadline: "2026-02-31" } }), /Activation deadline: Enter a real date as YYYY-MM-DD/, "an activation deadline of 31 February is refused");
+  refused(() => validateRecord(state, ctx, "exceptions", { name: "Impossible deadline", status: "open", data: { type: "unallocated_payment", severity: "low", dueBy: "2026-02-30" } }), /Due by: Enter a real date\.$/, "an exception due on 30 February is refused");
 }
 
 // ---- 2. A date-only deadline lasts the whole WAT day, everywhere (API item 5) ----
@@ -85,13 +85,13 @@ const refused = (run: () => unknown, pattern: RegExp, message: string) => { asse
   eq(found('"note"'), [], "JSON's quotes around a key are not searched");
   eq(found("Synthetic fixture").includes(quoted.id), true, "a data value is searched");
   // A name is never empty (the record API used to save "" as the kind's name).
-  refused(() => validateRecord(state, ctx, "customers", { name: "   ", data: { consentProvenance: "Synthetic fixture" } }), /name cannot be empty/, "a blank name is refused");
+  refused(() => validateRecord(state, ctx, "customers", { name: "   ", data: { consentProvenance: "Synthetic fixture" } }), /^Error: Enter a name for this record\.$/, "a blank name is refused");
   // Indexed text is bounded, refused naming its field, before PostgreSQL's index could fail on it (API item 3).
   const long = "x".repeat(201);
-  refused(() => validateRecord(state, ctx, "customers", { name: "Long reference", reference: long, data: { consentProvenance: "Synthetic fixture" } }), /reference is at most 200 characters/, "an over-long reference is refused");
-  refused(() => validateRecord(state, ctx, "costs", { name: "Long status", status: "s".repeat(101), data: {} }), /status is at most 100 characters/, "an over-long free-form status is refused");
-  refused(() => validateRecord(state, ctx, "exceptions", { name: "Long customer", customerId: "c".repeat(101), data: { type: "unallocated_payment", severity: "low" } }), /customerId is at most 100 characters/, "an over-long customerId is refused");
-  refused(() => validateRecord(state, ctx, "observations", { name: "Long event", reference: "OBS-1", customerId: customers()[0]!.id, amountKobo: 150000, data: { source: "webhook", eventId: "e".repeat(201) } }), /eventId: An event ID is at most 200 characters/, "an over-long event ID is refused");
+  refused(() => validateRecord(state, ctx, "customers", { name: "Long reference", reference: long, data: { consentProvenance: "Synthetic fixture" } }), /^Error: Loan software reference: Use at most 200 characters\.$/, "an over-long reference is refused");
+  refused(() => validateRecord(state, ctx, "costs", { name: "Long status", status: "s".repeat(101), data: {} }), /^Error: Status: Use at most 100 characters\.$/, "an over-long free-form status is refused");
+  refused(() => validateRecord(state, ctx, "exceptions", { name: "Long customer", customerId: "c".repeat(101), data: { type: "unallocated_payment", severity: "low" } }), /^Error: Customer reference or ID: Use at most 100 characters\.$/, "an over-long customerId is refused");
+  refused(() => validateRecord(state, ctx, "observations", { name: "Long event", reference: "OBS-1", customerId: customers()[0]!.id, amountKobo: 150000, data: { source: "webhook", eventId: "e".repeat(201) } }), /Event ID: Use at most 200 characters/, "an over-long event ID is refused");
 }
 
 // ---- 5. Money waiting for Finance counts the same in the alert, the reports and the close (paymentAwaitsAllocation) ----
@@ -110,7 +110,7 @@ const refused = (run: () => unknown, pattern: RegExp, message: string) => { asse
   state.settings.unallocatedAlertThreshold = before + 1;
   const alert = buildAlerts(state, now).find((item) => item.key === "unallocated_over_threshold");
   eq(alert?.count, before + 2, "the alert counts the same payments, so the rests take it over the lender's limit");
-  eq(/applied in part/.test(String(alert?.detail)), true, "and says a payment applied in part is waiting too");
+  eq(/allocated in part/.test(String(alert?.detail)), true, "and says a payment applied in part is waiting too");
 }
 
 console.log(`Input semantics checks passed (${checks}): dates are real calendar dates, a date-only deadline lasts its whole WAT day in the queues, the alerts and the overview, an incremental sync names an instant with its offset, a search reads values only, a name is never empty, indexed text is bounded and money waiting for Finance counts the same in the alert, the reports and the close.`);

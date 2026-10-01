@@ -10,38 +10,38 @@ describe("keyboard", () => {
   it("offers a skip to the page content as the first tab stop, and marks the current page", async () => {
     const user = userEvent.setup();
     renderApp("/overview");
-    await screen.findByRole("heading", { name: "Operations overview" });
+    await screen.findByRole("heading", { name: "Overview" });
     await user.tab();
     const skip = document.activeElement as HTMLElement;
-    expect(skip.textContent).toBe("Skip to page content");
+    expect(skip.textContent).toBe("Skip to main content");
     await user.click(skip);
     expect(document.activeElement?.id).toBe("main");
     expect(screen.getByRole("link", { name: /Overview/ }).getAttribute("aria-current")).toBe("page");
-    expect(screen.getByRole("link", { name: /Audit log/ }).getAttribute("aria-current")).toBeNull();
+    expect(screen.getByRole("link", { name: "Audit log" }).getAttribute("aria-current")).toBeNull();
   });
 
   it("moves focus to the page content after navigating, as a page load would", async () => {
     const user = userEvent.setup();
     renderApp("/overview");
-    await screen.findByRole("heading", { name: "Operations overview" });
-    await user.click(screen.getByRole("link", { name: /Audit log/ }));
+    await screen.findByRole("heading", { name: "Overview" });
+    await user.click(screen.getByRole("link", { name: "Audit log" }));
     await screen.findByRole("heading", { name: "Audit log" });
     await waitFor(() => expect(document.activeElement?.id).toBe("main"));
-    expect(screen.getByRole("link", { name: /Audit log/ }).getAttribute("aria-current")).toBe("page");
+    expect(screen.getByRole("link", { name: "Audit log" }).getAttribute("aria-current")).toBe("page");
   });
 
   it("starts the next console page at the top of its scrolling region", async () => {
     const user = userEvent.setup();
     renderApp("/reports?view=billing");
-    await screen.findByRole("heading", { name: "Reports & analytics" });
-    await user.click(await screen.findByText("Billing rates & rules"));
+    await screen.findByRole("heading", { name: "Reports" });
+    await user.click(await screen.findByText("Billing rates and rules"));
     const main = screen.getByRole("main");
     // jsdom has no layout, but preserves offsets on the main element that survives navigation.
     main.scrollTop = 640;
     main.scrollLeft = 80;
 
     await user.click(screen.getByRole("link", { name: "Overview" }));
-    await screen.findByRole("heading", { name: "Operations overview" });
+    await screen.findByRole("heading", { name: "Overview" });
     expect(screen.getByRole("main")).toBe(main);
     await waitFor(() => {
       expect(main.scrollTop).toBe(0);
@@ -77,7 +77,7 @@ describe("keyboard", () => {
     expect(high.getAttribute("aria-selected")).toBe("true");
     await user.keyboard("{End}");
     expect(document.activeElement).toBe(resolved);
-    expect(await screen.findByText("Nothing resolved yet")).toBeTruthy();
+    expect(await screen.findByText("No resolved exceptions yet")).toBeTruthy();
     await user.keyboard("{Home}");
     expect(document.activeElement).toBe(open);
     expect(open.getAttribute("aria-selected")).toBe("true");
@@ -101,6 +101,8 @@ describe("keyboard", () => {
   it("lists the shortcuts on the settings page", async () => {
     renderApp("/settings");
     expect(await screen.findByRole("heading", { name: "Keyboard" })).toBeTruthy();
-    expect(screen.getByText("Put the caret in the search box on a page that has one (Customers, Audit log).")).toBeTruthy();
+    expect(screen.getByText("Move to the search box, on pages that have one, such as Customers and Audit log.")).toBeTruthy();
+    // F8 jumps to the notices, and the region's name says so.
+    expect(screen.getByRole("region", { name: "Notices (F8)" })).toBeTruthy();
   });
 });

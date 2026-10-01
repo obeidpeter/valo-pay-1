@@ -31,10 +31,10 @@ it("lists saved exports in plain words", async () => {
   });
   renderApp("/exports");
   const history = await screen.findByRole("region", { name: "Export history" }).catch(() => screen.findByText("Export history").then((heading) => heading.closest("section")!));
-  await within(history as HTMLElement).findByText("Dispute pack · JSON");
-  expect(within(history as HTMLElement).getByText("Billing CSV")).toBeTruthy();
-  expect(history.textContent).toMatch(/· Completed/);
-  expect(history.textContent).toMatch(/· Needs retry/);
+  await within(history as HTMLElement).findByText("Dispute pack (JSON)");
+  expect(within(history as HTMLElement).getByText("Billing statement (CSV)")).toBeTruthy();
+  expect(history.textContent).toMatch(/· Ready to download/);
+  expect(history.textContent).toMatch(/· Failed/);
   expect(history.textContent).not.toMatch(/dispute-pack|· ready|· failed/);
 });
 
@@ -48,14 +48,14 @@ it("says in plain words that no answer arrived, never the browser's own error", 
   await user.type(within(dialog).getByLabelText(/^Loan software reference/), "NO-ANSWER-1");
   await user.type(within(dialog).getByLabelText(/^Consent source or reference/), "Synthetic signed form NO-ANSWER-1");
   api.failNext(/^\/v1\/records\/customers$/, "offline", "POST");
-  await user.click(within(dialog).getByRole("button", { name: "Save" }));
-  const notice = (await within(dialog).findByText("Outcome not confirmed")).closest('[role="alert"]') as HTMLElement;
-  expect(notice.textContent).toContain("No answer arrived from the service.");
+  await user.click(within(dialog).getByRole("button", { name: "Add customer" }));
+  const notice = (await within(dialog).findByText("Request not confirmed")).closest('[role="alert"]') as HTMLElement;
+  expect(notice.textContent).toContain("No answer came back from Valo Pay.");
   expect(notice.textContent).not.toMatch(/Failed to fetch/);
 });
 
 it("names the invitation page in the browser's title", async () => {
   renderApp("/team-invite");
-  await screen.findByRole("heading", { name: "Join your pilot workspace" });
-  await waitFor(() => expect(document.title).toBe("Join your pilot workspace · Valo Pay"));
+  await screen.findByRole("heading", { level: 1, name: "Accept your invitation" });
+  await waitFor(() => expect(document.title).toBe("Accept your invitation · Valo Pay"));
 });

@@ -21,26 +21,26 @@ async function violations(): Promise<string[]> {
 
 describe("accessibility", () => {
   it.each([
-    ["/", "Collections, credit and cash. One clear workspace."],
-    ["/sign-in", "Sign in to your workspace"],
+    ["/", "Collections, credit and cash. One clear view."],
+    ["/sign-in", "Sign in"],
     ["/no-such-page", "Page not found"],
-    ["/overview", "Operations overview"],
+    ["/overview", "Overview"],
     ["/customers", "Customers"],
     ["/mandates", "Mandates"],
     ["/reconciliation", "Reconciliation"],
     ["/exceptions", "Exceptions"],
-    ["/policies", "Policies & templates"],
-    ["/reports", "Reports & analytics"],
+    ["/policies", "Policies and templates"],
+    ["/reports", "Reports"],
     ["/evidence", "Go-live evidence"],
     ["/audit", "Audit log"],
-    ["/settings", "Settings & administration"],
-    ["/pay-by-bank", "Pay-by-bank"],
+    ["/settings", "Settings"],
+    ["/pay-by-bank", "Pay by Bank"],
     ["/credit-desk", "Credit Desk"],
     ["/cash-desk", "Cash Desk"],
     ["/cash-desk?view=accounting", "Cash Desk"],
     ["/cash-desk?view=vat", "Cash Desk"],
     ["/cash-desk?view=payroll", "Cash Desk"],
-    ["/connections", "Permissions & readiness"],
+    ["/connections", "Permissions and readiness"],
   ])("finds no violation on %s", async (path, heading) => {
     renderApp(path);
     await screen.findByRole("heading", { name: heading });
@@ -67,7 +67,7 @@ describe("accessibility", () => {
     const user = userEvent.setup();
     renderApp("/settings");
     await user.click(await screen.findByRole("button", { name: "Edit" }));
-    await screen.findByRole("button", { name: "Save" });
+    await screen.findByRole("button", { name: "Save changes" });
     expect(await violations()).toEqual([]);
   });
 });

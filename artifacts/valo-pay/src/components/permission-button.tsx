@@ -3,11 +3,15 @@ import { Button, type ButtonProps } from './ui/button';
 import { permissionReason, type PermissionRequest } from '@/lib/permissions';
 import { useWorkspace } from '@/lib/workspace-context';
 
-/** Keep the unavailable action discoverable, with a visible, accessible explanation. */
+/**
+ * Keep the unavailable action discoverable, with a visible, accessible explanation: who can do it and why, once per
+ * button. The reader's own role is in the bar above every page, so the reason does not repeat it (permissionReason's
+ * brief form).
+ */
 export const PermissionButton = React.forwardRef<HTMLButtonElement, ButtonProps & PermissionRequest>(
   ({ action, kind, record, payment, instalment, children, ...props }, ref) => {
     const { workspace } = useWorkspace();
-    const reason = permissionReason(workspace, { action, kind, record, payment, instalment });
+    const reason = permissionReason(workspace, { action, kind, record, payment, instalment }, { brief: true });
     const id = useId();
     if (!reason) return <Button ref={ref} {...props}>{children}</Button>;
     return <span className="inline-flex max-w-64 flex-col items-start gap-1 align-top">

@@ -1,6 +1,6 @@
 // Backlog item UX-B02-X3 and decision 3: Operations says enough to match an entry to the form that was lost, opens the
-// saved result of every record kind that has a page, and the console shows the count of unconfirmed requests on the
-// Operations link, where a person who reloads sees it.
+// saved result of every record kind that has a page, and the console shows the count of requests not confirmed on the
+// Request history link (the Operations page), where a person who reloads sees it.
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { installFakeApi, type FakeApi } from "./fake-api";
 import { renderApp, screen, userEvent, waitFor, within } from "./harness";
@@ -22,32 +22,32 @@ function journal(items: Array<Record<string, unknown>>, pending = items.filter((
 }
 const entry = (id: string, status: string, rest: Record<string, unknown> = {}) => ({
   id, label: `Save ${id}`, actor: "Sandbox Admin", role: "Admin", status, createdAt: api.now, updatedAt: api.now,
-  message: status === "completed" ? "The service saved this request." : "Completion has not been confirmed. Check the original request.",
+  message: status === "completed" ? "Valo Pay saved this request." : "Valo Pay has not confirmed this request yet. Check the original request.",
   recordId: null, recordKind: null, summary: null, ...rest,
 });
 const card = (heading: string) => screen.getByRole("heading", { name: heading }).closest("article") as HTMLElement;
 
 it("names what each request asked and the record it names, never more", async () => {
   journal([
-    entry("pending-change", "pending", { summary: { action: "Change a record", targetKind: "customers", targetId: "cus-1", details: [{ name: "Status", value: "inactive" }] } }),
-    entry("pending-action", "pending", { summary: { action: "Mandate suspend", targetKind: "mandates", targetId: "mnd-1", details: [] } }),
-    entry("pending-revoke", "pending", { summary: { action: "Connected banking: consent.revoke", targetKind: "connected-consents", targetId: "cst-1", details: [] } }),
+    entry("pending-change", "pending", { summary: { action: "Change a record", targetKind: "customers", targetId: "cus-1", details: [{ name: "Status", value: "Inactive" }] } }),
+    entry("pending-action", "pending", { summary: { action: "Suspend mandate", targetKind: "mandates", targetId: "mnd-1", details: [] } }),
+    entry("pending-revoke", "pending", { summary: { action: "Withdraw permission", targetKind: "connected-consents", targetId: "cst-1", details: [] } }),
     entry("pending-export", "pending", { summary: { action: "Retry an export", targetKind: "exports", targetId: "exp-1", details: [] } }),
-    entry("pending-run", "pending", { summary: { action: "Approve a retention run", targetKind: "retention-runs", targetId: "run-1", details: [] } }),
+    entry("pending-run", "pending", { summary: { action: "Approve a deletion run", targetKind: "retention-runs", targetId: "run-1", details: [] } }),
     entry("sealed", "pending"),
   ]);
   renderApp("/operations");
   await screen.findByRole("heading", { name: "Change a record" });
   const change = card("Change a record");
   expect(change.textContent).toContain("Customers cus-1");
-  expect(change.textContent).toContain("Status: inactive");
+  expect(change.textContent).toContain("Status: Inactive");
   expect(within(change).getByRole("link", { name: "Open the record" }).getAttribute("href")).toBe("/customers/cus-1");
-  const action = card("Mandate suspend");
+  const action = card("Suspend mandate");
   expect(within(action).getByRole("link", { name: "Open the record" }).getAttribute("href")).toBe(`/mandates?record=mnd-1&lender=${api.merchantIds[0]}#record-mnd-1`);
-  expect(within(card("Connected banking: consent.revoke")).getByRole("link", { name: "Open the record" }).getAttribute("href")).toBe("/connections");
+  expect(within(card("Withdraw permission")).getByRole("link", { name: "Open the record" }).getAttribute("href")).toBe("/connections");
   // The export or run itself, not the newest one its page lists.
   expect(within(card("Retry an export")).getByRole("link", { name: "Open the record" }).getAttribute("href")).toBe("/exports?job=exp-1");
-  expect(within(card("Approve a retention run")).getByRole("link", { name: "Open the record" }).getAttribute("href")).toBe("/lifecycle?run=run-1");
+  expect(within(card("Approve a deletion run")).getByRole("link", { name: "Open the record" }).getAttribute("href")).toBe("/lifecycle?run=run-1");
   // A sealed request has no summary: its label stands in.
   expect(card("Save sealed").textContent).not.toContain("Open the record");
 });
@@ -91,26 +91,33 @@ it("opens the saved result of every record kind that has a page", async () => {
   }
 });
 
-it("shows the count of unconfirmed requests on the Operations link", async () => {
+it("says when a request can be cancelled and that cancelling never undoes a saved financial record", async () => {
+  journal([entry("pending-one", "pending")]);
+  renderApp("/operations");
+  await screen.findByRole("heading", { name: "Request history" });
+  expect(await screen.findByText("You can cancel a request only while it has not finished. Cancelling stops it from running later. If the request is being processed, cancelling waits for that to end first. Cancelling does not undo a saved financial record. Your permissions are checked again each time you check or cancel a request.")).toBeTruthy();
+});
+
+it("shows the count of requests not confirmed on the Request history link", async () => {
   journal([entry("one", "pending"), entry("two", "pending")]);
   renderApp("/overview");
-  const links = await screen.findAllByRole("link", { name: "Operations, 2 unconfirmed requests" });
+  const links = await screen.findAllByRole("link", { name: "Request history, 2 requests not confirmed" });
   expect(links[0]!.getAttribute("href")).toBe("/operations");
 });
 
 it("shows no count when nothing waits", async () => {
   renderApp("/overview");
   await waitFor(() => expect(api.calls.some((call) => call.path === "/v1/operations/pending")).toBe(true));
-  expect(screen.getAllByRole("link", { name: "Operations" }).length).toBeGreaterThan(0);
-  expect(screen.queryAllByRole("link", { name: /unconfirmed/ })).toEqual([]);
+  expect(screen.getAllByRole("link", { name: "Request history" }).length).toBeGreaterThan(0);
+  expect(screen.queryAllByRole("link", { name: /^Request history, \d+ requests? not confirmed$/ })).toEqual([]);
 });
 
 // Fix review: a check or cancel from Operations that the service refuses can settle the request for good: a check
 // refused for good cancels it, and a cancel is refused once the request completed. The list and the count on the
-// Operations link are read again at once, not on the list's next refresh or when the window next takes focus.
+// Request history link are read again at once, not on the list's next refresh or when the window next takes focus.
 const refusals = [
   { button: "Check original request", path: "retry", settled: "cancelled", error: "A reference already exists." },
-  { button: "Cancel if unfinished", path: "cancel", settled: "completed", error: "This request already completed. Refresh Operations to see its saved result." },
+  { button: "Cancel if unfinished", path: "cancel", settled: "completed", error: "This request has already completed. Reload Request history to see its saved result." },
 ] as const;
 for (const refusal of refusals) it(`reads the list and the count again once ${refusal.path === "retry" ? "a check" : "a cancel"} from Operations is refused`, async () => {
   const user = userEvent.setup();
@@ -127,11 +134,12 @@ for (const refusal of refusals) it(`reads the list and the count again once ${re
     return send(input, options);
   };
   renderApp("/operations");
-  await screen.findAllByRole("link", { name: "Operations, 1 unconfirmed request" });
+  await screen.findAllByRole("link", { name: "Request history, 1 request not confirmed" });
   const [listed, counted] = [listReads, countReads];
   await user.click(await screen.findByRole("button", { name: refusal.button }));
   await screen.findByText(refusal.error);
-  await waitFor(() => expect(screen.queryAllByRole("link", { name: /unconfirmed/ })).toEqual([]), { timeout: 2000 });
-  await screen.findByText(refusal.settled);
+  await waitFor(() => expect(screen.queryAllByRole("link", { name: /^Request history, \d+ requests? not confirmed$/ })).toEqual([]), { timeout: 2000 });
+  // The settled status is shown in words, through the shared labels.
+  await screen.findByText(refusal.settled === "cancelled" ? "Cancelled" : "Completed");
   expect([listReads > listed, countReads > counted]).toEqual([true, true]);
 });

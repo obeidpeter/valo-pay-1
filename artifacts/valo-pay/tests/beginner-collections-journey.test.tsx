@@ -26,14 +26,14 @@ it('takes an empty lender from corrected sample imports to a reviewed payment an
   async function saveAndCheck() {
     await user.click(screen.getByRole('button', { name: 'Save and check batch' }));
     await screen.findByRole('heading', { name: 'Saved check results' });
-    expect(screen.getByText(/Your source and mapping are saved. No business records are imported/)).toBeTruthy();
+    expect(screen.getByText(/Your file and column mapping are saved. Nothing is imported until no rows need fixing/)).toBeTruthy();
   }
   async function commitOnce() {
     const before = writes().filter(call => /\/commit$/.test(call.path)).length;
-    expect(screen.getByRole('button', { name: 'Commit checked batch' })).toHaveProperty('disabled', false);
-    await user.click(screen.getByRole('button', { name: 'Commit checked batch' }));
-    await screen.findByRole('heading', { name: 'Import complete' });
-    expect(screen.queryByRole('button', { name: 'Commit checked batch' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Import checked batch' })).toHaveProperty('disabled', false);
+    await user.click(screen.getByRole('button', { name: 'Import checked batch' }));
+    await screen.findByRole('heading', { name: 'Batch imported' });
+    expect(screen.queryByRole('button', { name: 'Import checked batch' })).toBeNull();
     expect(writes().filter(call => /\/commit$/.test(call.path))).toHaveLength(before + 1);
   }
   async function startSample(kind: string) {
@@ -43,11 +43,11 @@ it('takes an empty lender from corrected sample imports to a reviewed payment an
   }
 
   renderApp('/overview');
-  await screen.findByRole('heading', { name: 'Operations overview' });
-  await user.click(screen.getByRole('button', { name: 'Get started · 3 steps' }));
+  await screen.findByRole('heading', { name: 'Overview' });
+  await user.click(screen.getByRole('button', { name: 'Show first steps' }));
   const start = screen.getByRole('region', { name: 'Where to start' });
   await within(start).findByText('Step 1 · Not started');
-  await user.click(within(start).getAllByRole('link', { name: 'Open this task' })[0]!);
+  await user.click(within(start).getAllByRole('link', { name: 'Open Import batches' })[0]!);
 
   // The real format-matched sample is deliberately given one correctable omission.
   await user.click(await screen.findByRole('button', { name: 'Use sample' }));
@@ -55,19 +55,19 @@ it('takes an empty lender from corrected sample imports to a reviewed payment an
   expect(customerSample).toContain('PILOT-C001');
   await replaceCsv(customerSample.replace('Synthetic pilot consent', ''));
   await saveAndCheck();
-  expect(screen.getByRole('button', { name: 'Commit checked batch' })).toHaveProperty('disabled', true);
-  expect(screen.getByText(/Row 2 · Invalid/)).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Import checked batch' })).toHaveProperty('disabled', true);
+  expect(screen.getByText(/Row 2 · Needs fixing/)).toBeTruthy();
   expect(screen.getByText(/Consent source or reference.*Enter a value; it is blank on this row/)).toBeTruthy();
   expect(records('customers')).toHaveLength(0);
 
   // Saved correction work survives leaving the page; it is still not an import.
   await user.click(screen.getByRole('link', { name: 'Overview' }));
-  await screen.findByText('Step 1 · Needs attention');
+  await screen.findByText('Step 1 · Blocked');
   await user.click(screen.getByRole('link', { name: 'Import batches' }));
   await user.click(await screen.findByRole('button', { name: /Customers sample.*Pilot sample/ }));
   await screen.findByRole('heading', { name: 'Saved check results' });
   expect(csv().value).toBe(customerSample.replace('Synthetic pilot consent', ''));
-  await user.click(screen.getByRole('button', { name: 'Correct CSV' }));
+  await user.click(screen.getByRole('button', { name: 'Edit CSV' }));
   expect(document.activeElement).toBe(csv());
   await replaceCsv(customerSample);
   await saveAndCheck();
@@ -117,29 +117,29 @@ it('takes an empty lender from corrected sample imports to a reviewed payment an
   await screen.findByText('PILOT-O001');
   await user.click(screen.getByRole('button', { name: 'Run reconciliation' }));
   await screen.findByRole('status', { name: 'Reconciliation result' });
-  const confirm = await screen.findByRole('button', { name: 'Confirm' });
+  const confirm = await screen.findByRole('button', { name: 'Confirm match' });
   expect(records('allocations')[0]?.status).toBe('proposed');
   expect(records('payments').find(record => record.reference === 'PILOT-O001')?.customerId).toBe(records('customers')[0]!.id);
   await user.click(confirm);
-  const dialog = await screen.findByRole('dialog', { name: 'Confirm payment allocation' });
+  const dialog = await screen.findByRole('dialog', { name: 'Confirm match' });
   const evidence = within(dialog).getByRole('region', { name: 'Match evidence' });
   expect(evidence.textContent).toContain('PILOT-O001');
   expect(evidence.textContent).toContain('PILOT-D001');
-  expect(evidence.textContent).toContain('Amount and payer match one instalment within five days of its due date; Finance confirmation required.');
-  expect(evidence.textContent).toContain('Rule R5');
+  expect(evidence.textContent).toContain('The amount and payer match one instalment whose due date is within five days of the payment. Finance must confirm the match.');
+  expect(evidence.textContent).toContain('Rule: R5');
   expect(evidence.textContent).toContain('Settlement:');
-  await user.click(within(dialog).getByRole('button', { name: 'Confirm allocation' }));
+  await user.click(within(dialog).getByRole('button', { name: 'Confirm match' }));
   expect(document.activeElement).toBe(within(dialog).getByLabelText('Reason *'));
   expect(writes().some(call => (call.body as { action?: string })?.action === 'confirm_allocation')).toBe(false);
   await user.type(within(dialog).getByLabelText('Reason *'), 'Reviewed the sample statement, payer and due date against the linked instalment.');
-  await user.click(within(dialog).getByRole('button', { name: 'Confirm allocation' }));
+  await user.click(within(dialog).getByRole('button', { name: 'Confirm match' }));
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   expect(records('payments').find(record => record.reference === 'PILOT-O001')).toMatchObject({ status: 'allocated', customerId: records('customers')[0]!.id });
   expect(records('due-items')[0]?.data.outstandingKobo).toBe(0);
   expect(writes().filter(call => (call.body as { action?: string })?.action === 'confirm_allocation')).toHaveLength(1);
 
   await user.click(screen.getByRole('link', { name: 'Customers' }));
-  await user.click(await screen.findByRole('link', { name: 'View history for Pilot customer' }));
+  await user.click(await screen.findByRole('link', { name: 'Open Customer history for Pilot customer' }));
   await screen.findByRole('heading', { name: 'Pilot customer', level: 1 });
   const paymentPanel = screen.getByRole('heading', { name: 'Payments' }).parentElement!.parentElement!;
   expect(await within(paymentPanel).findByText('PILOT-O001')).toBeTruthy();
@@ -147,13 +147,13 @@ it('takes an empty lender from corrected sample imports to a reviewed payment an
 
   // The separate unidentified receipt remains unresolved, with a recoverable case.
   await user.click(screen.getByRole('link', { name: 'Exceptions' }));
-  const caseLink = await screen.findByRole('link', { name: 'Case & handover' });
+  const caseLink = await screen.findByRole('link', { name: 'Open case' });
   const caseRow = caseLink.closest('tr')!;
   expect(within(caseRow).getByText('Unallocated payment')).toBeTruthy();
-  expect(within(caseRow).getByText('No certain or confirmed allocation after 24 hours.')).toBeTruthy();
+  expect(within(caseRow).getByText('This payment has not been allocated to an instalment after 24 hours.')).toBeTruthy();
   await user.click(caseLink);
-  await screen.findByRole('heading', { name: 'Coordinate a case', level: 1 });
-  expect(screen.getByText(/Recording a handover does not allocate a payment or resolve its exception/)).toBeTruthy();
+  await screen.findByRole('heading', { name: 'Case: Unallocated payment', level: 1 });
+  expect(screen.getByText(/Recording a handover does not allocate a payment or resolve the exception/)).toBeTruthy();
   expect(records('exceptions').filter(record => record.status === 'open')).toHaveLength(1);
   expect(records('payments').find(record => record.reference === 'PILOT-O002')?.status).toBe('unallocated');
   expect(api.role).toBe('Finance');

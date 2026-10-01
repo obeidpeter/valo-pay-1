@@ -1,4 +1,4 @@
-import { sumMoney, multiplyDivideMoney, PLAN_GROSS_MARGIN, VARIABLE_COST_PER_COLLECTION_KOBO, counted, deadlinePassed, experimentRules, isOpenException, measurementRules, paymentAppliedKobo, paymentAwaitsAllocation, type RecordKind } from "@workspace/valopay-schema";
+import { sumMoney, multiplyDivideMoney, nairaText, numberText, PLAN_GROSS_MARGIN, VARIABLE_COST_PER_COLLECTION_KOBO, counted, deadlinePassed, experimentRules, isOpenException, measurementRules, paymentAppliedKobo, paymentAwaitsAllocation, type RecordKind } from "@workspace/valopay-schema";
 import { recordsOf } from "./records";
 import type { DomainState, Metric, Report, TypedRecord, ValopayRecord } from "./types";
 import { allocationConfirmedAt, paymentObservedAt, paymentReversed } from "./reconciliation";
@@ -24,16 +24,16 @@ export function buildOverview(state: DomainState, now: string, alerts: Alert[] =
   return {
     metrics: [
       metric("settled", "Reconciled collections", sumMoney(settled.map(paymentAppliedKobo)), "kobo", "Settled payments matched to instalments, counted once. Sample data only."),
-      metric("outstanding", "Outstanding amount", outstanding, "kobo", "Amount still due on instalments. Valo Pay does not hold these funds."),
-      metric("match_rate", "High-confidence match rate", settled.length ? Math.round((settled.filter((item) => certainPayments.has(item.id)).length / settled.length) * 100) : 0, "percent", "Share of settled payments with a confirmed, high-confidence match. Sample data only."),
-      metric("exceptions", "Open exceptions", open.length, "count", "Unresolved issues that need someone to follow up."),
+      metric("outstanding", "Outstanding amount", outstanding, "kobo", "Amount still owed on instalments. Valo Pay never holds money."),
+      metric("match_rate", "Certain match rate", settled.length ? Math.round((settled.filter((item) => certainPayments.has(item.id)).length / settled.length) * 100) : 0, "percent", "Share of settled payments with a confirmed, certain match. Sample data only."),
+      metric("exceptions", "Open exceptions", open.length, "count", "Exceptions that still need someone to follow up."),
     ],
     queues: [
       metric("activation", "Awaiting activation", by("mandates").filter((item) => item.status === "pending_activation").length, "count", "Mandates waiting for activation through the provider."),
       metric("review", "Matches to review", by("allocations").filter((item) => item.status === "proposed").length, "count", "Proposed matches for the Finance team to confirm."),
       metric("duplicates", "Possible duplicates", by("payments").filter((item) => item.status === "possible_duplicate").length, "count", "Finance must review these before any payment is allocated."),
-      metric("failures", "Failed collections", by("attempts").filter((item) => item.status === "failed").length, "count", "Failed debit attempts reported by an external collection system."),
-      metric("overdue", "Overdue exceptions", open.filter((item) => deadlinePassed(item.data.dueBy, now)).length, "count", "Ask the assigned owner to follow up on these overdue issues."),
+      metric("failures", "Failed collection attempts", by("attempts").filter((item) => item.status === "failed").length, "count", "Failed collection attempts reported by another collection system."),
+      metric("overdue", "Overdue exceptions", open.filter((item) => deadlinePassed(item.data.dueBy, now)).length, "count", "Ask each owner to follow up on these overdue exceptions."),
     ],
     activity: by("audit").sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 8),
     upcoming: by("due-items").filter((item) => !["paid", "closed", "cancelled"].includes(item.status)).sort((a, b) => String(a.data.dueDate || '').localeCompare(String(b.data.dueDate || '')) || a.id.localeCompare(b.id)).slice(0, 6),
@@ -130,7 +130,7 @@ export function upliftReport(state: DomainState, experiment: TypedRecord<"experi
   const result = failed.length ? "not_proven" : "proven";
   const reason = failed.length
     ? `Not proven: ${failed.map((name) => ({ effectAtLeastEightPoints: "the improvement in recovery by value is below 8 percentage points", intervalExcludesZero: "the 90% confidence interval does not show a positive improvement", sampleMet: "at least one group has too few instalments with a complete 30-day outcome", analysisDateReached: "the analysis date has not been reached" })[name]).join("; ")}.`
-    : "This lender meets the registered success criteria. Each design partner must meet them before the recovery fee can be enabled.";
+    : "This lender meets the registered success criteria. Each design partner must meet them before the recovery fee can be switched on.";
   return {
     experimentId: experiment.id, status: experiment.status, passRule: experiment.data.passRule ?? null, preregisteredAt: experiment.data.preregisteredAt ?? null,
     analysisDate: analysisDate || null, enrolmentClose: experiment.data.enrolmentClose ?? null, holdoutShare: Number(experiment.data.holdoutShare), seed: experiment.data.seed ?? null,
@@ -215,7 +215,7 @@ export function test5Report(state: DomainState, now: string) {
     fortnightlyStaffConfirmed, latestReviewAt: latest ? new Date(reviewAt(latest)).toISOString() : null, latestReviewer: latest ? String(latest.data.reviewer) : null, confirmingReviews: reviews.length, reviewCadenceMet: cadenceMet,
     overdueShareAtMonthEnds,
     packsGenerated: packs.length, realCasesUsed: packs.filter((item) => item.data.usedInRealCase === true).length, requiredRealCases: measurementRules.realCasesRequired,
-    proof: false, reason: "These measurements use sample data. The operational readiness test (Test 5) requires at least 60 days of real operations for each design partner.",
+    proof: false, reason: "These measurements use sample data. The operational readiness test needs at least 60 days of real operations for each design partner.",
   };
 }
 
@@ -240,7 +240,7 @@ export function unitEconomics(state: DomainState, now: string, statement: Record
     grossMargin, planGrossMargin: PLAN_GROSS_MARGIN,
     annualisedRecurringRevenueKobo: pricingReady ? multiplyDivideMoney(recurringKobo, 12, 1) : null, implementationExcluded: true, recoveryFeeIncluded: false,
     checks: { costPerCollectionWithinPlan: costPerCollectionKobo === null ? null : costPerCollectionKobo <= VARIABLE_COST_PER_COLLECTION_KOBO, marginWithinPlan: grossMargin === null ? null : grossMargin >= PLAN_GROSS_MARGIN.low },
-    note: !pricingReady ? `Revenue and margin are unavailable until the commercial terms can price this month. ${statement.pricingExplanation} Cost evidence is shown separately.` : estimated ? "No costs have been recorded for this period. The estimate uses NGN 15 per collection until infrastructure, notification and support costs are entered." : "Based on the costs recorded for this period.",
+    note: !pricingReady ? `Revenue and margin are unavailable until the commercial terms can price this month. ${statement.pricingExplanation} Cost evidence is shown separately.` : estimated ? `No costs have been recorded for this period. The estimate uses ${nairaText(VARIABLE_COST_PER_COLLECTION_KOBO)} per collection until infrastructure, message and support costs are entered.` : "Based on the costs recorded for this period.",
     synthetic: true,
   };
 }
@@ -261,10 +261,10 @@ export function buildReports(state: DomainState, now: string): Report {
   const unallocated = payments.filter(paymentAwaitsAllocation);
   const openExceptions = exceptions.filter((item) => isOpenException(item.status));
   const metrics: Metric[] = [
-    metric("allocation_rate", "Allocation rate", allocationRate, "ratio", `${allocated.length} of ${counted(payments.length, "payment")} ${allocated.length === 1 ? "is" : "are"} fully or partly allocated, or ${allocated.length === 1 ? "exceeds" : "exceed"} the amount due.`),
+    metric("allocation_rate", "Allocation rate", allocationRate, "ratio", `${numberText(allocated.length)} of ${counted(payments.length, "payment")} ${allocated.length === 1 ? "is" : "are"} allocated in full or in part, including overpayments.`),
     metric("allocation_precision", "Accuracy of reviewed allocations", precision, "ratio", reviewedAll.length ? `${counted(reviewedAll.length, "allocation")} reviewed. Unreviewed allocations are excluded from this accuracy measure.` : "No payment matches have been reviewed yet."),
-    metric("open_exceptions", "Open exceptions", openExceptions.length, "count", "Unresolved issues in this sample workspace."),
-    metric("outstanding_kobo", "Outstanding amount", sumMoney(dueItems.map((item) => Number(item.data.outstandingKobo ?? item.amountKobo))), "kobo", "Amount still due on instalments. We never hold money."),
+    metric("open_exceptions", "Open exceptions", openExceptions.length, "count", "Exceptions that still need someone to follow up."),
+    metric("outstanding_kobo", "Outstanding amount", sumMoney(dueItems.map((item) => Number(item.data.outstandingKobo ?? item.amountKobo))), "kobo", "Amount still owed on instalments. Valo Pay never holds money."),
   ];
 
   const billing = buildBillingStatement(state, now);
@@ -279,7 +279,7 @@ export function buildReports(state: DomainState, now: string): Report {
     billing: { ...billing, unitEconomics: unitEconomics(state, now, billing) },
     experiment: {
       results: experimentRows, result: experimentRows.length && experimentRows.every((row) => row.result === "proven") ? "proven" : "not_proven",
-      note: "Each design partner must meet the recovery test criteria before the recovery fee can be enabled. A result from one lender is not enough.", synthetic: true,
+      note: "Each design partner must meet the recovery test criteria before the recovery fee can be switched on. A result from one lender is not enough.", synthetic: true,
     },
     operational: {
       asOf: now,
@@ -292,7 +292,7 @@ export function buildReports(state: DomainState, now: string): Report {
       realCasesUsed: test5.realCasesUsed, requiredRealCases: test5.requiredRealCases,
       fortnightlyStaffConfirmed: test5.fortnightlyStaffConfirmed, latestReviewAt: test5.latestReviewAt, reviewCadenceMet: test5.reviewCadenceMet, test5, timeToClose: closeTiming, monthEndCloseDays: closeTiming?.days ?? null,
       closeSchedule: closeSchedule(state, now),
-      unallocatedOlderThan24Hours: unallocated.filter((item) => Date.parse(now) - paymentObservedAt(item) >= DAY_MS).length, proof: false, reason: "All measurements use sample data. They do not prove how the platform performs in live operations.",
+      unallocatedOlderThan24Hours: unallocated.filter((item) => Date.parse(now) - paymentObservedAt(item) >= DAY_MS).length, proof: false, reason: "All measurements use sample data. They do not show how Valo Pay performs in live use.",
     },
     closes: closeRecords,
   };

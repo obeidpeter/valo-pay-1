@@ -19,6 +19,10 @@ import { useUrlPagination } from '@/lib/use-url-pagination';
 import { keepRowsWhilePaging } from '@/lib/use-record-pagination';
 import { safeCustomerReturnTo } from '@/lib/record-navigation';
 import { useHashTarget } from '@/lib/use-hash-target';
+import { recordKindName } from '@/lib/record-kinds';
+
+/** The page a return link goes back to, by its name in the navigation. */
+const backPages: Record<string, string> = { '/collections': 'Collections', '/exceptions': 'Exceptions', '/reconciliation': 'Reconciliation', '/mandates': 'Mandates', '/customers': 'Customers' };
 
 /** The sections' pagers: one history request carries every section's page, so a failed page replaces the whole history. */
 const sectionPagers = ['customer mandates', 'customer instalments', 'customer payments', 'history events'] as const;
@@ -30,18 +34,20 @@ function decisionDetail(data: Record<string, any>): string {
   const notice = data.noticeRequired as { purpose?: string; requiredBy?: string | null; evidenced?: boolean } | undefined;
   return [
     String(data.reason || ''),
-    data.nextAt ? `Next attempt ${watStamp(data.nextAt)}.` : '',
-    notice ? `Customer notice: ${readableLabel(notice.purpose)}${notice.requiredBy ? `, due by ${watStamp(notice.requiredBy)}` : ''}${notice.evidenced ? '. Provider acceptance recorded.' : '. Provider acceptance not recorded.'}` : '',
-    `Policy version: ${String(data.policyVersion || 'not recorded')}${data.experimentArm ? ` · experiment group: ${readableLabel(data.experimentArm)}` : ''}.`,
+    data.nextAt ? `Next attempt: ${watStamp(data.nextAt)}.` : '',
+    notice ? `Customer notice: ${readableLabel(notice.purpose)}${notice.requiredBy ? `, due by ${watStamp(notice.requiredBy)}` : ''}. ${notice.evidenced ? 'The provider’s acceptance is recorded.' : 'No provider acceptance is recorded.'}` : '',
+    `Retry policy version: ${String(data.policyVersion || 'not recorded')}.${data.experimentArm ? ` Experiment group: ${readableLabel(data.experimentArm)}.` : ''}`,
   ].filter(Boolean).join(' ');
 }
 
-/** How an allocation was made, then the reason recorded with it: an automatic match names its rule and whether it was certain. */
+/** How an allocation was made, then the reason recorded with it: an automatic match names its rule and how sure it was. A proposal
+ * says why it was made, not what is still to do: Finance's decision changes only its status, which the badge beside it shows. */
 function allocationDetail(data: Record<string, any>): string {
   const rule = String(data.rule || 'not recorded');
-  const how = data.automatic === true ? `Matched automatically${data.confidence === 'certain' ? ' and with certainty' : ''} by rule ${rule}.`
+  const confidence = data.confidence && data.confidence !== 'manual' ? ` Confidence: ${readableLabel(data.confidence)}.` : '';
+  const how = data.automatic === true ? `Matched automatically by rule ${rule}.${confidence}`
     : data.confidence === 'manual' ? ''
-    : `Proposed by rule ${rule}${data.confidence ? ` as ${String(data.confidence)}` : ''} for Finance to confirm.`;
+    : `Proposed by rule ${rule} for Finance to confirm.${confidence}`;
   return [how, String(data.explanation || '')].filter(Boolean).join(' ');
 }
 
@@ -49,9 +55,9 @@ function allocationDetail(data: Record<string, any>): string {
 function MissingCustomer({ id }: { id: string }) {
   useEffect(() => { document.title = 'Customer not found · Valo Pay'; }, []);
   return (
-    <NotFoundNotice title="Customer not found" primary={{ href: '/customers', label: 'Back to customers' }} secondary={{ href: '/overview', label: 'Go to overview' }}>
-      <p>No customer was found with ID <LookedFor>{id}</LookedFor> for the selected lender. Check the address or choose another lender.</p>
-      <p>No records have changed.</p>
+    <NotFoundNotice title="Customer not found" primary={{ href: '/customers', label: 'Back to Customers' }} secondary={{ href: '/overview', label: 'Open Overview' }}>
+      <p>No customer has the ID <LookedFor>{id}</LookedFor> for this lender. It may have been deleted, or it belongs to another lender. Check the address or choose another lender.</p>
+      <p>Nothing has changed.</p>
     </NotFoundNotice>
   );
 }
@@ -91,20 +97,20 @@ export default function CustomerTimelinePage() {
 
 
   if (!merchantId) return null;
-  if (!sameLender) return <NotFoundNotice title="Choose the linked lender" primary={{ href: '/collections', label: 'Go to collections' }} secondary={{ href: '/customers', label: 'Go to customers' }}><p>This link belongs to {workspace?.merchants.find(merchant => merchant.id === search.get('lender'))?.name || 'another lender'}. Select that lender using the lender menu to review this customer.</p></NotFoundNotice>;
+  if (!sameLender) return <NotFoundNotice title="Choose the linked lender" primary={{ href: '/collections', label: 'Open Collections' }} secondary={{ href: '/customers', label: 'Open Customers' }}><p>This link belongs to {workspace?.merchants.find(merchant => merchant.id === search.get('lender'))?.name || 'another lender'}. Choose that lender in Active lender to see this customer.</p></NotFoundNotice>;
   if (isLoading) return <Loading what="the customer history" heading />;
   if ((error as { status?: number } | null)?.status === 404) return <MissingCustomer id={String(id)} />;
   if (error || !timeline) return <div className="space-y-4"><h1 className="text-2xl font-bold tracking-tight">Customer history</h1><LoadProblem what="customer history" pager={sectionPagers} error={error} retry={() => { void refetch(); }} busy={isFetching} /></div>;
 
   const { customer, position, events, mandates, dueItems, payments } = timeline;
-  // Money in another currency that the customer's payments hold unapplied, never added to the naira credit.
+  // Money in another currency that the customer's payments hold unallocated, never added to the naira amount.
   const otherCredit = otherCurrencyEntries(position?.unallocatedOtherCurrencies, 'payment');
 
   return (
     <div className="space-y-6">
       <div>
         <Link href={returnTo || '/customers'} className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4 print:hidden">
-          <ArrowLeft className="h-4 w-4" /> {returnTo ? 'Back to '+(returnTo.split('?')[0].slice(1)) : 'Back to customers'}
+          <ArrowLeft aria-hidden="true" className="h-4 w-4" /> Back to {returnTo ? backPages[returnTo.split('?')[0]!] || 'the previous page' : 'Customers'}
         </Link>
         <div className="flex flex-col xl:flex-row xl:items-start justify-between gap-6">
           <div className="min-w-0 flex-1">
@@ -128,11 +134,11 @@ export default function CustomerTimelinePage() {
               </div>
             </div>
             <div className="mt-4"><ExportJobControl kind="dispute-pack" customerId={String(id)} formats={['pdf', 'csv', 'json']} label="Export dispute pack (PDF)" /></div>
-            <p className="mt-2 max-w-xl text-xs leading-relaxed text-muted-foreground">Create a file for reviewing a dispute: a summary, full customer history, and the policy, message template and handover versions used at each event. Includes a checksum to verify the file.</p>
+            <p className="mt-2 max-w-xl text-xs leading-relaxed text-muted-foreground">Creates a file for a dispute review. It holds a summary, the full customer history, and the retry policy, message template and handover versions used at each event. Once it is ready, you can check later that the file has not changed.</p>
           </div>
 
           <div className="bg-card border rounded-xl p-5 shadow-sm w-full xl:w-80 shrink-0">
-            <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Customer position</h2>
+            <h2 className="text-sm font-semibold text-muted-foreground mb-2">Balance summary</h2>
             <div className="space-y-3">
               <div className="flex justify-between items-baseline">
                 <span className="text-sm text-muted-foreground">Outstanding</span>
@@ -143,31 +149,31 @@ export default function CustomerTimelinePage() {
                 <span className="text-lg font-bold text-success font-mono">{formatKobo(Number(position?.allocatedKobo || 0))}</span>
               </div>
               <div className="flex justify-between items-baseline">
-                <span className="text-sm text-muted-foreground">Unapplied credit</span>
+                <span className="text-sm text-muted-foreground">Unallocated payments</span>
                 <span className="text-lg font-bold font-mono">{formatKobo(Number(position?.unallocatedKobo || 0))}</span>
               </div>
               {/* A list under its label, each currency on a line of its own, as the card is narrow beside the history. */}
               {otherCredit.length > 0 && <div>
-                <span id="other-credit" className="text-sm text-muted-foreground">Unapplied in other currencies</span>
+                <span id="other-credit" className="text-sm text-muted-foreground">Unallocated, other currencies</span>
                 <ul aria-labelledby="other-credit" className="mt-1 space-y-0.5 text-right text-sm">
                   {otherCredit.map(({ code, money, counted }) => <li key={code}><span className="whitespace-nowrap font-mono font-semibold">{money}</span> <span className="ml-1 whitespace-nowrap text-muted-foreground">({counted})</span></li>)}
                 </ul>
               </div>}
-              <p className="text-[11px] text-muted-foreground">{String(position?.note || 'Calculated from instalments and recorded payments. We never hold money.')}</p>
+              <p className="text-[11px] text-muted-foreground">{String(position?.note || 'Calculated from instalments and payments. Valo Pay never holds money.')}</p>
             </div>
           </div>
         </div>
       </div>
 
       {requestedRecord && <section id={`record-${requestedRecord}`} tabIndex={-1} aria-label="Selected collection record" className="scroll-mt-6 rounded-xl border border-primary/30 bg-secondary/30 p-5">
-        <h2 className="font-semibold">{focusedRecord ? `Selected ${readableLabel(focusedRecord.kind).toLowerCase()}` : 'Collection record unavailable'}</h2>
+        <h2 className="font-semibold">{focusedRecord ? `Selected ${recordKindName(focusedRecord.kind).toLowerCase()}` : 'Record not found'}</h2>
         {focusedRecord ? <>
           <p className="mt-2 font-medium">{focusedRecord.name} · {focusedRecord.reference}</p>
           <p className="mt-1 text-sm">{formatRecordMoney(focusedRecord, focusedRecord.amountKobo)} · {readableLabel(focusedRecord.status)} · {formatDate(focusedRecord.createdAt)}</p>
           {focusedRecord.data?.failureCode ? <p className="mt-2 text-sm">Failure reason: {readableLabel(focusedRecord.data.failureCode)}</p> : null}
           {focusedRecord.kind === 'due-items' && <p className="mt-2 text-sm">Outstanding: {formatKobo(Number(focusedRecord.data?.outstandingKobo ?? focusedRecord.amountKobo))} · Due: {watStamp(focusedRecord.data?.dueDate)}</p>}
-          <p className="mt-2 text-xs text-muted-foreground">Review the customer's records below before deciding the next step.</p>
-        </> : <p className="mt-2 text-sm">This record was not found in this customer's history. Return to Collections and refresh the queue.</p>}
+          <p className="mt-2 text-xs text-muted-foreground">Review this customer’s records below before you decide the next step.</p>
+        </> : <p className="mt-2 text-sm">This record was not found in this customer’s history. Go back to the page you came from and refresh it.</p>}
       </section>}
 
       <div className="grid grid-cols-1 xl:grid-cols-5 gap-6 items-start">
@@ -180,7 +186,7 @@ export default function CustomerTimelinePage() {
             </div>
             <div className="divide-y">
               {mandates.length === 0 ? (
-                <EmptyState title="No mandates for this customer">A mandate is a customer's permission to collect by direct debit. Linked mandates appear here after they are created or imported.</EmptyState>
+                <EmptyState title="No mandates for this customer">A mandate is a customer’s permission for recurring bank debits. This customer’s mandates appear here after they are added or imported.</EmptyState>
               ) : (
                 mandates.map(mandate => (
                   <div key={mandate.id} className="p-4">
@@ -207,7 +213,7 @@ export default function CustomerTimelinePage() {
               </div>
               <div className="divide-y">
                 {dueItems.length === 0 ? (
-                  <EmptyState title="No instalments recorded">Import this customer's instalments from the Collections page to see their amounts and due dates here.</EmptyState>
+                  <EmptyState title="No instalments recorded">Import this customer’s instalments on Collections to see their amounts and due dates here.</EmptyState>
                 ) : (
                   dueItems.map(item => (
                     <div key={item.id} className="p-4">
@@ -233,7 +239,7 @@ export default function CustomerTimelinePage() {
               </div>
               <div className="divide-y">
                 {payments.length === 0 ? (
-                  <EmptyState title="No payments recorded">Payment records appear here when they are linked to this customer.</EmptyState>
+                  <EmptyState title="No payments recorded">Payments appear here when they are linked to this customer.</EmptyState>
                 ) : (
                   payments.map(payment => (
                     <div key={payment.id} className="p-4">
@@ -265,7 +271,7 @@ export default function CustomerTimelinePage() {
           </div>
           <ScrollFrame label="Customer history" className="p-5 sm:p-6 overflow-y-auto max-h-[720px] space-y-4">
             {events.length === 0 ? (
-              <EmptyState title="No events recorded yet" className="px-0">Consent, mandate changes, attempts, notices and payments are recorded here as they happen.</EmptyState>
+              <EmptyState title="No events recorded yet" className="px-0">Consent, mandate changes, collection attempts, customer notices and payments appear here as they happen.</EmptyState>
             ) : (
               <ol className="relative border-l border-border ml-2 space-y-7">
                 {events.map(event => (
@@ -273,7 +279,7 @@ export default function CustomerTimelinePage() {
                     <span aria-hidden="true" className="absolute -left-[5px] top-1 h-2.5 w-2.5 rounded-full bg-brand ring-4 ring-card" />
                     <div className="flex flex-col items-start">
                       <time dateTime={event.createdAt} className="text-[11px] text-muted-foreground mb-1.5">{formatDate(event.createdAt)}</time>
-                      <span className="text-sm font-semibold" title={event.id}>{event.name || readableLabel(event.kind)}</span>
+                      <span className="text-sm font-semibold" title={event.id}>{event.name || recordKindName(event.kind)}</span>
                       {event.amountKobo > 0 && (
                         <span className="text-sm font-mono mt-1">{formatRecordMoney(event, event.amountKobo)}</span>
                       )}

@@ -18,13 +18,13 @@ function proposeAgreement() {
     validateRecord(state, ctx, 'commercial', terms, true);
   });
 }
-/** The commercial commitments table, where each row's note is. */
-const commitmentsTable = async () => within((await screen.findByRole('heading', { name: 'Commercial commitments' })).closest('section')!).getByRole('table');
+/** The commercial terms table, where each row's note is. */
+const commitmentsTable = async () => within((await screen.findByRole('heading', { name: 'Commercial terms' })).closest('section')!).getByRole('table');
 
 describe('evidence register and operational reviews', () => {
   it.each([
-    ['wrong shape', [], /The recorded proposal or confirmation of these discount dates cannot be read/],
-    ['missing reviewer', { reviewedBy: '', reviewedAt: '2026-09-29T09:00:00Z', discountStartDate: '2027-02-01', fullPriceStartDate: '2028-02-01', termsReference: 'SYNTHETIC-TERMS' }, /The recorded proposal or confirmation of these discount dates cannot be read/],
+    ['wrong shape', [], /Valo Pay cannot read the saved proposal or confirmation of these discount dates/],
+    ['missing reviewer', { reviewedBy: '', reviewedAt: '2026-09-29T09:00:00Z', discountStartDate: '2027-02-01', fullPriceStartDate: '2028-02-01', termsReference: 'SYNTHETIC-TERMS' }, /Valo Pay cannot read the saved proposal or confirmation of these discount dates/],
     ['stale dates', { reviewedBy: 'Sandbox Admin', reviewedAt: '2026-09-29T09:00:00Z', discountStartDate: '2027-01-01', fullPriceStartDate: '2028-02-01', termsReference: 'SYNTHETIC-TERMS' }, /The discount dates or agreement reference changed after they were proposed/],
   ])('does not describe an unverified legacy discount review as ready, and says why (%s)', async (_label, discountReview, cause) => {
     api.mutate(state => {
@@ -32,7 +32,7 @@ describe('evidence register and operational reviews', () => {
       Object.assign(terms.data, { signed: true, designPartner: true, signedFullPriceTerms: true, discountStartDate: '2027-02-01', fullPriceStartDate: '2028-02-01', discountTermsReference: 'SYNTHETIC-TERMS', discountReview });
     });
     renderApp('/evidence');
-    const section = (await screen.findByRole('heading', { name: 'Commercial commitments' })).closest('section')!;
+    const section = (await screen.findByRole('heading', { name: 'Commercial terms' })).closest('section')!;
     expect(await within(section).findByText(cause)).toBeTruthy();
     expect(within(section).queryByText(/^Discount from/)).toBeNull();
     expect(screen.queryByText('Page error')).toBeNull();
@@ -45,17 +45,17 @@ describe('evidence register and operational reviews', () => {
       for (const key of ['discountStartDate', 'fullPriceStartDate', 'discountTermsReference', 'discountReview']) delete terms.data[key];
     });
     renderApp('/evidence');
-    const section = (await screen.findByRole('heading', { name: 'Commercial commitments' })).closest('section')!;
-    const missing = /The discount start date, the full-price start date and the signed agreement reference are missing: enter them from the signed agreement\./;
+    const section = (await screen.findByRole('heading', { name: 'Commercial terms' })).closest('section')!;
+    const missing = /The discount start date, the full-price start date and the signed agreement reference are missing\. Enter them from the signed agreement\./;
     expect(await within(section).findByText(missing)).toBeTruthy();
     await user.click(within(section).getByRole('button', { name: 'Edit' }));
     const dialog = await screen.findByRole('dialog', { name: 'Edit commercial terms' });
     expect((within(dialog).getByLabelText('50% discount starts on') as HTMLInputElement).value).toBe('');
     expect((within(dialog).getByLabelText('Full-price billing starts on') as HTMLInputElement).value).toBe('');
-    expect(within(dialog).getByText(/Leave dates blank until the agreement has been reviewed/)).toBeTruthy();
+    expect(within(dialog).getByText(/Leave the dates blank until the agreement has been reviewed/)).toBeTruthy();
     await user.clear(within(dialog).getByLabelText(/^Lender name/));
     await user.type(within(dialog).getByLabelText(/^Lender name/), 'Updated legacy agreement');
-    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     const saved = api.state().records.find(record => record.kind === 'commercial')!;
     expect(saved.name).toBe('Updated legacy agreement');
@@ -73,7 +73,7 @@ describe('evidence register and operational reviews', () => {
       for (const key of ['discountStartDate', 'fullPriceStartDate', 'discountTermsReference', 'discountReview']) delete terms.data[key];
     });
     renderApp('/evidence');
-    const section = (await screen.findByRole('heading', { name: 'Commercial commitments' })).closest('section')!;
+    const section = (await screen.findByRole('heading', { name: 'Commercial terms' })).closest('section')!;
     await user.click(await within(section).findByRole('button', { name: 'Edit' }));
     const dialog = await screen.findByRole('dialog', { name: 'Edit commercial terms' });
     for (const label of ['Signed', 'Design-partner agreement', 'Full-price terms are signed']) await user.click(within(dialog).getByRole('checkbox', { name: label }));
@@ -81,15 +81,15 @@ describe('evidence register and operational reviews', () => {
     fireEvent.change(within(dialog).getByLabelText('Full-price billing starts on'), { target: { value: '2028-02-01' } });
     await user.type(within(dialog).getByLabelText('Signed agreement reference for these dates'), 'SYNTHETIC-AGREEMENT-2027');
     expect(within(dialog).queryByLabelText(/Reviewed by|Review time|Review date/)).toBeNull();
-    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     const submitted = api.calls.findLast(call => call.method === 'PATCH' && call.path.includes('/records/commercial/'))!;
     expect(submitted.body).toMatchObject({ data: { signed: true, designPartner: true, signedFullPriceTerms: true, discountStartDate: '2027-02-01', fullPriceStartDate: '2028-02-01', discountTermsReference: 'SYNTHETIC-AGREEMENT-2027' } });
     expect((submitted.body as { data: Record<string, unknown> }).data).not.toHaveProperty('discountReview');
     expect(api.state().records.find(record => record.kind === 'commercial')!.data.discountReview).toEqual({ reviewedBy: 'Sandbox Admin', reviewedAt: api.now, proposedPrincipal: 'synthetic-console-person-1', discountStartDate: '2027-02-01', fullPriceStartDate: '2028-02-01', termsReference: 'SYNTHETIC-AGREEMENT-2027' });
     // Saved, the dates are a proposal: the form's answer and the row say they await a second person, and who proposed them.
-    const awaiting = /The discount dates await confirmation: a different Admin or Finance user from the person who proposed them must confirm them/;
-    expect(within(section).getByRole('status').textContent).toMatch(/^Terms saved\. These design-partner terms cannot price a new invoice yet\. The discount dates await confirmation/);
+    const awaiting = /The discount dates are waiting for confirmation\. An Admin or Finance team member who did not propose them must check them against the signed agreement/;
+    expect(within(section).getByRole('status').textContent).toMatch(/^Terms saved\. These design-partner terms cannot be used on a new invoice yet\. The discount dates are waiting for confirmation/);
     const table = within(section).getByRole('table');
     expect(within(table).getByText(awaiting)).toBeTruthy();
     expect(within(table).getByText(`Proposed by Sandbox Admin · ${formatDate(api.now)}`)).toBeTruthy();
@@ -98,21 +98,21 @@ describe('evidence register and operational reviews', () => {
   it('says at save time that saved dates cannot price an invoice while the full-price terms are not ticked, naming that and not the dates', async () => {
     const user = userEvent.setup();
     renderApp('/evidence');
-    const section = (await screen.findByRole('heading', { name: 'Commercial commitments' })).closest('section')!;
+    const section = (await screen.findByRole('heading', { name: 'Commercial terms' })).closest('section')!;
     await user.click(await within(section).findByRole('button', { name: 'Edit' }));
     const dialog = await screen.findByRole('dialog', { name: 'Edit commercial terms' });
     // The form says what ticking the full-price terms and saving the dates do, and records nobody's name it does not keep.
-    expect(within(dialog).getByText('Tick once the full-price terms are signed. Until then the discount dates are not proposed and cannot price an invoice.')).toBeTruthy();
-    expect(within(dialog).getByText(/^Saving signed design-partner terms with these dates proposes them: the service records your demo role or staff account and the time\. A different Admin or Finance user must then confirm them before a new invoice is priced\./)).toBeTruthy();
+    expect(within(dialog).getByText('Tick this once the full-price terms are signed. Until then, the discount dates are not proposed and cannot be used on an invoice.')).toBeTruthy();
+    expect(within(dialog).getByText(/^Saving signed design-partner terms with these dates proposes them\. Valo Pay records your demo role or staff account, and the time\. A different Admin or Finance team member must then confirm them before new invoices use them\./)).toBeTruthy();
     expect(within(dialog).queryByText(/records your name/)).toBeNull();
     await user.click(within(dialog).getByRole('checkbox', { name: /^Signed/ }));
     fireEvent.change(within(dialog).getByLabelText('50% discount starts on'), { target: { value: agreement.discountStartDate } });
     fireEvent.change(within(dialog).getByLabelText('Full-price billing starts on'), { target: { value: agreement.fullPriceStartDate } });
     await user.type(within(dialog).getByLabelText('Signed agreement reference for these dates'), agreement.discountTermsReference);
-    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(api.state().records.find(record => record.kind === 'commercial')!.data.discountReview).toBeUndefined();
-    const flag = 'These design-partner terms cannot price a new invoice yet. The full-price terms are not recorded as signed: tick “Full-price terms are signed” once they are, so that the discount dates can be proposed.';
+    const flag = 'These design-partner terms cannot be used on a new invoice yet. The full-price terms are not recorded as signed. Tick “Full-price terms are signed” once they are, so the discount dates can be proposed.';
     expect(within(section).getByRole('status').textContent).toBe(`Terms saved. ${flag}`);
     expect(within(within(section).getByRole('table')).getByText(flag)).toBeTruthy();
   });
@@ -122,16 +122,16 @@ describe('evidence register and operational reviews', () => {
     renderApp('/evidence');
     const table = await commitmentsTable();
     expect(await within(table).findByText('Not signed')).toBeTruthy();
-    expect(within(table).queryByText(/need review|cannot price a new invoice|await confirmation/)).toBeNull();
+    expect(within(table).queryByText(/need review|cannot be used on a new invoice|waiting for confirmation/)).toBeNull();
     expect(within(table).queryByRole('button', { name: 'Confirm discount dates' })).toBeNull();
     // Saved unchanged, the prospect is still unsigned: nothing is said about pricing an invoice.
-    const section = (await screen.findByRole('heading', { name: 'Commercial commitments' })).closest('section')!;
+    const section = (await screen.findByRole('heading', { name: 'Commercial terms' })).closest('section')!;
     await user.click(within(table).getByRole('button', { name: 'Edit' }));
-    await user.click(within(await screen.findByRole('dialog', { name: 'Edit commercial terms' })).getByRole('button', { name: 'Save' }));
+    await user.click(within(await screen.findByRole('dialog', { name: 'Edit commercial terms' })).getByRole('button', { name: 'Save changes' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(api.calls.some(call => call.method === 'PATCH' && call.path.includes('/records/commercial/') && call.status === 200)).toBe(true);
     expect(within(section).getByRole('status').textContent).toBe('');
-    expect(within(table).queryByText(/cannot price a new invoice/)).toBeNull();
+    expect(within(table).queryByText(/cannot be used on a new invoice/)).toBeNull();
   });
 
   it('does not flag terms that later terms from the same date replaced, which bill no month', async () => {
@@ -150,7 +150,7 @@ describe('evidence register and operational reviews', () => {
     expect(row('Replacement terms').textContent).toContain('Confirmed by Clerk:user_second');
     const replaced = row(api.state().merchant.name);
     expect(replaced.textContent).toContain('Signed');
-    expect(replaced.textContent).not.toMatch(/cannot price a new invoice|missing/);
+    expect(replaced.textContent).not.toMatch(/cannot be used on a new invoice|missing/);
   });
 
   it('shows who proposed and who confirmed the discount dates, and when, beside the confirmed dates', async () => {
@@ -176,7 +176,7 @@ describe('evidence register and operational reviews', () => {
     const table = await commitmentsTable();
     const confirm = await within(table).findByRole('button', { name: 'Confirm discount dates' });
     expect(confirm.getAttribute('aria-disabled')).toBe('true');
-    expect(document.getElementById(confirm.getAttribute('aria-describedby')!.split(' ').at(-1)!)!.textContent).toBe('A different person must confirm these discount dates. Every demo role here is you, so switching roles cannot confirm them. In a staff pilot, a second Admin or Finance user confirms them.');
+    expect(document.getElementById(confirm.getAttribute('aria-describedby')!.split(' ').at(-1)!)!.textContent).toBe('A different person must confirm these discount dates. Switching demo roles is not a second person. In a pilot, a second Admin or Finance team member confirms them.');
     await user.click(confirm);
     expect(screen.queryByRole('dialog', { name: 'Confirm discount dates' })).toBeNull();
     expect(api.state().records.find(record => record.kind === 'commercial')!.data.discountReview.confirmedBy).toBeUndefined();
@@ -206,8 +206,8 @@ describe('evidence register and operational reviews', () => {
     const sent = api.calls.findLast(call => call.method === 'POST' && call.path === '/v1/actions')!;
     expect(sent.body).toMatchObject({ action: 'confirm_discount_terms', data: agreement, reason: 'Checked against the signed agreement' });
     expect(api.state().records.find(record => record.kind === 'commercial')!.data.discountReview).toMatchObject({ confirmedBy: 'Sandbox Finance', confirmedPrincipal: 'synthetic-console-person-2', confirmedAt: api.now });
-    const section = (await screen.findByRole('heading', { name: 'Commercial commitments' })).closest('section')!;
-    expect(within(section).getByRole('status').textContent).toMatch(/^Discount dates confirmed: 50% discount from 2027-02-01, full price from 2028-02-01 \(agreement SYNTHETIC-AGREEMENT-2027\), proposed by Sandbox Admin\./);
+    const section = (await screen.findByRole('heading', { name: 'Commercial terms' })).closest('section')!;
+    expect(within(section).getByRole('status').textContent).toMatch(/^Discount dates confirmed: 50% discount from 1 Feb 2027, full price from 1 Feb 2028 \(agreement SYNTHETIC-AGREEMENT-2027\), proposed by Sandbox Admin\./);
     expect(await within(table).findByText(`Confirmed by Sandbox Finance · ${formatDate(api.now)}`)).toBeTruthy();
     expect(within(table).queryByRole('button', { name: 'Confirm discount dates' })).toBeNull();
   });
@@ -223,7 +223,7 @@ describe('evidence register and operational reviews', () => {
     renderApp('/evidence');
     const confirm = await within(await commitmentsTable()).findByRole('button', { name: 'Confirm discount dates' });
     expect(confirm.getAttribute('aria-disabled')).toBe('true');
-    expect(document.getElementById(confirm.getAttribute('aria-describedby')!.split(' ').at(-1)!)!.textContent).toBe('You proposed these discount dates. A different Admin or Finance user must confirm them.');
+    expect(document.getElementById(confirm.getAttribute('aria-describedby')!.split(' ').at(-1)!)!.textContent).toBe('You proposed these discount dates. A different Admin or Finance team member must confirm them.');
   });
 
   it('preserves a refused partial or mid-month discount draft until the dates and agreement reference are corrected', async () => {
@@ -234,24 +234,24 @@ describe('evidence register and operational reviews', () => {
       for (const key of ['discountStartDate', 'fullPriceStartDate', 'discountTermsReference', 'discountReview']) delete terms.data[key];
     });
     renderApp('/evidence');
-    const section = (await screen.findByRole('heading', { name: 'Commercial commitments' })).closest('section')!;
+    const section = (await screen.findByRole('heading', { name: 'Commercial terms' })).closest('section')!;
     await user.click(await within(section).findByRole('button', { name: 'Edit' }));
     const dialog = await screen.findByRole('dialog', { name: 'Edit commercial terms' });
     const start = within(dialog).getByLabelText('50% discount starts on') as HTMLInputElement;
     const fullPrice = within(dialog).getByLabelText('Full-price billing starts on') as HTMLInputElement;
     const reference = within(dialog).getByLabelText('Signed agreement reference for these dates') as HTMLInputElement;
     fireEvent.change(start, { target: { value: '2027-02-15' } });
-    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
     expect(await within(dialog).findByText(/Enter both discount dates and the signed agreement reference/)).toBeTruthy();
     expect(start.value).toBe('2027-02-15');
     fireEvent.change(fullPrice, { target: { value: '2028-02-01' } });
     await user.type(reference, 'SYNTHETIC-CORRECTED-AGREEMENT');
-    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
-    expect(await within(dialog).findByText(/Discount dates must be the first day of a real billing month/)).toBeTruthy();
+    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
+    expect(await within(dialog).findByText(/Each discount date must be the first day of a month, because a monthly invoice uses one price for the whole month/)).toBeTruthy();
     expect([start.value, fullPrice.value, reference.value]).toEqual(['2027-02-15', '2028-02-01', 'SYNTHETIC-CORRECTED-AGREEMENT']);
     expect(api.state().records.find(record => record.kind === 'commercial')!.data.discountReview).toBeUndefined();
     fireEvent.change(start, { target: { value: '2027-02-01' } });
-    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(api.state().records.find(record => record.kind === 'commercial')!.data.discountReview).toMatchObject({ discountStartDate: '2027-02-01', termsReference: 'SYNTHETIC-CORRECTED-AGREEMENT' });
   });
@@ -278,43 +278,69 @@ describe('evidence register and operational reviews', () => {
     await user.click(within(dialog).getByRole('button', { name: /Save/ }));
     expect(await within(register).findByText('Updated recovery evidence')).toBeTruthy();
     expect(api.state().records.find(record => record.name === 'Updated recovery evidence')?.data.gateId).toBe('T2');
-    expect(screen.getByText('Requirements missing')).toBeTruthy();
+    expect(screen.getByText('Not ready to go live')).toBeTruthy();
+  });
+
+  it('takes the commercial terms money in naira and the usage fee rate in per cent, saves them exactly and shows them back', async () => {
+    const user = userEvent.setup();
+    renderApp('/evidence');
+    const table = await commitmentsTable();
+    await user.click(await within(table).findByRole('button', { name: 'Edit' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Edit commercial terms' });
+    const field = (label: RegExp) => within(dialog).getByLabelText(label) as HTMLInputElement;
+    const average = () => field(/^Average collection amount \(₦\)/), rate = () => field(/^Usage fee rate \(%\)/), cap = () => field(/^Maximum usage fee per collection \(₦\)/);
+    // The seeded terms are saved as 2,500,000 kobo, 30 basis points and a 15,000 kobo cap.
+    expect([average().value, rate().value, cap().value]).toEqual(['25000.00', '0.3', '150.00']);
+    await user.clear(rate()); await user.type(rate(), '0.275');
+    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
+    expect(await within(dialog).findByText('Enter a percentage from 0 to 100 with no more than 2 decimal places, for example 0.3 or 40.')).toBeTruthy();
+    expect(api.calls.some(call => call.method === 'PATCH' && call.path.includes('/records/commercial/'))).toBe(false);
+    await user.clear(rate()); await user.type(rate(), '0.45');
+    await user.clear(average()); await user.type(average(), '12,345.67');
+    await user.clear(cap()); await user.type(cap(), '200');
+    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(api.state().records.find(record => record.kind === 'commercial')!.data).toMatchObject({ usageBps: 45, averageTicketKobo: 1_234_567, usageCapKobo: 20_000 });
+    expect(within(table).getByText('0.45% (up to ₦200.00 per collection)')).toBeTruthy();
+    await user.click(within(table).getByRole('button', { name: 'Edit' }));
+    const again = await screen.findByRole('dialog', { name: 'Edit commercial terms' });
+    expect([(within(again).getByLabelText(/^Average collection amount \(₦\)/) as HTMLInputElement).value, (within(again).getByLabelText(/^Usage fee rate \(%\)/) as HTMLInputElement).value]).toEqual(['12345.67', '0.45']);
   });
 
   it('records when signed terms take effect, the month from which they bill', async () => {
     const user = userEvent.setup();
     renderApp('/evidence');
-    const section = (await screen.findByRole('heading', { name: 'Commercial commitments' })).closest('section')!;
+    const section = (await screen.findByRole('heading', { name: 'Commercial terms' })).closest('section')!;
     await user.click(await within(section).findByRole('button', { name: 'Edit' }));
     const dialog = await screen.findByRole('dialog', { name: 'Edit commercial terms' });
-    expect(within(dialog).getByText(/^Each invoice month is billed from the latest signed terms in effect by its end, for the whole month\./)).toBeTruthy();
+    expect(within(dialog).getByText(/^Each billing month is billed on the signed terms in effect on its last day, for the whole month\./)).toBeTruthy();
     await user.click(within(dialog).getByRole('checkbox', { name: /^Signed/ }));
     fireEvent.change(within(dialog).getByLabelText(/^Takes effect on/), { target: { value: '2027-07-15' } });
     await user.click(within(dialog).getByRole('button', { name: /Save/ }));
     await waitFor(() => expect(api.state().records.find(record => record.kind === 'commercial')?.data).toMatchObject({ signed: true, effectiveDate: '2027-07-15' }));
   });
 
-  it('shows load failures instead of saying commercial commitments and reviews are empty', async () => {
+  it('shows load failures instead of saying commercial terms and reviews are empty', async () => {
     const user = userEvent.setup();
     api.failNext(/^\/v1\/records\/commercial$/, { status: 503, error: 'Service temporarily unavailable.' });
     api.failNext(/^\/v1\/records\/reviews$/, 'offline');
     renderApp('/evidence');
-    const commercial = await screen.findByText('Unable to load commercial commitments');
-    const reviews = await screen.findByText('Unable to load reviews');
-    expect(screen.queryByText('No commercial commitments')).toBeNull();
-    expect(screen.queryByText('No reviews logged')).toBeNull();
+    const commercial = await screen.findByText('We could not load commercial terms');
+    const reviews = await screen.findByText('We could not load reviews');
+    expect(screen.queryByText('No commercial terms yet')).toBeNull();
+    expect(screen.queryByText('No reviews yet')).toBeNull();
     await user.click(within(commercial.closest('[role="alert"]')!).getByRole('button', { name: 'Try again' }));
     await user.click(within(reviews.closest('[role="alert"]')!).getByRole('button', { name: 'Try again' }));
-    await waitFor(() => expect(screen.queryByText('Unable to load commercial commitments')).toBeNull());
-    expect(await screen.findByText('No reviews logged')).toBeTruthy();
+    await waitFor(() => expect(screen.queryByText('We could not load commercial terms')).toBeNull());
+    expect(await screen.findByText('No reviews yet')).toBeTruthy();
   });
 
   it('says, before the first review, that a review is recorded in the signed-in person\'s name, as its dialog records it', async () => {
     renderApp('/evidence');
-    const empty = (await screen.findByText('No reviews logged')).closest('tr')!;
+    const empty = (await screen.findByText('No reviews yet')).closest('tr')!;
     // The dialog no longer takes a reviewer, so the row must not ask for one.
     expect(empty.textContent).not.toMatch(/name the reviewer/i);
-    expect(empty.textContent).toContain('The review is recorded in your name, with the time the service saves it.');
+    expect(empty.textContent).toContain('Valo Pay records the review in your name, with the time it is saved.');
   });
 
   it('reports export failures and leaves an Open link when the browser blocks the new tab', async () => {
@@ -322,12 +348,12 @@ describe('evidence register and operational reviews', () => {
     vi.spyOn(window, 'open').mockReturnValue(null);
     api.failNext(/^\/v1\/exports$/, 'offline', 'POST');
     renderApp('/evidence');
-    const exportButton = await screen.findByRole('button', { name: 'Export evidence pack' });
+    const exportButton = await screen.findByRole('button', { name: 'Export Go-live evidence pack (PDF)' });
     await user.click(exportButton);
-    expect(await screen.findByText('Evidence pack request could not be confirmed')).toBeTruthy();
+    expect(await screen.findByText('Request not confirmed')).toBeTruthy();
     expect(exportButton.hasAttribute('disabled')).toBe(true);
-    await user.click(screen.getByRole('button', { name: 'Retry original request' }));
-    const link = await screen.findByRole('link', { name: 'Open evidence pack' });
+    await user.click(screen.getByRole('button', { name: 'Check original request' }));
+    const link = await screen.findByRole('link', { name: 'Open Go-live evidence pack' });
     expect(link.getAttribute('href')).toMatch(/\/exports\//);
     expect(window.open).toHaveBeenCalledWith(link.getAttribute('href'), '_blank');
   });
@@ -335,17 +361,17 @@ describe('evidence register and operational reviews', () => {
   it('records the named tasks in the reviewer\'s own name at the service\'s time, keeping partial reviews distinct from complete reviews', async () => {
     const user = userEvent.setup();
     renderApp('/evidence');
-    await user.click(await screen.findByRole('button', { name: 'Log review' }));
+    await user.click(await screen.findByRole('button', { name: 'Record review' }));
     const dialog = screen.getByRole('dialog');
     // MEA-05: nobody types a reviewer or a date; the review is the signed-in person's, at the time the service saves it.
     expect(within(dialog).queryByLabelText(/Reviewer name|Review date/)).toBeNull();
     expect(within(dialog).getByText(/Sandbox Admin \(you\)/)).toBeTruthy();
-    await user.click(within(dialog).getByRole('button', { name: 'Save review' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Record review' }));
     expect(await screen.findByText('Describe what was checked and any tasks still outstanding.')).toBeTruthy();
     await user.click(within(dialog).getByRole('checkbox', { name: 'Mandate operations' }));
     await user.click(within(dialog).getByRole('checkbox', { name: 'Payment matching' }));
     await user.type(within(dialog).getByRole('textbox', { name: 'Review notes' }), 'Checked mandates and matches; retries and dispute records still need review.');
-    await user.click(within(dialog).getByRole('button', { name: 'Save review' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Record review' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     const record = api.state().records.find(record => record.kind === 'reviews');
     expect(record?.data).toMatchObject({ confirmedJobs: ['mandates', 'reconciliation'], reviewer: 'Sandbox Admin', reviewedAt: api.now });

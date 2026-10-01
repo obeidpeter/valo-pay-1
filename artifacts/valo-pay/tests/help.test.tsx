@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { render } from "@testing-library/react";
 import axe from "axe-core";
 import { ContextualHelp } from "@/components/contextual-help";
-import { helpGuides, helpHref, safeHelpReturnTo } from "@/lib/help-content";
+import { helpGuides, helpHref, helpIndexHref, helpTerms, safeHelpReturnTo } from "@/lib/help-content";
 import { installFakeApi, type FakeApi } from "./fake-api";
 import { renderApp, screen, userEvent, waitFor, within } from "./harness";
 
@@ -46,7 +46,7 @@ describe("public task help", () => {
     ).toBe("payment");
     expect(
       screen
-        .getByRole("link", { name: "Return to your page" })
+        .getByRole("link", { name: "Back to your page" })
         .getAttribute("href"),
     ).toBe("/pay-by-bank");
     await user.click(
@@ -150,9 +150,15 @@ describe("public task help", () => {
     const cases = [
       ["pending", /Understand payment status without paying twice/],
       ["payment pending", /Understand payment status without paying twice/],
-      ["mandate", /Pause, cancel or reissue a debit mandate/],
-      ["reconciliation", /Match a payment to a repayment/],
+      ["mandate", /Suspend, resume, cancel or reissue a mandate/],
+      ["reconciliation", /Match a payment to an instalment/],
       ["payroll", /Prepare a reviewed payroll file/],
+      // Words and names the guides used before the language pass still find them.
+      ["recover", /Check a request that was not confirmed/],
+      ["Recover an interrupted request", /Check a request that was not confirmed/],
+      ["pause", /Suspend, resume, cancel or reissue a mandate/],
+      ["Policies & templates", /Review retry policies and message templates/],
+      ["Access & recovery", /Grant or withdraw a permission/],
     ] as const;
     for (const [query, title] of cases) {
       await user.clear(input);
@@ -167,9 +173,11 @@ describe("public task help", () => {
     const user = userEvent.setup();
     renderApp("/help?view=glossary&q=account-read");
     await screen.findByRole("heading", { name: "Terms explained", level: 2 });
-    expect(screen.getByText("Permission to read an account")).toBeTruthy();
+    // The headword is the permission's name on screen; the old formal term is a search word the page does not show.
+    expect(screen.getByText("Read applicant accounts")).toBeTruthy();
+    expect(screen.queryByText("Account-read consent")).toBeNull();
     expect(
-      screen.getByText(/It is not permission to debit the account/),
+      screen.getByText(/Permission to read an account is not permission to take money from it/),
     ).toBeTruthy();
     expect(
       screen
@@ -177,10 +185,48 @@ describe("public task help", () => {
         .getAttribute("aria-current"),
     ).toBe("page");
     await user.click(screen.getByRole("link", { name: "Clear search" }));
-    expect(screen.getByText("Committed import")).toBeTruthy();
-    expect(
-      screen.getByText(/Exported does not mean salaries were executed/),
-    ).toBeTruthy();
+    expect(screen.getByText("Imported")).toBeTruthy();
+    expect(screen.getByText(/Exporting the file moves no money, and no one has been paid/)).toBeTruthy();
+    expect(api.calls).toEqual([]);
+  });
+
+  it("names every Terms explained entry by its word on screen and still finds it by an old name", async () => {
+    // Every guide's terms are entries in Terms explained.
+    const ids = new Set(helpTerms.map((term) => term.id));
+    for (const guide of helpGuides) for (const id of guide.terms) expect(ids.has(id), `${guide.id}: ${id}`).toBe(true);
+    renderApp("/help?view=glossary&q=Tenant");
+    await screen.findByRole("heading", { name: "Terms explained", level: 2 });
+    expect(screen.getByText("Organisation")).toBeTruthy();
+    expect(screen.queryByText("Tenant")).toBeNull();
+    expect(screen.getByRole("status").textContent).toBe("1 term for “Tenant”");
+    await waitFor(() => expect(document.title).toBe("Terms explained · Help · Valo Pay"));
+    expect(api.calls).toEqual([]);
+  });
+
+  // The connected pages renamed formal terms; Terms explained finds each screen word by its formal name.
+  it.each([
+    ["principal", "Loan amount"],
+    ["debt-service ratio", "Affordability check"],
+    ["rulecard score", "Sample rule score"],
+    ["median observed liquidity", "Typical account balance"],
+    ["downside scenario", "Cautious case"],
+    ["recoverable input tax", "Input VAT"],
+    ["ledger control variance", "Difference from your ledger"],
+    ["invoice residual", "Still owed"],
+    ["Sample SME", "Sample business"],
+  ])("finds the connected pages' word for %s", async (formal, term) => {
+    renderApp(`/help?view=glossary&q=${encodeURIComponent(formal)}`);
+    await screen.findByRole("heading", { name: "Terms explained", level: 2 });
+    expect(screen.getByText(term)).toBeTruthy();
+    expect(screen.queryByText(formal)).toBeNull();
+    expect(api.calls).toEqual([]);
+  });
+
+  it("finds the page once called Operations by its old name", async () => {
+    renderApp("/help?view=glossary&q=Operations");
+    await screen.findByRole("heading", { name: "Terms explained", level: 2 });
+    expect(screen.getByText("Request history")).toBeTruthy();
+    expect(screen.getByText(/It was called Operations\./)).toBeTruthy();
     expect(api.calls).toEqual([]);
   });
 
@@ -193,7 +239,7 @@ describe("public task help", () => {
       screen.getByRole("link", { name: "Back to home" }).getAttribute("href"),
     ).toBe("/");
     expect(
-      screen.queryByRole("link", { name: "Return to your page" }),
+      screen.queryByRole("link", { name: "Back to your page" }),
     ).toBeNull();
     expect(
       Array.from(document.querySelectorAll("a")).some((link) =>
@@ -207,12 +253,10 @@ describe("public task help", () => {
     const user = userEvent.setup();
     renderApp("/help?topic=close");
     await screen.findByRole("heading", {
-      name: "Prepare a close for a separate reviewer",
+      name: "Prepare a daily close for a different reviewer",
     });
     expect(
-      screen.getByText(
-        /Switching demo roles does not create an independent staff reviewer/,
-      ),
+      screen.getByText(/Switching demo roles is not a second person/),
     ).toBeTruthy();
     expect(
       screen.getByText(/It does not resolve exceptions, move money/),
@@ -224,7 +268,7 @@ describe("public task help", () => {
       }),
     );
     expect(
-      screen.getByText(/Nothing has been posted to accounting software/),
+      screen.getByText(/Nothing was posted to accounting software/),
     ).toBeTruthy();
     expect(
       screen.getByText(/previous approval does not cover a changed draft/),
@@ -235,7 +279,7 @@ describe("public task help", () => {
   it("has labelled keyboard-search controls, landmarks and no structural accessibility violations", async () => {
     const user = userEvent.setup();
     renderApp("/help");
-    await screen.findByRole("heading", { name: "Find your next step" });
+    await screen.findByRole("heading", { name: "Help", level: 1 });
     const input = within(
       screen.getByRole("search", { name: "Search help" }),
     ).getByRole("searchbox", { name: "Search tasks and terms" });
@@ -260,19 +304,19 @@ describe("contextual help links", () => {
     renderApp("/sign-up");
     await user.click(
       await screen.findByRole("link", {
-        name: "Help: Sign in or accept an invitation",
+        name: "Help: Sign in, create an account or accept an invitation",
       }),
     );
     await screen.findByRole("heading", {
-      name: "Sign in or accept an invitation",
+      name: "Sign in, create an account or accept an invitation",
       level: 2,
     });
-    const back = screen.getByRole("link", { name: "Return to your page" });
+    const back = screen.getByRole("link", { name: "Back to your page" });
     expect(back.getAttribute("href")).toBe("/sign-up");
     await user.click(back);
     expect(
       await screen.findByRole("heading", {
-        name: "Create your workspace",
+        name: "Create an account",
         level: 1,
       }),
     ).toBeTruthy();
@@ -291,7 +335,7 @@ describe("contextual help links", () => {
       name: "Prepare a reviewed payroll file",
       level: 2,
     });
-    const back = screen.getByRole("link", { name: "Return to your page" });
+    const back = screen.getByRole("link", { name: "Back to your page" });
     expect(back.getAttribute("href")).toBe("/cash-desk?view=payroll");
     await user.click(back);
     expect(
@@ -305,15 +349,15 @@ describe("contextual help links", () => {
   it.each([
     [
       "/mandates",
-      "Pause, cancel or reissue a debit mandate",
+      "Suspend, resume, cancel or reissue a mandate",
       "Mandates",
-      /No instruction is sent to a bank or provider/,
+      /Nothing is sent to a bank or provider/,
     ],
     [
       "/policies",
-      "Review retry rules and message templates",
-      "Policies & templates",
-      /Applying a policy in Mandates is a separate action/,
+      "Review retry policies and message templates",
+      "Policies and templates",
+      /Applying a policy to a mandate is a separate step on Mandates/,
     ],
   ])(
     "keeps %s guidance separate from account-read permission withdrawal",
@@ -331,6 +375,34 @@ describe("contextual help links", () => {
       expect(api.calls.filter((call) => call.method === "POST")).toEqual([]);
     },
   );
+
+  it.each([
+    ["/customers", "Help: Find a customer and their history"],
+    ["/collections", "Help: Track instalments and collection attempts"],
+    ["/reports", "Help: Read reports and run a daily close"],
+    ["/audit", "Help: Search and check the audit log"],
+    ["/evidence", "Help: Record go-live evidence and commercial terms"],
+    ["/team", "Help: Invite team members and manage their access"],
+    ["/lifecycle", "Help: Choose how long files are kept and delete old ones"],
+    ["/settings", "Help: Change settings, the emergency stop and your demo role"],
+    ["/operations", "Help: Check a request that was not confirmed"],
+  ])("links %s to the guide about that page", async (route, name) => {
+    renderApp(route);
+    const link = await screen.findByRole("link", { name });
+    expect(link.getAttribute("href")).toContain(`returnTo=${encodeURIComponent(route)}`);
+  });
+
+  it.each(["/pilot", "/sources", "/presentation"])("links %s, which has no guide of its own, to the help index", async (route) => {
+    const user = userEvent.setup();
+    renderApp(route);
+    const main = await screen.findByRole("main");
+    const link = await within(main).findByRole("link", { name: "Help" });
+    expect(link.getAttribute("href")).toBe(helpIndexHref(route));
+    await user.click(link);
+    await screen.findByRole("heading", { name: "Help", level: 1 });
+    await waitFor(() => expect(document.title).toBe("Help · Valo Pay"));
+    expect(screen.getByRole("link", { name: "Back to your page" }).getAttribute("href")).toBe(route);
+  });
 
   it("opens the precise task with a safe static return page", () => {
     render(<ContextualHelp topic="imports" returnTo="/imports" />);
@@ -360,6 +432,7 @@ describe("contextual help links", () => {
       expect(safeHelpReturnTo(value)).toBeNull();
       expect(helpHref("recovery", value)).toBe("/help?topic=recovery");
     }
+    for (const value of ["https://example.test", "/cases/private-id"]) expect(helpIndexHref(value)).toBe("/help");
     expect(safeHelpReturnTo("/cash-desk")).toBe("/cash-desk");
     expect(safeHelpReturnTo("/cash-desk?view=payroll")).toBe(
       "/cash-desk?view=payroll",

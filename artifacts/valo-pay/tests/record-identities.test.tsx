@@ -26,7 +26,7 @@ describe('recognisable operational records', () => {
     const user = userEvent.setup();
     const dueItem = api.state().records.find(record => record.kind === 'due-items' && record.status === 'scheduled')!;
     renderApp('/reconciliation');
-    await user.click(await screen.findByRole('button', { name: 'Allocate' }));
+    await user.click(await screen.findByRole('button', { name: 'Allocate payment' }));
     const instalment = await screen.findByLabelText(/Instalment/);
     await waitFor(() => expect(within(instalment).getByRole('option', { name: new RegExp(dueItem.reference) })).toBeTruthy());
     await user.selectOptions(instalment, dueItem.id);

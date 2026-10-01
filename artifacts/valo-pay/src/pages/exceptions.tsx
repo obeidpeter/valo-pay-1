@@ -8,19 +8,19 @@ import { Loading } from '@/components/loading';
 import { useWorkspace } from '@/lib/workspace-context';
 import { usePagedQueue } from '@/lib/use-paged-queue';
 import { SavedQueueViews } from '@/components/saved-queue-views';
-import { AlertTriangle, User, Calendar } from 'lucide-react';
+import { AlertTriangle, Users, Calendar } from 'lucide-react';
 import { PermissionButton as Button } from '@/components/permission-button';
 import { formatDate, formatNumber } from '@/lib/formatters';
 import { formatRecordMoney } from '@/lib/currencies';
 import { RecordDialog } from '@/components/record-dialog';
-import { exceptionSeverities, failureCodeList, resolveExceptionType } from '@workspace/valopay-schema';
+import { conditionClearedCode, exceptionSeverities, failureCodeList, providerIdentityConfirmedCode, resolveExceptionType } from '@workspace/valopay-schema';
 import { readableLabel, RecordLabel, StatusBadge } from '@/components/record-label';
 import { isDueToday, isOverdue, useQueueFilters } from '@/lib/queue-filters';
 import { RecordPagination, usePageProblemFocus } from '@/components/record-pagination';
-import { ExceptionContext, providerIdentityErrors, resolutionChoices, resolutionLabel, useHeldBatchIdentities } from '@/components/exception-context';
+import { ExceptionContext, exceptionStatus, providerIdentityErrors, resolutionChoices, resolutionLabel, useHeldBatchIdentities } from '@/components/exception-context';
 import { useHashTarget } from '@/lib/use-hash-target';
 import { useFocusWhenLost } from '@/lib/focus';
-import { permissionReason } from '@/lib/permissions';
+import { onlyRoles, permissionReason } from '@/lib/permissions';
 
 const exceptionViews = ['open', 'high', 'overdue', 'due-today', 'resolved'] as const;
 
@@ -93,22 +93,22 @@ export default function ExceptionsPage() {
       <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Exceptions</h1>
-          <p className="text-muted-foreground mt-1">Exceptions are items that need a person to review or resolve them. Track each item's owner and deadline here.</p>
+          <p className="text-muted-foreground mt-1">An exception is something that needs a person to review and resolve it. Each one shows its team, who it is assigned to and its deadline.</p>
         </div>
       </header>
 
       <QueueFreshness key={merchantId} queries={[exceptionsQuery]} />
-      {workspace?.role === 'Compliance reviewer' && <p className="text-sm text-muted-foreground">You can review exception evidence and case history. An Admin, Operations or Finance colleague can edit exception details.</p>}
+      {workspace?.role === 'Compliance reviewer' && <p className="text-sm text-muted-foreground">You can view exceptions and work on their cases. {onlyRoles(['Admin', 'Operations', 'Finance'], 'edit or resolve an exception')}</p>}
 
       {resolved && <section ref={resolvedRef} role="status" aria-label="Resolution recorded" className="rounded-lg border border-success/30 bg-success/5 p-4 text-sm">
         <p className="font-semibold">{resolved.what} resolved</p>
         <p className="mt-1">{resolved.message}</p>
       </section>}
 
-      <QueueSearch /><SavedQueueViews queue="exceptions" views={exceptionViews} fallback="open" />
+      <QueueSearch help="Your view, team and type filters still apply." /><SavedQueueViews queue="exceptions" views={exceptionViews} fallback="open" />
 
       <div className="bg-card border rounded-xl shadow-sm overflow-hidden flex flex-col">
-        {targetId ? <div className="flex flex-wrap items-center justify-between gap-3 border-b p-5"><p className="text-sm font-medium">Selected exception</p><Button size="sm" variant="outline" onClick={leaveSelectedRecord}>View exception queue</Button></div> : <div className="p-5 border-b flex flex-wrap items-center gap-4">
+        {targetId ? <div className="flex flex-wrap items-center justify-between gap-3 border-b p-5"><p className="text-sm font-medium">Selected exception</p><Button size="sm" variant="outline" onClick={leaveSelectedRecord}>Show all exceptions</Button></div> : <div className="p-5 border-b flex flex-wrap items-center gap-4">
           <p className="hidden print:block text-sm">Showing: {filters.find(option => option.key === filter)?.label}</p>
           <div className="flex flex-wrap gap-2" role="tablist" aria-label="Exception filter">
             {filters.map((option, index) => (
@@ -117,9 +117,9 @@ export default function ExceptionsPage() {
               </Button>
             ))}
           </div>
-          <label className="flex w-full min-w-0 flex-col gap-2 text-sm sm:ml-auto sm:w-auto sm:flex-row sm:items-center">Owner
-            <select aria-label="Filter exceptions by owner" className="w-full min-w-0 max-w-full rounded-md border bg-background px-3 py-2 sm:w-auto sm:max-w-52" value={owner} onChange={event => setOwner(event.target.value)}>
-              <option value="">All owners</option>
+          <label className="flex w-full min-w-0 flex-col gap-2 text-sm sm:ml-auto sm:w-auto sm:flex-row sm:items-center">Team
+            <select aria-label="Filter exceptions by team" className="w-full min-w-0 max-w-full rounded-md border bg-background px-3 py-2 sm:w-auto sm:max-w-52" value={owner} onChange={event => setOwner(event.target.value)}>
+              <option value="">All teams</option>
               {owners.map(value => <option key={value} value={value}>{value}</option>)}
             </select>
           </label>
@@ -129,25 +129,25 @@ export default function ExceptionsPage() {
               {types.map(value => <option key={value} value={value}>{readableLabel(value)}</option>)}
             </select>
           </label>
-          <p className="w-full text-xs text-muted-foreground">Overdue items first, then severity and deadline. Dates use West Africa Time.</p>
+          <p className="w-full text-xs text-muted-foreground">Overdue exceptions come first, then the rest by severity and deadline.</p>
         </div>}
 
         <div id="exception-results" {...(targetId ? {} : { role: 'tabpanel', 'aria-labelledby': `exception-tab-${filter}`, tabIndex: 0 })}>
         {isLoading ? (
           <Loading what="exceptions" />
         ) : error && !data ? (
-          <div ref={listProblem} role="alert" className="p-6 text-sm"><p>Exceptions could not be loaded.</p><Button className="mt-3" size="sm" variant="outline" onClick={() => { listAgain(); void refetch(); }}>Try again</Button></div>
+          <div ref={listProblem} role="alert" className="p-6 text-sm"><p>We could not load exceptions.</p><Button className="mt-3" size="sm" variant="outline" onClick={() => { listAgain(); void refetch(); }}>Try again</Button></div>
         ) : targetId && items.length === 0 ? (
-          <EmptyState title={wrongLender ? 'This exception link belongs to another lender' : 'The selected exception is unavailable'} action={<Button size="sm" variant="outline" onClick={leaveSelectedRecord}>View exception queue</Button>}>
-            {wrongLender ? 'Switch to the lender you were reviewing to open this exception.' : 'It could not be found for the active lender. Open the exception queue to find it.'}
+          <EmptyState title={wrongLender ? 'This exception link belongs to another lender' : 'Exception not found'} action={<Button size="sm" variant="outline" onClick={leaveSelectedRecord}>Show all exceptions</Button>}>
+            {wrongLender ? 'Choose the lender you were working in to open this exception.' : 'It may have been deleted, or it belongs to another lender. Select Show all exceptions to look for it.'}
           </EmptyState>
         ) : items.length === 0 ? (
-          <EmptyState filtered title={q ? 'No results match your search' : owner || type ? 'No exceptions match these filters' : filter === 'resolved' ? 'Nothing resolved yet' : filter === 'high' ? 'No high-severity exceptions open' : filter === 'overdue' ? 'No overdue exceptions' : filter === 'due-today' ? 'No exceptions due today' : 'All clear: no open exceptions'}>
-            {q ? 'Try another name or reference, or clear the search. Your status, owner and type filters will stay selected.' : filter === 'resolved'
-              ? 'Resolved and closed items will appear here with a record of how they were resolved.'
+          <EmptyState filtered title={q ? 'No exceptions match your search' : owner || type ? 'No exceptions match these filters' : filter === 'resolved' ? 'No resolved exceptions yet' : filter === 'high' ? 'No open high-severity exceptions' : filter === 'overdue' ? 'No overdue exceptions' : filter === 'due-today' ? 'No exceptions due today' : 'All clear: no open exceptions'}>
+            {q ? 'Try another name or reference, or select Clear search. Your view, team and type filters stay as they are.' : filter === 'resolved'
+              ? 'Exceptions appear here when someone resolves them, or when Valo Pay closes them automatically because the problem went away.'
               : filter !== 'open' || owner || type
-                ? 'Select All open, All owners and All types to review other exceptions.'
-                : 'Items appear here when reconciliation finds a problem that needs review, such as an unmatched payment or missing notice evidence.'}
+                ? 'Choose All open, All teams and All types to see every exception.'
+                : 'Exceptions appear here when reconciliation finds a problem that needs a person, such as an unallocated payment or missing notice evidence.'}
           </EmptyState>
         ) : (
           <ScrollFrame label="Exceptions" className="overflow-x-auto">
@@ -156,7 +156,7 @@ export default function ExceptionsPage() {
                 <tr>
                   <th className="px-6 py-4 font-medium">Type and severity</th>
                   <th className="px-6 py-4 font-medium">Customer and amount</th>
-                  <th className="px-6 py-4 font-medium">Status and owner</th>
+                  <th className="px-6 py-4 font-medium">Status and team</th>
                   <th className="px-6 py-4 font-medium text-right">Actions</th>
                 </tr>
               </thead>
@@ -168,13 +168,13 @@ export default function ExceptionsPage() {
                         {String(exception.data?.severity) === 'high' && <AlertTriangle className="h-4 w-4 text-destructive" />}
                         <span title={readableLabel(exception.data?.type)} className="font-semibold text-foreground">{readableLabel(exception.data?.type)}</span>
                       </div>
-                      <span className={`inline-block mt-1 px-2 py-0.5 text-[10px] uppercase font-bold rounded border ${
+                      <span className={`inline-block mt-1 px-2 py-0.5 text-[11px] font-semibold rounded border ${
                         String(exception.data?.severity) === 'high' ? 'bg-destructive/10 text-destructive border-destructive/20' : 
                         String(exception.data?.severity) === 'medium' ? 'bg-warning text-warning-foreground border-warning-border' : 
                         'bg-secondary text-secondary-foreground'
                       }`}>
                         {/* A stored exception may have none (an earlier edit could clear it): it is never shown as low. */}
-                        {exception.data?.severity ? String(exception.data.severity) : 'No severity'}
+                        {exception.data?.severity ? readableLabel(exception.data.severity) : 'No severity set'}
                       </span>
                     </td>
                     <td className="px-6 py-4">
@@ -185,10 +185,10 @@ export default function ExceptionsPage() {
                       )}
                     </td>
                     <td className="px-6 py-4">
-                      <StatusBadge status={exception.status} />
+                      <StatusBadge status={exceptionStatus(exception)} />
                       {!!exception.data?.case && <p className="mt-2 text-xs font-medium">Assigned to {String((exception.data.case as any).assigneeName)}</p>}
                       <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
-                        <User className="h-3 w-3" /> {String(exception.data?.owner || 'Unassigned')}
+                        <Users aria-hidden="true" className="h-3 w-3" /> {exception.data?.owner ? `Team: ${String(exception.data.owner)}` : 'No team'}
                       </div>
                       {!!exception.data?.dueBy && (
                         <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
@@ -197,22 +197,23 @@ export default function ExceptionsPage() {
                         </div>
                       )}
                       {!!exception.data?.notes && (
-                        <p className="max-w-sm text-xs leading-relaxed text-muted-foreground mt-2">{String(exception.data.notes)}</p>
+                        <p className="max-w-sm text-xs leading-relaxed text-muted-foreground mt-2 whitespace-pre-line">{String(exception.data.notes)}</p>
                       )}
                     </td>
                     <td className="px-6 py-4 text-right space-x-2">
-                      <Link href={`/cases/${exception.id}`} className="mb-2 inline-flex min-h-9 items-center text-xs font-medium text-primary underline">Case & handover</Link>
+                      <Link href={`/cases/${exception.id}`} className="mb-2 inline-flex min-h-9 items-center text-xs font-medium text-primary underline">Open case</Link>
                       {exception.status !== 'resolved' && exception.status !== 'closed' ? (
                         <div className="flex justify-end gap-2">
                           {!permissionReason(workspace, { kind: 'exceptions', record: exception }) && <Button size="sm" variant="ghost" className="text-xs" kind="exceptions" record={exception} onClick={() => handleAction(exception, 'update')}>
-                            Edit
+                            Edit exception
                           </Button>}
                           <Button size="sm" variant="outline" className="text-xs" action="resolve_exception" record={exception} onClick={() => handleAction(exception, 'resolve')}>
-                            Resolve
+                            Resolve exception
                           </Button>
                         </div>
-                      ) : (
-                        <span className="text-muted-foreground text-xs">Resolution: {resolutionLabel(exception, exception.data?.resolutionCode)}</span>
+                      ) : exceptionStatus(exception) !== conditionClearedCode && (
+                        // One Valo Pay closed automatically says so in its status; one a person resolved names the outcome they recorded.
+                        <span className="text-muted-foreground text-xs">Outcome: {resolutionLabel(exception, exception.data?.resolutionCode)}</span>
                       )}
                     </td>
                   </tr>
@@ -231,31 +232,33 @@ export default function ExceptionsPage() {
         isOpen={isDialogOpen}
         onOpenChange={setIsDialogOpen}
         title={actionKind === 'resolve' ? 'Resolve exception' : 'Edit exception'}
+        submitLabel={actionKind === 'resolve' ? 'Resolve exception' : 'Save changes'}
+        busyLabel={actionKind === 'resolve' ? 'Resolving exception…' : 'Saving changes…'}
         actionMutation={actionKind === 'resolve' ? 'resolve_exception' : undefined}
         answer={() => resolvedRef.current}
         onDone={response => { if (actionKind === 'resolve' && selectedEx) setResolved({ what: `${readableLabel(selectedEx.data?.type || 'exception')}${selectedEx.reference ? ` ${selectedEx.reference}` : ''}`, message: String(response?.message || 'Exception resolution recorded.') }); }}
         context={selectedEx ? values => <ExceptionContext exception={selectedEx} customer={customerById.get(String(selectedEx.customerId))} resolving={actionKind === 'resolve'} resolutionCode={values.resolutionCode} /> : undefined}
         validate={actionKind === 'resolve' ? (values): Record<string, string> => ({ ...(heldIdentities.length ? providerIdentityErrors(values) : {}), ...(checkoutOutcome
-          ? values.resolutionCode === 'resolved_succeeded' && !String(values.evidenceReference || '').trim() ? { evidenceReference: 'Enter the masked reference of the evidence that the payment arrived.' }
-            : values.resolutionCode !== 'resolved_succeeded' && String(values.evidenceReference || '').trim() ? { evidenceReference: 'Enter an evidence reference only when the payment is confirmed as received.' } : {}
-          : values.confirmedFailureCode && values.resolutionCode !== 'resolved_failed' ? { confirmedFailureCode: 'Choose a failure code only when the provider confirmed that the debit failed.' } : {}) }) : undefined}
+          ? values.resolutionCode === 'resolved_succeeded' && !String(values.evidenceReference || '').trim() ? { evidenceReference: 'Enter the masked reference that proves the payment arrived.' }
+            : values.resolutionCode !== 'resolved_succeeded' && String(values.evidenceReference || '').trim() ? { evidenceReference: `Clear the evidence reference, or choose ${readableLabel('resolved_succeeded')}.` } : {}
+          : values.confirmedFailureCode && values.resolutionCode !== 'resolved_failed' ? { confirmedFailureCode: `Clear the failure reason, or choose ${readableLabel('resolved_failed')}.` } : {}) }) : undefined}
         fields={
           actionKind === 'resolve' ? [
-            { name: 'resolutionCode', label: `How was this resolved? (${readableLabel(selectedEx?.data?.type || 'exception').toLowerCase()})`, type: 'select', isData: true, required: true, options: resolutionChoices(selectedEx, workspace?.role, heldBatch.held, heldBatch.blocked).map(code => ({ label: resolutionLabel(selectedEx, code), value: code })) },
+            { name: 'resolutionCode', label: 'Outcome', type: 'select', isData: true, required: true, options: resolutionChoices(selectedEx, workspace?.role, heldBatch.held, heldBatch.blocked).map(code => ({ label: resolutionLabel(selectedEx, code), value: code })) },
             ...(heldIdentities.length ? [{
-              name: 'confirmedProviderIdentity', label: 'Connection whose payout this batch is', type: 'select' as const, isData: true, options: heldIdentities,
-              help: 'Only with Provider identity confirmed: the connection the providers confirmed. Its evidence stays with the batch; the evidence of the others moves to their own batches.',
+              name: 'confirmedProviderIdentity', label: 'Connection that paid out this batch', type: 'select' as const, isData: true, options: heldIdentities,
+              help: `Only for the outcome ${readableLabel(providerIdentityConfirmedCode)}. The chosen connection’s evidence stays with this batch. Evidence for other connections moves to their own batches.`,
             }] : []),
             ...(checkoutOutcome ? [{
               name: 'evidenceReference', label: 'Evidence reference', type: 'text' as const, isData: true,
-              help: 'Only when the payment is confirmed as received: the masked reference of the evidence that the money arrived, such as a bank statement line (STMT-***4411).',
+              help: `Only for ${readableLabel('resolved_succeeded')}. Enter the masked reference that proves the money arrived, such as a bank statement line (STMT-***4411).`,
             }] : resolveExceptionType(selectedEx?.data?.type) === 'unknown_outcome' ? [{
-              name: 'confirmedFailureCode', label: 'Failure code the provider confirmed', type: 'select' as const, isData: true,
+              name: 'confirmedFailureCode', label: 'Failure reason the provider confirmed', type: 'select' as const, isData: true,
               options: failureCodeList.filter(code => code !== 'TIMEOUT_UNKNOWN').map(code => ({ label: readableLabel(code), value: code })),
-              help: 'Only when the provider confirmed that the debit failed. Without a code the attempt is recorded as an unclassified failure, which is never retried.',
+              help: `Only for ${readableLabel('resolved_failed')}. If you leave it empty, the collection attempt is recorded as an unclassified failure and is never retried.`,
             }] : []),
           ] : [
-            { name: 'owner', label: 'Assigned owner', type: 'text', isData: true },
+            { name: 'owner', label: 'Team', type: 'text', isData: true },
             { name: 'notes', label: 'Notes', type: 'textarea', isData: true },
             // Every exception type has a severity (the service gives a new exception its type's), so an edit never clears it.
             { name: 'severity', label: 'Severity', type: 'select', isData: true, required: true, options: exceptionSeverities.map(severity => ({ label: severity.charAt(0).toUpperCase() + severity.slice(1), value: severity })) }

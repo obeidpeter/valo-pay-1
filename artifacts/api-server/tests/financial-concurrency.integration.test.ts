@@ -193,7 +193,7 @@ try {
     makeRecord(state, "allocations", { name: "Synthetic bypass attempt", status: "confirmed", customerId, amountKobo: 1, createdAt: ctx.now, data: { paymentId, dueItemId: allocationDueId, rule: "MANUAL", confidence: "manual", automatic: false } });
     store.appendAudit(state, ctx, "test.financial.invalid", allocationDueId, reason);
     await store.saveState(ctx, state);
-  }), /Allocations exceed/);
+  }), /More has been allocated than the payment’s amount/);
   assert.deepEqual(await persisted(), before);
 
   // SQL NUMERIC SUM can exceed the v1 number contract even when every row is

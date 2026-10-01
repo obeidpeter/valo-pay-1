@@ -16,7 +16,7 @@ const empty = (id: string) => { const state = seedMerchant(id, true); state.reco
 // The audit's file: the name is in full_name, which is not a field, so the customer was named after its reference.
 const csv = "source_row_id,full_name,reference,consentProvenance\nrow-1,Named in an unmapped column,UNMAPPED-C1,Synthetic consent";
 const batchInput = (mapping: Record<string, string> = {}, file = csv): BatchInput => ({ name: "Unmapped names", kind: "customers", source: "loan-system", sourceBatchId: `unmapped-${Object.keys(mapping).length}`, businessDate: "2026-09-23", identityColumn: "source_row_id", amountUnit: "naira", mapping, csv: file, syntheticOnly: true });
-const nameWarning = "No column is mapped to Name, so each record's name is taken from its reference (or its row number without one). Not mapped to a field: full_name, which looks like the name. Map the column that holds the name, or commit knowing the fallback is saved.";
+const nameWarning = "No column is mapped to Name, so each record’s name is taken from its reference (or its row number without one). Not mapped to a field: full_name, which looks like the name. Map the column that holds the name, or import anyway to save the fallback.";
 
 {
   // The check says so, and so does the commit's; it is a warning, so the batch can still be committed.
@@ -49,12 +49,12 @@ const nameWarning = "No column is mapped to Name, so each record's name is taken
   const file = "row_id,full_name,consentProvenance,extra\nr1,First person,Synthetic consent,x\nr2,Second person,Synthetic consent,y";
   const result = importCsv(state, ctx, { kind: "customers", csv: file, syntheticOnly: true, commit: false, identityColumn: "row_id" });
   assert.deepEqual(result.warnings, [
-    "No column is mapped to Name, so each record's name is taken from its reference (or its row number without one). Not mapped to a field: full_name, which looks like the name; extra. Map the column that holds the name, or commit knowing the fallback is saved.",
-    "No column is mapped to Reference, so each record gets a generated reference. Not mapped to a field: full_name; extra. Map the column that holds the reference, or commit knowing the fallback is saved.",
+    "No column is mapped to Name, so each record’s name is taken from its reference (or its row number without one). Not mapped to a field: full_name, which looks like the name; extra. Map the column that holds the name, or import anyway to save the fallback.",
+    "No column is mapped to Reference, so each record gets a generated reference. Not mapped to a field: full_name; extra. Map the column that holds the reference, or import anyway to save the fallback.",
   ]); checks += 1;
   // A name column blank on one row names that row from its reference.
   const blank = importCsv(state, ctx, { kind: "customers", csv: "row_id,name,reference,consentProvenance,extra\nr1,Named,REF-1,Synthetic consent,x\nr2,,REF-2,Synthetic consent,y", syntheticOnly: true, commit: false, identityColumn: "row_id" });
-  assert.deepEqual(blank.warnings, ["Name is blank on 1 row, so its name is taken from its reference (or its row number without one). Not mapped to a field: extra. Map the column that holds the name, or commit knowing the fallback is saved."]); checks += 1;
+  assert.deepEqual(blank.warnings, ["Name is blank on 1 row, so its name is taken from its reference (or its row number without one). Not mapped to a field: extra. Map the column that holds the name, or import anyway to save the fallback."]); checks += 1;
 }
 {
   // No warning without an unused column: a source with no names, or one whose every column is used, is taken as it is.

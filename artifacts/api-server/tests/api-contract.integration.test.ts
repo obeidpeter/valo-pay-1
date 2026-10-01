@@ -141,14 +141,14 @@ try {
     ]) {
       const forged = await billingCall(`/v1/records/commercial/${terms.id}`, "PATCH", { expectedUpdatedAt: terms.updatedAt, data: { ...dates, discountReview } });
       assert.equal(forged.status, 400, JSON.stringify(forged.data));
-      assert.match(forged.data.error, /Who proposed and who confirmed the discount dates is recorded by the service and cannot be supplied or edited/);
+      assert.match(forged.data.error, /Valo Pay records who proposed and who confirmed the discount dates\. Leave those details out\./);
     }
     // Dates saved without ticking the full-price terms: saved, not proposed, and the refusal and the report name the flag.
     terms = ok(await billingCall(`/v1/records/commercial/${terms.id}`, "PATCH", { expectedUpdatedAt: terms.updatedAt, data: { ...dates, signedFullPriceTerms: false } }));
     assert.equal(terms.data.discountReview, undefined, "nothing is proposed while the full-price terms are not signed");
     const flag = await billingAct("issue_invoice", { period: firstPeriod });
     assert.equal(flag.status, 409, JSON.stringify(flag.data));
-    assert.match(flag.data.error, /The full-price terms are not recorded as signed: tick “Full-price terms are signed”/);
+    assert.match(flag.data.error, /The full-price terms are not recorded as signed\. Tick “Full-price terms are signed” once they are/);
     assert.equal(ok(await billingCall("/v1/reports")).billing.nextInvoicePricingExplanation, flag.data.error, "the report gives the refusal's words");
     // Ticked, the dates are a proposal by the Finance persona, at the database's time, bound to the sandbox's visitor.
     terms = ok(await billingCall(`/v1/records/commercial/${terms.id}`, "PATCH", { expectedUpdatedAt: terms.updatedAt, data: { signedFullPriceTerms: true } }));
@@ -159,14 +159,14 @@ try {
     const proposed = structuredClone(terms.data.discountReview);
     const awaiting = await billingAct("issue_invoice", { period: firstPeriod });
     assert.equal(awaiting.status, 409, JSON.stringify(awaiting.data));
-    assert.match(awaiting.data.error, /The discount dates await confirmation: a different Admin or Finance user from the person who proposed them must confirm them/);
+    assert.match(awaiting.data.error, /The discount dates are waiting for confirmation\. An Admin or Finance team member who did not propose them must check them/);
     // A confirmation is keyed, so the operations journal records it: without a key it is refused, naming the header.
     refusedFor(await call(bq("/v1/actions"), "POST", { action: "confirm_discount_terms", recordId: terms.id, reason: "Confirm without a key", data: dates }, { cookie: billingCookie }), 400, "Idempotency-Key");
     // Switching demo roles is not a second person.
     ok(await billingAct("set_role", { role: "Admin" }));
     const self = await billingAct("confirm_discount_terms", dates, terms.id);
     assert.equal(self.status, 403, JSON.stringify(self.data));
-    assert.match(self.data.error, /switching demo roles does not provide independent confirmation/);
+    assert.match(self.data.error, /Switching demo roles is not a second person\./);
     terms = ok(await billingCall(`/v1/records/commercial/${terms.id}`, "PATCH", { expectedUpdatedAt: terms.updatedAt, name: "Reviewed contract fixture, renamed" }));
     assert.deepEqual(terms.data.discountReview, proposed, "PATCH without data keeps the recorded proposal");
     assert.deepEqual(ok(await billingCall("/v1/records/commercial")).items.find((row: any) => row.id === terms.id).data.discountReview, proposed,
@@ -288,7 +288,7 @@ try {
     const cleared = (await pool.query("SELECT status,data FROM valopay_records WHERE id=$1", [stale.id])).rows[0];
     assert.deepEqual([cleared.status, cleared.data.resolutionCode], ["closed", "condition_cleared"], "the outcome step closed the exception whose condition cleared");
     const entry = (await pool.query("SELECT data FROM valopay_records WHERE merchant_id=$1 AND kind='audit' AND name='payment.outcome' ORDER BY (data->>'sequence')::int DESC LIMIT 1", [lender])).rows[0];
-    assert.equal(entry.data.summary, "Contract check: payment.outcome. Closed 1 exception whose condition cleared (unallocated payment: payment SBX-PAY-1001 is allocated in full).", "and its audit entry names it after the reason");
+    assert.equal(entry.data.summary, "Contract check: payment.outcome. Closed 1 exception automatically, because its cause went away (unallocated payment: payment SBX-PAY-1001 is allocated in full).", "and its audit entry names it after the reason");
   }
 
   // ---- The legacy writes take an optional key: with one they are journaled, without one they still run ----
@@ -296,6 +296,11 @@ try {
   const keyed = key();
   const record = ok(await call(q("/v1/records/customers"), "POST", customerBody, { key: keyed }));
   ok(await call(q("/v1/records/customers"), "POST", { ...customerBody, reference: `CONTRACT-${randomUUID()}` }));
+  // An audit entry is named in words when an answer shows it, while its stored row keeps the route's code as its name and action.
+  const listed = ok(await call(q(`/v1/records/audit?search=${encodeURIComponent(record.id)}&limit=50`))).items.find((item: any) => item.data?.action === "post.records.customers");
+  assert.equal(listed?.name, "Customer added", "the audit list names the entry in words");
+  const stored = (await pool.query("SELECT name, data->>'action' AS action FROM valopay_records WHERE merchant_id=$1 AND kind='audit' AND data->>'objectId'=$2 AND data->>'action'='post.records.customers'", [lender, record.id])).rows;
+  assert.deepEqual(stored, [{ name: "post.records.customers", action: "post.records.customers" }], "and its stored row keeps the route's code");
   const renamed = ok(await call(q(`/v1/records/customers/${record.id}`), "PATCH", { name: "Contract customer, renamed", data: { phoneMasked: "+234 ••• ••31" }, expectedUpdatedAt: record.updatedAt }, { key: key() }));
   assert.equal(renamed.data.phoneMasked, "+234 ••• ••31");
   // An edit clears an optional data field by sending it as null (a merge patch); the fields it leaves out keep their values.
@@ -332,7 +337,7 @@ try {
   assert.equal(ok(await call(q('/v1/operations/lookup'), 'POST', reloadIdentity)).operation.recordId, record.id);
   const notReceivedIdentity = { ...reloadIdentity, key: randomUUID() };
   assert.equal(ok(await call(q('/v1/operations/lookup'), 'POST', notReceivedIdentity)).operation, null);
-  assert.match(ok(await call(q('/v1/operations/cancel-unreceived'), 'POST', notReceivedIdentity)).message, /cannot run/);
+  assert.match(ok(await call(q('/v1/operations/cancel-unreceived'), 'POST', notReceivedIdentity)).message, /it will not run/);
   assert.equal(ok(await call(q('/v1/operations/lookup'), 'POST', notReceivedIdentity)).operation.status, 'cancelled');
   const sandboxRequest = () => ({ headers: { cookie }, secure: false, auth: Object.assign(() => ({ userId: null }), { [Symbol.for("@clerk/express.auth")]: true }) }) as any;
   const response = { cookie() {} } as any;
@@ -436,7 +441,7 @@ try {
   await pool.query(`UPDATE valopay_idempotency SET response=response #- '{record,kind}' WHERE merchant_id=$1 AND id=$2`, [lender, receiptId]);
   logged.length = 0;
   const unanswerable = await call(q("/v1/connected/actions"), "POST", replayGrant, { key: replayKey });
-  assert.deepEqual([unanswerable.status, unanswerable.data.error, unanswerable.data.committed, unanswerable.data.operation], [500, "This request was saved, but the service could not give its answer. Retry the same request, or check Operations, to see its saved result.", undefined, "completed"], "a saved request is never answered as saving nothing: the answer says it was saved");
+  assert.deepEqual([unanswerable.status, unanswerable.data.error, unanswerable.data.committed, unanswerable.data.operation], [500, "Valo Pay saved this request but could not send its answer. Check the original request in Request history to see the saved result.", undefined, "completed"], "a saved request is never answered as saving nothing: the answer says it was saved");
   assert.deepEqual(events("response.invalid").map((line) => [line.level, line.fields.replayed]), [["error", true]]);
   assert.equal(await consents(), consentCount, "the consent was saved once");
   assert.equal((await pool.query("SELECT status FROM valopay_operations WHERE merchant_id=$1 AND request_key=$2", [lender, replayKey])).rows[0].status, "completed", "and its journal entry stays completed");
@@ -459,7 +464,7 @@ try {
   await pool.query(`UPDATE valopay_records SET data=jsonb_set(data,'{expiresAt}','"next Tuesday"') WHERE merchant_id=$1 AND id=$2`, [lender, storedRun]);
   logged.length = 0;
   const unreadable = await call(q("/v1/lifecycle"));
-  assert.deepEqual([unreadable.status, unreadable.data], [500, { error: "The service could not prepare this answer. Try again, and quote this reference if it happens again.", requestId: unreadable.data.requestId }], "a read's failure, without committed");
+  assert.deepEqual([unreadable.status, unreadable.data], [500, { error: "Valo Pay could not load this. Try again, and quote this reference if it happens again.", requestId: unreadable.data.requestId }], "a read's failure, without committed");
   assert.deepEqual([events("response.invalid").map((line) => line.level), events("request.rejected").length], [["error"], 0], "logged as an invalid answer, never as a rejected request");
   await pool.query("DELETE FROM valopay_records WHERE merchant_id=$1 AND id=$2", [lender, storedRun]);
 
@@ -482,7 +487,7 @@ try {
   const otherState = await store.inWorkspace(sandboxRequest(), response, async (ctx) => { const state = await store.loadState(ctx, other); makeRecord(state, "connected-credit-assessments", { name: "Malformed assessment", status: "blocked", createdAt: ctx.now, data: { result: { evidence: { grantVersions: [], issues: [] }, policy: {}, score: "not a score" }, scenario: "ready", createdBy: "Sandbox Operations" } }); store.appendAudit(state, ctx, "test.contract.malformed", other, "Stored a malformed synthetic forecast."); await store.saveState(ctx, state); return state.merchant.id; });
   const malformed = await call(q("/v1/connected", otherState));
   assert.equal(malformed.status, 500, "a malformed stored assessment fails the read");
-  assert.deepEqual([malformed.data.error, malformed.data.committed], ["The service could not prepare this answer. Try again, and quote this reference if it happens again.", undefined], "in a read's words: a read saves nothing either way");
+  assert.deepEqual([malformed.data.error, malformed.data.committed], ["Valo Pay could not load this. Try again, and quote this reference if it happens again.", undefined], "in a read's words: a read saves nothing either way");
 
   // ---- New sandboxes from one address are limited, and the refusal says when to retry (429, Retry-After an hour) ----
   // Last of this suite's sandboxes: the limit is per process and address, and the staff host below needs none.
@@ -563,7 +568,7 @@ try {
       await store.saveState(ctx, state);
       return { termsId: terms.id, allocationId: allocation.id };
     });
-    const awaiting = /The discount dates await confirmation: a different Admin or Finance user from the person who proposed them must confirm them/;
+    const awaiting = /The discount dates are waiting for confirmation\. An Admin or Finance team member who did not propose them must check them/;
     assert.deepEqual([(await billing()).nextInvoicePricingReady, (await billing()).nextInvoicePeriod], [false, first]);
     assert.match((await billing()).nextInvoicePricingExplanation, awaiting, "a single-person review awaits confirmation");
     const refused = await staffAct("finance", "issue_invoice", { period: first });
@@ -613,7 +618,7 @@ try {
     ok(await staffAct("finance", "confirm_discount_terms", corrected, terms.id));
     const differences = (await billing()).rateDiscrepancies.map((line: any) => [line.invoiceId, line.period, line.chargedRate, line.agreedRate]);
     assert.deepEqual(differences, [[firstInvoice.id, first, 0.5, 0], [secondInvoice.id, second, 0, 0.5]], "each issued month the confirmed agreement prices differently is reported");
-    assert.match((await billing()).rateDiscrepancyGuidance, /Valo Pay has no way to correct an issued invoice's discount/);
+    assert.match((await billing()).rateDiscrepancyGuidance, /Valo Pay cannot correct an issued invoice’s discount/);
     const thirdInvoice = ok(await staffAct("finance", "issue_invoice", { period: third })).record;
     assert.equal(thirdInvoice.data.designPartnerDiscount.rate, 0.5, "new invoices are priced from the confirmed dates");
     assert.equal((await billing()).rateDiscrepancies.length, 2, "the new invoice agrees with the agreement");

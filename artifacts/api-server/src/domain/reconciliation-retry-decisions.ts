@@ -2,7 +2,7 @@
 import { type DomainState, type Context, type TypedRecord } from "./types";
 import { enrolEligibleFailures, approvedPolicyFor, evaluateRetry, recordRetryDecision } from "./policy-engine";
 import { recordsOf, touch } from "./records";
-import { type ExceptionType, WAT_OFFSET_MS, nairaText, isOpenException } from "@workspace/valopay-schema";
+import { type ExceptionType, instantText, nairaText, isOpenException, optionText } from "@workspace/valopay-schema";
 import { raiseException } from "./reconciliation-exceptions";
 import { outstanding, UNKNOWN_OUTCOME_AGE_MS, identityCondition } from "./reconciliation-values";
 
@@ -59,10 +59,17 @@ export function ageUnknownCheckouts(state: DomainState, ctx: Context, now: numbe
   if (!waiting.length) return 0;
   const dues = new Map(recordsOf(state, "due-items").map((due) => [due.id, due]));
   for (const intent of waiting) {
-    const since = new Date(Date.parse(checkoutUnknownSince(intent)) + WAT_OFFSET_MS).toISOString().slice(0, 16).replace("T", " ");
+    const since = instantText(checkoutUnknownSince(intent));
     const exception = raiseException(state, ctx, "unknown_outcome", {
       linkedRecordId: intent.id, customerId: intent.customerId, amountKobo: intent.amountKobo, owner: "Finance", linkedKind: "connected-intents", condition: identityCondition("unknown_outcome", intent.id),
-      notes: `The outcome of the pay-by-bank payment of ${nairaText(intent.amountKobo)} for instalment ${dues.get(String(intent.data.dueItemId))?.reference ?? intent.data.dueItemId} has been unknown since ${since} WAT, for more than 24 hours. Until it is known the instalment is held: no new checkout and no retry is planned. Check with the bank, then resolve this exception as confirmed successful, with the masked reference of the evidence that the money arrived, or as confirmed failed.`,
+      // The note in three parts: what happened, each choice on its own line, then what happens next.
+      notes: [
+        `The outcome of the ${nairaText(intent.amountKobo)} Pay by Bank payment for instalment ${dues.get(String(intent.data.dueItemId))?.reference ?? intent.data.dueItemId} has been unknown since ${since}, for more than 24 hours. Until it is known, the instalment is held: no new checkout or retry is planned.`,
+        "Check with the bank, then resolve this exception as one of these:",
+        `${optionText("resolved_succeeded")}: the money arrived. Enter the masked reference of the evidence.`,
+        `${optionText("resolved_failed")}: the money did not arrive.`,
+        "Either way, the checkout stops holding the instalment.",
+      ].join("\n"),
     });
     if (isOpenException(exception.status) && intent.data.outcomeExceptionId !== exception.id) { intent.data.outcomeExceptionId = exception.id; touch(intent, ctx.now); }
   }

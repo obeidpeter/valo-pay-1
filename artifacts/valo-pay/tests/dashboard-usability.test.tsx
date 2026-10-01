@@ -14,9 +14,9 @@ describe('dashboard usability', () => {
     expect(activation.getAttribute('href')).toBe('/mandates?view=awaiting-activation');
     expect(screen.getByRole('link', { name: /Matches to review/ }).getAttribute('href')).toBe('/reconciliation?view=review');
     expect(screen.getByRole('link', { name: /Possible duplicates/ }).getAttribute('href')).toBe('/reconciliation?view=duplicates');
-    expect(screen.getByRole('link', { name: /Failed collections/ }).getAttribute('href')).toBe('/collections?view=failed');
+    expect(screen.getByRole('link', { name: /Failed collection attempts/ }).getAttribute('href')).toBe('/collections?view=failed');
     expect(screen.getByRole('link', { name: /Overdue exceptions/ }).getAttribute('href')).toBe('/exceptions?view=overdue');
-    expect(screen.getByRole('link', { name: 'View daily closes' }).getAttribute('href')).toBe('/reports');
+    expect(within(screen.getByRole('region', { name: 'Alerts' })).getByRole('link', { name: 'Open Reports' }).getAttribute('href')).toBe('/reports');
     await user.click(activation);
     expect(await screen.findByRole('heading', { name: 'Mandates' })).toBeTruthy();
     expect((await screen.findByRole('button', { name: 'Awaiting activation (2)' })).getAttribute('aria-pressed')).toBe('true');
@@ -29,21 +29,21 @@ describe('dashboard usability', () => {
     const allocation = await screen.findByText('Allocation rate');
     expect(within(allocation.parentElement!).getByText('50.0%')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Billing' }));
-    const summary = screen.getByText('Billing rates & rules');
+    const summary = screen.getByText('Billing rates and rules');
     const details = summary.closest('details')!;
     expect(details.open).toBe(false);
     await user.click(summary);
     expect(details.open).toBe(true);
     expect(within(details).getByText('0.3%')).toBeTruthy();
     expect(within(details).getByText('7.5%')).toBeTruthy();
-    expect(within(details).getByText(/A collection can be billed when the direct debit succeeded/)).toBeTruthy();
+    expect(within(details).getByText(/A collection is billed once four things are true/)).toBeTruthy();
   });
 
   it('includes collapsed evidence when printing and restores the chosen disclosures afterwards', async () => {
     const user = userEvent.setup();
     renderApp('/reports?view=billing');
-    const rates = (await screen.findByText('Billing rates & rules')).closest('details')!;
-    const receipts = screen.getByText('Receipts by payment method').closest('details')!;
+    const rates = (await screen.findByText('Billing rates and rules')).closest('details')!;
+    const receipts = screen.getByText('Payments by method').closest('details')!;
     await user.click(receipts.querySelector('summary')!);
     expect(rates.open).toBe(false);
     expect(receipts.open).toBe(true);

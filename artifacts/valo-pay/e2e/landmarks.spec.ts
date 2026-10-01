@@ -12,37 +12,37 @@ const landmarkRules = [
 ];
 
 const routes: Array<[string, string | RegExp]> = [
-  ["/", "Collections, credit and cash. One clear workspace."],
-  ["/sign-in", "Sign in to your workspace"],
-  ["/sign-up", "Create your workspace"],
-  ["/team-invite", "Join your pilot workspace"],
+  ["/", "Collections, credit and cash. One clear view."],
+  ["/sign-in", "Sign in"],
+  ["/sign-up", "Create an account"],
+  ["/team-invite", "Accept your invitation"],
   ["/no-such-page", "Page not found"],
-  ["/overview", "Operations overview"],
+  ["/overview", "Overview"],
   ["/work", "My work"],
   ["/exceptions", "Exceptions"],
   ["/reconciliation", "Reconciliation"],
   ["/reconciliation?view=review", "Reconciliation"],
   ["/collections", "Collections"],
   ["/imports", "Import batches"],
-  ["/close-review", "Finance close review"],
+  ["/close-review", "Close review"],
   ["/customers", "Customers"],
   ["/mandates", "Mandates"],
-  ["/policies", "Policies & templates"],
-  ["/pay-by-bank", "Pay-by-bank"],
+  ["/policies", "Policies and templates"],
+  ["/pay-by-bank", "Pay by Bank"],
   ["/credit-desk", "Credit Desk"],
   ["/cash-desk", "Cash Desk"],
-  ["/connections", "Permissions & readiness"],
-  ["/reports", "Reports & analytics"],
+  ["/connections", "Permissions and readiness"],
+  ["/reports", "Reports"],
   ["/exports", "Saved exports"],
   ["/audit", "Audit log"],
   ["/evidence", "Go-live evidence"],
-  ["/pilot", "Your pilot journey"],
+  ["/pilot", "Pilot journey"],
   ["/sources", "Data sources"],
-  ["/operations", "Operations"],
-  ["/team", "Team & access"],
+  ["/operations", "Request history"],
+  ["/team", "Team and access"],
   ["/lifecycle", "Data retention"],
-  ["/settings", "Settings & administration"],
-  ["/presentation", /^Show how a lender/],
+  ["/settings", "Settings"],
+  ["/presentation", /^Presentation$/],
 ];
 
 test.beforeEach(async ({ request, page }) => {
@@ -72,7 +72,7 @@ async function audit(page: Page, where: string) {
 
 /** On a desktop the sidebar shows the current page's link, however far down the list it sits. */
 async function expectCurrentPageInView(page: Page, label: string) {
-  const sidebar = page.getByRole("complementary", { name: "Console sidebar" }).getByRole("navigation", { name: "Pages" });
+  const sidebar = page.getByRole("complementary", { name: "Sidebar" }).getByRole("navigation", { name: "Pages" });
   const current = sidebar.getByRole("link", { name: label, exact: true });
   await expect(sidebar.locator('[aria-current="page"]')).toHaveCount(1);
   await expect(current).toHaveAttribute("aria-current", "page");
@@ -114,13 +114,13 @@ test("record pages have unique, top-level landmarks and pass WCAG 2.2 AA as a wh
   await audit(page, "customer history");
   const exception = (await (await request.get(`/api/v1/records/exceptions?merchantId=${lender}&limit=1`)).json()).items[0];
   await page.goto(`/cases/${exception.id}`);
-  await settle(page, "Coordinate a case");
+  await settle(page, /^Case: /);
   await audit(page, "case");
 });
 
 test("the presentation guide keeps landmarks unique", async ({ page }) => {
   await page.goto("/presentation");
-  await settle(page, /^Show how a lender/);
+  await settle(page, /^Presentation$/);
   await page.getByRole("button", { name: "Start presentation guide" }).click();
   await expect(page.getByRole("region", { name: "Presentation guide" })).toBeVisible();
   await audit(page, "presentation guide");
@@ -129,8 +129,8 @@ test("the presentation guide keeps landmarks unique", async ({ page }) => {
 test("the phone drawer opens on the current page, in the sidebar's groups, and keeps landmarks unique", async ({ page }, info) => {
   test.skip(!info.project.name.startsWith("mobile"), "The drawer is the phone's navigation.");
   await page.goto("/presentation");
-  await settle(page, /^Show how a lender/);
-  await page.getByRole("button", { name: "Menu", exact: true }).click();
+  await settle(page, /^Presentation$/);
+  await page.getByRole("button", { name: "Open menu", exact: true }).click();
   const drawer = page.getByRole("dialog", { name: "Menu" });
   await expect(drawer.getByRole("link", { name: "Presentation", exact: true })).toBeFocused();
   await expect(drawer.getByRole("group", { name: "Daily work" })).toBeVisible();
@@ -141,7 +141,7 @@ test("following a link to a page low in the list brings its entry into view in t
   test.skip(info.project.name.startsWith("mobile"), "The sidebar is the desktop's navigation.");
   await page.goto("/imports");
   await settle(page, "Import batches");
-  await page.getByRole("link", { name: "Manage source schedules, mappings and totals" }).click();
+  await page.getByRole("link", { name: "Open Data sources", exact: true }).click();
   await settle(page, "Data sources");
   await expectCurrentPageInView(page, "Data sources");
 });

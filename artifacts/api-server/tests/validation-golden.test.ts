@@ -6,7 +6,7 @@ import { executeAction } from "../src/domain/actions.js";
 import { assertNoRealBankDetails, makeRecord, recordsOf } from "../src/domain/records.js";
 import { reconcile } from "../src/domain/reconciliation.js";
 import { seedMerchant } from "../src/lib/valopay-seed.js";
-import { exceptionCatalogue, recordStatuses } from "@workspace/valopay-schema";
+import { exceptionCatalogue, listText, recordStatuses, templateTextProblems, valueLabel } from "@workspace/valopay-schema";
 import { importCsv } from "../src/lib/valopay-import.js";
 
 let checks = 0;
@@ -19,13 +19,13 @@ const patch = (record: any, changes: any) => ({ ...record, ...changes, data: { .
   const state = seedMerchant("machine");
   const mandate = recordsOf(state, "mandates").find((item) => item.status === "suspended")!;
   mandate.status = "cancelled";
-  assert.throws(() => validateRecord(state, ops, "mandates", patch(mandate, { status: "active" }), true), /cancelled mandate cannot move to active/);
+  assert.throws(() => validateRecord(state, ops, "mandates", patch(mandate, { status: "active" }), true), /This mandate is cancelled, so it cannot be changed to active\./);
   const pending = recordsOf(state, "mandates").find((item) => item.status === "pending_activation")!;
   assert.doesNotThrow(() => validateRecord(state, ops, "mandates", patch(pending, { status: "active" }), true), "activation confirmed by the provider");
   assert.doesNotThrow(() => validateRecord(state, ops, "mandates", patch(pending, { status: "expired" }), true));
   const active = recordsOf(state, "mandates").find((item) => item.status === "active")!;
-  assert.throws(() => validateRecord(state, ops, "mandates", patch(active, { status: "cancelled" }), true), /through its action/);
-  assert.throws(() => validateRecord(state, ops, "mandates", patch(active, { status: "pending_activation" }), true), /cannot move/);
+  assert.throws(() => validateRecord(state, ops, "mandates", patch(active, { status: "cancelled" }), true), /Suspend or cancel the mandate with its own button, so the reason is saved in the audit log\./);
+  assert.throws(() => validateRecord(state, ops, "mandates", patch(active, { status: "pending_activation" }), true), /^Error: This mandate is active, so it cannot be changed to awaiting activation\.$/);
   checks += 5;
 }
 
@@ -33,10 +33,10 @@ const patch = (record: any, changes: any) => ({ ...record, ...changes, data: { .
 {
   const state = seedMerchant("exceptions");
   const exception = recordsOf(state, "exceptions").find((item) => item.data.type === "activation_expired")!;
-  assert.throws(() => validateRecord(state, ops, "exceptions", patch(exception, { status: "closed" }), true), /cannot move to closed/);
+  assert.throws(() => validateRecord(state, ops, "exceptions", patch(exception, { status: "closed" }), true), /so it cannot be changed to closed\./);
   assert.throws(() => validateRecord(state, ops, "exceptions", patch(exception, { status: "resolved" }), true), /Use Resolve exception and choose a resolution/);
   assert.doesNotThrow(() => validateRecord(state, ops, "exceptions", patch(exception, { status: "assigned", data: { owner: "Ada" } }), true));
-  assert.throws(() => executeAction(state, ops, { action: "resolve_exception", recordId: exception.id, reason: "done", data: { resolutionCode: "allocated" } }), /must be one of: reissued, customer_declined, wrong_number, abandoned/);
+  assert.throws(() => executeAction(state, ops, { action: "resolve_exception", recordId: exception.id, reason: "done", data: { resolutionCode: "allocated" } }), /Choose one of these: ‘Reissued’, ‘Customer declined’, ‘Wrong number’ or ‘Abandoned’/);
   executeAction(state, ops, { action: "resolve_exception", recordId: exception.id, reason: "done", data: { resolutionCode: "reissued" } });
   assert.equal(exception.status, "resolved");
   assert.doesNotThrow(() => validateRecord(state, ops, "exceptions", patch(exception, { status: "closed" }), true), "closing follows resolution");
@@ -48,8 +48,8 @@ const patch = (record: any, changes: any) => ({ ...record, ...changes, data: { .
   assert.equal(created.data.owner, exceptionCatalogue.suspected_duplicate.owner);
   assert.equal(created.data.severity, "high");
   assert.ok(created.data.dueBy > admin.now);
-  assert.throws(() => validateRecord(state, ops, "exceptions", { name: "x", status: "open", data: { type: "something_else" } }), /Unknown exception type/);
-  assert.throws(() => validateRecord(state, ops, "exceptions", { name: "x", status: "open", data: {} }), /type/);
+  assert.throws(() => validateRecord(state, ops, "exceptions", { name: "x", status: "open", data: { type: "something_else" } }), /Choose an exception type from the list\./);
+  assert.throws(() => validateRecord(state, ops, "exceptions", { name: "x", status: "open", data: {} }), /Type: Choose one from the list\./);
   checks += 13;
 }
 
@@ -59,15 +59,15 @@ const patch = (record: any, changes: any) => ({ ...record, ...changes, data: { .
   const customer = recordsOf(state, "customers")[0]!;
   const cutover = recordsOf(state, "cutovers")[0]!;
   const input = () => ({ name: "d", status: "scheduled", customerId: customer.id, amountKobo: 2_500_000, data: { dueDate: "2027-08-01", owner: "valopay" } });
-  assert.throws(() => validateRecord(state, admin, "due-items", input()), /handover agreement and parallel-run day are complete/);
-  assert.throws(() => validateRecord(state, admin, "cutovers", patch(cutover, { status: "ready", data: { accountableUser: "Ops", confirmation: "signed" } }), true), /previous collection system is disabled in writing/);
+  assert.throws(() => validateRecord(state, admin, "due-items", input()), /collection transfer agreement and its parallel-run day are complete/);
+  assert.throws(() => validateRecord(state, admin, "cutovers", patch(cutover, { status: "ready", data: { accountableUser: "Ops", confirmation: "signed" } }), true), /switch off the previous collection system in writing/);
   assert.doesNotThrow(() => validateRecord(state, admin, "cutovers", patch(cutover, { status: "ready", data: { accountableUser: "Ops", confirmation: "signed", incumbentDisabled: true, externalAttemptsImported: true, dualRunComplete: true } }), true));
   completeCutover(state);
   assert.doesNotThrow(() => validateRecord(state, admin, "due-items", input()));
   const aliased: any = { ...input(), data: { dueDate: "2027-08-01", owner: "valo" } };
   validateRecord(state, admin, "due-items", aliased);
   assert.equal(aliased.data.owner, "valopay", "the TRD's owner spelling is accepted and normalised");
-  assert.throws(() => validateRecord(state, admin, "cutovers", patch(cutover, { status: "handed_back" }), true), /Use Return collection ownership/);
+  assert.throws(() => validateRecord(state, admin, "cutovers", patch(cutover, { status: "handed_back" }), true), /Return collection to its previous owner from Settings/);
   checks += 6;
 }
 
@@ -80,9 +80,9 @@ const patch = (record: any, changes: any) => ({ ...record, ...changes, data: { .
   executeAction(state, ops, { action: "hand_back", reason: "Lender exit" });
   assert.equal(due.data.owner, "lms");
   const nextDay = ctxAt(wat("2027-07-02T09:00:00"), "Operations");
-  assert.throws(() => validateRecord(state, nextDay, "due-items", patch(due, { data: { owner: "valopay" } }), true), /recorded after the hand-back/, "the contract the hand-back ended no longer lets Valo Pay collect");
+  assert.throws(() => validateRecord(state, nextDay, "due-items", patch(due, { data: { owner: "valopay" } }), true), /Record a new collection transfer agreement after collection was returned on/, "the contract the hand-back ended no longer lets Valo Pay collect");
   const flags = { incumbentDisabled: true, externalAttemptsImported: true, dualRunComplete: true, accountableUser: "Ops lead", confirmation: "Signed again" };
-  assert.throws(() => validateRecord(state, admin, "cutovers", patch(draft, { status: "ready", data: flags }), true), /ended with the hand-back/, "a contract drafted before the hand-back cannot be completed afterwards");
+  assert.throws(() => validateRecord(state, admin, "cutovers", patch(draft, { status: "ready", data: flags }), true), /ended when collection was returned on/, "a contract drafted before the hand-back cannot be completed afterwards");
   assert.doesNotThrow(() => validateRecord(state, admin, "cutovers", { name: "Cohort 2 cutover", status: "ready", data: { ...flags, fallbackOwner: "lms" } }), "a new contract can be recorded ready");
   makeRecord(state, "cutovers", { name: "Cohort 2 cutover", status: "ready", createdAt: wat("2027-07-03T09:00:00"), data: { ...flags, fallbackOwner: "lms" } });
   assert.doesNotThrow(() => validateRecord(state, ctxAt(wat("2027-07-03T10:00:00"), "Operations"), "due-items", patch(due, { data: { owner: "valopay" } }), true), "a cutover completed after the hand-back restores ownership");
@@ -92,8 +92,8 @@ const patch = (record: any, changes: any) => ({ ...record, ...changes, data: { .
 // ---------- Mandate limit (MAN-02, audit item 8): the consented limit changes only through a reissue with new consent ----------
 {
   const { state, mandate } = liveFixture({ withFailure: false, merchantId: "mandate-limit" });
-  assert.throws(() => validateRecord(state, ops, "mandates", patch(mandate, { amountKobo: 10_000_000 }), true), /limit is part of the customer's consent/);
-  assert.throws(() => validateRecord(state, ops, "mandates", patch(mandate, { amountKobo: mandate.amountKobo - 1 }), true), /limit is part of the customer's consent/, "lowering it is refused too: the consent names one limit");
+  assert.throws(() => validateRecord(state, ops, "mandates", patch(mandate, { amountKobo: 10_000_000 }), true), /limit is part of the customer’s consent/);
+  assert.throws(() => validateRecord(state, ops, "mandates", patch(mandate, { amountKobo: mandate.amountKobo - 1 }), true), /limit is part of the customer’s consent/, "lowering it is refused too: the consent names one limit");
   assert.doesNotThrow(() => validateRecord(state, ops, "mandates", patch(mandate, { name: "Renamed mandate" }), true), "other fields stay editable");
   executeAction(state, ops, { action: "mandate_cancel", recordId: mandate.id, reason: "The customer agreed a higher limit" });
   assert.throws(() => executeAction(state, ops, { action: "mandate_reissue", recordId: mandate.id, reason: "Higher limit", data: { consentEvidence: "CONSENT-LIMIT-2", amountKobo: 0 } }), /debit limit/);
@@ -113,8 +113,8 @@ const patch = (record: any, changes: any) => ({ ...record, ...changes, data: { .
   const rules = (maxAttempts: number, spacingHours: number) => patch(policy, { data: { maxAttempts, spacingHours } });
   assert.doesNotThrow(() => validateRecord(state, admin, "policies", rules(3, 48), true), "a draft is editable by its author");
   executeAction(state, admin, { action: "submit_policy", recordId: policy.id, reason: "Ready for review" });
-  assert.throws(() => validateRecord(state, admin, "policies", rules(4, 24), true), /submitted policy cannot be edited/);
-  assert.throws(() => validateRecord(state, admin, "policies", patch(policy, { name: "Renamed while in review" }), true), /submitted policy cannot be edited/);
+  assert.throws(() => validateRecord(state, admin, "policies", rules(4, 24), true), /This retry policy has been submitted for review, so it cannot be edited/);
+  assert.throws(() => validateRecord(state, admin, "policies", patch(policy, { name: "Renamed while in review" }), true), /This retry policy has been submitted for review, so it cannot be edited/);
   executeAction(state, reviewer, { action: "reject_policy", recordId: policy.id, reason: "Explain the spacing" });
   assert.doesNotThrow(() => validateRecord(state, admin, "policies", rules(4, 24), true), "a rejected policy is editable again before it is resubmitted");
   checks += 4;
@@ -129,7 +129,7 @@ const patch = (record: any, changes: any) => ({ ...record, ...changes, data: { .
   const unmapped = attempt("R99 weird provider text"); validateRecord(state, ops, "attempts", unmapped);
   assert.equal(unmapped.data.failureCode, "UNKNOWN"); assert.equal(unmapped.data.rawFailureCode, "R99 weird provider text");
   assert.equal(unmapped.data.number, 1, "DEB-05: numbered across sources");
-  assert.throws(() => executeAction(state, ops, { action: "simulate_failure", recordId: due.id, reason: "r", data: { failureCode: "NOT_A_CODE" } }), /Unknown failure code/);
+  assert.throws(() => executeAction(state, ops, { action: "simulate_failure", recordId: due.id, reason: "r", data: { failureCode: "NOT_A_CODE" } }), /Choose a failure code from the list: /);
   const unknown = executeAction(state, ops, { action: "simulate_failure", recordId: due.id, reason: "r", data: { failureCode: "TIMEOUT_UNKNOWN" } }).record!;
   assert.equal(unknown.status, "unknown", "an unknown outcome is not a failure");
   assert.throws(() => executeAction(state, ops, { action: "simulate_failure", recordId: due.id, reason: "r", data: { failureCode: "INSUFFICIENT_FUNDS" } }), /still pending or has an unknown outcome/);
@@ -143,13 +143,13 @@ const patch = (record: any, changes: any) => ({ ...record, ...changes, data: { .
   const batch: any = { name: "b", status: "pending", reference: "B-1", data: { provider: "Sandbox Rail", grossKobo: 100, feeKobo: 10, netKobo: 90 } };
   validateRecord(state, finance, "settlement-batches", batch);
   assert.equal(batch.data.batchReference, "B-1", "the top-level reference is the batch reference");
-  assert.throws(() => validateRecord(state, finance, "settlement-batches", { ...batch, status: "settled" }), /Allowed: pending, reconciled, variance/);
-  assert.throws(() => validateRecord(state, finance, "settlement-batches", { ...batch, status: "reconciled" }), /set by a domain action|Batches start pending/);
-  assert.throws(() => validateRecord(state, finance, "settlement-batches", { ...batch, data: { ...batch.data, netKobo: 80 } }), /gross amount minus fees/);
+  assert.throws(() => validateRecord(state, finance, "settlement-batches", { ...batch, status: "settled" }), /Choose a status from the list: Pending, Reconciled or Difference found\./);
+  assert.throws(() => validateRecord(state, finance, "settlement-batches", { ...batch, status: "reconciled" }), /A new settlement batch cannot start as reconciled\. Valo Pay sets that status later\.|A new settlement batch must start as Pending/);
+  assert.throws(() => validateRecord(state, finance, "settlement-batches", { ...batch, data: { ...batch.data, netKobo: 80 } }), /amount before fees minus the fee/);
   const customer: any = { name: "c", status: "inactive", data: { consentProvenance: "Imported" } };
   assert.doesNotThrow(() => validateRecord(state, ops, "customers", customer));
-  assert.throws(() => validateRecord(state, ops, "customers", { ...customer, status: "archived" }), new RegExp(`Allowed: ${recordStatuses.customers.join(", ")}`));
-  assert.throws(() => validateRecord(state, ops, "customers", { name: "c", status: "active", data: {} }), /consentProvenance/);
+  assert.throws(() => validateRecord(state, ops, "customers", { ...customer, status: "archived" }), new RegExp(`Choose a status from the list: ${listText(recordStatuses.customers.map((status) => valueLabel(status)))}\\.`));
+  assert.throws(() => validateRecord(state, ops, "customers", { name: "c", status: "active", data: {} }), /Consent source or reference: Enter a value\./);
   const policy: any = { name: "p", status: "draft", data: { version: "2", maxAttempts: 3, spacingHours: 48, firstNoticeHours: 48, retryNoticeHours: 24, author: admin.actor } };
   validateRecord(state, admin, "policies", policy);
   assert.equal(policy.data.version, 2, "coerced numbers are written back");
@@ -172,8 +172,15 @@ const patch = (record: any, changes: any) => ({ ...record, ...changes, data: { .
     checks++;
   }
   assert.doesNotThrow(() => validateRecord(state, admin, 'templates', patch(template, { data: { text: '{{ merchant }} {{ amount }} {{ date }} {{ contact }}' } }), true));
+  // The lender's name is {{lender}}; {{merchant}}, its earlier spelling, keeps working in templates saved with it.
+  assert.doesNotThrow(() => validateRecord(state, admin, 'templates', patch(template, { data: { text: '{{ lender }} {{ amount }} {{ date }} {{ contact }}' } }), true));
+  assert.deepEqual(templateTextProblems('{{lender}}: Your payment of {{amount}} is due on {{date}}. For help, contact {{contact}}.'), [], '{{lender}} names the lender');
+  assert.deepEqual(templateTextProblems('{{merchant}}: Your payment of {{amount}} is due on {{date}}. For help, contact {{contact}}.'), [], 'a saved template with {{merchant}} still passes');
+  assert.deepEqual(templateTextProblems('Your payment of {{amount}} is due on {{date}}. For help, contact {{contact}}.'), ['Add {{lender}} to the message.'], 'a message without the lender\'s name asks for {{lender}}');
+  assert.deepEqual(templateTextProblems('{{shop}}: {{lender}} {{amount}} {{date}} {{contact}}'), ['Unknown placeholder {{shop}}. Use only {{amount}}, {{date}}, {{lender}} and {{contact}}.'], 'an unknown placeholder names the four to use');
+  checks += 5;
   act('submit_template');
-  assert.throws(() => validateRecord(state, admin, 'templates', patch(template, { data: { text: originalText + ' Changed.' } }), true), /submitted template cannot be edited/);
+  assert.throws(() => validateRecord(state, admin, 'templates', patch(template, { data: { text: originalText + ' Changed.' } }), true), /This message template has been submitted for review, so it cannot be edited/);
   assert.throws(() => act('reject_template', { ...reviewer, actor: admin.actor }), /other than its author/);
   assert.throws(() => act('reject_template', reviewer, template.id, '  '), /Enter a reason/);
   act('reject_template', reviewer, template.id, 'Explain the date more clearly.');
@@ -181,8 +188,8 @@ const patch = (record: any, changes: any) => ({ ...record, ...changes, data: { .
   assert.equal(template.data.rejectionReason, 'Explain the date more clearly.');
   assert.equal((template.data.reviewHistory as unknown[]).length, 1);
   assert.doesNotThrow(() => validateRecord(state, admin, 'templates', patch(template, { data: { text: originalText + ' Thank you.' } }), true));
-  assert.throws(() => validateRecord(state, admin, 'templates', patch(template, { data: { rejectionReason: 'No changes requested' } }), true), /cannot be changed here/);
-  assert.throws(() => validateRecord(state, admin, 'templates', patch(template, { data: { version: 99 } }), true), /assigned/);
+  assert.throws(() => validateRecord(state, admin, 'templates', patch(template, { data: { rejectionReason: 'No changes requested' } }), true), /Valo Pay records a template’s reviews, review dates and version links\. You cannot change them here\./);
+  assert.throws(() => validateRecord(state, admin, 'templates', patch(template, { data: { version: 99 } }), true), /Leave the version number as it is\. Valo Pay numbers each new draft version\./);
   act('submit_template'); act('approve_template', reviewer);
   assert.equal(template.status, 'approved');
   assert.equal((template.data.reviewHistory as unknown[]).length, 2);
@@ -193,9 +200,9 @@ const patch = (record: any, changes: any) => ({ ...record, ...changes, data: { .
   assert.equal(second.data.previousVersionId, template.id);
   assert.equal(second.data.reviewer, undefined); assert.equal(second.data.rejectionReason, undefined);
   assert.deepEqual(template, approved);
-  assert.throws(() => validateRecord(state, admin, 'templates', patch(template, { name: 'Overwrite approved' }), true), /Approved versions cannot be edited/);
-  assert.throws(() => act('new_template_version', reviewer), /not permitted/);
-  assert.throws(() => act('new_template_version', admin, second.id), /approved template/);
+  assert.throws(() => validateRecord(state, admin, 'templates', patch(template, { name: 'Overwrite approved' }), true), /This version is approved, so it cannot be edited/);
+  assert.throws(() => act('new_template_version', reviewer), /Only Admin can draft a new version of a message template\./);
+  assert.throws(() => act('new_template_version', admin, second.id), /Draft a new version only from an approved message template\./);
   second.status = 'submitted'; second.data.text = originalText + ' {{injected}}';
   assert.throws(() => act('approve_template', reviewer, second.id), /Unknown placeholder \{\{injected\}\}\. Use only \{\{amount\}\}/);
   second.data.text = originalText; delete second.data.author;
@@ -223,15 +230,15 @@ const patch = (record: any, changes: any) => ({ ...record, ...changes, data: { .
   const invalid = importCsv(state, admin, { ...input, csv: 'name,reference,consentProvenance\nValid,SAMPLE-CSV-2,Synthetic\nInvalid,SAMPLE-CSV-3,', mapping: undefined, identityColumn: 'reference', commit: true });
   assert.equal(invalid.valid, 1); assert.equal(invalid.invalid, 1); assert.equal(invalid.imported, 0); assert.equal(state.records.length, stableCount);
   assert.match(invalid.rows[0]!.message, /Not imported/);
-  assert.throws(() => importCsv(state, admin, { ...input, syntheticOnly: false }), /Only synthetic/);
+  assert.throws(() => importCsv(state, admin, { ...input, syntheticOnly: false }), /Only sample data can be imported/);
   assert.throws(() => importCsv(state, admin, { ...input, mapping: { 'Full name': 'name', 'External ref': 'name' } }), /only once/);
-  assert.throws(() => importCsv(state, admin, { ...input, mapping: { Consent: '__proto__' } }), /valid destination/);
-  assert.throws(() => importCsv(state, admin, { ...input, mapping: { Unknown: 'name' } }), /valid destination/);
+  assert.throws(() => importCsv(state, admin, { ...input, mapping: { Consent: '__proto__' } }), /Choose a field, or Skip column, for each column in the file/);
+  assert.throws(() => importCsv(state, admin, { ...input, mapping: { Unknown: 'name' } }), /Choose a field, or Skip column, for each column in the file/);
   assert.throws(() => importCsv(state, admin, { ...input, csv: 'name,name\nOne,Two' }), /different, non-empty header/);
-  assert.throws(() => importCsv(state, admin, { ...input, csv: '__proto__,name\nobject,Name' }), /Reserved object names/);
+  assert.throws(() => importCsv(state, admin, { ...input, csv: '__proto__,name\nobject,Name' }), /Some names, such as ‘constructor’, cannot be used/);
   assert.throws(() => importCsv(state, admin, { ...input, csv: 'name\n' + 'é'.repeat(750001) }), /1.5 MB/);
   assert.throws(() => importCsv(state, admin, { ...input, csv: 'name\n' + Array.from({ length: 501 }, () => 'Sample').join('\n') }), /between 1 and 500/);
-  assert.throws(() => importCsv(state, admin, { ...input, csv: 'name\n"Unclosed' }), /CSV could not be parsed/);
+  assert.throws(() => importCsv(state, admin, { ...input, csv: 'name\n"Unclosed' }), /Valo Pay could not read this CSV file/);
   checks += 25;
 }
 
@@ -288,7 +295,7 @@ const patch = (record: any, changes: any) => ({ ...record, ...changes, data: { .
 // ---------- The bank-detail screen refuses account and card numbers, not record IDs ----------
 {
   for (const value of [{ accountId: "1234567890" }, { "Account number": "0123456789" }, { bank: "1234-5678-9012" }, { cardNumber: "4111111111111111" }, { virtualAccountCustomerId: "0123456789" }, { accounts: "0123456789" }, { payerCards: "4111 1111 1111 1111" }]) {
-    assert.throws(() => assertNoRealBankDetails(value), /Raw (financial identifiers|bank account details)/, `refused: ${JSON.stringify(value)}`);
+    assert.throws(() => assertNoRealBankDetails(value), /Do not enter (full account, card or BVN numbers|a full bank account number)/, `refused: ${JSON.stringify(value)}`);
   }
   // A UUID's digit groups are not an account number, and "company" or "accountable" are not financial words.
   const digitHeavy = "12345678-1234-4123-8123-123456789012";

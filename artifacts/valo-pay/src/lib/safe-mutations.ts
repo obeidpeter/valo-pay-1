@@ -7,7 +7,7 @@ import {
 } from '@workspace/api-client-react';
 import type { ZodTypeAny } from 'zod';
 import { actionResultSchema, exportResultSchema, importResultSchema, recoverableOperation, settingsViewSchema, valopayRecordSchema } from '@workspace/valopay-schema';
-import { readAnswer } from './answers';
+import { INCOMPLETE_CONFIRMATION, readAnswer } from './answers';
 import type { SubmissionIdentity } from './submission-recovery';
 import { standardSubmissionPolicy, useSubmissionAttempt } from './submission-attempt';
 export { definitiveRefusal, nothingSaved, outcomeIsUnconfirmed, requestClosed, requestOpen, savedAnswerWithheld, submissionFingerprint } from './submission-outcomes';
@@ -27,7 +27,7 @@ function recoveryError(message: string) {
 async function checkedResponse<Result>(response: Promise<Result>, schema: ZodTypeAny, matches: (value: Result) => boolean = () => true): Promise<Result> {
   const value = await response;
   if (readAnswer(schema, value) === undefined || !matches(value)) {
-    throw recoveryError('The service returned an incomplete confirmation. The request may have been saved. Retry the original request to check its result.');
+    throw recoveryError(INCOMPLETE_CONFIRMATION);
   }
   return value;
 }

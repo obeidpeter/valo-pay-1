@@ -11,6 +11,7 @@ import { useWorkspace } from '@/lib/workspace-context';
 import { readableLabel } from './record-label';
 import { formatDate } from '@/lib/formatters';
 import { majorToMinor, minorToMajor, moneyFieldLabel } from '@/lib/money-input';
+import { percentToStored, storedToPercent, type PercentStorage } from '@/lib/percent-input';
 import { currencyMinorUnit } from '@workspace/valopay-schema';
 import { permissionReason } from '@/lib/permissions';
 import { referenceOf } from '@/lib/notify';
@@ -18,18 +19,34 @@ import { KEPT_IN_OPERATIONS, OpenOperations } from './pilot-ui';
 import { Link } from 'wouter';
 import { fromImportBatch } from '@workspace/valopay-schema';
 
-const actionLabels: Record<string, string> = {
+/** Each action's default submit button, as its page names it; the service names the request in the same words (tests/action-names.test.tsx). */
+export const actionLabels: Readonly<Record<string, string>> = {
   mandate_suspend: 'Suspend mandate', mandate_cancel: 'Cancel mandate', mandate_reinstate: 'Resume mandate',
   mandate_reissue: 'Reissue mandate', activation_reminder: 'Record activation reminder',
   notify_policy_change: 'Record policy change notice', apply_policy_version: 'Apply policy version',
   submit_policy: 'Submit for review', approve_policy: 'Approve policy', reject_policy: 'Reject policy',
-  new_policy_version: 'Create draft version', submit_template: 'Submit for review', approve_template: 'Approve template',
-  reject_template: 'Reject template', new_template_version: 'Create draft version',
-  confirm_allocation: 'Confirm allocation', reject_allocation: 'Reject allocation', manual_allocate: 'Allocate payment',
-  review_allocation: 'Record review', resolve_exception: 'Resolve exception', record_refund: 'Record external refund', release_dispute: 'Release from dispute',
-  simulate_failure: 'Simulate failure', backtest_policy: 'Run policy simulation',
-  preregister_experiment: 'Register experiment plan', hand_back: 'Return collection ownership', issue_invoice: 'Issue invoice', confirm_discount_terms: 'Confirm discount dates',
+  new_policy_version: 'Draft next version', submit_template: 'Submit for review', approve_template: 'Approve template',
+  reject_template: 'Request changes', new_template_version: 'Draft next version',
+  confirm_allocation: 'Confirm match', reject_allocation: 'Reject match', manual_allocate: 'Allocate payment',
+  review_allocation: 'Mark match', resolve_exception: 'Resolve exception', record_refund: 'Record refund', release_dispute: 'Release from dispute',
+  simulate_failure: 'Simulate failed collection attempt', backtest_policy: 'Test retry policy',
+  preregister_experiment: 'Register experiment plan', hand_back: 'Return collection', issue_invoice: 'Issue invoice', confirm_discount_terms: 'Confirm discount dates',
 };
+/** Each default submit button while its request runs, repeating its verb (docs/design/writing.md, Buttons and links). */
+const busyLabels: Record<string, string> = {
+  mandate_suspend: 'Suspending mandate…', mandate_cancel: 'Cancelling mandate…', mandate_reinstate: 'Resuming mandate…',
+  mandate_reissue: 'Reissuing mandate…', activation_reminder: 'Recording activation reminder…',
+  notify_policy_change: 'Recording policy change notice…', apply_policy_version: 'Applying policy version…',
+  submit_policy: 'Submitting for review…', approve_policy: 'Approving policy…', reject_policy: 'Rejecting policy…',
+  new_policy_version: 'Drafting next version…', submit_template: 'Submitting for review…', approve_template: 'Approving template…',
+  reject_template: 'Requesting changes…', new_template_version: 'Drafting next version…',
+  confirm_allocation: 'Confirming match…', reject_allocation: 'Rejecting match…', manual_allocate: 'Allocating payment…',
+  review_allocation: 'Marking match…', resolve_exception: 'Resolving exception…', record_refund: 'Recording refund…', release_dispute: 'Releasing from dispute…',
+  simulate_failure: 'Simulating failed collection attempt…', backtest_policy: 'Testing retry policy…',
+  preregister_experiment: 'Registering experiment plan…', hand_back: 'Returning collection…', issue_invoice: 'Issuing invoice…', confirm_discount_terms: 'Confirming discount dates…',
+};
+/** The dismiss button of a form whose action itself cancels something keeps that thing (docs/design/writing.md, Buttons and links). */
+const dismissLabels: Record<string, string> = { mandate_cancel: 'Keep mandate' };
 
 type FieldDef = {
   name: string;
@@ -39,6 +56,8 @@ type FieldDef = {
   isData?: boolean; // if true, placed in record.data
   required?: boolean;
   help?: string;
+  /** A rate typed in per cent and stored as basis points or as a fraction of 1, converted exactly (lib/percent-input). */
+  percent?: PercentStorage;
 };
 
 type RecordDialogProps = {
@@ -47,7 +66,8 @@ type RecordDialogProps = {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   fields: FieldDef[];
-  title: string;
+  /** The dialog's title; one that follows a choice in the form is worked out from its values. */
+  title: string | ((values: Record<string, any>) => string);
   defaultValues?: any;
   actionMutation?: string; // If provided, calls performAction with this action name instead of create/update
   actionRecordId?: string; // An action can target a related record while the dialog keeps the review context.
@@ -63,9 +83,13 @@ type RecordDialogProps = {
    * fields, else from the record; naira without it.
    */
   currencyField?: string;
+  /** The submit button's words, the same verb and object as the button that opened the dialog and its title. */
+  submitLabel?: string | ((values: Record<string, any>) => string);
+  /** The submit button's words while its request runs, repeating the verb ("Confirming match…"); without them, the action's own busy words, or "Saving…" for Save. */
+  busyLabel?: string | ((values: Record<string, any>) => string);
 };
 
-export function RecordDialog({ kind, record, isOpen, onOpenChange, fields: sourceFields, title, defaultValues = {}, actionMutation, actionRecordId, context, validate, onDone, answer, currencyField }: RecordDialogProps) {
+export function RecordDialog({ kind, record, isOpen, onOpenChange, fields: sourceFields, title, defaultValues = {}, actionMutation, actionRecordId, context, validate, onDone, answer, currencyField, submitLabel, busyLabel: busyWords }: RecordDialogProps) {
   const isMoney = (field: FieldDef) => field.type === 'number' && /Kobo$/.test(field.name);
   const [formData, setFormData] = useState<any>({});
   // The currency the money fields are in: the form's currency field, else the record's, else naira.
@@ -75,7 +99,7 @@ export function RecordDialog({ kind, record, isOpen, onOpenChange, fields: sourc
   const { merchantId, workspace } = useWorkspace();
   // A batch-imported record changes only through a reviewed correction; a quick import's stays editable (fromImportBatch).
   const importedEdit = !actionMutation && fromImportBatch(record) ? record!.data.importIdentity as { batchId: string } : undefined;
-  const blockedReason = permissionReason(workspace, { action: actionMutation, kind, record }) || (importedEdit ? 'Imported source records cannot be edited directly. Use a reviewed correction for supported fields, or the dedicated workflow action for other changes.' : undefined);
+  const blockedReason = permissionReason(workspace, { action: actionMutation, kind, record }) || (importedEdit ? 'You cannot edit an imported record here. To change a supported field, make a reviewed correction in Import batches. For anything else, use the button for that task.' : undefined);
   const queryClient = useQueryClient();
   const [result,setResult]=useState<any>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -96,7 +120,7 @@ export function RecordDialog({ kind, record, isOpen, onOpenChange, fields: sourc
   const changeOpen = (open: boolean) => {
     if (!open && isPending) return;
     if (!open && hasUnconfirmedOutcome) {
-      if (window.confirm('The outcome is not confirmed. Closing does not cancel the request and discards this draft and its retry information. If the service received the request, it stays in Operations, where you can check it before starting again. Close anyway?')) onOpenChange(false);
+      if (window.confirm('We do not know yet whether Valo Pay saved this. Closing does not cancel the request, and you cannot check it from this form again. If Valo Pay received it, you can check it in Request history. Close anyway?')) onOpenChange(false);
       return;
     }
     if (open || confirmDiscard()) onOpenChange(open);
@@ -138,6 +162,7 @@ export function RecordDialog({ kind, record, isOpen, onOpenChange, fields: sourc
       const stored = String(record?.data?.[currencyField ?? ''] || 'NGN'), storedCurrency = currencyMinorUnit(stored) === undefined ? 'NGN' : stored;
       fields.forEach(field => {
         if (isMoney(field) && initial[field.name] !== undefined && initial[field.name] !== '') initial[field.name] = minorToMajor(Number(initial[field.name]), currencyField ? storedCurrency : 'NGN');
+        if (field.percent && initial[field.name] !== undefined && initial[field.name] !== null && initial[field.name] !== '') initial[field.name] = storedToPercent(field.percent, initial[field.name]);
       });
       setFormData(initial);
       setInitialForm(submissionFingerprint(initial));
@@ -181,7 +206,7 @@ export function RecordDialog({ kind, record, isOpen, onOpenChange, fields: sourc
       await queryClient.invalidateQueries(undefined, { throwOnError: true });
       if (submittedSession === session.current && currentScope.current === scope) onOpenChange(false);
     } catch (error) {
-      if (submittedSession === session.current && currentScope.current === scope) setFormErrors(['Latest records could not be loaded. Your draft is still here. Try refreshing again.']);
+      if (submittedSession === session.current && currentScope.current === scope) setFormErrors(['We could not load the latest records. Your draft is still here. Try refreshing again.']);
     } finally {
       if (submittedSession === session.current && currentScope.current === scope) setRefreshingLatest(false);
     }
@@ -196,16 +221,19 @@ export function RecordDialog({ kind, record, isOpen, onOpenChange, fields: sourc
     fields.forEach(f => {
       const value = formData[f.name];
       const empty = value === undefined || value === null || String(value).trim() === '';
-      if (f.required && f.type === 'checkbox' && value !== true) errors[f.name] = `Confirm ${f.label.toLowerCase()} before saving.`;
+      if (f.required && f.type === 'checkbox' && value !== true) errors[f.name] = `Tick “${f.label}” before saving.`;
       else if (f.required && empty) errors[f.name] = missingMessage(f.label, f.type);
-      else if (f.name === currencyField && !empty && currencyMinorUnit(String(value)) === undefined) errors[f.name] = 'Enter an ISO 4217 currency code with a minor unit, such as NGN or USD.';
+      else if (f.name === currencyField && !empty && currencyMinorUnit(String(value)) === undefined) errors[f.name] = 'Enter a currency code Valo Pay knows, such as NGN or USD.';
       else if (isMoney(f) && !empty && currencyMinorUnit(moneyCurrency) !== undefined) {
         try { majorToMinor(String(value), moneyCurrency); } catch (error) { errors[f.name] = (error as Error).message; }
+      }
+      else if (f.percent && !empty) {
+        try { percentToStored(f.percent, String(value)); } catch (error) { errors[f.name] = (error as Error).message; }
       }
       else if (f.type === 'number' && !empty && !Number.isFinite(Number(value))) errors[f.name] = `Enter ${f.label} as a number.`;
     });
     if (!Object.keys(errors).length && validate) Object.assign(errors, validate(formData));
-    if (actionMutation && !String(formData.reason || '').trim()) errors.reason = 'Enter a reason for this action. It will be saved in the audit log.';
+    if (actionMutation && !String(formData.reason || '').trim()) errors.reason = 'Enter a reason. It is saved in the audit log.';
     setFieldErrors(errors); setFormErrors([]);
     const first = firstNamed(errors);
     if (first) { focusField(fieldId(first)); return; }
@@ -227,6 +255,7 @@ export function RecordDialog({ kind, record, isOpen, onOpenChange, fields: sourc
         return;
       }
       if (isMoney(f)) val = majorToMinor(String(val), moneyCurrency);
+      else if (f.percent) val = percentToStored(f.percent, String(val));
       else if (f.name === currencyField) val = String(val).trim().toUpperCase();
       else if (f.type === 'number') val = Number(val);
       if(['consentGaps','linePaymentIds','confirmedJobs'].includes(f.name)&&typeof val==='string')val=val.split(/[|,]/).map(s=>s.trim()).filter(Boolean);
@@ -273,19 +302,19 @@ export function RecordDialog({ kind, record, isOpen, onOpenChange, fields: sourc
         <Dialog.Overlay className="fixed inset-0 bg-black/50 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 z-50" />
         <Dialog.Content onOpenAutoFocus={event => { if (context) { event.preventDefault(); dialogTitle.current?.focus(); } }} onCloseAutoFocus={restoreOpenerFocus} className="fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] -translate-y-[50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg max-h-[90vh] overflow-y-auto">
           <div className="flex flex-col space-y-1.5 text-center sm:text-left">
-            <Dialog.Title ref={dialogTitle} tabIndex={context ? -1 : undefined} className="text-lg font-semibold leading-none tracking-tight focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">{title}</Dialog.Title>
+            <Dialog.Title ref={dialogTitle} tabIndex={context ? -1 : undefined} className="text-lg font-semibold leading-none tracking-tight focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">{typeof title === 'function' ? title(formData) : title}</Dialog.Title>
             <Dialog.Description className="text-xs text-muted-foreground">Use sample data only. This action cannot collect money or send a customer message. Fields marked * are required.</Dialog.Description>
           </div>
           
           <form noValidate onSubmit={handleSubmit} className="space-y-4 py-4">
             {blockedReason && <p role="status" className="rounded-lg border bg-secondary/30 p-3 text-sm">{blockedReason}</p>}
-            {importedEdit?.batchId && <Link href={`/imports?batch=${encodeURIComponent(importedEdit.batchId)}`} onClick={()=>onOpenChange(false)} className="inline-flex min-h-11 items-center text-sm text-primary underline">Review the committed import and corrections</Link>}
+            {importedEdit?.batchId && <Link href={`/imports?batch=${encodeURIComponent(importedEdit.batchId)}`} onClick={()=>onOpenChange(false)} className="inline-flex min-h-11 items-center text-sm text-primary underline">Open this batch in Import batches</Link>}
             {hasUnconfirmedOutcome && <div role="alert" className="space-y-2 rounded-lg border border-warning-border bg-warning/20 p-3 text-sm">
-              <p className="font-semibold">Outcome not confirmed</p>
-              <p>The request may have finished. Retry the same request to recover its result before changing these values. Keep this dialog open to retry it here. {KEPT_IN_OPERATIONS}</p>
+              <p className="font-semibold">Request not confirmed</p>
+              <p>We do not know yet whether Valo Pay saved this. Check the original request before you change anything. Keep this form open to check it here. {KEPT_IN_OPERATIONS}</p>
               {formErrors.length > 0 && <div><p className="font-medium">Latest response</p>{formErrors.map((message, index) => <p key={index}>{message}</p>)}</div>}
               {supportReference && <p>Support reference: {supportReference}</p>}
-              <div className="flex flex-wrap items-center gap-3"><Button type="button" variant="outline" busy={isPending} busyLabel="Recovering result…" onClick={() => { void retryUnconfirmed(); }}>Retry same request</Button><OpenOperations /></div>
+              <div className="flex flex-wrap items-center gap-3"><Button type="button" variant="outline" busy={isPending} busyLabel="Checking original request…" onClick={() => { void retryUnconfirmed(); }}>Check original request</Button><OpenOperations /></div>
             </div>}
             <fieldset disabled={isPending || hasUnconfirmedOutcome || !!blockedReason} className="contents">
             {typeof context === 'function' ? context(formData) : context}
@@ -332,8 +361,8 @@ export function RecordDialog({ kind, record, isOpen, onOpenChange, fields: sourc
                 ) : (
                   <input 
                     id={`record-${f.name}`}
-                    type={isMoney(f) ? 'text' : f.type === 'number' ? 'number' : f.type==='date'?'date':'text'}
-                    inputMode={isMoney(f) ? 'decimal' : undefined}
+                    type={isMoney(f) || f.percent ? 'text' : f.type === 'number' ? 'number' : f.type==='date'?'date':'text'}
+                    inputMode={isMoney(f) || f.percent ? 'decimal' : undefined}
                     className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" 
                     value={Array.isArray(formData[f.name])?formData[f.name].join(" | "):(formData[f.name]??'')} 
                     onChange={e => handleChange(f.name, e.target.value)} 
@@ -366,8 +395,8 @@ export function RecordDialog({ kind, record, isOpen, onOpenChange, fields: sourc
             </section>}
             </fieldset>
             <div className="flex justify-end gap-2 mt-4 pt-4 border-t">
-              <Button type="button" variant="outline" disabled={isPending} onClick={() => changeOpen(false)}>{hasUnconfirmedOutcome ? 'Close' : 'Cancel'}</Button>
-              <Button type="submit" disabled={!!blockedReason || hasUnconfirmedOutcome} busy={isPending} busyLabel={actionMutation ? 'Working…' : 'Saving…'}>{actionMutation ? actionLabels[actionMutation] || 'Confirm action' : 'Save'}</Button>
+              <Button type="button" variant="outline" disabled={isPending} onClick={() => changeOpen(false)}>{hasUnconfirmedOutcome ? 'Close' : (actionMutation && dismissLabels[actionMutation]) || 'Cancel'}</Button>
+              <Button type="submit" disabled={!!blockedReason || hasUnconfirmedOutcome} busy={isPending} busyLabel={(typeof busyWords === 'function' ? busyWords(formData) : busyWords) ?? (actionMutation ? busyLabels[actionMutation] || 'Confirming action…' : 'Saving…')}>{(typeof submitLabel === 'function' ? submitLabel(formData) : submitLabel) ?? (actionMutation ? actionLabels[actionMutation] || 'Confirm action' : 'Save')}</Button>
             </div>
           </form>
 

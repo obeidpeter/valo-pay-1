@@ -14,8 +14,8 @@ import { seedMerchant } from "../src/lib/valopay-seed.js";
 
 let checks = 0;
 // The audit_chain_broken detail for entry 4: once the lender has recorded the break, and while only a check has found it.
-const keptBreak = "The check stopped at entry 4: it is missing, or its order or verification hash does not match. Ask an administrator to investigate. The lender has recorded this break, so the alert stays until a check of the whole audit log finds every entry intact: Check audit log, on the Audit log page, or the daily check after the lender's daily close.";
-const foundBreak = "The check stopped at entry 4: it is missing, or its order or verification hash does not match. Ask an administrator to investigate. The next completed change, Check audit log or the daily check after the lender's daily close records the break for the lender, and the alert then stays until a check of the whole audit log finds every entry intact. Until then it clears if the chain is repaired.";
+const keptBreak = "Entry 4 of the audit log is missing, out of order or changed. Contact the Valo Pay team. This alert stays until a full check finds every entry intact: select Check audit log on the Audit log page, or wait for the daily check after the daily close.";
+const foundBreak = "Entry 4 of the audit log is missing, out of order or changed. Contact the Valo Pay team. The next change, Check audit log or the daily check after the daily close will record this break. After that, the alert stays until a full check finds every entry intact. Until then, it clears if the log is repaired.";
 const admin = (now: string) => ctxAt(now, "Admin");
 const reviewer = (now: string) => ctxAt(now, "Compliance reviewer");
 
@@ -60,10 +60,10 @@ const reviewer = (now: string) => ctxAt(now, "Compliance reviewer");
 
   // Applying the version needs a provider-accepted policy-change notice; a simulated notice is not evidence.
   const apply = (now: string, data: Record<string, unknown>) => executeAction(state, admin(now), { action: "apply_policy_version", recordId: mandate.id, reason: "customer informed", data: { policyId: draft.id, ...data } });
-  assert.throws(() => apply(wat("2027-06-04T09:00:00"), {}), /evidence that the provider accepted the policy-change notice/);
+  assert.throws(() => apply(wat("2027-06-04T09:00:00"), {}), /evidence that the provider accepted the policy change notice/);
   const simulated = executeAction(state, ctxAt(wat("2027-06-04T09:00:00"), "Operations"), { action: "notify_policy_change", recordId: mandate.id, reason: "inform", data: { policyId: draft.id } }).record!;
   assert.equal(simulated.data.purpose, "policy_change"); assert.equal(simulated.data.synthetic, true);
-  assert.throws(() => apply(wat("2027-06-04T10:00:00"), { noticeId: simulated.id }), /evidence that the provider accepted the policy-change notice/, "a simulated notice is not evidence");
+  assert.throws(() => apply(wat("2027-06-04T10:00:00"), { noticeId: simulated.id }), /evidence that the provider accepted the policy change notice/, "a simulated notice is not evidence");
   const accepted = makeRecord(state, "notifications", { name: "policy change", status: "accepted", customerId: mandate.customerId, createdAt: wat("2027-06-05T09:00:00"), data: { purpose: "policy_change", channel: "sms", class: "required", mandateId: mandate.id, policyId: draft.id, acceptedAt: wat("2027-06-05T09:00:05"), deliveredAt: wat("2027-06-05T09:00:20") } });
   accepted.data.synthetic = false;
   state.settings.policyChangeRequiresConsent = true;
@@ -102,7 +102,7 @@ const reviewer = (now: string) => ctxAt(now, "Compliance reviewer");
 
   // A duplicate stored by an earlier build, or a same-named policy (the same policy for consent and notices), cannot be approved under a number already approved.
   const refusedApproval = (record: { id: string }, version: number, message: string) =>
-    assert.throws(() => act("approve_policy", record.id, wat("2027-06-04T09:00:00")), (error: any) => error.status === 409 && new RegExp(`^Version ${version} of this policy is already approved`).test(error.message), message);
+    assert.throws(() => act("approve_policy", record.id, wat("2027-06-04T09:00:00")), (error: any) => error.status === 409 && new RegExp(`^Version ${version} of this retry policy is already approved`).test(error.message), message);
   const duplicate = makeRecord(state, "policies", { name: policy.name, status: "submitted", amountKobo: 0, data: { ...policy.data, version: 2, author: "Sandbox Admin", reviewer: "", previousVersionId: policy.id, approvedAt: undefined } });
   refusedApproval(duplicate, 2, "a second version 2 is refused");
   const namesake = makeRecord(state, "policies", { name: policy.name, status: "submitted", amountKobo: 0, data: { version: 1, maxAttempts: 3, author: "Sandbox Admin" } });
@@ -116,12 +116,12 @@ const reviewer = (now: string) => ctxAt(now, "Compliance reviewer");
   // The record API cannot renumber or relink a version, or set its review times; other draft fields stay editable.
   const editable = draft(policy.id, wat("2027-06-05T09:00:00"));
   const patch = (data: Record<string, unknown>) => () => validateRecord(state, admin(wat("2027-06-05T10:00:00")), "policies", { ...editable, data: { ...editable.data, ...data } }, true);
-  assert.throws(patch({ version: 2 }), /Policy version numbers are assigned when a new draft version is created/, "the version number");
-  assert.throws(patch({ previousVersionId: undefined }), /Policy previousVersionId is recorded by its review or version action/, "the link to the previous version");
-  assert.throws(patch({ approvedAt: wat("2027-06-05T10:00:00") }), /Policy approvedAt is recorded/, "an approval time");
+  assert.throws(patch({ version: 2 }), /Leave the version number as it is\. Valo Pay numbers each new draft version\./, "the version number");
+  assert.throws(patch({ previousVersionId: undefined }), /Valo Pay records a policy’s review dates and version links\. You cannot change them here\./, "the link to the previous version");
+  assert.throws(patch({ approvedAt: wat("2027-06-05T10:00:00") }), /Valo Pay records a policy’s review dates and version links\./, "an approval time");
   assert.doesNotThrow(patch({ spacingHours: 72 }), "a rule");
   assert.throws(() => validateRecord(state, admin(wat("2027-06-05T10:00:00")), "policies", { name: "Copied policy", status: "draft", amountKobo: 0, data: { version: 1, author: "Sandbox Admin", previousVersionId: policy.id } }),
-    /Policy previousVersionId is recorded/, "a new policy cannot claim to follow another");
+    /Valo Pay records a policy’s review dates and version links\./, "a new policy cannot claim to follow another");
   checks += 5;
 }
 {
@@ -132,7 +132,7 @@ const reviewer = (now: string) => ctxAt(now, "Compliance reviewer");
   const approve = (record: { id: string }) => executeAction(state, reviewer(wat("2027-06-06T09:00:00")), { action: "approve_policy", recordId: record.id, reason: "Stored duplicates test" });
   approve(first);
   assert.equal(first.status, "approved", "a version 2 that is only drafted, rejected or submitted does not hold the number");
-  assert.throws(() => approve(second), (error: any) => error.status === 409 && /^Version 2 of this policy is already approved/.test(error.message), "once one version 2 is approved, the other is refused");
+  assert.throws(() => approve(second), (error: any) => error.status === 409 && /^Version 2 of this retry policy is already approved/.test(error.message), "once one version 2 is approved, the other is refused");
   assert.deepEqual([draft.status, rejected.status, second.status], ["draft", "rejected", "submitted"], "and nothing else changed");
   checks += 3;
 }

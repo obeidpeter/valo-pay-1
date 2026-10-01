@@ -1,6 +1,7 @@
 import { ConnectedPanel, ConnectedStatus } from "@/components/connected-frame";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatDate } from "@/lib/formatters";
+import { valueLabel } from "@workspace/valopay-schema";
 import { FileCheck2 } from "lucide-react";
 import { AssessmentEvidence } from "./assessment-evidence";
 import { AssessmentHistory } from "./assessment-history";
@@ -28,8 +29,8 @@ export function AssessmentWorkspace({
   const result = selected?.result;
   return (
     <ConnectedPanel
-      title="Assessment workspace"
-      description="Each run creates a new version. Earlier results and reviews remain traceable."
+      title="Assessment results"
+      description="Each run creates a new version. Earlier versions and their reviews are kept."
     >
       {!selected ? (
         <div className="py-12 text-center">
@@ -38,10 +39,11 @@ export function AssessmentWorkspace({
             className="mx-auto mb-4 text-muted-foreground"
             aria-hidden="true"
           />
-          <h3 className="font-semibold">Start with a sample application</h3>
+          <h3 className="font-semibold">No assessments yet</h3>
           <p className="mt-2 text-sm text-muted-foreground">
-            Grant both permissions, choose a scenario and run an assessment to
-            inspect the score, capacity and independent policy checks.
+            Grant both permissions, choose a scenario and select Run
+            assessment. You will then see the score, the affordability check
+            and the policy checks.
           </p>
         </div>
       ) : (
@@ -58,9 +60,9 @@ export function AssessmentWorkspace({
             >
               {assessments.map((item) => (
                 <option value={item.id} key={item.id}>
-                  {item.customerName} · v{item.result.version} ·{" "}
+                  {item.customerName} · version {item.result.version} ·{" "}
                   {recommendationLabels[item.result.policy.recommendation] ??
-                    item.result.policy.recommendation}
+                    valueLabel(item.result.policy.recommendation)}
                 </option>
               ))}
             </select>
@@ -72,7 +74,7 @@ export function AssessmentWorkspace({
                 Version {result!.version} · {formatDate(selected.createdAt)}
               </p>
             </div>
-            <ConnectedStatus status={result!.state} />
+            <ConnectedStatus record="assessment" status={result!.state} />
           </div>
           <Tabs
             value={tab}

@@ -56,8 +56,8 @@ describe("internationalisation", () => {
     expect(queue.textContent).toMatch(/1,234$/);
     overview.unmount();
     renderApp("/reconciliation?view=review");
-    expect(await screen.findByText("1,234 pending")).toBeTruthy();
-    expect(screen.getByText("1–25 of 1,234 proposed matches")).toBeTruthy();
+    expect(await screen.findByText("1,234 to review")).toBeTruthy();
+    expect(screen.getByText("1–25 of 1,234 matches to review")).toBeTruthy();
   });
 
   it("agrees a badge's noun with its number", async () => {
@@ -65,6 +65,6 @@ describe("internationalisation", () => {
     const heading = await screen.findByRole("heading", { name: "Unallocated payments" });
     const badge = heading.parentElement!.querySelector("span")!;
     const [count, noun] = badge.textContent!.split(" ");
-    expect(noun).toBe(Number(count) === 1 ? "item" : "items");
+    expect(noun).toBe(Number(count) === 1 ? "payment" : "payments");
   });
 });

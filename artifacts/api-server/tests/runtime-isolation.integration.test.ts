@@ -317,7 +317,7 @@ try {
     await assert.rejects(() => store.acceptStaffInvitation(inviteeRequest, "token-workspace-a"), /organisation|invitation/i, "A verified but different email cannot accept the invitation.");
     verifiedEmail = "workspace-a@example.test";
     // A Finance invitation is accepted only once a second administrator approved it; the restricted login reads that approval.
-    await assert.rejects(() => store.acceptStaffInvitation(inviteeRequest, "token-workspace-a"), /waiting for a second administrator's approval/, "An unapproved Finance invitation cannot be accepted.");
+    await assert.rejects(() => store.acceptStaffInvitation(inviteeRequest, "token-workspace-a"), /waiting for a second Admin’s approval/, "An unapproved Finance invitation cannot be accepted.");
     await admin.query(`INSERT INTO "${schema}".valopay_staff_events(id,workspace_id,actor,action,subject,detail) VALUES('approval-workspace-a','workspace-a','Clerk:user_adminA','staff.invitation_approved','invite-workspace-a','{}')`);
     const accepted = await Promise.allSettled([store.acceptStaffInvitation(inviteeRequest, "token-workspace-a"), store.acceptStaffInvitation(inviteeRequest, "token-workspace-a")]);
     assert.equal(accepted.filter(result => result.status === "fulfilled").length, 1, "Concurrent invitation acceptance commits exactly once.");
@@ -327,7 +327,7 @@ try {
     assert.equal((await admin.query(`SELECT status FROM "${schema}".valopay_staff_invitations WHERE id='invite-workspace-a'`)).rows[0].status, "accepted");
     assert.deepEqual(await store.inWorkspace(inviteeRequest, { cookie() {} } as any, ctx => store.listMerchants(ctx), "read"), [], "Accepting an invitation grants no lenders.");
     await admin.query(`INSERT INTO "${schema}".valopay_staff_invitations(id,workspace_id,email,role,token_hash,invited_by,expires_at) VALUES('invite-renewal','workspace-a','workspace-a@example.test','Read-only',$1,'System',now()+interval '1 day')`, [createHash("sha256").update("token-renewal").digest("hex")]);
-    await assert.rejects(() => store.acceptStaffInvitation(inviteeRequest, "token-renewal"), /already have an active membership/, "An active member cannot use renewal to change their own role.");
+    await assert.rejects(() => store.acceptStaffInvitation(inviteeRequest, "token-renewal"), /You are already a team member/, "An active member cannot use renewal to change their own role.");
     // Revoked as the team page records it: the membership's change time moves.
     await admin.query(`UPDATE "${schema}".valopay_staff_memberships SET status='revoked',updated_at=clock_timestamp() WHERE id=$1`, [firstMembership.id]);
     await admin.query(`INSERT INTO "${schema}".valopay_staff_lender_access(membership_id,merchant_id,granted_by) VALUES($1,'lender-a','fixture')`, [firstMembership.id]);

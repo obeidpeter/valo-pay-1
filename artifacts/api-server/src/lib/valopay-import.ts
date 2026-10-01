@@ -3,7 +3,7 @@ import { canonicalDigest } from './digests';
 import { assertNoRealBankDetails, makeRecord, validateRecord } from "../domain";
 import type { ValidationProblem } from "../domain/validation";
 import type { Context, DomainState } from "../domain/types";
-import { counted, csvAmountToKobo, defaultStatus, importBooleanFields, importFieldsOf, importKinds as sharedImportKinds, importNumericFields, suggestImportField, observationEventKey, observationProviderKey } from "@workspace/valopay-schema";
+import { counted, csvAmountToKobo, defaultStatus, importBooleanFields, importFieldLabel, importFieldsOf, importKinds as sharedImportKinds, importNumericFields, recordTypeTitle, suggestImportField, observationEventKey, observationProviderKey } from "@workspace/valopay-schema";
 import { importRowError } from "./import-row-errors";
 
 const importKinds:readonly string[]=sharedImportKinds;
@@ -16,7 +16,7 @@ function fail(message: string, status = 400): never { throw Object.assign(new Er
  * whichever file brings it again. Import batches name their own source.
  */
 export const QUICK_IMPORT_SOURCE = "Quick import";
-const ROW_ID_RULE = "Choose the column that holds each row's source row ID: every row needs a different, non-empty value, up to 160 characters, so that a later import recognises the row.";
+const ROW_ID_RULE = "Choose the column that holds each row’s source row ID: every row needs a different, non-empty value, up to 160 characters, so that a later import recognises the row.";
 /**
  * Each row's source row ID, from the identity column: a different, non-empty value on every row, up to 160 characters,
  * or the file is refused (400). The ID is kept with the record, so it is screened for bank details under its header.
@@ -48,11 +48,11 @@ function fallbackWarnings(kind: string, columns: string[], targets: string[], id
     const unused = columns.filter((column, index) => targets[index] ? !fields.has(targets[index]!) : column !== identityColumn || suggestImportField(kind, column) === field);
     if (!rows || !unused.length) continue;
     const fallback = field === "name"
-      ? targets.includes(field) ? `${one ? "its name is" : "their names are"} taken from ${one ? "its reference (or its row number" : "their references (or their row numbers"} without one)` : "each record's name is taken from its reference (or its row number without one)"
+      ? targets.includes(field) ? `${one ? "its name is" : "their names are"} taken from ${one ? "its reference (or its row number" : "their references (or their row numbers"} without one)` : "each record’s name is taken from its reference (or its row number without one)"
       : targets.includes(field) ? `${one ? "it gets a generated reference" : "they get generated references"}` : "each record gets a generated reference";
     const what = targets.includes(field) ? `${label} is blank on ${counted(rows, "row")}, so ${fallback}.` : `No column is mapped to ${label}, so ${fallback}.`;
     const list = unused.map((column) => suggestImportField(kind, column) === field ? `${column}, which looks like the ${field}` : column).join("; ");
-    warnings.push(`${what} Not mapped to a field: ${list}. Map the column that holds the ${field}, or commit knowing the fallback is saved.`);
+    warnings.push(`${what} Not mapped to a field: ${list}. Map the column that holds the ${field}, or import anyway to save the fallback.`);
   }
   return warnings;
 }
@@ -63,32 +63,32 @@ function fallbackWarnings(kind: string, columns: string[], targets: string[], id
  * operator's columns (importRowError), with the record API's words as its detail.
  */
 export function importCsv(state:DomainState,ctx:Context,input:{kind:string;csv:string;syntheticOnly:boolean;commit:boolean;mapping?:Record<string,unknown>;amountUnit?:'naira'|'kobo'; identityColumn?: string; identities?: { source: string; batchId?: string; ids: string[] }}){
-  if(!input.syntheticOnly)fail("Pre-data gate is closed. Only synthetic sample records are accepted.",403);
-  if(!importKinds.includes(input.kind))fail("This resource does not support CSV import.");
+  if(!input.syntheticOnly)fail("Only sample data can be imported. Real data is not accepted yet.",403);
+  if(!importKinds.includes(input.kind))fail("You cannot import a CSV file for this type of record.");
   const amountUnit = input.amountUnit ?? 'kobo';
   if (!['naira', 'kobo'].includes(amountUnit)) fail('Choose Naira or Kobo for the source amounts.');
-  if(new TextEncoder().encode(input.csv).length>1500000)fail("Import is limited to 1.5 MB and 500 rows.");
+  if(new TextEncoder().encode(input.csv).length>1500000)fail("A file must have between 1 and 500 rows and be no larger than 1.5 MB.");
   let parsed:Record<string,string>[];
   let columns: string[] = [];
   let headerProblem = '';
   try{parsed=parse(input.csv,{columns:(headers: string[]) => {
     columns = headers;
     if (headers.some(header => !header || unsafeKey(header)) || new Set(headers).size !== headers.length) {
-      headerProblem = 'Each CSV column needs a different, non-empty header. Reserved object names are not allowed.';
+      headerProblem = 'Give every column a different, non-empty header. Some names, such as ‘constructor’, cannot be used.';
       throw new Error(headerProblem);
     }
     return headers;
   },skip_empty_lines:true,bom:true,trim:true,max_record_size:20000});}
-  catch{fail(headerProblem || "CSV could not be parsed. Use a header row, the same number of columns on every row, and quoted fields for commas.");}
-  if(parsed.length>500||!parsed.length)fail("Provide between 1 and 500 CSV records.");
-  if (input.mapping && (Array.isArray(input.mapping) || Object.entries(input.mapping).some(([key, target]) => !columns.includes(key) || unsafeKey(key) || typeof target !== 'string' || unsafeKey(target)))) fail('Choose a valid destination or Skip column for each CSV column.');
+  catch{fail(headerProblem || "Valo Pay could not read this CSV file. Use a header row, the same number of columns on every row, and quotes around values that contain commas.");}
+  if(parsed.length>500||!parsed.length)fail("A file must have between 1 and 500 rows and be no larger than 1.5 MB.");
+  if (input.mapping && (Array.isArray(input.mapping) || Object.entries(input.mapping).some(([key, target]) => !columns.includes(key) || unsafeKey(key) || typeof target !== 'string' || unsafeKey(target)))) fail('Choose a field, or Skip column, for each column in the file.');
   const destination = (key: string) => {
     // The row ID column is the row's identity: it fills a field only when mapped to one, or when it is the reference or event ID itself.
     const chosen = input.mapping && Object.hasOwn(input.mapping, key) ? String(input.mapping[key]).trim() : key === input.identityColumn && !['reference', 'eventId'].includes(key) ? '' : key;
     return chosen === 'amount' ? 'amountKobo' : chosen;
   };
   const targets = columns.map(destination);
-  if (new Set(targets.filter(Boolean)).size !== targets.filter(Boolean).length) fail('Map each destination field only once. Choose Skip column for unused columns.');
+  if (new Set(targets.filter(Boolean)).size !== targets.filter(Boolean).length) fail('Map each field only once. Choose Skip column for the columns you do not need.');
   const identities = input.identities ?? { source: QUICK_IMPORT_SOURCE, ids: sourceRowIds(parsed, input.identityColumn, columns) };
   // The column a field is read from, which a row error names.
   const columnOf = (field: string) => columns.find((_column, index) => targets[index] === field);
@@ -108,7 +108,7 @@ export function importCsv(state:DomainState,ctx:Context,input:{kind:string;csv:s
       for(const [key,value] of Object.entries(raw)){
         const target=destination(key);
         if (!target) continue;
-        if (unsafeKey(target)) throw new Error('Reserved object names are not allowed as import fields.');
+        if (unsafeKey(target)) throw new Error('One of these column names cannot be used. Rename the column and try again.');
         // A blank number is absent. Only the amount, which every kind but customers needs, is still refused when blank.
         // Quoted spaces are kept by the parser's trim, so a cell of spaces counts as blank too.
         if (numeric.has(target) && !value.trim() && !(target === 'amountKobo' && input.kind !== 'customers')) {
@@ -123,7 +123,7 @@ export function importCsv(state:DomainState,ctx:Context,input:{kind:string;csv:s
           if (target === 'amountKobo') amounts.set(index + 2, decoded as number);
         } else if(numeric.has(target))decoded=Number(value);
         if(boolean.has(target)) {
-          if (!['true', 'false', ''].includes(value)) { problems.push({ field: target, message: `${target} must be true or false.`, rule: { type: 'boolean' } }); continue; }
+          if (!['true', 'false', ''].includes(value)) { problems.push({ field: target, message: `${importFieldLabel(input.kind, target)}: enter true or false.`, rule: { type: 'boolean' } }); continue; }
           decoded=value==="true";
         }
         if(target==="consentGaps")decoded=value?value.split("|"):[];
@@ -141,11 +141,11 @@ export function importCsv(state:DomainState,ctx:Context,input:{kind:string;csv:s
         problems.push({ message: 'This source row ID was already imported with different data. Review the existing record; it cannot be replaced by importing again.' });
       }
       const named=Boolean(record.name),referenced=Boolean(record.reference);
-      record.name ||= record.reference || `${input.kind} import ${index+1}`;
+      record.name ||= record.reference || `${recordTypeTitle(input.kind)} from row ${index + 2}`;
       record.status ||= defaultStatus[input.kind as keyof typeof defaultStatus];
       if(record.customerId&&!working.records.some(r=>r.id===record.customerId&&r.kind==="customers")){
         const customers=working.records.filter(r=>r.kind==="customers"&&r.reference===record.customerId);
-        if(customers.length>1) problems.push({field:'customerId',message:'This customer reference matches more than one customer. Use the customer record ID and ask an administrator to correct the duplicate references.'});
+        if(customers.length>1) problems.push({field:'customerId',message:'This customer reference matches more than one customer. Use the customer record ID, and ask an Admin to correct the duplicate references.'});
         else if(customers[0])record.customerId=customers[0].id;
       }
       for(const [key,kind] of [["mandateId","mandates"],["dueItemId","due-items"]]){
@@ -167,16 +167,16 @@ export function importCsv(state:DomainState,ctx:Context,input:{kind:string;csv:s
       if(savedEvidence&&!sameDetails(savedEvidence))problems.push({ message: 'This source event is already saved with different details. Review the saved payment evidence; it cannot be replaced by importing again.' });
       // A new row ID never takes over a saved record: a conflicting row is refused, not silently skipped.
       else if(record.reference&&(input.kind==="observations"?savedEvidence:working.records.some(r=>r!==prior&&r.kind===input.kind&&r.reference===record.reference))){
-        problems.push({ field: 'reference', message: 'This reference belongs to another saved record. Check its source row identity before importing; a conflicting row will not be silently skipped.' });
+        problems.push({ field: 'reference', message: 'This reference belongs to another saved record. Check the row’s source row ID before you import. A conflicting row is refused, never skipped.' });
       }
       try { validateRecord(working,ctx,input.kind,record,false,problems); }
-      catch (error) { problems.push({ message: error instanceof Error ? error.message : 'Invalid record.' }); }
+      catch (error) { problems.push({ message: error instanceof Error ? error.message : 'Valo Pay could not check this row.' }); }
       if (problems.length) { invalid++; rows.push({ row: index + 2, status: 'invalid', ...importRowError(problems, { kind: input.kind, unit: amountUnit, columnOf }) }); continue; }
       record.data.importIdentity = { ...identity, fingerprint: identityFingerprint };
       makeRecord(working,input.kind,{...record,createdAt:ctx.now,updatedAt:ctx.now});
       valid++;rows.push({row:index+2,status:"valid",message:input.commit?"Sample record imported.":"Checked and ready to import."});
       if(!named)fallbacks.name++;if(!referenced)fallbacks.reference++;
-    }catch(error){invalid++;const message=error instanceof Error?error.message:"Invalid record.";rows.push({row:index+2,status:"invalid",message,detail:message});}
+    }catch(error){invalid++;const message=error instanceof Error?error.message:"Valo Pay could not check this row.";rows.push({row:index+2,status:"invalid",message,detail:message});}
   }
   // All-or-nothing: review every error before committing.
   if(input.commit&&invalid===0){state.records=working.records;imported=valid;}

@@ -23,6 +23,10 @@ import { hasFeeSchedule } from "@workspace/valopay-schema";
 import { Button } from "./ui/button";
 import { RecordPagination } from "./record-pagination";
 import { LoadProblem, RefreshProblem } from "./load-problem";
+import { readableLabel } from "./record-label";
+
+/** A matching rule by its name ("Rule R1"); any other key, such as a manual allocation, through the shared labels. */
+const ruleName = (rule: string) => (/^R\d+$/.test(rule) ? `Rule ${rule}` : readableLabel(rule));
 
 function CloseEvidence({ close }: { close: ValopayRecord }) {
   const { merchantId } = useWorkspace();
@@ -48,29 +52,29 @@ function CloseEvidence({ close }: { close: ValopayRecord }) {
   };
   const measures = report
     ? [
-        ["Unmatched at start", money(report.openingUnallocated)],
+        ["Unallocated at start", money(report.openingUnallocated)],
         [
-          "Payment records received",
+          "Payment evidence received",
           count(report.observations?.received),
         ],
         [
-          "Payment records by source",
+          "Payment evidence by source",
           Object.entries(report.observations?.bySource || {})
             .map(
               ([key, v]: [string, any]) =>
-                `${key}: ${formatCount(Number(v.received ?? 0), "record")} linked to ${formatCount(v.paymentsResolvedTo, "payment")}`,
+                `${readableLabel(key)}: ${formatCount(Number(v.received ?? 0), "record")} linked to ${formatCount(v.paymentsResolvedTo, "payment")}`,
             )
             .join("; ") || "None",
         ],
         [
           "Matches by rule",
           Object.entries(report.allocatedByRule || {})
-            .map(([key, v]: [string, any]) => `${key}: ${count(v.count)}`)
+            .map(([key, v]: [string, any]) => `${ruleName(key)}: ${count(v.count)}`)
             .join("; ") || "None",
         ],
-        ["Proposed matches", money(report.proposed)],
+        ["Matches to review", money(report.proposed)],
         [
-          "Unmatched at close",
+          "Unallocated at close",
           `${money(report.unallocated)} · ${count(report.unallocated?.olderThan24Hours)} older than 24 hours`,
         ],
         ["Settlement differences", differences(report.variances)],
@@ -79,7 +83,7 @@ function CloseEvidence({ close }: { close: ValopayRecord }) {
           `${count(report.exceptions?.opened?.count)} opened · ${count(report.exceptions?.closed?.count)} closed · ${count(report.exceptions?.openAtClose)} open`,
         ],
         [
-          "Customer totals changed",
+          "Customer balances changed",
           count(report.customerPositionsChanged?.length),
         ],
         [
@@ -107,7 +111,7 @@ function CloseEvidence({ close }: { close: ValopayRecord }) {
               }}
             />
           ) : query.isLoading ? (
-            <p role="status">Loading close evidence…</p>
+            <p role="status">Loading close details…</p>
           ) : report ? (
             <dl className="space-y-3">
               {measures.map(([label, value]) => (
@@ -121,13 +125,13 @@ function CloseEvidence({ close }: { close: ValopayRecord }) {
             <p>Detailed reports were not available when this close ran.</p>
           )}
           {query.data?.data?.positionAlert === true && (
-            <p className="text-destructive">Customer totals need review</p>
+            <p className="text-destructive">Customer balances need review. Open Reconciliation to check them.</p>
           )}
           {!!query.data?.data?.schedule && (
             <p>
-              {String((query.data.data.schedule as any).trigger || "manual")}
+              {(query.data.data.schedule as any).trigger === "scheduled" ? "Started automatically" : "Run by hand"}
               {(query.data.data.schedule as any).late
-                ? ` · ${count((query.data.data.schedule as any).delayMinutes)} min late`
+                ? ` · ${formatCount(Number((query.data.data.schedule as any).delayMinutes ?? 0), "minute")} late`
                 : ""}
             </p>
           )}
@@ -189,7 +193,7 @@ export function CloseHistorySection({ active }: { active: boolean }) {
   return (
     <>
       <div className="space-y-4 border-b p-5">
-        <Link href="/close-review" className="inline-flex min-h-11 items-center text-sm font-medium text-primary underline print:hidden">Prepare and review a close with Finance</Link>
+        <Link href="/close-review" className="inline-flex min-h-11 items-center text-sm font-medium text-primary underline print:hidden">Open Close review</Link>
         <form
           key={`${merchantId}:${from}:${to}`}
           className="flex flex-wrap items-end gap-3 print:hidden"
@@ -232,15 +236,15 @@ export function CloseHistorySection({ active }: { active: boolean }) {
         <p id="close-range-help" className="text-xs text-muted-foreground">
           {validation.error ||
             (query.data
-              ? `Showing ${formatCount(query.data.total, "recorded close")}${from ? ` from ${from}` : ""}${to ? ` through ${to}` : ""}. Dates include the full day in West Africa Time. Current totals above are unchanged.`
+              ? `Showing ${formatCount(query.data.total, "recorded close")}${from ? ` from ${formatDate(from)}` : ""}${to ? ` ${from ? "to" : "up to"} ${formatDate(to)}` : ""}. Each date includes the whole day in WAT. These dates do not change the totals above.`
               : "Loading recorded closes…")}
         </p>
         {!validation.error && (
-          <RefreshProblem what="The close history" shown="closes" query={query} />
+          <RefreshProblem what="the close history" shown="closes" query={query} />
         )}
         {validation.error ? (
           <p role="alert" className="text-sm text-destructive">
-            The close history is hidden until the date range is corrected.
+            Correct the dates above to see the daily closes.
           </p>
         ) : query.error && !query.data ? (
           <LoadProblem
@@ -259,16 +263,16 @@ export function CloseHistorySection({ active }: { active: boolean }) {
               </h3>
               {query.data.total < 2 ? (
                 <p className="mt-2 text-xs text-muted-foreground">
-                  At least two recorded closes in this range are needed for a
-                  comparison. No change has been estimated.
+                  You need at least two recorded closes in this date range to
+                  see a change.
                 </p>
               ) : (
                 <>
                   <p className="mt-2 text-xs text-muted-foreground">
                     First: {formatDate(history.first!.createdAt)} · Latest:{" "}
-                    {formatDate(history.latest!.createdAt)}. These are closing
-                    positions, not money collected during the period. Money in
-                    another currency is left out here; each close's details
+                    {formatDate(history.latest!.createdAt)}. These are balances at
+                    each close, not money collected in the period. Money in
+                    other currencies is left out here. Each close’s details
                     list it.
                   </p>
                   <div className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -284,8 +288,8 @@ export function CloseHistorySection({ active }: { active: boolean }) {
                         </p>
                         <p className="mt-1 text-xs text-muted-foreground">
                           {metric.change === null
-                            ? "One or both closes lack this recorded measure."
-                            : `${metric.money ? formatKobo(metric.before) : formatNumber(metric.before)} → ${metric.money ? formatKobo(metric.after) : formatNumber(metric.after)}`}
+                            ? "One or both closes did not record this figure."
+                            : `From ${metric.money ? formatKobo(metric.before) : formatNumber(metric.before)} to ${metric.money ? formatKobo(metric.after) : formatNumber(metric.after)}`}
                         </p>
                       </div>
                     ))}
@@ -302,13 +306,13 @@ export function CloseHistorySection({ active }: { active: boolean }) {
             <div className="p-5">
               <p className="font-medium">
                 {query.data.allTotal
-                  ? "No closes in this date range"
-                  : "No daily close yet"}
+                  ? "No daily closes match these dates"
+                  : "No daily closes yet"}
               </p>
               <p className="mt-1 text-sm text-muted-foreground">
                 {query.data.allTotal
-                  ? "Choose another date range to view recorded closes."
-                  : "Run a daily close above to check the books. Each completed close creates a record with its results here."}
+                  ? "Choose other dates, or select Clear dates."
+                  : "Select Run daily close above to check the day’s records. Each daily close then appears here with its results."}
               </p>
             </div>
           ) : (
@@ -327,14 +331,14 @@ export function CloseHistorySection({ active }: { active: boolean }) {
                   <p className="min-w-0 text-sm leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
                     {String(close.data.summary || "Recorded daily close")}
                   </p>
-                  <div className="min-w-0 space-y-2"><CloseEvidence key={`${merchantId}:${close.id}`} close={close} /><Link href={`/close-review?close=${encodeURIComponent(close.id)}`} className="inline-flex min-h-11 items-center text-sm text-primary underline print:hidden">View Finance review</Link></div>
+                  <div className="min-w-0 space-y-2"><CloseEvidence key={`${merchantId}:${close.id}`} close={close} /><Link href={`/close-review?close=${encodeURIComponent(close.id)}`} className="inline-flex min-h-11 items-center text-sm text-primary underline print:hidden">Open Close review</Link></div>
                 </li>
               ))}
             </ol>
           )}
           <p className="hidden px-5 py-2 text-xs print:block">
-            Close summaries only. Open a close in the console to inspect its
-            full evidence.
+            Close summaries only. Open a close in Valo Pay to see its full
+            evidence.
           </p>
           <RecordPagination
             pagination={pagination}

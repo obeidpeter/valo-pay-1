@@ -28,13 +28,13 @@ function LenderImports() {
   return (
     <div className="space-y-6">
       <PilotHeading title="Import batches">
-        Save the file, mapping and row checks together. Return to fix a batch
-        later, then commit every valid row in one step. Only synthetic sample
-        records are accepted.
+        Save a file with its column mapping and row checks. You can come back
+        later to fix it. When no rows need fixing, import the whole batch in one
+        step. Sample data only.
       </PilotHeading>
       {!merchantId ? (
         <Link href="/pilot" className="text-primary underline">
-          Create a lender to begin
+          Create a lender in Pilot journey
         </Link>
       ) : (
         <BatchEditor
@@ -54,16 +54,17 @@ function LenderImports() {
       <PilotPanel title="Saved batches">
         <PilotError
           error={list.error}
+          what="import batches"
           pager="import batches"
           retry={() => {
             void list.refetch();
           }}
         />
-        {list.isLoading && <p role="status">Loading batches…</p>}
+        {list.isLoading && <p role="status">Loading saved batches…</p>}
         {list.data?.total === 0 && (
           <p className="text-sm text-muted-foreground">
-            Your first saved batch will appear here, including any rows that
-            need correction.
+            No saved batches yet. Select Save and check batch to save your
+            first one, even if some rows need fixing.
           </p>
         )}
         <div className="space-y-2">
@@ -84,7 +85,7 @@ function LenderImports() {
                 </span>
               </span>
               <span className="rounded-full bg-secondary px-3 py-1 text-xs">
-                {readableLabel(batch.status)} · revision {batch.data.revision}
+                {readableLabel(batch.status)} · version {batch.data.revision}
               </span>
             </button>
           ))}
@@ -114,13 +115,13 @@ function LenderImports() {
         href="/sources"
         className="inline-block text-sm text-primary underline"
       >
-        Manage source schedules, mappings and totals
+        Open Data sources
       </Link>
       <Link
         href="/pilot"
         className="inline-block text-sm text-primary underline"
       >
-        Return to the pilot journey
+        Back to Pilot journey
       </Link>
     </div>
   );

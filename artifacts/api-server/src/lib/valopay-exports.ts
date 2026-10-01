@@ -9,6 +9,7 @@ import { collectExportBytes, readExportBytes, readExportMetadata, writeExportByt
 import { buildDisputePack, disputePackCsv, packFonts, renderDisputePackPdf, type DisputePack } from "./valopay-packs";
 import { MAX_EXPORT_BYTES, publicExportRecord, type ClaimedExport, type ExportArtifact, type ExportJobStorage } from './export-jobs';
 import { reviewedCloseEvidence } from '../domain/close-review';
+import { exportKindName, notFoundText } from "@workspace/valopay-schema";
 
 /** CSV downloads are UTF-8 and start with the byte order mark, which is what spreadsheet programs look for before they read accented letters correctly on opening; the importer skips it (csv-parse `bom`). */
 const CSV_BOM="\uFEFF";
@@ -25,10 +26,10 @@ async function pdfBytes(title:string,data:unknown,signal?:AbortSignal):Promise<B
   void result.catch(()=>{});
   try {
   const fonts=packFonts();document.registerFont("Sans",fonts.regular).registerFont("Sans-Bold",fonts.bold).font("Sans");
-  document.fontSize(24).fillColor("#102E2A").text("VALO PAY").moveDown(0.4);
+  document.fontSize(24).fillColor("#102E2A").text("Valo Pay").moveDown(0.4);
   document.fontSize(15).text(title).moveDown();
-  document.fillColor("#9B6524").fontSize(10).text("SYNTHETIC SANDBOX - NOT LIVE EVIDENCE").moveDown();
-  document.fillColor("#333333").fontSize(9).text("We never hold money. All amounts below are integer kobo (NGN), except money in another currency: a record that names its currency holds its minor unit, and otherCurrencies lists such money by currency beside a naira total, never in it. Times are UTC unless stated. This export cannot satisfy a production gate.").moveDown();
+  document.fillColor("#9B6524").fontSize(10).text("Sample data only: not live evidence").moveDown();
+  document.fillColor("#333333").fontSize(9).text("Valo Pay never holds money. Amounts below are in kobo (100 kobo = ₦1). Money in another currency is in that currency’s smallest unit: otherCurrencies lists it by currency beside a naira total, never in it. Times are in UTC unless stated. This sample export cannot be used as go-live evidence.").moveDown();
   document.font("Sans").fontSize(7);
   const text=JSON.stringify(data,null,2);
   for(let start=0;start<text.length;){
@@ -42,6 +43,10 @@ async function pdfBytes(title:string,data:unknown,signal?:AbortSignal):Promise<B
   document.end();
   } catch(error) { document.destroy(error instanceof Error?error:new Error(String(error))); }
   return result;
+}
+/** A PDF export's title in words: the one name its saved export and the console give it (exportKindName). */
+function exportTitle(kind:string):string{
+ return exportKindName(kind);
 }
 /** The export kinds that are a customer's dispute pack (customer-pack is the older name). */
 export const packKinds=["customer-pack","dispute-pack"] as const;
@@ -83,7 +88,7 @@ export async function buildExportBytes(state:DomainState,ctx:Context,input:Expor
  const payload=input.kind==='reviewed-close'?reviewedCloseEvidence(state,input.closeReviewId||''):input.kind==="gate-pack"?{...getGates(state),upliftReport:reports!.experiment,operational:reports!.operational,billing:reports!.billing}:input.kind==="billing"?reports!.billing:state.records.filter(r=>r.kind===input.kind).map(record=>record.kind==='exports'?publicExportRecord(record):record);
  const snapshot={merchant:state.merchant.name,environment:"synthetic_sandbox",generatedAt,generatedBy:ctx.actor,auditVerification:verifyAudit(state),data:payload};
  assertPayloadSize(snapshot);
- if(input.format==="pdf")return {bytes:await pdfBytes(input.kind,snapshot,options.signal),contentType:"application/pdf",payload:snapshot};
+ if(input.format==="pdf")return {bytes:await pdfBytes(exportTitle(input.kind),snapshot,options.signal),contentType:"application/pdf",payload:snapshot};
  if(input.format==="csv"){
   const rows=Array.isArray(payload)?payload:[payload];
   const keys=[...new Set(rows.flatMap(r=>Object.keys(r)))];
@@ -124,19 +129,19 @@ export interface ExportDescriptor{id:string;bucket:string;objectName:string;chec
 /** The authorised export metadata from the lender's state; resolved inside the transaction, used after it. */
 export function exportDescriptor(state:DomainState,id:string):ExportDescriptor{
  const record=state.records.find(r=>r.kind==="exports"&&r.id===id);
- if(!record)throw Object.assign(new Error("Export not found in this lender."),{status:404});
+ if(!record)throw Object.assign(new Error(notFoundText("export")),{status:404});
  return exportDescriptorForRecord(record);
 }
 export function exportDescriptorForRecord(record:ValopayRecord):ExportDescriptor{
- if(record.data.fileDeletedAt)throw Object.assign(new Error('This export file expired under the lender retention policy. Its checksum and deletion receipt are retained.'),{status:410});
- if(record.status!=="ready")throw Object.assign(new Error("This export is not ready. Check its saved status or retry it from the console."),{status:409});
+ if(record.data.fileDeletedAt)throw Object.assign(new Error('This export file was deleted under the lender’s data retention policy. Its deletion record is kept. Create a new export if you need the file.'),{status:410});
+ if(record.status!=="ready")throw Object.assign(new Error("This export is not ready yet. Check its status in Saved exports, or retry it there."),{status:409});
  return {id:record.id,bucket:String(record.data.bucket),objectName:String(record.data.objectName),checksum:String(record.data.checksum),contentType:String(record.data.contentType),filename:`valopay-${record.data.kind}-${record.id}.${record.data.format}`};
 }
 /** Reads the object and verifies the immutable SHA-256 before any byte is returned; holds no database lock. */
 export async function readExport(descriptor:ExportDescriptor,signal?:AbortSignal){
  const bytes=await readExportBytes(objectStorageClient.bucket(descriptor.bucket).file(descriptor.objectName),signal);
  // Evidence that no longer matches its recorded checksum is never sent, and is an error-level failure for the operators.
- if(createHash("sha256").update(bytes).digest("hex")!==descriptor.checksum)throw Object.assign(new Error("Export checksum verification failed. The file was not sent: generate the export again, and quote this reference if it happens again."),{status:500,expose:true});
+ if(createHash("sha256").update(bytes).digest("hex")!==descriptor.checksum)throw Object.assign(new Error("This export file has changed since it was made, so it was not sent. Create the export again, and quote this reference if it happens again."),{status:500,expose:true});
  return {bytes,contentType:descriptor.contentType,filename:descriptor.filename};
 }
 /** The export's bytes for a download, resolved from the lender's state and checksum verified. */

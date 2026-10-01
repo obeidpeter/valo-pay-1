@@ -21,11 +21,11 @@ const refused = (run: () => unknown, pattern: RegExp) => { assert.throws(run, pa
  // Legitimate operational editing of an open case remains available.
  const open = { ...exception, data: { ...exception.data, notes: 'Contact the provider for supporting evidence.' } };
  assert.doesNotThrow(() => validateRecord(state, operations, 'exceptions', open, true)); checks++;
- refused(() => validateRecord(state, compliance, 'exceptions', open, true), /not permitted/);
+ refused(() => validateRecord(state, compliance, 'exceptions', open, true), /^Error: Only Admin, Operations or Finance can add or edit exceptions\. Your role is Compliance reviewer\./);
  for (const field of ['resolutionCode', 'resolvedBy', 'resolvedAt', 'resolutionRuleVersion', 'conditionCleared', 'confirmedFailureCode', 'confirmedProviderIdentity', 'legacyResolutionReview', 'legacyIdentityReview']) {
    const values: Record<string, unknown> = { resolvedAt: now, resolutionRuleVersion: 1, conditionCleared: { at: now, by: operations.actor, reason: 'Recorded' }, legacyResolutionReview: { priorExceptionId: 'prior' } };
    const candidate = { ...exception, data: { ...exception.data, [field]: values[field] ?? 'recorded' } };
-   refused(() => validateRecord(state, operations, 'exceptions', candidate, true), /dedicated resolution workflow/);
+   refused(() => validateRecord(state, operations, 'exceptions', candidate, true), /Use Resolve exception to record how an exception is resolved/);
  }
  // A decision recorded through its action remains attributable and immutable.
  executeAction(state, admin, { action: 'resolve_exception', recordId: exception.id, reason: 'Recorded after reviewing supporting evidence.', data: { resolutionCode: exception.data.type === 'unallocated_payment' ? 'held_credit' : 'observation_only' } });
@@ -34,18 +34,18 @@ const refused = (run: () => unknown, pattern: RegExp) => { assert.throws(run, pa
  assert.doesNotThrow(() => validateRecord(state, operations, 'exceptions', closing, true)); checks++;
  for (const [field, value] of Object.entries({ resolutionCode: 'not_ours', resolvedBy: 'Someone else', resolvedAt: '2026-09-25T10:00:00Z', resolutionRuleVersion: null, notes: null, condition: 'different', linkedRecordId: null, type: 'unknown_outcome' })) {
    const candidate = { ...exception, data: mergeData(exception.data, { [field]: value }) };
-   refused(() => validateRecord(state, operations, 'exceptions', candidate, true), /completed exception decision/);
+   refused(() => validateRecord(state, operations, 'exceptions', candidate, true), /This exception is resolved, so it cannot be edited/);
    const after = structuredClone(before);
    Object.assign(after.records.find(record => record.id === exception.id)!, candidate);
-   refused(() => assertFinalState(before, after, state.merchant.id, now), /completed exception decision/);
+   refused(() => assertFinalState(before, after, state.merchant.id, now), /A resolved exception’s decision, and who made it, cannot be changed/);
  }
  assert.doesNotThrow(() => assertFinalState(before, structuredClone(before), state.merchant.id, now)); checks++;
  const due = state.records.find(record => record.kind === 'due-items')!;
- refused(() => validateRecord(state, operations, 'due-items', { ...due, data: { ...due.data, legacyReversalReviewIds: ['review-a'] } }, true), /recorded by reconciliation/);
+ refused(() => validateRecord(state, operations, 'due-items', { ...due, data: { ...due.data, legacyReversalReviewIds: ['review-a'] } }, true), /Reconciliation sets the review holds on these records\. You cannot change them here\./);
  // The status a hold paused is what reconciliation gives back: an edit may not write it.
- refused(() => validateRecord(state, operations, 'due-items', { ...due, data: { ...due.data, legacyReversalReviewPause: { status: 'paid', pausedAt: now } } }, true), /recorded by reconciliation/);
+ refused(() => validateRecord(state, operations, 'due-items', { ...due, data: { ...due.data, legacyReversalReviewPause: { status: 'paid', pausedAt: now } } }, true), /Reconciliation sets the review holds on these records\. You cannot change them here\./);
  const observation = state.records.find(record => record.kind === 'observations')!;
- refused(() => validateRecord(state, operations, 'observations', { ...observation, data: { ...observation.data, legacyReversalReviewAppliedId: 'review-a' } }), /recorded by reconciliation/);
+ refused(() => validateRecord(state, operations, 'observations', { ...observation, data: { ...observation.data, legacyReversalReviewAppliedId: 'review-a' } }), /Reconciliation sets the review holds on these records\. You cannot change them here\./);
 }
 {
  for (const mode of ['reversal', 'settlement'] as const) {
@@ -58,9 +58,9 @@ const refused = (run: () => unknown, pattern: RegExp) => { assert.throws(run, pa
    if (mode === 'reversal') exception.data.legacyResolutionReview = { priorExceptionId: 'earlier-decision' };
    for (const [field, value] of Object.entries({ type: 'unknown_outcome', condition: 'different', linkedRecordId: null, linkedKind: 'customers', amountKobo: exception.amountKobo + 1, customerId: '' })) {
      const candidate = ['amountKobo', 'customerId'].includes(field) ? { ...exception, [field]: value } : { ...exception, data: mergeData(exception.data, { [field]: value }) };
-     refused(() => validateRecord(state, operations, 'exceptions', candidate, true), /subject of a historical evidence review/);
+     refused(() => validateRecord(state, operations, 'exceptions', candidate, true), /The customer, amount, type and linked record of this review cannot be changed/);
      const after = structuredClone(state); Object.assign(after.records.find(record => record.id === exception.id)!, candidate);
-     refused(() => assertFinalState(state, after, state.merchant.id, now), /subject of a historical evidence review/);
+     refused(() => assertFinalState(state, after, state.merchant.id, now), /The customer, amount, type and linked record of this review cannot be changed/);
    }
    const coordinated = { ...exception, data: { ...exception.data, notes: 'Finance is obtaining the original provider evidence.', owner: 'Finance' } };
    assert.doesNotThrow(() => validateRecord(state, operations, 'exceptions', coordinated, true)); checks++;
@@ -73,18 +73,18 @@ const refused = (run: () => unknown, pattern: RegExp) => { assert.throws(run, pa
  state.records.push(batch);
  for (const field of ['provider', 'providerConnection', 'providerIdentityKey', 'providerIdentityReview', 'batchReference']) {
    const candidate = { ...batch, data: mergeData(batch.data, { [field]: field === 'providerIdentityReview' ? null : 'changed' }) };
-   refused(() => validateRecord(state, admin, 'settlement-batches', candidate, true), /reconciliation|provider lines/);
+   refused(() => validateRecord(state, admin, 'settlement-batches', candidate, true), /Reconciliation sets this detail of the settlement batch|provider identity, so its reference cannot be changed|built from the provider’s lines, so its provider and connection cannot be changed/);
    const after = structuredClone(state); Object.assign(after.records.find(record => record.id === batch.id)!, candidate);
-   refused(() => assertFinalState(state, after, state.merchant.id, now), /settlement provider/);
+   refused(() => assertFinalState(state, after, state.merchant.id, now), /The saved provider (review|identity) of this settlement batch cannot be changed\./);
  }
  const renamed = { ...batch, reference: 'OTHER-BATCH' };
  refused(() => validateRecord(state, admin, 'settlement-batches', renamed, true), /reference cannot be changed/);
  // Only reconciliation releases a held batch: an edit that wrote the release would lift a genuine hold.
  const released = { ...batch, data: mergeData(batch.data, { providerIdentityRelease: { releasedAt: now, identity: '["provider a","BATCH-A"]', heldLineIds: [] } }) };
- refused(() => validateRecord(state, admin, 'settlement-batches', released, true), /providerIdentityRelease is recorded by reconciliation/);
+ refused(() => validateRecord(state, admin, 'settlement-batches', released, true), /Reconciliation sets this detail of the settlement batch/);
  // Nor may an edit write the history of earlier releases, or which other batch claims a held batch's identity.
  for (const [field, value] of Object.entries({ providerIdentityHistory: [], providerIdentityClaimedBy: [{ identity: '["provider a","BATCH-A"]', batchId: 'other', reference: 'BATCH-A', handEntered: true }] })) {
-   refused(() => validateRecord(state, admin, 'settlement-batches', { ...batch, data: mergeData(batch.data, { [field]: value }) }, true), new RegExp(`${field} is recorded by reconciliation`));
+   refused(() => validateRecord(state, admin, 'settlement-batches', { ...batch, data: mergeData(batch.data, { [field]: value }) }, true), /Reconciliation sets this detail of the settlement batch/);
  }
 }
 {
@@ -92,7 +92,7 @@ const refused = (run: () => unknown, pattern: RegExp) => { assert.throws(run, pa
  const candidate = { ...customers[1]!, reference: customers[0]!.reference, data: { ...customers[1]!.data } };
  refused(() => validateRecord(state, operations, 'customers', candidate, true), /customer reference is already used/);
  const after = structuredClone(state); after.records.find(record => record.id === candidate.id)!.reference = candidate.reference;
- refused(() => assertFinalState(state, after, state.merchant.id, now), /Customer references must be unique/);
+ refused(() => assertFinalState(state, after, state.merchant.id, now), /Another customer of this lender already has this reference\. Enter a different reference\./);
  // Legacy ambiguous references never silently choose whichever customer happens to occur first.
  state.records.find(record => record.id === candidate.id)!.reference = candidate.reference;
  const result = importCsv(state, operations, { kind: 'due-items', csv: `row_id,reference,customerId,amountKobo,dueDate,owner\nr1,NEW-DUE,${candidate.reference},1000000,2026-10-01,lms`, syntheticOnly: true, commit: true, identityColumn: 'row_id', amountUnit: 'kobo' });
@@ -114,7 +114,7 @@ const refused = (run: () => unknown, pattern: RegExp) => { assert.throws(run, pa
  assert.notEqual(observationEventKey({ ...a.data, eventId: undefined }), observationEventKey({ ...a.data, eventId: 'undefined' })); checks++;
  const after = structuredClone(state);
  after.records.push({ ...structuredClone(a), id: 'duplicate-delivery', reference: 'NEW-REF', data: { ...a.data, providerConnection: ' PROVIDER A ' } });
- refused(() => assertFinalState(state, after, state.merchant.id, now), /Observation already exists/);
+ refused(() => assertFinalState(state, after, state.merchant.id, now), /Payment evidence for this provider event is already saved/);
  assert.doesNotThrow(() => assertFinalState(state, structuredClone(state), state.merchant.id, now)); checks++;
  assert.equal(providerConnectionKey(' Provider A '), 'provider a'); checks++;
  assert.equal(providerConnectionKey('İ'), 'İ', 'normalisation is independent of PostgreSQL locale'); checks++;
@@ -125,11 +125,11 @@ const refused = (run: () => unknown, pattern: RegExp) => { assert.throws(run, pa
  const state = seedMerchant('evidence-links');
  const evidence = { name: 'Settlement line', status: 'unresolved', reference: 'PSK-LINK', amountKobo: 1_000_000, customerId: '', data: { source: 'settlement', eventId: 'link-1', batchReference: 'B-1', provider: 'Provider A' } };
  for (const [field, value] of Object.entries({ settlementBatchId: 'batch-a', resolvedTo: 'batch:batch-a', countedInBatchId: 'batch-a', duplicateSettlementLine: true, otherCurrencyLine: true })) {
-   refused(() => validateRecord(state, operations, 'observations', { ...structuredClone(evidence), data: { ...evidence.data, [field]: value } }), /Valo Pay links payment evidence to its settlement batch/);
+   refused(() => validateRecord(state, operations, 'observations', { ...structuredClone(evidence), data: { ...evidence.data, [field]: value } }), /Leave the settlement batch details blank\. Reconciliation links payment evidence to its batch\./);
  }
  assert.doesNotThrow(() => validateRecord(state, operations, 'observations', structuredClone(evidence))); checks++;
  const imported = importCsv(state, operations, { kind: 'observations', csv: 'row_id,reference,amountKobo,source,eventId,settlementBatchId\nl1,PSK-LINK-2,1000000,settlement,link-2,batch-a', syntheticOnly: true, commit: true, identityColumn: 'row_id', amountUnit: 'kobo' });
  assert.equal(imported.imported, 0); checks++;
- assert.match(JSON.stringify(imported.rows[0]), /links payment evidence to its settlement batch/); checks++;
+ assert.match(JSON.stringify(imported.rows[0]), /Reconciliation links payment evidence to its batch/); checks++;
 }
 console.log(`Record identity and decision guards passed (${checks} checks).`);

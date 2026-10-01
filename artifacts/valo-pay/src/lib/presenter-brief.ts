@@ -1,4 +1,5 @@
 import { amountUnitName } from '@workspace/valopay-schema';
+import { formatDate } from './formatters';
 import { PRESENTATION_CUSTOMER, PRESENTATION_INSTALMENT, presentationChecks, presentationSteps } from './presentation';
 
 /*
@@ -15,11 +16,63 @@ export function presentationSamples(date: string) {
   ];
 }
 
-/** The pack's naira amounts as Import batches names their unit: payment evidence calls it by its row's currency too. */
-export const sampleAmountUnit = `under Amounts in the source file, ${amountUnitName('naira', 'due-items')}, or ${amountUnitName('naira', 'observations')} for Payment evidence`;
+/**
+ * Where the pack goes in Import batches, naming each amount unit as Import
+ * batches offers it for the record type: payment evidence calls it by its
+ * row's currency too (amountUnitName).
+ */
+export const sampleImportSteps = `In Import batches, choose the record type that matches each file. Under Amounts in the source file, choose ${amountUnitName('naira', 'due-items')}. For Payment evidence, choose ${amountUnitName('naira', 'observations')}. Use the source name “Presentation sample”, the source row column “source_row_id” and a different file reference for each file.`;
 
+/** The downloaded brief. `date` is the pack's business date (YYYY-MM-DD), shown as the console shows dates. */
 export function presenterBrief(date: string): string {
-  return `# Valo Pay presenter brief\n\nPrepared for ${date} (WAT). Suggested demonstration: six minutes.\n\n## Opening\n\nValo Pay helps lender teams connect payment evidence, resolve exceptions and review the daily close. This demonstration uses synthetic records; no money moves.\n\n## Before the meeting\n\n${presentationChecks.map(c => `- [ ] ${c.label}`).join('\n')}\n\n## Prepare the sample import\n\nUse one sample lender in an isolated rehearsal workspace. Import Customers, then Instalments before the meeting; import Payment evidence during the demonstration. In Import batches choose the matching record type and, ${sampleAmountUnit}; use source name “Presentation sample”, source row column “source_row_id” and a distinct file reference for each CSV. Use the pack’s date (${date}) as its business date. Save and check each batch, inspect the amount, then commit once. Expected instalment and receipt: exactly ₦18,000.50 each. Reconciliation is a separate action. Once it runs, rule R1 matches the payment to ${PRESENTATION_INSTALMENT} automatically and with certainty, because the payment names that instalment and the amounts are equal. The match never appears in Matches to review; its rule and explanation are in the sample customer’s history (Customers, search ${PRESENTATION_CUSTOMER}, View history).\n\nStable source row IDs protect repeat imports; repeating the same file is not a reset. For a fresh rehearsal use a separate anonymous browser profile/private session or a new empty synthetic lender, with appropriate access. A new empty lender has no seeded exceptions: prepare a case or demonstrate the absence honestly. Never clear an existing workspace.\n\n## Demonstration\n\n${presentationSteps.map((s,i) => `### ${i + 1}. ${s.title} · ${s.time}\n\nOpen: ${s.href}\n\nShow: ${s.show}\n\nSay: “${s.say}”\n\nIf needed: ${s.fallback}`).join('\n\n')}\n\n## Questions to prepare for\n\n- Who is it for? Start with lender Operations and Finance teams handling payment reconciliation and exceptions.\n- What is working? Demonstrate the saved records, checks, decisions and exports actually available in this build.\n- Is Paystack connected? The test adapter and local scenarios are implemented. An external connection has not been verified; do not claim payment acceptance or Direct Debit availability.\n- Is it production-ready? Real staff identity/MFA, managed keys, restricted database access, recovery and external services still require host verification and the agreed acceptance process.\n- Does this prove traction or recovery uplift? No. Bring separately verified customer conversations, agreements and measured pilot results, if available.\n- What will investment enable? Explain your actual hiring, commissioning and pilot plan. Do not invent an amount, timeline, customer count or return.\n\n## If something fails\n\nExplain the actual state. For an uncertain write, inspect Operations before resubmitting; use the existing recovery action. For a pending export, inspect Saved exports. Continue with a prepared screenshot or recording and label it as recorded. Do not disable controls to finish the story.\n\n## Closing\n\nThe next milestone is a controlled lender pilot that measures operator completion, errors and time to close. Ask for feedback on the workflow and introductions to relevant lender teams.\n`;
+  const day = formatDate(date);
+  return `# Valo Pay presenter brief
+
+Prepared for ${day} (WAT). Suggested length: about 6 minutes.
+
+## Opening
+
+Valo Pay helps a lender’s teams connect payment evidence, resolve exceptions and review the daily close. This demonstration uses sample data only. No money moves.
+
+## Before the meeting
+
+${presentationChecks.map(c => `- [ ] ${c.label}`).join('\n')}
+
+## Prepare the sample import
+
+Use one sample lender, in a sandbox you keep for rehearsals. Import Customers, then Instalments, before the meeting. Import Payment evidence during the demonstration. ${sampleImportSteps} Set the business date to ${day}. For each file, select Save and check batch, check the amount, then select Import checked batch once. The instalment and the payment are exactly ₦18,000.50 each. Reconciliation is a separate step. Once it runs, rule R1 matches the payment to ${PRESENTATION_INSTALMENT} automatically, with the confidence Certain, because the payment names that instalment and the amounts are equal. The match never appears in Matches to review. Its rule and explanation are in the sample customer’s history: open Customers, search for ${PRESENTATION_CUSTOMER} and open its history.
+
+Importing the same file again does not start over. Its rows keep their source row IDs, so they may be reported as duplicates. For a fresh rehearsal, use a private browser window or a new, empty sample lender, if your role allows you to create one. A new lender has no ready-made exceptions. Prepare a case, or say honestly that there are none. Never clear an existing workspace.
+
+## Demonstration
+
+${presentationSteps.map((s, i) => `### ${i + 1}. ${s.title} · ${s.time}
+
+${s.action}.
+
+Show: ${s.show}
+
+Say: “${s.say}”
+
+If something goes wrong: ${s.fallback}`).join('\n\n')}
+
+## Questions to prepare for
+
+- Who is it for? Start with a lender’s Operations and Finance teams, who handle reconciliation and exceptions.
+- What works today? Show the saved records, checks, decisions and exports that this version really offers.
+- Is Paystack connected? No. Valo Pay has code for a Paystack test account, tested only with local sample scenarios. No Paystack account or test key is set up, and an external connection has not been verified. Do not claim that Valo Pay accepts payments or offers direct debits.
+- Is it ready for live use? Not yet. Team member sign-in with two-step verification, managed keys, restricted database access, recovery and external services must still be checked where Valo Pay will run. They must also pass the agreed acceptance process.
+- Does this prove growth or better recoveries? No. Bring separate proof that has been checked: conversations with lenders, signed agreements and measured pilot results, if you have them.
+- What will investment pay for? Explain your real plans for hiring, setting up live services and running pilots. Do not invent an amount, a timeline, a number of lenders or a return.
+
+## If something fails
+
+Explain what really happened. If a change was not confirmed, check Request history before you send it again, and use the recovery action there. If an export is still being prepared, check Saved exports. Carry on with a prepared screenshot or recording, and say that it is recorded. Do not switch off safeguards to finish the story.
+
+## Closing
+
+The next step is a controlled pilot with a lender. It will measure how often team members finish their tasks, how many errors they make and how long the daily close takes. Ask for feedback on the workflow and for introductions to lender teams who could use it.
+`;
 }
 
 export function downloadPresentationFile(filename: string, content: string, csv = false) {

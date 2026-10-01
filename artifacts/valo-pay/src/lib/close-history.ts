@@ -8,7 +8,7 @@ export function validReportDay(value: string) {
 /** Compare stored closing positions. These snapshots must never be summed as receipts. */
 export function closeHistory<T extends Close>(closes: T[], from: string, to: string) {
   const error = (from && !validReportDay(from)) || (to && !validReportDay(to))
-    ? 'Enter valid dates in YYYY-MM-DD format.' : from && to && from > to ? 'The start date must be on or before the end date.' : '';
+    ? 'Enter a real date in From date and To date.' : from && to && from > to ? 'The From date must be on or before the To date.' : '';
   const items = error ? [] : closes.filter(close => {
     const day = queueDay(close.createdAt);
     return day && (!from || day >= from) && (!to || day <= to);
@@ -16,7 +16,7 @@ export function closeHistory<T extends Close>(closes: T[], from: string, to: str
   const first = items.at(-1), latest = items[0];
   const metrics = [
     // The close list carries the naira value only; each close's details list money in another currency.
-    { label: 'Unmatched value in naira at close', money: true, read: (row: Close) => row.data?.report?.unallocated?.kobo },
+    { label: 'Unallocated payments at close (naira only)', money: true, read: (row: Close) => row.data?.report?.unallocated?.kobo },
     { label: 'Open exceptions at close', money: false, read: (row: Close) => row.data?.report?.exceptions?.openAtClose },
   ].map(({ read, ...metric }) => {
     const before = first ? read(first) : undefined, after = latest ? read(latest) : undefined;

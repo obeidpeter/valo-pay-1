@@ -136,6 +136,22 @@ test("account-read never substitutes credit purpose", () => {
   input.grants = input.grants.slice(0, 1);
   blocked(input, "AUTHORITY_MISSING");
 });
+test("only a refused permission says a refusal is not a credit-risk penalty", () => {
+  const penalty = "Refusal is not a credit-risk penalty.";
+  const said = (input: CreditAssessmentInput, code: string) =>
+    assessCredit(input, ctx).evidence.issues.find((issue) => issue.code === code)?.message ?? "";
+  const refused = said(fixture("refused"), "AUTHORITY_REFUSED");
+  assert.ok(refused.includes(penalty), refused);
+  const expired = fixture();
+  expired.grants[0]!.expiresAt = now;
+  const missing = fixture();
+  missing.grants = missing.grants.slice(0, 1);
+  for (const [input, code] of [[expired, "AUTHORITY_EXPIRED"], [missing, "AUTHORITY_MISSING"]] as const) {
+    const message = said(input, code);
+    assert.ok(message, `${code} has a message`);
+    assert.ok(!message.includes(penalty), message);
+  }
+});
 test("same-tenant applicant binding is enforced", () => {
   const input = fixture();
   input.grants[1]!.applicantId = "other";
@@ -623,7 +639,7 @@ test("numeric UUIDs keep synthetic account identities distinct and pass the unch
   assert.equal(input.requiredAccountIds[0], syntheticCreditAccountId(applicantId));
   assert.notEqual(syntheticCreditAccountId(applicantId), syntheticCreditAccountId(applicantId.replace(/2$/, "3")));
   assert.notEqual(syntheticCreditAccountId("customer-1"), syntheticCreditAccountId("customer-b"));
-  assert.throws(() => assertNoRealBankDetails({ accountId: "1234567890" }), /Raw financial identifiers/);
+  assert.throws(() => assertNoRealBankDetails({ accountId: "1234567890" }), /Do not enter full account, card or BVN numbers/);
   for (const withPermission of [true, false]) {
     const { state, operator, finance } = serviceFixture(applicantId);
     if (!withPermission)
@@ -655,7 +671,7 @@ test("service cannot run outside sandbox or with actual actor", () => {
   state.settings.environment = "live";
   assert.throws(
     () => runCreditAction(state, operator, assessAction),
-    /restricted/,
+    /not available in a pilot yet/,
   );
   state.settings.environment = "sandbox";
   assert.throws(
@@ -665,7 +681,7 @@ test("service cannot run outside sandbox or with actual actor", () => {
         { ...operator, actor: "actual-user" },
         assessAction,
       ),
-    /restricted/,
+    /not available in a pilot yet/,
   );
 });
 test("service binds customer to tenant and rejects unexpected request fields", () => {
@@ -676,7 +692,7 @@ test("service binds customer to tenant and rejects unexpected request fields", (
         ...assessAction,
         data: { customerId: "not-in-this-tenant" },
       }),
-    /Choose a customer/,
+    /Choose an applicant from this lender/,
   );
   assert.throws(
     () =>
@@ -684,7 +700,7 @@ test("service binds customer to tenant and rejects unexpected request fields", (
         ...assessAction,
         data: { ...assessAction.data, score: 100 },
       }),
-    /Unrecognized/,
+    /This request has details Valo Pay does not use/,
   );
 });
 test("service requires actual consent records and preserves missing state", () => {
@@ -754,7 +770,7 @@ test("service review is append-only and role-distinct", () => {
   };
   assert.throws(
     () => runCreditAction(state, { ...operator, role: "Admin" }, action),
-    /assessor cannot/,
+    /A different person must review this assessment/,
   );
   const before = JSON.stringify(assessment),
     record = runCreditAction(state, finance, action);

@@ -12,7 +12,7 @@ describe("forms", () => {
     renderApp("/customers");
     await screen.findByText("Ada Okonkwo");
     await user.click(screen.getByRole("button", { name: "Add customer" }));
-    await user.click(await screen.findByRole("button", { name: "Save" }));
+    await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Add customer" }));
     expect(screen.getByRole("alert").textContent).toMatch(/highlighted fields before saving/);
     expect(screen.getByText("Full name is required.")).toBeTruthy();
     expect(screen.getByText("Loan software reference is required.")).toBeTruthy();
@@ -39,14 +39,14 @@ describe("forms", () => {
     await user.type(screen.getByLabelText(/Consent source or reference/), "Signed sample form CONSENT-001");
     const status = screen.getByLabelText(/Status/) as HTMLSelectElement;
     if (!status.value) await user.selectOptions(status, status.options[1]!.value);
-    await user.click(screen.getByRole("button", { name: "Save" }));
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Add customer" }));
     await waitFor(() => expect(reference.getAttribute("aria-invalid")).toBe("true"));
     expect(screen.getByText("This reference is already used by another customer.")).toBeTruthy();
     expect(screen.getByRole("alert").textContent).toMatch(/Check the highlighted field before saving/);
     expect(document.activeElement).toBe(reference);
     // A refusal that names no field is the alert itself.
     api.failNext(/^\/v1\/records\/customers$/, { status: 403, error: "Only an Admin can add customers." }, "POST");
-    await user.click(screen.getByRole("button", { name: "Save" }));
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Add customer" }));
     await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("Only an Admin can add customers."));
     expect(reference.getAttribute("aria-invalid")).toBeNull();
   });
@@ -55,8 +55,8 @@ describe("forms", () => {
     const user = userEvent.setup();
     renderApp("/mandates");
     await screen.findByRole("table");
-    await user.click(screen.getByRole("button", { name: "Create synthetic mandate" }));
-    await user.click(await screen.findByRole("button", { name: "Create mandate" }));
+    await user.click(screen.getByRole("button", { name: "Add mandate" }));
+    await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Add mandate" }));
     expect(screen.getByText("Mandate name is required.")).toBeTruthy();
     expect(screen.getByText("Customer is required. Choose an option.")).toBeTruthy();
     const name = screen.getByLabelText(/Mandate name/);
@@ -70,14 +70,14 @@ describe("forms", () => {
     const due = api.state().records.find((record) => record.kind === "due-items" && record.status === "scheduled" && !api.state().records.some((attempt) => attempt.kind === "attempts" && attempt.data.dueItemId === record.id && ["scheduled", "sent", "unknown"].includes(attempt.status)))!;
     renderApp("/collections");
     const row = (await screen.findByText(due.reference)).closest("tr")!;
-    await user.click(within(row).getByRole("button", { name: "Simulate failure" }));
-    const dialog = await screen.findByRole("dialog", { name: "Simulate collection failure" });
+    await user.click(within(row).getByRole("button", { name: "Simulate failed collection attempt" }));
+    const dialog = await screen.findByRole("dialog", { name: "Simulate failed collection attempt" });
     const reason = within(dialog).getByLabelText(/Failure reason/) as HTMLSelectElement;
     const option = within(reason).getByRole("option", { name: "Insufficient funds" }) as HTMLOptionElement;
     expect(option.value).toBe("INSUFFICIENT_FUNDS");
     await user.selectOptions(reason, option);
     await user.type(within(dialog).getByLabelText(/^Reason/), "Check the sample retry policy.");
-    await user.click(within(dialog).getByRole("button", { name: "Simulate failure" }));
+    await user.click(within(dialog).getByRole("button", { name: "Simulate failed collection attempt" }));
     await waitFor(() => {
       const action = api.calls.find((call) => (call.body as { action?: string })?.action === "simulate_failure");
       expect(action?.body).toMatchObject({ action: "simulate_failure", recordId: due.id, data: { failureCode: "INSUFFICIENT_FUNDS" } });
@@ -89,12 +89,12 @@ describe("forms", () => {
     const user = userEvent.setup();
     const exception = api.state().records.find((record) => record.kind === "exceptions" && record.data.owner && record.data.severity && !record.data.case && record.status === "open")!;
     renderApp(`/exceptions?record=${exception.id}`);
-    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    await user.click(await screen.findByRole("button", { name: "Edit exception" }));
     const dialog = await screen.findByRole("dialog", { name: "Edit exception" });
-    const owner = within(dialog).getByLabelText("Assigned owner") as HTMLInputElement;
+    const owner = within(dialog).getByLabelText("Team") as HTMLInputElement;
     expect(owner.value).toBe(exception.data.owner);
     await user.clear(owner);
-    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    await user.click(within(dialog).getByRole("button", { name: "Save changes" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     // Sent as null, which the service reads as "remove this field"; the other fields are unchanged, and the
     // severity, which an exception always has, is not a field an edit can empty (tests/exceptions.test.tsx).

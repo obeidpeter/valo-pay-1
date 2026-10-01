@@ -12,13 +12,13 @@ afterEach(() => api.uninstall());
 describe("overview", () => {
   it("shows the sandbox banner, the next scheduled close and the alerts the seeded lender carries", async () => {
     renderApp("/overview");
-    expect(await screen.findByRole("heading", { name: "Operations overview" })).toBeTruthy();
-    expect(screen.getByText(/Sandbox · Sample data\. We never hold money\./)).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Overview" })).toBeTruthy();
+    expect(screen.getByText("Sample data only. Valo Pay never holds money. Live payments and bank connections are switched off.")).toBeTruthy();
     const nextClose = String(api.state().settings.nextCloseAt);
-    expect(screen.getByText(/Last close: Not closed yet/)).toBeTruthy();
+    expect(screen.getByText(/Last daily close: Not closed yet/)).toBeTruthy();
     expect(screen.getByText(`Next daily close: ${formatDate(nextClose)}, then every day at this time.`)).toBeTruthy();
     // NFR-OBS-02: no close has run, and one seeded exception is past its deadline.
-    expect(screen.getByText("No daily close yet")).toBeTruthy();
+    expect(screen.getByText("No daily closes yet")).toBeTruthy();
     expect(screen.getByText("Exceptions past their deadline")).toBeTruthy();
     expect(screen.getByText("Reconciled collections")).toBeTruthy();
     expect(screen.getByText("Awaiting activation")).toBeTruthy();
@@ -32,7 +32,7 @@ describe("overview", () => {
     });
     renderApp("/overview");
     expect(await screen.findByText(/No alerts need attention./)).toBeTruthy();
-    expect(screen.getByText(new RegExp(`Last close: ${escape(formatDate(closedAt))}`))).toBeTruthy();
-    expect(screen.queryByText("No daily close yet")).toBeNull();
+    expect(screen.getByText(new RegExp(`Last daily close: ${escape(formatDate(closedAt))}`))).toBeTruthy();
+    expect(screen.queryByText("No daily closes yet")).toBeNull();
   });
 });

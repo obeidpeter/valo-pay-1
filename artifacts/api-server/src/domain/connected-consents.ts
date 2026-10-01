@@ -10,7 +10,7 @@ export const purposeLabels: Record<string, string> = {
   account_read: "Read applicant accounts",
   credit_assessment: "Assess an application",
   merchant_account_read: "Read business accounts",
-  erp_draft: "Prepare accounting drafts",
+  erp_draft: "Prepare accounting drafts and VAT schedules",
   payroll_prepare: "Prepare payroll funding",
   one_time_payment: "Authorise one payment",
 };
@@ -27,7 +27,7 @@ export function addConsent(
   ctx: Context,
   data: Record<string, unknown>,
 ) {
-  allow(ctx, ["Admin", "Operations"]);
+  allow(ctx, ["Admin", "Operations"], "grant permissions");
   const input = z
     .object({
       purpose: z.enum(consentPurposes),
@@ -48,7 +48,7 @@ export function addConsent(
           (r) => r.kind === "customers" && r.id === input.subjectId,
         )
   )
-    reject("Select a subject that belongs to this workspace.");
+    reject("Choose a customer of this lender, or the sample business.");
   const existing = state.records.find(
     (r) =>
       r.kind === "connected-consents" &&
@@ -78,7 +78,7 @@ export function addConsent(
 
 /** Revocation changes the current grant version; it never changes a recorded payment outcome. */
 export function revokeConsent(state: DomainState, ctx: Context, input: ConnectedActionInput) {
-  allow(ctx, ["Admin", "Operations", "Compliance reviewer"]);
+  allow(ctx, ["Admin", "Operations", "Compliance reviewer"], "withdraw permissions");
   const consent = owned(state, input.recordId, "connected-consents");
   if (consent.status === "revoked") return consent;
   consent.status = "revoked";

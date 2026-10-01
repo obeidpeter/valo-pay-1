@@ -50,15 +50,16 @@ function setUp() {
 }
 async function confirm(
   user: ReturnType<typeof userEvent.setup>,
+  action: string,
   note = "Confirm the sample evidence for this review",
 ) {
   const dialog = await screen.findByRole("dialog");
   await user.type(
-    within(dialog).getByRole("textbox", { name: "Review note" }),
+    within(dialog).getByRole("textbox", { name: "Reason" }),
     note,
   );
   await user.click(
-    within(dialog).getByRole("button", { name: "Confirm and save" }),
+    within(dialog).getByRole("button", { name: action }),
   );
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
 }
@@ -79,7 +80,7 @@ describe("Cash Desk", () => {
     renderApp("/cash-desk");
     await user.click(await screen.findByRole("button", { name: "Accounting" }));
     expect(
-      screen.queryByRole("button", { name: "Download review file" }),
+      screen.queryByRole("button", { name: "Download export file" }),
     ).toBeNull();
     expect(
       screen.getByText(/Permissions changed since this review/),
@@ -87,14 +88,14 @@ describe("Cash Desk", () => {
     expect(
       (
         screen.getByRole("button", {
-          name: "Prepare export",
+          name: "Prepare export file",
         }) as HTMLButtonElement
       ).disabled,
     ).toBe(true);
     await user.click(
       screen.getByRole("button", { name: "Refresh accounting review" }),
     );
-    await confirm(user);
+    await confirm(user, "Refresh accounting review");
     expect(
       await screen.findByText(
         /Accounting review refreshed using current evidence/,
@@ -139,13 +140,13 @@ describe("Cash Desk", () => {
       await screen.findByRole("button", { name: /Save forecast/ }),
     );
     const dialog = await screen.findByRole("dialog");
-    const reason = within(dialog).getByRole("textbox", { name: "Review note" });
+    const reason = within(dialog).getByRole("textbox", { name: "Reason" });
     await user.type(reason, "Review this synthetic cash forecast");
     await user.click(
-      within(dialog).getByRole("button", { name: "Confirm and save" }),
+      within(dialog).getByRole("button", { name: "Save forecast" }),
     );
     const retry = await within(dialog).findByRole("button", {
-      name: "Retry original sample request",
+      name: "Check original request",
     });
     expect((reason as HTMLTextAreaElement).disabled).toBe(true);
     expect(
@@ -165,7 +166,7 @@ describe("Cash Desk", () => {
       api.state().records.filter((r) => r.kind === "connected-cash-forecasts"),
     ).toHaveLength(1);
     expect(screen.getByRole("status").textContent).toContain(
-      "Original sample request confirmed",
+      "Original request confirmed",
     );
   });
 
@@ -217,15 +218,15 @@ describe("Cash Desk", () => {
     await user.type(buffer, "1,500,000.29");
     await user.click(screen.getByRole("button", { name: /Save forecast/ }));
     const dialog = await screen.findByRole("dialog");
-    expect(dialog.textContent).toContain("₦1,500,000.29 planning buffer");
+    expect(dialog.textContent).toContain("Planning buffer: ₦1,500,000.29");
     const release = api.hold(/^\/v1\/connected\/actions$/);
     try {
       await user.type(
-        within(dialog).getByRole("textbox", { name: "Review note" }),
+        within(dialog).getByRole("textbox", { name: "Reason" }),
         "Review the exact sample forecast buffer",
       );
       await user.click(
-        within(dialog).getByRole("button", { name: "Confirm and save" }),
+        within(dialog).getByRole("button", { name: "Save forecast" }),
       );
       expect(
         screen.queryByText(
@@ -251,22 +252,22 @@ describe("Cash Desk", () => {
     expect(
       await screen.findByRole("heading", { name: "Cash Desk" }),
     ).toBeTruthy();
-    expect(screen.getByText("Sample SME · Trading company")).toBeTruthy();
+    expect(screen.getByText("Sample business")).toBeTruthy();
     expect(
       (
         screen.getByRole("button", {
-          name: /Set up sample Cash Desk/,
+          name: /Set up Cash Desk/,
         }) as HTMLButtonElement
       ).disabled,
     ).toBe(true);
     expect(
       screen
-        .getByRole("link", { name: "Review permissions" })
+        .getByRole("link", { name: "Open Permissions and readiness" })
         .getAttribute("href"),
     ).toBe("/connections");
     expect(
       screen.getByRole("table", {
-        name: "Weekly base and downside cash balances",
+        name: "Weekly expected and cautious cash balances",
       }),
     ).toBeTruthy();
     expect(
@@ -279,7 +280,7 @@ describe("Cash Desk", () => {
     const user = userEvent.setup();
     renderApp("/cash-desk");
     const percent = await screen.findByRole("spinbutton", {
-      name: /Expected receipts retained/,
+      name: /Share of expected receipts that arrive/,
     });
     await user.clear(percent);
     await user.type(percent, "55");
@@ -287,14 +288,26 @@ describe("Cash Desk", () => {
     await user.clear(delay);
     await user.type(delay, "9");
     await user.click(screen.getByRole("button", { name: /Save forecast/ }));
+    const dialog = await screen.findByRole("dialog");
+    const reason = within(dialog).getByRole("textbox", { name: "Reason" });
+    await user.type(reason, "Too few");
+    await user.click(
+      within(dialog).getByRole("button", { name: "Save forecast" }),
+    );
     expect(
-      (
-        within(await screen.findByRole("dialog")).getByRole("button", {
-          name: "Confirm and save",
-        }) as HTMLButtonElement
-      ).disabled,
-    ).toBe(true);
-    await confirm(user, "Stress test a slower customer payment week");
+      within(dialog).getByText("Enter a reason (at least 8 characters)."),
+    ).toBeTruthy();
+    expect(reason.getAttribute("aria-invalid")).toBe("true");
+    expect(document.activeElement).toBe(reason);
+    expect(
+      api.calls.some(
+        (c) =>
+          c.method === "POST" &&
+          (c.body as { action?: string }).action === "cash.forecast",
+      ),
+    ).toBe(false);
+    await user.clear(reason);
+    await confirm(user, "Save forecast", "Stress test a slower customer payment week");
     const request = api.calls.find(
       (c) =>
         c.method === "POST" &&
@@ -311,7 +324,7 @@ describe("Cash Desk", () => {
     expect(
       api.state().records.filter((r) => r.kind === "connected-cash-forecasts"),
     ).toHaveLength(1);
-    expect(await screen.findByText(/sample-1/)).toBeTruthy();
+    expect(await screen.findByText(/Saved version 1/)).toBeTruthy();
   });
 
   it("lists a saved forecast and VAT schedule made under replaced permissions without their figures", async () => {
@@ -327,23 +340,38 @@ describe("Cash Desk", () => {
     const user = userEvent.setup();
     renderApp("/cash-desk");
     expect(
-      await screen.findByText(/forecast saved .* are withheld: .* Save a new forecast version under the current permission\./),
+      await screen.findByText(/The forecast saved on .* is hidden\. .* Save a new forecast to see current figures\./),
     ).toBeTruthy();
     expect(screen.queryByRole("img", { name: /Cash forecast comparison/ })).toBeNull();
     expect(screen.queryByText("Day 7")).toBeNull();
     await user.click(screen.getByRole("button", { name: "VAT evidence" }));
     expect(screen.getByText(/Saved by Sandbox Finance/)).toBeTruthy();
     expect(
-      screen.getByText(/^Its figures are withheld: .* Save the schedule again under the current permission\.$/),
+      screen.getByText(/^This schedule’s figures are hidden\. .* Save the schedule again to see current figures\.$/),
     ).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Download saved review" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Download saved VAT schedule" })).toBeNull();
     // A schedule saved under the current permissions can be downloaded.
-    await user.click(screen.getByRole("button", { name: /Save review schedule/ }));
-    await confirm(user);
+    await user.click(screen.getByRole("button", { name: /Save VAT schedule/ }));
+    await confirm(user, "Save VAT schedule");
     expect(
-      await screen.findByRole("button", { name: "Download saved review" }),
+      await screen.findByRole("button", { name: "Download saved VAT schedule" }),
     ).toBeTruthy();
     expect(screen.getAllByText(/Saved by Sandbox Finance/)).toHaveLength(2);
+  });
+
+  it("says why an accounting draft is blocked, in the words the service gives", async () => {
+    setUp();
+    api.mutate((state) => {
+      const record = action(state, "cash.erp.prepare").record!;
+      record.status = "blocked";
+      record.data.draft.status = "blocked";
+      record.data.draft.reasons = ["The accounting period is closed."];
+    });
+    const user = userEvent.setup();
+    renderApp("/cash-desk");
+    await user.click(await screen.findByRole("button", { name: "Accounting" }));
+    expect(await screen.findByText("Why it is blocked:")).toBeTruthy();
+    expect(screen.getByText("The accounting period is closed.")).toBeTruthy();
   });
 
   it("lets a different Finance reviewer approve and export an accounting draft without claiming ERP posting", async () => {
@@ -354,14 +382,15 @@ describe("Cash Desk", () => {
     renderApp("/cash-desk");
     await user.click(await screen.findByRole("button", { name: "Accounting" }));
     await user.click(screen.getByRole("button", { name: "Approve draft" }));
-    await confirm(user);
-    expect(await screen.findByText(/Reviewed by Sandbox Finance/)).toBeTruthy();
-    await user.click(screen.getByRole("button", { name: "Prepare export" }));
-    await confirm(user);
+    await confirm(user, "Approve draft");
+    expect(await screen.findByText(/Approved by Sandbox Finance/)).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Prepare export file" }));
+    await confirm(user, "Prepare export file");
     expect(
-      await screen.findByRole("button", { name: "Download review file" }),
+      await screen.findByRole("button", { name: "Download export file" }),
     ).toBeTruthy();
-    expect(screen.getByText("Exported · not posted")).toBeTruthy();
+    const posted = screen.getByText("Not posted to accounting software");
+    expect(within(posted).getByText("Exported")).toBeTruthy();
     expect(
       api.state().records.find((r) => r.kind === "connected-cash-erp")?.data
         .manifest.status,
@@ -382,15 +411,15 @@ describe("Cash Desk", () => {
       await screen.findByRole("button", { name: "Payroll funding" }),
     );
     await user.click(
-      screen.getAllByRole("button", { name: "Sample unknown" })[1]!,
+      screen.getAllByRole("button", { name: "Simulate unknown outcome" })[1]!,
     );
-    await confirm(user);
-    expect(await screen.findByText("Unknown")).toBeTruthy();
+    await confirm(user, "Simulate unknown outcome");
+    expect(await screen.findByText("Outcome unknown")).toBeTruthy();
     expect(
-      screen.getAllByRole("button", { name: "Sample unknown" }),
+      screen.getAllByRole("button", { name: "Simulate unknown outcome" }),
     ).toHaveLength(2);
     expect(
-      screen.getAllByRole("button", { name: "Sample success" }),
+      screen.getAllByRole("button", { name: "Simulate confirmed payment" }),
     ).toHaveLength(3);
     expect(screen.queryByRole("button", { name: /retry/i })).toBeNull();
     const plan = api
@@ -431,19 +460,19 @@ describe("Cash Desk", () => {
     );
     expect(
       await screen.findByRole("heading", {
-        name: "Reconcile retained payroll evidence",
+        name: "Record results for payroll items already exported",
       }),
     ).toBeTruthy();
     expect(screen.queryByText(/Sample employee · ••/)).toBeNull();
     expect(
-      screen.queryByRole("button", { name: "Prepare bank export" }),
+      screen.queryByRole("button", { name: "Prepare bank export file" }),
     ).toBeNull();
     await user.click(
-      screen.getAllByRole("button", { name: "Record sample success" })[0]!,
+      screen.getAllByRole("button", { name: "Simulate confirmed payment" })[0]!,
     );
-    await confirm(user);
+    await confirm(user, "Simulate confirmed payment");
     expect(
-      await screen.findByRole("button", { name: "Record sample reversal" }),
+      await screen.findByRole("button", { name: "Simulate reversal" }),
     ).toBeTruthy();
     const plan = api
       .state()
@@ -473,14 +502,14 @@ describe("Cash Desk", () => {
     const user = userEvent.setup();
     renderApp("/cash-desk");
     await user.click(
-      await screen.findByRole("button", { name: "Refresh sample" }),
+      await screen.findByRole("button", { name: "Refresh sample balances" }),
     );
-    await confirm(user);
+    await confirm(user, "Refresh sample balances");
     await user.click(screen.getByRole("button", { name: "Payroll funding" }));
     await user.click(
       screen.getByRole("button", { name: "Refresh funding review" }),
     );
-    await confirm(user);
+    await confirm(user, "Refresh funding review");
     const plan = api
       .state()
       .records.find((r) => r.kind === "connected-cash-payroll")!.data.plan;
@@ -490,9 +519,15 @@ describe("Cash Desk", () => {
     expect(
       (
         screen.getByRole("button", {
-          name: "Prepare bank export",
+          name: "Prepare bank export file",
         }) as HTMLButtonElement
       ).disabled,
     ).toBe(true);
+    // The maker is told why the Finance steps are closed to them.
+    expect(
+      screen.getByText(
+        "Only Finance can approve the funding plan, prepare its bank export file or record payment results.",
+      ),
+    ).toBeTruthy();
   });
 });

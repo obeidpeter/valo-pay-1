@@ -19,7 +19,7 @@ async function openAssignedHandover(page: Page, request: APIRequestContext) {
   });
   expect(saved.ok(), await saved.text()).toBeTruthy();
   await page.goto('/work');
-  const opener = page.getByRole('button', { name: 'Review handover', exact: true });
+  const opener = page.getByRole('button', { name: 'Acknowledge handover', exact: true });
   await expect(opener).toBeVisible();
   return opener;
 }
@@ -36,7 +36,7 @@ async function holdQueueRefresh(page: Page) {
 
 test('handover cancellation returns to its opener and a delayed acknowledgement refresh focuses the result', async ({ page, request }) => {
   const opener = await openAssignedHandover(page, request);
-  const dialog = page.getByRole('dialog', { name: 'Review this handover' });
+  const dialog = page.getByRole('dialog', { name: 'Acknowledge handover?' });
   for (const close of ['Cancel', 'Escape']) {
     await opener.focus();
     await page.keyboard.press('Enter');
@@ -53,7 +53,7 @@ test('handover cancellation returns to its opener and a delayed acknowledgement 
   const release = await holdQueueRefresh(page);
   try {
     await dialog.getByRole('button', { name: 'Acknowledge handover', exact: true }).click();
-    const confirmation = page.getByText(/Handover acknowledged\. The case and its next action remain open/);
+    const confirmation = page.getByText(/Handover acknowledged\. The case and its next step stay open/);
     await expect(confirmation).toBeVisible();
     await expect(dialog).not.toBeVisible();
     await expect(opener).toBeFocused();
@@ -67,12 +67,12 @@ test('a delayed handover refresh preserves focus after the person moves to anoth
   const opener = await openAssignedHandover(page, request);
   await opener.focus();
   await page.keyboard.press('Enter');
-  const dialog = page.getByRole('dialog', { name: 'Review this handover' });
+  const dialog = page.getByRole('dialog', { name: 'Acknowledge handover?' });
   await dialog.getByRole('checkbox').check();
   const release = await holdQueueRefresh(page);
   try {
     await dialog.getByRole('button', { name: 'Acknowledge handover', exact: true }).click();
-    await expect(page.getByText(/Handover acknowledged\. The case and its next action remain open/)).toBeVisible();
+    await expect(page.getByText(/Handover acknowledged\. The case and its next step stay open/)).toBeVisible();
     await expect(dialog).not.toBeVisible();
     await expect(opener).toBeFocused();
     const filter = page.getByRole('combobox', { name: 'Show', exact: true });

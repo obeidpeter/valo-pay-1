@@ -4,7 +4,7 @@ import { Button } from "./ui/button";
 
 /** Said before a person discards a request whose outcome is unknown: it may have been saved, and it is not cancelled. */
 export const DISCARD_ORIGINAL_WARNING =
-  "The original request may already have been saved. Discarding this form does not cancel it. Check Operations or the interrupted-request notice before you submit again; a journaled request stays protected until its outcome is confirmed or the server cancels it. Discard the original form?";
+  "The original request may already have been saved. Discarding it here does not cancel it. Before you send it again, check Request history or the Request not confirmed notice at the top of the page. Discard the original request?";
 
 const controls = "a[href], button, input:not([type='hidden']), select, textarea, summary, [tabindex]";
 /**

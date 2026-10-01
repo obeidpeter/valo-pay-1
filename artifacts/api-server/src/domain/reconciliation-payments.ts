@@ -1,6 +1,6 @@
 /** Payment allocations, payer decisions, returned money and dispute releases. */
 import { type TypedRecord, type DomainState, type Context, type ValopayRecord } from "./types";
-import { normaliseReversalStatus, normaliseRefundStatus, isKobo, paymentUnappliedKobo, paymentMoneyReturned, paymentRefundedKobo, nairaText, allocationClosedStatuses, sumMoney, isOpenException, resolveExceptionType } from "@workspace/valopay-schema";
+import { normaliseReversalStatus, normaliseRefundStatus, isKobo, paymentUnappliedKobo, paymentMoneyReturned, paymentRefundedKobo, nairaText, allocationClosedStatuses, sumMoney, isOpenException, resolveExceptionType, optionText, REVIEW_SUPERSESSION } from "@workspace/valopay-schema";
 import { outstanding, currencyOf, paymentReturned, paymentReversed } from "./reconciliation-values";
 import { makeRecord, touch, recordsOf, findRecord } from "./records";
 import { recordsWhere, recordById } from "./record-index";
@@ -41,12 +41,12 @@ export function allocatePayment(
   assertPaymentAllocatable(state, payment, amount);
   assertSamePayer(state, payment, due, confidence === "probable" ? undefined : { automatic, reason: payerReason });
   if (!Number.isInteger(amount) || amount <= 0 || amount > paymentUnappliedKobo(payment)) {
-    throw new Error("Enter a positive whole number in kobo, no more than the payment has left to allocate.");
+    throw new Error(`Enter an amount above ₦0 and no more than the ${nairaText(paymentUnappliedKobo(payment))} this payment has left to allocate.`);
   }
   const remaining = outstanding(due);
-  if (amount > remaining) throw new Error("This allocation exceeds the outstanding instalment balance. Enter a lower amount.");
+  if (amount > remaining) throw new Error(remaining === 0 ? `Instalment ${due.reference} is already paid in full. Choose another instalment.` : `This is more than the ${nairaText(remaining)} instalment ${due.reference} still owes. Enter a lower amount.`);
   const allocation = makeRecord(state, "allocations", {
-    name: `Allocation ${rule}`, status: "proposed",
+    name: `Allocation of ${payment.reference} to ${due.reference}`, status: "proposed",
     customerId: payment.customerId, amountKobo: amount, createdAt: ctx.now,
     data: { paymentId: payment.id, dueItemId: due.id, rule, confidence, automatic, explanation: explanation ?? `Matching rule ${rule} linked this payment to the instalment.`, reviewed: null },
   });
@@ -69,14 +69,14 @@ export function allocatePayment(
  */
 function assertSamePayer(state: DomainState, payment: TypedRecord<"payments">, due: TypedRecord<"due-items">, applied?: { automatic: boolean; reason?: string }): void {
   if (payment.customerId && payment.customerId !== due.customerId) {
-    throw Object.assign(new Error(`Payment ${payment.reference} is from another customer than instalment ${due.reference}'s. Choose one of the payer's instalments.`), { status: 409 });
+    throw Object.assign(new Error(`Payment ${payment.reference} and instalment ${due.reference} belong to different customers. Choose one of the payer’s instalments.`), { status: 409 });
   }
   if (payment.customerId || !applied) return;
   if (applied.automatic || !applied.reason?.trim()) {
-    throw Object.assign(new Error(`Payment ${payment.reference} names no payer. Automatic matching never applies it: Finance identifies the payer by allocating it to one of their instalments, with a reason.`), { status: 409 });
+    throw Object.assign(new Error(`Payment ${payment.reference} names no payer, so automatic matching never allocates it. Finance identifies the payer by allocating it to one of their instalments, with a reason.`), { status: 409 });
   }
   const linked = payment.data.dueItemId && payment.data.dueItemId !== due.id ? recordsOf(state, "due-items").find((item) => item.id === payment.data.dueItemId) : undefined;
-  if (linked && linked.customerId !== due.customerId) throw Object.assign(new Error(`Payment ${payment.reference}'s evidence names instalment ${linked.reference} of another customer. Choose one of that customer's instalments, or review the evidence.`), { status: 409 });
+  if (linked && linked.customerId !== due.customerId) throw Object.assign(new Error(`Payment ${payment.reference}’s evidence names instalment ${linked.reference}, which belongs to another customer. Choose one of that customer’s instalments, or review the evidence.`), { status: 409 });
 }
 
 /**
@@ -110,7 +110,7 @@ function identifyPayer(state: DomainState, ctx: Context, payment: TypedRecord<"p
   for (const proposal of recordsOf(state, "allocations").filter((item) => item.id !== allocation.id && item.status === "proposed" && item.data.paymentId === payment.id)) {
     if (recordsOf(state, "due-items").find((item) => item.id === proposal.data.dueItemId)?.customerId === due.customerId) continue;
     proposal.status = "superseded";
-    proposal.data.supersededReason = "Superseded: Finance identified another customer as the payer.";
+    proposal.data.supersededReason = "No longer in use: Finance identified another customer as the payer.";
     touch(proposal, ctx.now);
   }
   touch(payment, ctx.now);
@@ -145,7 +145,7 @@ export function withdrawPayerIdentification(state: DomainState, ctx: Context, pa
   const proposals = allocations.filter((item) => item.status === "proposed" && item.customerId === identification.customerId);
   for (const proposal of proposals) {
     proposal.status = "superseded";
-    proposal.data.supersededReason = "Superseded: the payer Finance identified was withdrawn.";
+    proposal.data.supersededReason = "No longer in use: the payer Finance identified was withdrawn.";
     touch(proposal, ctx.now);
   }
   if (proposals.length) settlePaymentStatus(state, ctx, payment);
@@ -159,9 +159,9 @@ export function withdrawPayerIdentification(state: DomainState, ctx: Context, pa
  * Instalments are owed in naira, so money in another currency is never applied.
  */
 function assertPaymentAllocatable(state: DomainState, payment: TypedRecord<"payments">, amount: number): void {
-  if (paymentNeedsReversalReview(state, payment)) throw Object.assign(new Error("This payment is held for renewed Finance review of an earlier reversal decision. Resolve that review and run reconciliation before allocating it."), { status: 409 });
+  if (paymentNeedsReversalReview(state, payment)) throw Object.assign(new Error("This payment is on hold while Finance reviews an earlier reversal decision again. Resolve that review and run reconciliation before you allocate it."), { status: 409 });
   if (currencyOf(payment) !== "NGN") {
-    throw Object.assign(new Error(`Payment ${payment.reference} is in ${currencyOf(payment)}. Instalments are owed in naira, so it cannot be applied to one. Record its refund or resolve it with Finance.`), { status: 409 });
+    throw Object.assign(new Error(`Payment ${payment.reference} is in ${currencyOf(payment)}. Instalments are owed in naira, so it cannot be allocated to one. Record its refund or resolve it with Finance.`), { status: 409 });
   }
   if (paymentReturned(payment)) {
     const how = paymentReversed(payment) ? "reversed by the provider" : "refunded to the payer";
@@ -174,7 +174,7 @@ function assertPaymentAllocatable(state: DomainState, payment: TypedRecord<"paym
 }
 
 function assertAllocationEligible(state: DomainState, due: TypedRecord<'due-items'>): void {
-  if (dueNeedsReversalReview(state, due)) throw Object.assign(new Error("This instalment is held for renewed Finance review of an earlier reversal decision. Resolve that review and run reconciliation before allocating a payment."), { status: 409 });
+  if (dueNeedsReversalReview(state, due)) throw Object.assign(new Error("This instalment is on hold while Finance reviews an earlier reversal decision again. Resolve that review and run reconciliation before you allocate a payment to it."), { status: 409 });
   if ((allocationClosedStatuses as readonly string[]).includes(due.status)) throw Object.assign(new Error('This instalment is cancelled, closed or in dispute. Refresh the queue and review its status before allocating a payment.'), { status: 409 });
 }
 
@@ -188,8 +188,8 @@ export function applyConfirmedAllocation(state: DomainState, ctx: Context, alloc
   assertAllocationEligible(state, due);
   assertPaymentAllocatable(state, payment, allocation.amountKobo);
   assertSamePayer(state, payment, due, { automatic: allocation.data.automatic === true, reason: payerReason });
-  if (allocation.status === "superseded") throw new Error("This allocation is no longer applied and cannot be confirmed. Review the payment to create a new match.");
-  if (allocation.status === "confirmed") throw Object.assign(new Error("This allocation is already applied. Refresh the payment to see its current position."), { status: 409 });
+  if (allocation.status === "superseded") throw new Error("This allocation is no longer in use and cannot be confirmed. Review the payment to create a new match.");
+  if (allocation.status === "confirmed") throw Object.assign(new Error("This allocation is already confirmed. Reload the page to see the payment’s current position."), { status: 409 });
   const amount = allocation.amountKobo;
   if (!Number.isSafeInteger(amount) || amount <= 0 || amount > paymentUnappliedKobo(payment)) {
     throw new Error("This allocation is more than the payment has left to allocate. Refresh the payment and review the proposed amount.");
@@ -209,7 +209,7 @@ export function applyConfirmedAllocation(state: DomainState, ctx: Context, alloc
   else if (remaining === 0) {
     // 7.3: the excess is unapplied credit on the customer position and an exception; never auto-applied elsewhere.
     payment.status = "overpaid";
-    raiseException(state, ctx, "overpayment", { linkedRecordId: payment.id, customerId: payment.customerId, amountKobo: unapplied, notes: `${unapplied} kobo remains unapplied after due item ${due.reference} was settled.` });
+    raiseException(state, ctx, "overpayment", { linkedRecordId: payment.id, customerId: payment.customerId, amountKobo: unapplied, notes: `${nairaText(unapplied)} of this payment is left over after instalment ${due.reference} was paid in full.` });
   } else payment.status = "partial";
   if (!payment.data.proposedDueItemId || payment.data.proposedDueItemId === due.id) { delete payment.data.proposedDueItemId; delete payment.data.proposedAmountKobo; }
   touch(allocation, ctx.now); touch(payment, ctx.now); touch(due, ctx.now);
@@ -252,8 +252,8 @@ export function supersedeAllocation(state: DomainState, ctx: Context, allocation
  * is closed as its condition cleared. Returns those exceptions.
  */
 export function releaseDispute(state: DomainState, ctx: Context, due: TypedRecord<"due-items">, release: { via: "not_upheld" | "finance_release"; reason: string; exceptionId?: string }): TypedRecord<"exceptions">[] {
-  if (dueNeedsReversalReview(state, due)) throw Object.assign(new Error("Resolve the renewed reversal review and run reconciliation before releasing this instalment."), { status: 409 });
-  if (due.status !== "in_dispute") throw Object.assign(new Error(`Instalment ${due.reference} is not in dispute, so there is nothing to release. Refresh it to see its current status.`), { status: 409 });
+  if (dueNeedsReversalReview(state, due)) throw Object.assign(new Error("This instalment is on hold while Finance reviews an earlier reversal decision again. Resolve that review and run reconciliation before you release it from dispute."), { status: 409 });
+  if (due.status !== "in_dispute") throw Object.assign(new Error(`Instalment ${due.reference} is not in dispute, so there is nothing to release. Reload the page to see its current status.`), { status: 409 });
   const status = statusHeldInDispute(state, due) ?? balanceStatus(state, due);
   delete due.data.legacyReversalReviewPause;
   due.status = status;
@@ -276,15 +276,22 @@ export function releaseDispute(state: DomainState, ctx: Context, due: TypedRecor
  */
 function disputeReversal(state: DomainState, ctx: Context, due: TypedRecord<"due-items">, payment: TypedRecord<"payments">, appliedKobo: number, how: string): void {
   if (due.status !== "in_dispute") { due.status = "in_dispute"; touch(due, ctx.now); }
-  const notes = `Payment ${payment.reference} (${nairaText(appliedKobo)} applied to instalment ${due.reference}) was reversed: ${how}. The instalment owes ${nairaText(outstanding(due))} again and is in dispute, so collection and allocation are paused. Find out why the money went back, then resolve this exception as not upheld to collect the instalment again, or ask Finance to release it from dispute with a reason.`;
+  // The note in three parts: what happened, each choice on its own line, then what happens until then.
+  const notes = [
+    `Payment ${payment.reference} was reversed: ${how}. ${nairaText(appliedKobo)} of it had been allocated to instalment ${due.reference}, which now owes ${nairaText(outstanding(due))} again and is in dispute.`,
+    "Find out why the money went back, then choose one:",
+    `${optionText("not_upheld")}: resolve this exception with it to collect the instalment again.`,
+    "Release from dispute: Finance releases the instalment, with a reason.",
+    "Until then, collection and allocation are on hold.",
+  ].join("\n");
   const exception = raiseException(state, ctx, "customer_dispute", { linkedRecordId: due.id, customerId: due.customerId, amountKobo: outstanding(due), notes });
   if (exception.data.notes === notes) return;
   exception.amountKobo = outstanding(due);
   noteUpdate(exception, ctx, notes);
 }
 
-/** The reason a precision review records when it takes a match out of use; older records carry only this text. */
-export const REVIEW_SUPERSESSION = "Precision audit marked this allocation wrong";
+/** The reason an accuracy review records when it takes a match out of use (stored as it always was; older records carry only this text). */
+export { REVIEW_SUPERSESSION };
 
 /** True when a precision review, not a reversal or a rejected proposal, took this allocation out of use. */
 export function supersededByReview(allocation: TypedRecord<"allocations">): boolean {
@@ -306,11 +313,11 @@ export function reinstateAllocation(state: DomainState, ctx: Context, allocation
   const left = paymentUnappliedKobo(payment);
   const blocker = paymentReturned(payment) ? `payment ${payment.reference} was ${paymentReversed(payment) ? "reversed" : "refunded"}`
     : ["cancelled", "closed", "in_dispute"].includes(due.status) ? `instalment ${due.reference} is ${due.status.replace(/_/g, " ")}`
-    : payment.customerId && payment.customerId !== due.customerId ? `payment ${payment.reference} is now recorded as another customer's`
+    : payment.customerId && payment.customerId !== due.customerId ? `payment ${payment.reference} is now recorded as another customer’s`
     : allocation.amountKobo > left ? `payment ${payment.reference} no longer has that much left to allocate`
     : allocation.amountKobo > outstanding(due) ? `instalment ${due.reference} no longer has that much outstanding`
     : null;
-  if (blocker) throw Object.assign(new Error(`This match cannot be applied again because ${blocker}. Allocate the payment manually if it belongs to an instalment.`), { status: 409 });
+  if (blocker) throw Object.assign(new Error(`This match cannot be restored because ${blocker}. Allocate the payment manually if it belongs to an instalment.`), { status: 409 });
   forgetRejectedMatch(payment, due.id);
   delete allocation.data.supersededReason; delete allocation.data.supersededByReview;
   allocation.data.reinstatedAt = ctx.now;
@@ -325,7 +332,7 @@ export function reinstateAllocation(state: DomainState, ctx: Context, allocation
  * held possible duplicate keeps its hold. A proposal that no longer fits what
  * the payment has left is superseded here, rather than failing a later close.
  */
-export function settlePaymentStatus(state: DomainState, ctx: Context, payment: TypedRecord<"payments">, reason = "Superseded: the proposal no longer fits what the payment has left."): void {
+export function settlePaymentStatus(state: DomainState, ctx: Context, payment: TypedRecord<"payments">, reason = "No longer in use: the proposal no longer fits what the payment has left."): void {
   paymentDimensions(payment);
   const allocated = Number(payment.data.allocatedKobo || 0);
   // What it still holds: a refund of part of it, such as an overpayment's excess, is not left to allocate.
@@ -388,7 +395,7 @@ export function releaseDuplicateHold(state: DomainState, ctx: Context, exception
   payment.data.duplicateReview = { exceptionId: exception.id, resolutionCode: "distinct_payments", reviewedBy: ctx.actor, reviewedAt: ctx.now };
   if (payment.status === "possible_duplicate") {
     payment.status = "unallocated";
-    payment.data.explanation = "Finance resolved the suspected duplicate as a separate payment, so it is no longer held.";
+    payment.data.explanation = "Finance resolved the possible duplicate as a separate payment, so it is no longer held.";
     settlePaymentStatus(state, ctx, payment);
   }
   touch(payment, ctx.now);

@@ -9,7 +9,7 @@ import {
   counted, sumMoney, multiplyDivideMoney, legacyDiscountMoney, nonnegativeMoney, validMoneyBps, MoneyArithmeticError,
   DEFAULT_REVERSAL_WINDOW_DAYS, DEFAULT_VAT_BPS, RECOVERY_FEE_KOBO, USAGE_FEE_BPS, USAGE_FEE_CAP_KOBO,
   billableChannels, experimentRules, isBillableChannel, isKobo, licenceTierFor, nairaText, paymentAppliedKobo, usageFeeKobo, vatKobo, type AdjustmentReason,
-  latestTermsFirst, termsEffectiveAt, WAT_OFFSET_MS,
+  latestTermsFirst, termsEffectiveAt, dayText, monthText,
 } from "@workspace/valopay-schema";
 import { makeRecord, recordsOf } from "./records";
 import type { Context, DomainState, TypedRecord, ValopayRecord } from "./types";
@@ -182,11 +182,11 @@ export interface AdjustmentLine {
 }
 
 const reasonText: Record<AdjustmentReason, string> = {
-  reversal: "was reversed by the provider after it was billed",
-  refund: "was refunded to the customer after it was billed",
-  confirmed_duplicate: "was confirmed as a duplicate after it was billed",
-  wrong_allocation: "had its allocation superseded as a wrong match after it was billed",
-  re_allocation: "was re-allocated at a higher value after it was billed",
+  reversal: "was reversed by the provider",
+  refund: "was refunded to the customer",
+  confirmed_duplicate: "was confirmed as a duplicate",
+  wrong_allocation: "was found to be matched to the wrong instalment",
+  re_allocation: "had more of its money allocated",
 };
 
 /**
@@ -214,7 +214,7 @@ export function pendingAdjustments(state: DomainState): AdjustmentLine[] {
       feeDeltaKobo: sumMoney([fee.feeKobo, -entry.netFeeKobo]), discountRate: entry.discountRate, billedChargedKobo: entry.netChargedKobo,
       billedFeeKobo: entry.netFeeKobo, currentFeeKobo: fee.feeKobo, billedAllocatedKobo: entry.allocatedKobo, currentAllocatedKobo: fee.allocatedKobo,
       allocationIds: recordsOf(state, "allocations").filter((item) => item.data.paymentId === paymentId).map((item) => item.id),
-      explanation: `Collection ${payment.reference} (${nairaText(entry.allocatedKobo)} billed ${nairaText(entry.netChargedKobo)} on ${entry.originalInvoiceReference}${discount}) ${reasonText[reason]}; ${kobo < 0 ? "credit" : "debit"} of ${nairaText(Math.abs(kobo))}.`,
+      explanation: `Collection ${payment.reference} ${reasonText[reason]} after invoice ${entry.originalInvoiceReference} billed it. That invoice charged ${nairaText(entry.netChargedKobo)} on ${nairaText(entry.allocatedKobo)}${discount}. This line ${kobo < 0 ? "credits" : "charges"} ${nairaText(Math.abs(kobo))}.`,
     });
   }
   return lines.sort((a, b) => a.paymentReference.localeCompare(b.paymentReference));
@@ -227,12 +227,16 @@ export function pendingAdjustments(state: DomainState): AdjustmentLine[] {
 export interface RateDiscrepancy { invoiceId: string; invoiceReference: string; period: string; commercialId: string; chargedRate: number; agreedRate: number; explanation: string }
 const rateText = (rate: number): string => rate > 0 ? `the ${Math.round(rate * 100)}% design-partner discount` : "the full public price";
 /** What Finance does about a discrepancy: there is no correction for an issued invoice's discount, so it is agreed outside the platform. */
-export const RATE_DISCREPANCY_GUIDANCE = "An issued invoice is never changed, and Valo Pay has no way to correct an issued invoice's discount: the next invoice's adjustment lines correct only collections that were reversed, refunded, confirmed as duplicates or re-allocated. Adjustment lines on later invoices for a listed invoice's collections, such as a re-allocation debit or a reversal credit, carry that invoice's rate too, so include them in what you agree. Agree any difference with the lender outside Valo Pay and keep a record of what you agreed. Each invoice is compared with the terms in effect for its month now, as billing reads them: a month takes the terms in effect by its end, and ordinary terms give the full public price. While the design-partner terms in effect for a month are not confirmed, its invoices are not compared; confirming their discount dates compares them. New invoices are priced from the confirmed dates.";
+export const RATE_DISCREPANCY_GUIDANCE = [
+  "An issued invoice never changes, and Valo Pay cannot correct an issued invoice’s discount. The next invoice’s adjustment lines correct only collections that were reversed, refunded, confirmed as duplicates or re-allocated.",
+  "Agree any difference with the lender outside Valo Pay, and keep a record of what you agreed.",
+  "Adjustment lines on later invoices for a listed invoice’s collections, such as a re-allocation charge or a reversal credit, carry that invoice’s rate too. Include them in what you agree.",
+  "Each invoice is compared with the terms in effect for its month now. A month uses the terms in effect at its end, and ordinary terms give the full public price. Invoices for a month whose design-partner terms are not confirmed yet are compared once their discount dates are confirmed. New invoices are priced from the confirmed dates.",
+].join("\n");
 /** When terms took effect, as a WAT date, for an explanation; terms that name no date have applied from the start. */
 function effectiveFrom(terms: TypedRecord<"commercial">): string {
-  const at = effectiveAt(terms), wat = new Date(at + WAT_OFFSET_MS);
-  if (Number.isFinite(wat.getTime())) return wat.toISOString().slice(0, 10);
-  return Number.isFinite(at) ? String(terms.data.effectiveDate) : "the start";
+  const at = effectiveAt(terms);
+  return Number.isFinite(at) ? dayText(at) : "the start";
 }
 /**
  * BIL-02: every issued invoice charged at another rate than the terms billing reads for its month now give, such as
@@ -251,7 +255,7 @@ export function rateDiscrepancies(state: DomainState): RateDiscrepancy[] {
       ? `design-partner terms in effect from ${effectiveFrom(inEffect)}, whose confirmed agreement ${String(inEffect.data.discountTermsReference ?? "").trim()} gives ${rateText(agreed.rate!)}`
       : `ordinary terms in effect from ${effectiveFrom(inEffect)}, which give the full public price`}`;
     return [{ invoiceId: invoice.id, invoiceReference: invoice.reference, period, commercialId: inEffect.id, chargedRate, agreedRate: agreed.rate!,
-      explanation: `${invoice.reference} for ${period} charged ${rateText(chargedRate)}. A month takes the terms in effect by its end: for ${period} those are ${terms}.` }];
+      explanation: `${invoice.reference} for ${monthText(period)} charged ${rateText(chargedRate)}. A month uses the terms in effect at its end: for ${monthText(period)} those are ${terms}.` }];
   });
 }
 
@@ -259,8 +263,8 @@ export function rateDiscrepancies(state: DomainState): RateDiscrepancy[] {
 export function recoveryFeeLines(state: DomainState, period: string) {
   const enabled = state.settings.recoveryFeeEnabled === true && state.settings.recoveryFeeDecision === "proven";
   const note = enabled
-    ? `NGN ${RECOVERY_FEE_KOBO / 100} per recovered failed debit in the engine arm, billed once its ${experimentRules.outcomeWindowDays}-day window has closed, so a reversal inside the window never needs a credit.`
-    : "The recovery fee is off. It can be charged only after the recovery test (Test 2) is recorded as proven and the fee is enabled in settings.";
+    ? `${nairaText(RECOVERY_FEE_KOBO)} for each failed debit the automated retry group recovers, billed once its ${experimentRules.outcomeWindowDays}-day window has closed, so a reversal inside the window never needs a credit.`
+    : "The recovery fee is off. It can be charged only after the recovery test is recorded as proven and the Valo Pay team switches the fee on.";
   if (!enabled) return { enabled, lines: [] as RecoveryFeeLine[], kobo: 0, note };
   const end = Date.parse(periodEnd(period));
   const billed = new Set(issuedInvoices(state).flatMap((invoice) => ((invoice.data.recoveryFee?.lines || []) as Array<{ dueItemId: string }>).map((line) => line.dueItemId)));
@@ -333,7 +337,7 @@ export function buildBillingStatement(state: DomainState, now: string): Record<s
     const receipts = inPeriod.filter((payment) => String(payment.data.channel || "manual") === channel);
     channelBreakdown[channel] = {
       ...inNaira(receipts, (payment) => payment.amountKobo), billable: receipts.filter((payment) => billableCollection(state, payment, now)).length,
-      reason: isBillableChannel(channel) ? "A successful direct debit can be billed after settlement on the money it applied, provided that money has not been reversed or refunded and the reversal window from settlement has passed." : "This payment is included in reconciliation reports but is not charged a collection fee.",
+      reason: isBillableChannel(channel) ? "A successful direct debit is billed on the money it allocated, once it has settled and its reversal window has passed, unless that money was reversed or refunded." : "This payment is included in reconciliation reports but is not charged a collection fee.",
     };
   }
   // Collections that pass every BIL-01 check except the reversal window are billed on a later statement, never lost.
@@ -353,7 +357,7 @@ export function buildBillingStatement(state: DomainState, now: string): Record<s
   const adjustments = pendingAdjustments(state);
   return {
     period, usageRateBps: USAGE_FEE_BPS, usageCapKobo: USAGE_FEE_CAP_KOBO, reversalWindowDays: reversalWindowDays(state, state.merchant.provider), vatBps: vatBpsFor(state),
-    billableChannels: [...billableChannels], billableRule: "A collection can be billed when the direct debit succeeded (its webhook or its settlement line says so), the payment is settled and still has applied money that was not reversed or refunded at the invoice date, and the provider's reversal window has passed since it settled.",
+    billableChannels: [...billableChannels], billableRule: "A collection is billed once four things are true. The direct debit succeeded, as the provider’s notification or settlement line shows. The payment has settled. Some of its allocated money was not reversed or refunded by the invoice date. The provider’s reversal window has passed since it settled.",
     eligibleAllocatedKobo: usageBase, successfulCollections: billablePayments.length, usageFeeKobo: usageFee, volumeTier: tier.name,
     channelBreakdown, withheldInsideReversalWindow: withheld.length,
     lines, totalKobo: pricing.ready ? sumMoney(lines.map((line) => line.totalKobo)) : null,
@@ -361,7 +365,7 @@ export function buildBillingStatement(state: DomainState, now: string): Record<s
     invoices, nextInvoicePeriod: nextPeriod, nextInvoicePricingReady: nextPricing.ready, nextInvoicePricingExplanation: nextPricing.explanation,
     pendingAdjustments: adjustments, pendingAdjustmentsKobo: sumMoney(adjustments.map((line) => line.kobo)),
     rateDiscrepancies: rateDiscrepancies(state), rateDiscrepancyGuidance: RATE_DISCREPANCY_GUIDANCE,
-    adjustmentRule: "If a billed collection is reversed, refunded, confirmed as a duplicate or affected by an invalidated allocation, the correction appears as a credit or debit on the next invoice. Issued invoices are never changed. A correction is priced at the rate of the invoice that first billed the collection.",
+    adjustmentRule: "If a billed collection is reversed, refunded, confirmed as a duplicate, found to be matched to the wrong instalment or has more of its money allocated, the next invoice corrects it with a credit or charge. Issued invoices are never changed. A correction is priced at the rate of the invoice that first billed the collection.",
     recoveryFee: recoveryFeeLines(state, period).note,
     implementationExcludedFromRecurring: true, synthetic: true,
   };
@@ -383,15 +387,15 @@ export function issueInvoice(state: DomainState, ctx: Context, input: { period?:
   const period = input.period ? String(input.period) : previousMonth(now);
   if (!/^\d{4}-\d{2}$/.test(period) || Number.isNaN(Date.parse(`${period}-01T00:00:00Z`))) throw new Error("Enter the billing month as YYYY-MM, for example 2026-09.");
   const current = monthOf(now);
-  if (period > current) throw new Error("An invoice cannot be issued for a future period.");
-  if (period === current) throw new Error(`The ${period} invoice can be issued once the month has ended, from 00:00 WAT on ${nextPeriodAfter(period)}-01.`);
+  if (period > current) throw new Error("You cannot issue an invoice for a future month. Choose a month that has ended.");
+  if (period === current) throw new Error(`The ${monthText(period)} invoice can be issued once the month has ended, from 00:00 WAT on ${dayText(`${nextPeriodAfter(period)}-01`)}.`);
   const existing = issuedInvoices(state);
   const duplicate = existing.find((invoice) => invoice.data.period === period);
-  if (duplicate) throw new Error(`Invoice ${duplicate.reference} has already been issued for ${period}. Any correction will appear on the next invoice.`);
+  if (duplicate) throw new Error(`Invoice ${duplicate.reference} has already been issued for ${monthText(period)}. Any correction will appear on the next invoice.`);
   const latest = existing.at(-1);
-  if (latest && String(latest.data.period) > period) throw new Error(`Invoices are issued in period order; ${latest.reference} already covers ${latest.data.period}.`);
+  if (latest && String(latest.data.period) > period) throw new Error(`Invoices are issued month by month. ${latest.reference} already covers ${monthText(latest.data.period)}, so choose a later month.`);
   const due = latest ? nextPeriodAfter(String(latest.data.period)) : firstTermsPeriod(state);
-  if (due && period > due) throw new Error(`Invoices are issued for every month in order, with a zero invoice for a month with nothing to bill: issue the invoice for ${due} first${latest ? "" : ", the month the signed terms took effect"}.`);
+  if (due && period > due) throw new Error(`Invoices are issued for every month in order, with a zero invoice for a month with nothing to bill. Issue the invoice for ${monthText(due)} first${latest ? "" : ": the month the signed terms took effect"}.`);
   const end = Date.parse(periodEnd(period));
   const ledger = billedLedger(state);
   const terms = termsFor(state, period);
@@ -419,18 +423,18 @@ export function issueInvoice(state: DomainState, ctx: Context, input: { period?:
   const totalKobo = sumMoney([netKobo, vat]);
   const sequence = existing.length + 1;
   return makeRecord(state, "invoices", {
-    name: `Invoice ${period}`, status: "issued", reference: `INV-${period}-${String(sequence).padStart(3, "0")}`, amountKobo: Math.max(0, totalKobo), createdAt: now,
+    name: `Invoice for ${monthText(period)}`, status: "issued", reference: `INV-${period}-${String(sequence).padStart(3, "0")}`, amountKobo: Math.max(0, totalKobo), createdAt: now,
     data: {
       period, periodEnd: new Date(end).toISOString(), issuedAt: now, issuedBy: ctx.actor, sequence,
       terms: terms ? { commercialId: terms.id, prospect: terms.name, contractedLicenceKobo: contractedLicence, designPartner: terms.data.designPartner === true, effectiveDate: terms.data.effectiveDate ?? null, ...(terms.data.designPartner === true && terms.data.discountReview ? { discountReview: structuredClone(terms.data.discountReview) } : {}) } : null,
-      licence: { kobo: contractedLicence, volumeTier: tier.name, volumeTierLicenceKobo: tier.licenceKobo, tierMismatch: contractedLicence !== tier.licenceKobo, note: terms ? "Contracted monthly licence from the signed terms in effect this month, for the whole month; the tier for this month's count is shown for comparison." : "No signed terms: no licence is billed." },
+      licence: { kobo: contractedLicence, volumeTier: tier.name, volumeTierLicenceKobo: tier.licenceKobo, tierMismatch: contractedLicence !== tier.licenceKobo, note: terms ? "Contracted monthly licence from the signed terms in effect this month, for the whole month; the tier for this month’s count is shown for comparison." : "No signed terms: no licence is billed." },
       usageLines, collectionsCounted: usageLines.length, usageRateBps: USAGE_FEE_BPS, usageCapKobo: USAGE_FEE_CAP_KOBO,
       designPartnerDiscount: { rate, kobo: discountKobo, note: `${pricing.explanation}${adjustments.length ? " Adjustment lines carry the rate of the invoice that first billed each collection." : ""}` },
       adjustments, recoveryFee,
       subtotals: { licenceKobo: contractedLicence, usageKobo, adjustmentsKobo, discountKobo, recoveryKobo: recoveryFee.kobo },
       totals: { netKobo, vatBps, vatKobo: vat, totalKobo, creditNote: totalKobo < 0 },
       statement: `${counted(usageLines.length, "collection")} counted at ${USAGE_FEE_BPS / 100}% capped at ${nairaText(USAGE_FEE_CAP_KOBO)}; ${counted(adjustments.length, "adjustment line")}; VAT at ${vatBps / 100}% shown separately.`,
-      disputeRoute: "Dispute a count by raising it with your Valo Pay contact quoting the invoice reference and the collection reference; the count is derived from records and reproducible (BIL-01).",
+      disputeRoute: "To dispute a count, contact the Valo Pay team and quote the invoice reference and the collection reference. Counts come from recorded payments, so they can be checked again.",
       synthetic: true,
     },
   });

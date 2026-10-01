@@ -8,7 +8,7 @@ import { connectedActionResultFor } from "@workspace/valopay-schema";
 import { consoleConnectedViewSchema, type ConnectedView } from './connected-view';
 export type { ConnectedRecord, ConnectedView } from './connected-view';
 /** Shown for a connected action whose answer does not confirm the expected sample result: the action may have been saved. */
-const UNCONFIRMED_SAMPLE = "The response did not confirm the expected sample result. Retry the original request to recover its outcome.";
+const UNCONFIRMED_SAMPLE = "Valo Pay’s answer did not confirm this action. Check the original request again.";
 type ConnectedInput = {
   action: string;
   data: Record<string, unknown>;
@@ -27,13 +27,13 @@ async function request(url: string, options: RequestInit = {}): Promise<unknown>
   const body = await response.json().catch(() => undefined);
   if (!response.ok)
     throw Object.assign(
-      new Error(body?.error || "The request could not be completed."),
+      new Error(body?.error || "Valo Pay could not complete the request. Try again in a moment."),
       { status: response.status, data: body ?? {} },
     );
   // An unreadable success is no confirmation: without a status, a write stays unconfirmed.
   if (body === undefined)
     throw new Error(
-      "The service returned an unreadable answer. Retry the original request to recover its outcome.",
+      "Valo Pay’s answer could not be read. Try again in a moment.",
     );
   return body;
 }
@@ -71,7 +71,7 @@ export function useConnected() {
     retry: false,
     mutationFn: async (input: ConnectedInput) => {
       if (!merchantId || !query.data)
-        throw new Error("Wait for the workspace to load.");
+        throw new Error("Wait for the page to load.");
       await attempt.execute(input, async ({ payload, key, input: original }) => {
         const result = await request(
           `/api/v1/connected/actions?merchantId=${encodeURIComponent(merchantId)}`,
@@ -98,7 +98,7 @@ export function useConnected() {
       action: string,
       data: Record<string, unknown> = {},
       recordId?: string,
-      reason = "Explore the synthetic workflow",
+      reason = "Sample connected banking action",
     ) => {
       await mutation.mutateAsync({ action, data, recordId, reason });
     },

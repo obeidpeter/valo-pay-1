@@ -6,7 +6,7 @@ export const moneyRefusalCodes = ["INVALID_MONEY_AMOUNT", "INVALID_MONEY_RATE", 
 /** A money refusal's code. */
 export type MoneyRefusalCode = (typeof moneyRefusalCodes)[number];
 /** What a money refusal (422) says: the amount that could not be computed stays in no answer or log. */
-export const MONEY_REFUSAL_MESSAGE = "This calculation cannot be completed within the supported amount or rate limits. Review the amounts and billing settings before trying again.";
+export const MONEY_REFUSAL_MESSAGE = "Valo Pay cannot complete this calculation because an amount or rate is outside the supported limits. Check the amounts and rates you entered, then try again.";
 /** The v1 JSON number contract supports only exact, safe integer minor units.
  * Intermediate arithmetic is bigint; no bigint escapes to JSON. Signed amounts
  * are permitted for adjustments and balances, never implicitly coerced. */

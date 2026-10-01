@@ -1,19 +1,23 @@
-import { observationEventKey, sameJson, sumMoney } from '@workspace/valopay-schema';
+import { nairaText, observationEventKey, recordTypeLabel, sameJson, sumMoney } from '@workspace/valopay-schema';
 import type { DomainState, ValopayRecord } from './types';
 import { assertImportedCorrectionChange } from './import-corrections';
 import { exceptionCurrency } from './reconciliation-exceptions';
 import { exceptionDecisionChanged, exceptionReviewSubjectChanged } from './exception-integrity';
 import { assertProviderEventChange } from './provider-event-integrity';
 
-/** Pure final-state validation; persistence supplies the trusted loaded snapshot. */
-const conflict = (message: string): never => {
-  throw Object.assign(new Error(message), { status: 409 });
+/**
+ * Pure final-state validation; persistence supplies the trusted loaded snapshot. These checks answer only when an
+ * earlier rule missed, most often because the records changed meanwhile, so each refusal says to reload and try again.
+ */
+const conflict = (message: string, next = "Reload the page and try again."): never => {
+  throw Object.assign(new Error(`${message} ${next}`), { status: 409 });
 };
 
+/** A link a record needs, named in words ("The payment’s instalment"): refused when missing or not this lender's record of that kind. */
 function reference(record: ValopayRecord, id: unknown, kind: string, label: string, all: Map<string, ValopayRecord>): ValopayRecord {
-  const recordId = typeof id === "string" && id ? id : conflict(`${label} is required.`);
-  const target = all.get(recordId) ?? conflict(`${label} must reference a ${kind} in this lender.`);
-  if (target.kind !== kind || target.merchantId !== record.merchantId) conflict(`${label} must reference a ${kind} in this lender.`);
+  const recordId = typeof id === "string" && id ? id : conflict(`${label} is missing.`);
+  const target = all.get(recordId) ?? conflict(`${label} is not one of this lender’s ${recordTypeLabel(kind, 2)}.`);
+  if (target.kind !== kind || target.merchantId !== record.merchantId) conflict(`${label} is not one of this lender’s ${recordTypeLabel(kind, 2)}.`);
   return target;
 }
 /** Pure guard exported for focused repository guard tests. */
@@ -57,25 +61,25 @@ const withdrawnPayerOf = (allocation: ValopayRecord, payment: ValopayRecord): bo
  * written, so only added and changed records are compared field by field.
  */
 export function assertFinalState(snapshot: DomainState, state: DomainState, merchantId: string, now?: string, unchanged: ReadonlySet<string> = new Set()) {
-  if (state.merchant.id !== merchantId || snapshot.merchant.id !== merchantId) conflict("Lender identity cannot be reassigned.");
+  if (state.merchant.id !== merchantId || snapshot.merchant.id !== merchantId) conflict("Records cannot move to another lender.");
   const final = new Map<string, ValopayRecord>();
   for (const record of state.records) {
-    if (final.has(record.id)) conflict("Duplicate record IDs are not permitted.");
-    if (record.merchantId !== merchantId) conflict("Records cannot be moved between lenders.");
-    if (!Number.isSafeInteger(record.amountKobo) || record.amountKobo < 0 || record.amountKobo > Number.MAX_SAFE_INTEGER) conflict("Amounts must be safe non-negative integer kobo.");
-    if (record.kind === "due-items" && record.amountKobo < 500000) conflict("Debits under ₦5,000 are refused.");
+    if (final.has(record.id)) conflict("Two records cannot have the same ID.");
+    if (record.merchantId !== merchantId) conflict("Records cannot move to another lender.");
+    if (!Number.isSafeInteger(record.amountKobo) || record.amountKobo < 0 || record.amountKobo > Number.MAX_SAFE_INTEGER) conflict("Every amount must be ₦0 or more, with no more than 2 decimal places.");
+    if (record.kind === "due-items" && record.amountKobo < 500000) conflict(`An instalment must be ${nairaText(500000)} or more.`);
     final.set(record.id, record);
   }
   const original = new Map(snapshot.records.map((record) => [record.id, record]));
   for (const [id, before] of original) {
     const after = final.get(id);
-    const present = after ?? conflict("Records cannot be deleted.");
+    const present = after ?? conflict("Saved records cannot be deleted.");
     if (unchanged.has(id)) continue;
     if (present.id !== before.id || present.merchantId !== before.merchantId || present.kind !== before.kind || present.createdAt !== before.createdAt) {
-      conflict("Record identity, lender, kind, and creation time are immutable.");
+      conflict("A record’s ID, lender, type and creation time cannot change.");
     }
     // A payment's payer, once its evidence named one or Finance identified it, is never reassigned; Finance's identification may only be withdrawn (payerWithdrawn).
-    if (before.kind === "payments" && before.customerId && present.customerId !== before.customerId && !payerWithdrawn(before, present, final)) conflict("A payment's payer cannot change once it is recorded.");
+    if (before.kind === "payments" && before.customerId && present.customerId !== before.customerId && !payerWithdrawn(before, present, final)) conflict("A payment’s payer cannot change once it is recorded.");
     const retentionChange=()=>{
       const kind=before.kind==='exports'?'export_file':'raw_csv';
       const receipt=[...final.values()].find(r=>r.kind==='retention-receipts'&&!original.has(r.id)&&r.data.sourceId===before.id&&r.data.kind===kind&&['deleted','already_absent'].includes(r.data.result));
@@ -87,21 +91,21 @@ export function assertFinalState(snapshot: DomainState, state: DomainState, merc
       return sameJson(expected,present);
     };
     if (["audit", "exports", "reviews", "closes", "retry-decisions", "invoices", "connected-credit-assessments", "connected-credit-reviews", "case-events", "import-revisions", "import-corrections", "import-correction-events", "source-manifests", "close-review-events", "work-events", "retention-policies", "retention-holds", "retention-receipts"].includes(before.kind) && !sameJson(present, before)
-      && !(before.kind === "exports" && (isExportRetry(before, present, now)||retentionChange()))) conflict("Evidence records are immutable.");
+      && !(before.kind === "exports" && (isExportRetry(before, present, now)||retentionChange()))) conflict("Saved evidence cannot be changed.");
     if (["policies", "templates", "experiments"].includes(before.kind) && ["approved", "preregistered", "closed"].includes(before.status) && !sameJson(present, before)) {
-      conflict("Approved, preregistered, and closed versions are immutable.");
+      conflict("Approved, registered and closed versions cannot be changed.");
     }
     if (before.kind === 'provider-events') assertProviderEventChange(before,present);
-    if (exceptionReviewSubjectChanged(before, present, original.get(before.data.linkedRecordId))) conflict('The subject of a historical evidence review is immutable.');
-    if (before.kind === 'settlement-batches' && before.data.providerIdentityReview !== undefined && !sameJson(before.data.providerIdentityReview, present.data.providerIdentityReview)) conflict('A recorded settlement provider review snapshot is immutable.');
+    if (exceptionReviewSubjectChanged(before, present, original.get(before.data.linkedRecordId))) conflict('The customer, amount, type and linked record of this review cannot be changed.');
+    if (before.kind === 'settlement-batches' && before.data.providerIdentityReview !== undefined && !sameJson(before.data.providerIdentityReview, present.data.providerIdentityReview)) conflict('The saved provider review of this settlement batch cannot be changed.');
     if (before.kind === 'settlement-batches' && before.data.providerIdentityKey !== undefined
-      && (before.reference !== present.reference || ['batchReference', 'provider', 'providerConnection', 'providerIdentityKey'].some(key => !sameJson(before.data[key], present.data[key])))) conflict('A recorded settlement provider identity is immutable.');
+      && (before.reference !== present.reference || ['batchReference', 'provider', 'providerConnection', 'providerIdentityKey'].some(key => !sameJson(before.data[key], present.data[key])))) conflict('The saved provider identity of this settlement batch cannot be changed.');
     // A legacy exception can acquire only the currency its original linked money already had; it cannot change the decision's monetary meaning.
     const derivedCurrency = before.kind === 'exceptions' && !before.data.currency && present.data.currency
       ? exceptionCurrency(before, (kind, id) => { const record = original.get(id); return record?.kind === kind ? record : undefined; }) : undefined;
-    if (exceptionDecisionChanged(before, present, derivedCurrency)) conflict('A completed exception decision and its recorded attribution are immutable. Record a new review instead.');
-    if (before.kind === 'source-profiles' && ['source','kind'].some(key=>!sameJson(before.data[key],present.data[key]))) conflict('A source profile cannot change its source or record type.');
-    if (before.kind === 'import-batches' && before.status === 'committed' && !sameJson(present, before)&&!retentionChange()) conflict('Committed source batches are immutable.');
+    if (exceptionDecisionChanged(before, present, derivedCurrency)) conflict('A resolved exception’s decision, and who made it, cannot be changed.', 'If the decision was wrong, raise a new exception.');
+    if (before.kind === 'source-profiles' && ['source','kind'].some(key=>!sameJson(before.data[key],present.data[key]))) conflict('A source profile’s data source and record type cannot change.', 'Add a new source profile instead.');
+    if (before.kind === 'import-batches' && before.status === 'committed' && !sameJson(present, before)&&!retentionChange()) conflict('An imported batch cannot be changed.', 'Propose an import correction instead.');
     if(before.kind==='close-reviews'&&!sameJson(present,before)){
       const expected=structuredClone(before);expected.status=present.status;expected.updatedAt=present.updatedAt;
       if (before.status === 'awaiting_review' && present.status === 'awaiting_review') {
@@ -110,14 +114,14 @@ export function assertFinalState(snapshot: DomainState, state: DomainState, merc
           && event.data.action === 'reassign' && event.data.reviewId === before.id && event.data.closeId === before.data.closeId
           && event.data.previousReviewer === before.data.reviewer && event.data.reviewer === present.data.reviewer
           && event.data.snapshotDigest === before.data.snapshotDigest && typeof event.data.note === 'string' && event.data.note.trim().length >= 10);
-        if (before.data.reviewer === present.data.reviewer || !evidence || !sameJson(expected, present)) conflict('Reassignments must retain the prepared snapshot and append their reason to the review history.');
+        if (before.data.reviewer === present.data.reviewer || !evidence || !sameJson(expected, present)) conflict('A reassigned close review must keep the prepared close and add its reason to the review history.');
       } else {
         for(const field of ['decidedBy','decidedPrincipal','decidedAt','decisionNote','sourceExceptions'])expected.data[field]=present.data[field];
-        if(before.status!=='awaiting_review'||!['approved','changes_requested'].includes(present.status)||!sameJson(expected,present))conflict('The prepared close snapshot and recorded decision are immutable.');
+        if(before.status!=='awaiting_review'||!['approved','changes_requested'].includes(present.status)||!sameJson(expected,present))conflict('A prepared daily close and its saved decision cannot be changed.');
       }
     }
-    if(before.kind==='retention-runs'&&['candidates','previewDigest','policyRevision','expiresAt','preparedBy'].some(key=>!sameJson(before.data[key],present.data[key])))conflict('The approved retention manifest is immutable.');
-    if (before.data.importIdentity && !sameJson(present.data.importIdentity, before.data.importIdentity)) conflict('Source row provenance is immutable.');
+    if(before.kind==='retention-runs'&&['candidates','previewDigest','policyRevision','expiresAt','preparedBy'].some(key=>!sameJson(before.data[key],present.data[key])))conflict('The items of an approved deletion run cannot be changed.');
+    if (before.data.importIdentity && !sameJson(present.data.importIdentity, before.data.importIdentity)) conflict('The import details of a record cannot be changed.');
     assertImportedCorrectionChange(before, present, snapshot, state);
   }
   const dueReferences = new Set<string>(), customerReferences = new Set<string>(), observations = new Set<string>(), inflight = new Set<string>();
@@ -141,88 +145,88 @@ export function assertFinalState(snapshot: DomainState, state: DomainState, merc
   const anyReference = (record: ValopayRecord, key: string, label: string) => {
     if (record.data[key] === undefined || record.data[key] === null || record.data[key] === "" || !changed(record, key)) return;
     const target = final.get(String(record.data[key]));
-    if (!target || target.merchantId !== record.merchantId) conflict(`${label} must belong to this lender.`);
+    if (!target || target.merchantId !== record.merchantId) conflict(`${label} is not one of this lender’s records.`);
   };
   for (const record of final.values()) {
     if (record.kind === 'customers' && record.reference) {
-      if (customerReferences.has(record.reference)) conflict('Customer references must be unique within a lender.');
+      if (customerReferences.has(record.reference)) conflict('Another customer of this lender already has this reference.', 'Enter a different reference.');
       customerReferences.add(record.reference);
     }
-    if (record.customerId && changedCustomer(record)) reference(record, record.customerId, "customers", "Customer", final);
+    if (record.customerId && changedCustomer(record)) reference(record, record.customerId, "customers", "The customer", final);
     // Shared data links are verified only when a new/changed state introduces
     // them; this protects writes without reinterpreting historical snapshots.
-    optionalReference(record, "policyId", "policies", "Policy");
-    optionalReference(record, "mandateId", "mandates", "Mandate");
-    optionalReference(record, "dueItemId", "due-items", "Due item");
-    optionalReference(record, "paymentId", "payments", "Payment");
-    optionalReference(record, "noticeId", "notifications", "Notice");
-    optionalReference(record, "experimentId", "experiments", "Experiment");
-    optionalReference(record, "proposedDueItemId", "due-items", "Proposed due item");
-    optionalReference(record, "virtualAccountCustomerId", "customers", "Virtual-account customer");
-    optionalReference(record, "settlementBatchId", "settlement-batches", "Settlement batch");
-    optionalReference(record, "countedInBatchId", "settlement-batches", "Settlement batch counting the line");
-    optionalReference(record, "statementObservationId", "observations", "Statement observation");
-    anyReference(record, "linkedRecordId", "Exception link");
+    optionalReference(record, "policyId", "policies", "The retry policy");
+    optionalReference(record, "mandateId", "mandates", "The mandate");
+    optionalReference(record, "dueItemId", "due-items", "The instalment");
+    optionalReference(record, "paymentId", "payments", "The payment");
+    optionalReference(record, "noticeId", "notifications", "The notice");
+    optionalReference(record, "experimentId", "experiments", "The experiment plan");
+    optionalReference(record, "proposedDueItemId", "due-items", "The proposed instalment");
+    optionalReference(record, "virtualAccountCustomerId", "customers", "The virtual account’s customer");
+    optionalReference(record, "settlementBatchId", "settlement-batches", "The settlement batch");
+    optionalReference(record, "countedInBatchId", "settlement-batches", "The settlement batch that counts this line");
+    optionalReference(record, "statementObservationId", "observations", "The bank statement entry");
+    anyReference(record, "linkedRecordId", "The exception’s linked record");
     if (record.data.lineObservationIds !== undefined && changed(record, "lineObservationIds")) {
-      if (!Array.isArray(record.data.lineObservationIds)) conflict("Settlement batch observation IDs must be an array.");
-      for (const id of record.data.lineObservationIds) reference(record, id, "observations", "Settlement batch observation", final);
+      if (!Array.isArray(record.data.lineObservationIds)) conflict("This settlement batch’s lines are not in the expected form.");
+      for (const id of record.data.lineObservationIds) reference(record, id, "observations", "A line of this settlement batch", final);
     }
     if (record.data.otherCurrencyLineIds !== undefined && changed(record, "otherCurrencyLineIds")) {
-      if (!Array.isArray(record.data.otherCurrencyLineIds)) conflict("Settlement batch lines in another currency must be an array.");
-      for (const id of record.data.otherCurrencyLineIds) reference(record, id, "observations", "Settlement batch line in another currency", final);
+      if (!Array.isArray(record.data.otherCurrencyLineIds)) conflict("This settlement batch’s lines in another currency are not in the expected form.");
+      for (const id of record.data.otherCurrencyLineIds) reference(record, id, "observations", "A line of this settlement batch in another currency", final);
     }
     if (record.kind === "due-items") {
-      if (record.reference) { if (dueReferences.has(record.reference)) conflict("Due-item reference already exists."); dueReferences.add(record.reference); }
-      const mandate = optionalReference(record, "mandateId", "mandates", "Due-item mandate")
-        || (changedCustomer(record) && record.data.mandateId ? reference(record, record.data.mandateId, "mandates", "Due-item mandate", final) : undefined);
-      if (mandate && mandate.customerId !== record.customerId) conflict("Due-item mandate must belong to the same customer.");
+      if (record.reference) { if (dueReferences.has(record.reference)) conflict("Another instalment already has this reference.", "Enter a different reference."); dueReferences.add(record.reference); }
+      const mandate = optionalReference(record, "mandateId", "mandates", "The instalment’s mandate")
+        || (changedCustomer(record) && record.data.mandateId ? reference(record, record.data.mandateId, "mandates", "The instalment’s mandate", final) : undefined);
+      if (mandate && mandate.customerId !== record.customerId) conflict("The instalment’s mandate must belong to the same customer.");
       const outstanding = record.data.outstandingKobo;
-      if (outstanding !== undefined && (!Number.isSafeInteger(outstanding) || outstanding < 0 || outstanding > record.amountKobo)) conflict("Outstanding balance is invalid.");
+      if (outstanding !== undefined && (!Number.isSafeInteger(outstanding) || outstanding < 0 || outstanding > record.amountKobo)) conflict("The outstanding amount must be between ₦0 and the instalment’s amount.");
     }
     if (record.kind === "attempts") {
       // Attempts are facts, so their required parent remains checked on every
       // save.  This also permits the in-flight uniqueness calculation below.
-      const due = reference(record, record.data.dueItemId, "due-items", "Attempt due item", final);
+      const due = reference(record, record.data.dueItemId, "due-items", "The collection attempt’s instalment", final);
       const before = original.get(record.id);
       if ((!before || changed(record, "dueItemId") || changedCustomer(record) || before.amountKobo !== record.amountKobo)
         && (due.customerId !== record.customerId || record.amountKobo !== due.amountKobo)) {
-        conflict("Attempt must match its due item and customer.");
+        conflict("A collection attempt must have the same customer and amount as its instalment.");
       }
       if (["scheduled", "sent", "unknown"].includes(record.status)) {
-        if (inflight.has(due.id)) conflict("Only one in-flight attempt is allowed for a due item.");
+        if (inflight.has(due.id)) conflict("An instalment can have only one collection attempt in progress.");
         inflight.add(due.id);
       }
     }
     if (record.kind === "observations") {
-      const due = optionalReference(record, "dueItemId", "due-items", "Observation due item")
-        || (changedCustomer(record) && record.data.dueItemId ? reference(record, record.data.dueItemId, "due-items", "Observation due item", final) : undefined);
-      if (due && record.customerId && due.customerId !== record.customerId) conflict("Observation due item must belong to its customer.");
+      const due = optionalReference(record, "dueItemId", "due-items", "The payment evidence’s instalment")
+        || (changedCustomer(record) && record.data.dueItemId ? reference(record, record.data.dueItemId, "due-items", "The payment evidence’s instalment", final) : undefined);
+      if (due && record.customerId && due.customerId !== record.customerId) conflict("The payment evidence and its instalment must belong to the same customer.");
       if (record.data.eventId !== undefined && record.data.eventId !== null) {
         const key = observationEventKey(record.data)!;
-        if (observations.has(key)) conflict("Observation already exists for this source event.");
+        if (observations.has(key)) conflict("Payment evidence for this provider event is already saved.", "Review the saved payment evidence.");
         observations.add(key);
       }
     }
     if (record.kind === "payments") {
-      const due = optionalReference(record, "dueItemId", "due-items", "Payment due item")
-        || optionalReference(record, "proposedDueItemId", "due-items", "Proposed due item")
-        || (changedCustomer(record) && record.data.dueItemId ? reference(record, record.data.dueItemId, "due-items", "Payment due item", final) : undefined)
-        || (changedCustomer(record) && record.data.proposedDueItemId ? reference(record, record.data.proposedDueItemId, "due-items", "Proposed due item", final) : undefined);
-      if (due && record.customerId && due.customerId !== record.customerId) conflict("Payment due item must belong to its customer.");
+      const due = optionalReference(record, "dueItemId", "due-items", "The payment’s instalment")
+        || optionalReference(record, "proposedDueItemId", "due-items", "The proposed instalment")
+        || (changedCustomer(record) && record.data.dueItemId ? reference(record, record.data.dueItemId, "due-items", "The payment’s instalment", final) : undefined)
+        || (changedCustomer(record) && record.data.proposedDueItemId ? reference(record, record.data.proposedDueItemId, "due-items", "The proposed instalment", final) : undefined);
+      if (due && record.customerId && due.customerId !== record.customerId) conflict("The payment and its instalment must belong to the same customer.");
     }
     if (record.kind === "allocations") {
       // Every allocation status carries durable parent IDs; confirmed rows add
       // the final-state amount constraints below.
-      const payment = reference(record, record.data.paymentId, "payments", "Allocation payment", final);
-      const due = reference(record, record.data.dueItemId, "due-items", "Allocation due item", final);
+      const payment = reference(record, record.data.paymentId, "payments", "The allocation’s payment", final);
+      const due = reference(record, record.data.dueItemId, "due-items", "The allocation’s instalment", final);
       // A superseded allocation applies nothing, such as a proposal withdrawn when Finance identified another payer.
-      if (record.status !== "superseded" && payment.customerId && due.customerId && payment.customerId !== due.customerId) conflict("Allocation payment and due item must have the same customer.");
+      if (record.status !== "superseded" && payment.customerId && due.customerId && payment.customerId !== due.customerId) conflict("An allocation’s payment and instalment must belong to the same customer.");
       // A proposal for a payment whose evidence named no payer carries no customer until Finance identifies the payer, and a
       // match taken out of use keeps a payer whose identification was withdrawn (withdrawnPayerOf).
-      if (record.customerId && (record.customerId !== due.customerId || (record.customerId !== payment.customerId && !withdrawnPayerOf(record, payment)))) conflict("Allocation customer must match its parents.");
+      if (record.customerId && (record.customerId !== due.customerId || (record.customerId !== payment.customerId && !withdrawnPayerOf(record, payment)))) conflict("An allocation must belong to the same customer as its payment and instalment.");
       if (record.status === "confirmed") {
         // Evidence that named no payer is applied only once Finance has identified the payer.
-        if (!payment.customerId || record.customerId !== payment.customerId) conflict("A payment is applied to an instalment only once its payer is identified.");
+        if (!payment.customerId || record.customerId !== payment.customerId) conflict("A payment can be allocated to an instalment only once its payer is known.");
         allocatedPayments.set(payment.id, sumMoney([allocatedPayments.get(payment.id) || 0, record.amountKobo]));
         allocatedDues.set(due.id, sumMoney([allocatedDues.get(due.id) || 0, record.amountKobo]));
       }
@@ -230,13 +234,13 @@ export function assertFinalState(snapshot: DomainState, state: DomainState, merc
   }
   for(const record of final.values()) {
     if(record.kind==='connected-intents' && ['authorised','pending','unknown'].includes(record.status)) {
-      const due=reference(record,record.data.dueItemId,'due-items','Checkout instalment',final);
-      if(due.customerId!==record.customerId) conflict('Checkout customer must match the instalment.');
-      if(inflight.has(due.id)) conflict('A pay-by-bank checkout and another collection cannot be in flight together.');
+      const due=reference(record,record.data.dueItemId,'due-items','The checkout’s instalment',final);
+      if(due.customerId!==record.customerId) conflict('A checkout must be for the same customer as its instalment.');
+      if(inflight.has(due.id)) conflict('An instalment cannot have a Pay by Bank checkout and another collection in progress at the same time.');
       inflight.add(due.id);
     }
   }
-  for (const [id, amount] of allocatedPayments) if (amount > final.get(id)!.amountKobo) conflict("Allocations exceed the payment amount.");
-  for (const [id, amount] of allocatedDues) if (amount > final.get(id)!.amountKobo) conflict("Allocations exceed the due-item amount.");
+  for (const [id, amount] of allocatedPayments) if (amount > final.get(id)!.amountKobo) conflict("More has been allocated than the payment’s amount.");
+  for (const [id, amount] of allocatedDues) if (amount > final.get(id)!.amountKobo) conflict("More has been allocated than the instalment’s amount.");
 }
 

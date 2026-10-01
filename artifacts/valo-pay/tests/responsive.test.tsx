@@ -17,7 +17,7 @@ describe("responsive layout", () => {
   it("offers the same pages and lender in the phone bar's drawer as in the sidebar, with the current page marked", async () => {
     const user = userEvent.setup();
     renderApp("/overview");
-    await screen.findByRole("heading", { name: "Operations overview" });
+    await screen.findByRole("heading", { name: "Overview" });
     // The lender is chosen in the same place on a phone and on a desktop: once each, the same name.
     const lenders = screen.getAllByLabelText("Active lender") as HTMLSelectElement[];
     expect(lenders).toHaveLength(2);
@@ -28,16 +28,16 @@ describe("responsive layout", () => {
     expect(within(sidebarPages!).getByRole('link', { name: 'Presentation' }).getAttribute('href')).toBe('/presentation');
     expect(sidebarLabels).toEqual(expect.arrayContaining(['My work','Data sources','Close review','Data retention','Saved exports']));
     expect(within(sidebarPages!).getByRole('link', { name: 'Saved exports' }).getAttribute('href')).toBe('/exports');
-    expect(sidebarLabels).toEqual(expect.arrayContaining(['Pilot journey', 'Import batches', 'Operations', 'Team & access']));
+    expect(sidebarLabels).toEqual(expect.arrayContaining(['Pilot journey', 'Import batches', 'Request history', 'Team and access']));
 
     const groupNames = (list: HTMLElement) => within(list).getAllByRole("group").map((group) => document.getElementById(group.getAttribute("aria-labelledby")!)!.textContent);
     const sidebarGroups = groupNames(sidebarPages!);
 
-    await user.click(screen.getByRole("button", { name: "Menu" }));
+    await user.click(screen.getByRole("button", { name: "Open menu" }));
     const drawer = await screen.findByRole("dialog", { name: "Menu" });
     const drawerLabels = within(within(drawer).getByRole("navigation", { name: "Pages" })).getAllByRole("link").map((link) => link.getAttribute("aria-label") || link.textContent);
     expect(drawerLabels).toEqual(sidebarLabels);
-    expect(within(drawer).getByRole("link", { name: "Help & glossary" }).getAttribute("href")).toBe("/help");
+    expect(within(drawer).getByRole("link", { name: "Help" }).getAttribute("href")).toBe("/help");
     // The same named groups, in the same order.
     expect(groupNames(within(drawer).getByRole("navigation", { name: "Pages" }))).toEqual(sidebarGroups);
     expect(within(drawer).getByRole('link', { name: 'Saved exports' }).getAttribute('href')).toBe('/exports');
@@ -48,8 +48,8 @@ describe("responsive layout", () => {
   it("closes the drawer after a page is chosen in it and moves focus to the page content, as the sidebar does", async () => {
     const user = userEvent.setup();
     renderApp("/overview");
-    await screen.findByRole("heading", { name: "Operations overview" });
-    await user.click(screen.getByRole("button", { name: "Menu" }));
+    await screen.findByRole("heading", { name: "Overview" });
+    await user.click(screen.getByRole("button", { name: "Open menu" }));
     const drawer = await screen.findByRole("dialog", { name: "Menu" });
     await user.click(within(drawer).getByRole("link", { name: "Audit log" }));
     await screen.findByRole("heading", { name: "Audit log" });
@@ -58,13 +58,15 @@ describe("responsive layout", () => {
     await waitFor(() => expect(document.title).toBe("Audit log · Valo Pay"));
   });
 
-  it("closes the drawer on Escape and returns focus to the Menu button", async () => {
+  it("closes the drawer on Escape and returns focus to the Open menu button", async () => {
     const user = userEvent.setup();
     renderApp("/customers");
     await screen.findByText("Ada Okonkwo");
-    const menu = screen.getByRole("button", { name: "Menu" });
+    const menu = screen.getByRole("button", { name: "Open menu" });
     await user.click(menu);
-    await screen.findByRole("dialog", { name: "Menu" });
+    const drawer = await screen.findByRole("dialog", { name: "Menu" });
+    // The drawer's own close button says what it closes.
+    expect(within(drawer).getByRole("button", { name: "Close menu" })).toBeTruthy();
     await user.keyboard("{Escape}");
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     await waitFor(() => expect(document.activeElement).toBe(menu));
@@ -76,7 +78,7 @@ describe("responsive layout", () => {
   it("switches the lender from the phone bar and the drawer follows the change of page", async () => {
     const user = userEvent.setup();
     renderApp("/overview");
-    await screen.findByRole("heading", { name: "Operations overview" });
+    await screen.findByRole("heading", { name: "Overview" });
     const [first, second] = api.merchantIds as [string, string];
     const [phoneLender] = screen.getAllByLabelText("Active lender") as HTMLSelectElement[];
     await user.selectOptions(phoneLender!, second);
@@ -89,16 +91,16 @@ describe("responsive layout", () => {
 
   it("lists every page once, in named groups with daily work first and a label and icon of its own", async () => {
     renderApp("/overview");
-    await screen.findByRole("heading", { name: "Operations overview" });
+    await screen.findByRole("heading", { name: "Overview" });
     const [sidebarPages] = screen.getAllByRole("navigation", { name: "Pages" });
     const groups = within(sidebarPages!).getAllByRole("group");
     const named = groups.map((group) => [document.getElementById(group.getAttribute("aria-labelledby")!)!.textContent, within(group).getAllByRole("link").map((link) => link.getAttribute("aria-label") || link.textContent)]);
     expect(named).toEqual([
       ["Daily work", ["Overview", "My work", "Exceptions", "Reconciliation", "Collections", "Import batches", "Close review"]],
-      ["Customers and policies", ["Customers", "Mandates", "Policies & templates"]],
-      ["Connected banking", ["Pay-by-bank", "Credit Desk", "Cash Desk", "Permissions & readiness"]],
+      ["Customers and policies", ["Customers", "Mandates", "Policies and templates"]],
+      ["Connected banking", ["Pay by Bank", "Credit Desk", "Cash Desk", "Permissions and readiness"]],
       ["Oversight", ["Reports", "Saved exports", "Audit log", "Go-live evidence"]],
-      ["Setup and administration", ["Pilot journey", "Data sources", "Operations", "Team & access", "Data retention", "Settings", "Presentation"]],
+      ["Setup and administration", ["Pilot journey", "Data sources", "Request history", "Team and access", "Data retention", "Settings", "Presentation"]],
     ]);
     const links = within(sidebarPages!).getAllByRole("link");
     for (const link of links) expect(document.getElementById(link.getAttribute("aria-describedby")!)?.textContent).toBeTruthy();
@@ -114,8 +116,8 @@ describe("responsive layout", () => {
   it("opens the drawer on the current page's link, wherever it sits in the list", async () => {
     const user = userEvent.setup();
     renderApp("/presentation");
-    await screen.findByRole("heading", { level: 1, name: /Show how a lender/ });
-    await user.click(screen.getByRole("button", { name: "Menu" }));
+    await screen.findByRole("heading", { level: 1, name: "Presentation" });
+    await user.click(screen.getByRole("button", { name: "Open menu" }));
     const drawer = await screen.findByRole("dialog", { name: "Menu" });
     const current = within(drawer).getByRole("link", { name: "Presentation" });
     expect(current.getAttribute("aria-current")).toBe("page");
@@ -124,7 +126,7 @@ describe("responsive layout", () => {
 
   it("scrolls the sidebar's list, and only the list, to a current page below its fold", async () => {
     renderApp("/settings");
-    await screen.findByRole("heading", { name: "Settings & administration" });
+    await screen.findByRole("heading", { name: "Settings" });
     const [sidebarPages] = screen.getAllByRole("navigation", { name: "Pages" });
     const current = within(sidebarPages!).getByRole("link", { name: "Settings" });
     expect(current.getAttribute("aria-current")).toBe("page");

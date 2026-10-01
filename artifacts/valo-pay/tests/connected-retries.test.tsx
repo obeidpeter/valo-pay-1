@@ -59,13 +59,13 @@ it.each(["malformed JSON", "unexpected shape", "timeout"])(
       "Review a synthetic application for response recovery",
     );
     await user.click(
-      screen.getByRole("button", { name: /Run sample assessment/ }),
+      screen.getByRole("button", { name: /Run assessment/ }),
     );
-    await screen.findByText("Previous action outcome unconfirmed");
+    await screen.findByText("Request not confirmed");
     await user.click(
-      screen.getByRole("button", { name: "Retry original sample request" }),
+      screen.getByRole("button", { name: "Check original request" }),
     );
-    await screen.findByText(/Original sample request confirmed/);
+    await screen.findByText(/Original request confirmed/);
     expect(submissions).toHaveLength(2);
     expect(submissions[1]).toEqual(submissions[0]);
     expect(
@@ -140,9 +140,9 @@ it.each(["Meridian Credit", "Cedar Cooperative"])(
       "Check the synthetic evidence before reviewer handoff",
     );
     await user.click(
-      screen.getByRole("button", { name: /Run sample assessment/ }),
+      screen.getByRole("button", { name: /Run assessment/ }),
     );
-    await screen.findByText("Previous action outcome unconfirmed");
+    await screen.findByText("Request not confirmed");
     // Synchronize on the regression's actual precondition: React Query has
     // applied the automatic refetch and its new revision before the retry.
     // The score's display copy is unrelated to retry/idempotency semantics.
@@ -171,7 +171,7 @@ it.each(["Meridian Credit", "Cedar Cooperative"])(
       JSON.parse(submissions[0]!.body).expectedRevision,
     );
     await user.click(
-      screen.getByRole("button", { name: "Retry original sample request" }),
+      screen.getByRole("button", { name: "Check original request" }),
     );
     await waitFor(() => expect(submissions).toHaveLength(2));
     await screen.findByText(
@@ -182,7 +182,7 @@ it.each(["Meridian Credit", "Cedar Cooperative"])(
         ?.disabled,
     ).toBe(true);
     await user.click(
-      screen.getByRole("button", { name: "Retry original sample request" }),
+      screen.getByRole("button", { name: "Check original request" }),
     );
     await waitFor(() => expect(submissions).toHaveLength(3));
     expect(submissions[1]).toEqual(submissions[0]);
@@ -194,7 +194,7 @@ it.each(["Meridian Credit", "Cedar Cooperative"])(
           (record) => record.kind === "connected-credit-assessments",
         ),
     ).toHaveLength(1);
-    await screen.findByText(/Original sample request confirmed/);
+    await screen.findByText(/Original request confirmed/);
   },
 );
 
@@ -236,23 +236,23 @@ it("a definite stale-version rejection releases the old revision for an explicit
     "Check the current synthetic application evidence",
   );
   await user.click(
-    screen.getByRole("button", { name: /Run sample assessment/ }),
+    screen.getByRole("button", { name: /Run assessment/ }),
   );
   await screen.findByRole("alert");
   await waitFor(() =>
     expect(
       (
         screen.getByRole("button", {
-          name: /Run sample assessment/,
+          name: /Run assessment/,
         }) as HTMLButtonElement
       ).disabled,
     ).toBe(false),
   );
   await user.click(
-    screen.getByRole("button", { name: /Run sample assessment/ }),
+    screen.getByRole("button", { name: /Run assessment/ }),
   );
   await screen.findByText(
-    /A new immutable sample assessment has been recorded/,
+    /Sample assessment saved as a new version/,
   );
   expect(submissions).toHaveLength(2);
   expect(submissions[1]!.key).not.toBe(submissions[0]!.key);
@@ -301,9 +301,9 @@ async function startAssessment(user: ReturnType<typeof userEvent.setup>) {
     "Check the synthetic evidence before reviewer handoff",
   );
   await user.click(
-    screen.getByRole("button", { name: /Run sample assessment/ }),
+    screen.getByRole("button", { name: /Run assessment/ }),
   );
-  await screen.findByText("Previous action outcome unconfirmed");
+  await screen.findByText("Request not confirmed");
 }
 
 it("a retry refused because the saved answer is withheld ends the held action and reloads the workspace", async () => {
@@ -311,7 +311,7 @@ it("a retry refused because the saved answer is withheld ends the held action an
   // service refuses to give the saved answer and says the request completed (operation completed): retrying again
   // cannot recover it, so the page is released, shows the service's words and loads the workspace again.
   const withheld =
-    "This request already completed, but its saved response is no longer available under the current permissions or review. Permission was revoked, expired or replaced. Obtain current authority and prepare a new assessment. The action has not been run again.";
+    "This request was already completed, but its saved result can no longer be shown with the current permissions or review. A permission was withdrawn, expired or replaced. Grant it again, then run a new assessment. The action has not been run again.";
   const send = globalThis.fetch;
   const submissions: Array<{ key: string; body: string }> = [];
   let reads = 0;
@@ -345,10 +345,10 @@ it("a retry refused because the saved answer is withheld ends the held action an
   await startAssessment(user);
   const readsBefore = reads;
   await user.click(
-    screen.getByRole("button", { name: "Retry original sample request" }),
+    screen.getByRole("button", { name: "Check original request" }),
   );
   expect((await screen.findByText(withheld)).getAttribute("role")).toBe("alert");
-  expect(screen.queryByText("Previous action outcome unconfirmed")).toBeNull();
+  expect(screen.queryByText("Request not confirmed")).toBeNull();
   expect(
     screen.getByLabelText("Reason for this assessment").closest("fieldset")
       ?.disabled,
@@ -357,9 +357,9 @@ it("a retry refused because the saved answer is withheld ends the held action an
   expect(submissions[1]).toEqual(submissions[0]);
   // The request is over: the next action is a new one, with a new key.
   await user.click(
-    screen.getByRole("button", { name: /Run sample assessment/ }),
+    screen.getByRole("button", { name: /Run assessment/ }),
   );
-  await screen.findByText(/A new immutable sample assessment has been recorded/);
+  await screen.findByText(/Sample assessment saved as a new version/);
   expect(submissions).toHaveLength(3);
   expect(submissions[2]!.key).not.toBe(submissions[0]!.key);
   expect(
@@ -384,12 +384,12 @@ it("a refusal the service marks as cancelled releases the held action", async ()
   await startAssessment(user);
   changeWorkspace();
   await user.click(
-    screen.getByRole("button", { name: "Retry original sample request" }),
+    screen.getByRole("button", { name: "Check original request" }),
   );
   await screen.findByText(
-    /^The original request was not saved\. The workspace changed/,
+    /^The original request was not saved\. Connected banking changed after you opened it/,
   );
-  expect(screen.queryByText("Previous action outcome unconfirmed")).toBeNull();
+  expect(screen.queryByText("Request not confirmed")).toBeNull();
   // The page's own error from the lost attempt does not come back once the request is released.
   expect(screen.queryByText("Failed to fetch")).toBeNull();
   expect(screen.getAllByRole("alert")).toHaveLength(1);
@@ -398,9 +398,9 @@ it("a refusal the service marks as cancelled releases the held action", async ()
   expect(submissions.map((s) => s.status)).toEqual(["lost", 409]);
   expect(submissions[1]!.key).toBe(submissions[0]!.key);
   await user.click(
-    screen.getByRole("button", { name: /Run sample assessment/ }),
+    screen.getByRole("button", { name: /Run assessment/ }),
   );
-  await screen.findByText(/A new immutable sample assessment has been recorded/);
+  await screen.findByText(/Sample assessment saved as a new version/);
   expect(submissions).toHaveLength(3);
   expect(submissions[2]!.key).not.toBe(submissions[0]!.key);
   expect(JSON.parse(submissions[2]!.body).expectedRevision).not.toBe(
@@ -421,27 +421,27 @@ it("offers a deliberate discard of the form, retaining its request until the ser
   await user.click(
     screen.getByRole("button", { name: "Discard original request" }),
   );
-  expect(confirm).toHaveBeenCalledWith(expect.stringContaining("Check Operations"));
-  expect(screen.getByText("Previous action outcome unconfirmed")).toBeTruthy();
+  expect(confirm).toHaveBeenCalledWith(expect.stringContaining("check Request history"));
+  const notice = screen.getByText("Request not confirmed").closest('[role="alert"]') as HTMLElement;
+  expect(notice).toBeTruthy();
   expect(
-    screen.getByRole("link", { name: "Open Operations" }).getAttribute("href"),
+    screen.getByRole("link", { name: "Open Request history" }).getAttribute("href"),
   ).toBe("/operations");
   confirm.mockReturnValue(true);
   await user.click(
     screen.getByRole("button", { name: "Discard original request" }),
   );
-  await waitFor(() =>
-    expect(screen.queryByText("Previous action outcome unconfirmed")).toBeNull(),
-  );
+  // The form's own notice goes. The request stays in the notice above the page, also headed Request not confirmed, until it is cancelled.
+  await waitFor(() => expect(notice.isConnected).toBe(false));
   expect(
     screen.getByLabelText("Reason for this assessment").closest("fieldset")
       ?.disabled,
   ).toBe(false);
   await cancelInterrupted(user);
   await user.click(
-    screen.getByRole("button", { name: /Run sample assessment/ }),
+    screen.getByRole("button", { name: /Run assessment/ }),
   );
-  await screen.findByText(/A new immutable sample assessment has been recorded/);
+  await screen.findByText(/Sample assessment saved as a new version/);
   expect(submissions).toHaveLength(2);
   expect(submissions[1]!.key).not.toBe(submissions[0]!.key);
 });
@@ -483,15 +483,15 @@ it.each([
       "Check the synthetic evidence after a refusal to wait",
     );
     await user.click(
-      screen.getByRole("button", { name: /Run sample assessment/ }),
+      screen.getByRole("button", { name: /Run assessment/ }),
     );
     await screen.findByText(error);
-    expect(screen.queryByText("Previous action outcome unconfirmed")).toBeNull();
+    expect(screen.queryByText("Request not confirmed")).toBeNull();
     await user.click(
-      screen.getByRole("button", { name: /Run sample assessment/ }),
+      screen.getByRole("button", { name: /Run assessment/ }),
     );
     await screen.findByText(
-      /A new immutable sample assessment has been recorded/,
+      /Sample assessment saved as a new version/,
     );
     expect(submissions).toHaveLength(2);
     expect(submissions[1]).toEqual(submissions[0]);

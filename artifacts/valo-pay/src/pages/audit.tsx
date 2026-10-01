@@ -15,6 +15,10 @@ import { Button } from '@/components/ui/button';
 import { formatDate, formatCount } from '@/lib/formatters';
 import { notifyProblem, saidBy } from '@/lib/notify';
 import { KEPT_IN_OPERATIONS, OpenOperations } from '@/components/pilot-ui';
+import { TechnicalDetails } from '@/components/technical-details';
+
+/** What an entry's hash is for, said beside each one. */
+const HASH_EXPLAINED = 'A hash is a code worked out from an entry and the one before it. If either changes, the code no longer matches.';
 
 export default function AuditPage() {
   const { merchantId, workspace } = useWorkspace();
@@ -55,7 +59,7 @@ export default function AuditPage() {
       setVerification({ merchantId, checkedAt: new Date().toISOString(), valid: res.data?.valid === true, count: Number(res.data?.count || 0), headHash: String(res.data?.headHash || '') });
     } catch (error) {
       if (currentMerchant.current === merchantId && verificationRequest.current === request) {
-        const words = `${saidBy(error, 'The service could not complete the check.')} The log is unchanged.`;
+        const words = `${saidBy(error, 'Valo Pay could not complete the check.')} Nothing has changed.`;
         notifyProblem('Audit log could not be checked', outcomeIsUnconfirmed(error) ? <>{words} {KEPT_IN_OPERATIONS} <OpenOperations /></> : words);
       }
     }
@@ -68,7 +72,7 @@ export default function AuditPage() {
       <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Audit log</h1>
-          <p className="text-muted-foreground mt-1">A permanent record of workspace actions. Each entry is linked to the previous one so changes can be detected.</p>
+          <p className="text-muted-foreground mt-1">A permanent record of every change for this lender. Each entry is linked to the one before it. Select Check audit log to find any entry that was changed.</p>
         </div>
         <Button 
           variant="outline"
@@ -83,10 +87,10 @@ export default function AuditPage() {
 
       {verification?.merchantId === merchantId && (
         <div role="status" className={`rounded-xl border p-4 text-sm ${verification.valid ? 'border-success/30 bg-success/5' : 'border-destructive/30 bg-destructive/5 text-destructive'}`}>
-          <p className="font-semibold">{verification.valid ? 'Audit log verified: all entries are intact' : 'Audit log check failed: an entry or its link does not match. Ask an administrator to investigate.'}</p>
-          <p className="mt-1">{workspace?.merchants.find(merchant => merchant.id === verification.merchantId)?.name} · Checked {formatDate(verification.checkedAt)}</p>
-          <p className="font-mono text-xs mt-1">{formatCount(verification.count, verification.valid ? 'verified entry' : 'checked entry', verification.valid ? 'verified entries' : 'checked entries')} · {verification.valid ? 'Latest verified hash' : 'Reported head hash'}: {verification.headHash}</p>
+          <p className="font-semibold">{verification.valid ? 'Audit log verified: all entries are intact' : 'Audit log check failed: an entry or its link does not match. Contact the Valo Pay team.'}</p>
+          <p className="mt-1">{workspace?.merchants.find(merchant => merchant.id === verification.merchantId)?.name} · Checked {formatDate(verification.checkedAt)} · {formatCount(verification.count, 'entry checked', 'entries checked')}</p>
           <p className="mt-1 text-muted-foreground">This result covers the entries checked at that time. Check again after new actions are recorded.</p>
+          <TechnicalDetails className="mt-2" explanation={HASH_EXPLAINED}><p>Hash of the latest entry: {verification.headHash}</p></TechnicalDetails>
         </div>
       )}
 
@@ -120,32 +124,31 @@ export default function AuditPage() {
           search.trim() ? (
             <EmptyState filtered title={`No entries match “${search.trim()}”`}>Try a shorter term, or search for an action, person or summary.</EmptyState>
           ) : (
-            <EmptyState title="No actions recorded yet">Workspace changes will appear here with who made them and when. Use Check audit log to verify the record.</EmptyState>
+            <EmptyState title="No entries yet">Changes for this lender will appear here, with who made them and when.</EmptyState>
           )
         ) : (
           <ScrollFrame label="Audit log" className="overflow-x-auto">
             <table className="w-full text-sm text-left font-mono">
-              <thead className="bg-secondary/30 border-b text-muted-foreground text-xs uppercase tracking-wider">
+              <thead className="bg-secondary/30 border-b text-muted-foreground text-xs">
                 <tr>
                   <th className="px-6 py-4 font-medium">Time</th>
-                  <th className="px-6 py-4 font-medium">Performed by</th>
+                  <th className="px-6 py-4 font-medium">Person</th>
                   <th className="px-6 py-4 font-medium">Action</th>
                   <th className="px-6 py-4 font-medium">Record ID</th>
-                  <th className="px-6 py-4 font-medium">Verification hash</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
                 {data.items.map(log => (
                   <tr key={log.id} className="hover:bg-secondary/10">
                     <td className="px-6 py-3 whitespace-nowrap text-muted-foreground">{formatDate(log.createdAt)}</td>
-                    <td className="px-6 py-3 font-sans font-medium">{String(log.data?.actor || 'System')}</td>
+                    <td className="px-6 py-3 font-sans font-medium">{String(log.data?.actor || 'Valo Pay')}</td>
                     <td className="px-6 py-3">
-                      <span className="bg-secondary/50 text-foreground px-2 py-1 rounded text-xs">{String(log.data?.summary || log.name)}</span>
+                      {/* The action in words, as Valo Pay names it ("Customer added"), then the summary saved with it. */}
+                      <span className="bg-secondary/50 text-foreground px-2 py-1 rounded text-xs">{String(log.name)}</span>
+                      {!!log.data?.summary && String(log.data.summary) !== String(log.name) && <p className="mt-1.5 max-w-sm font-sans text-xs text-muted-foreground">{String(log.data.summary)}</p>}
+                      {!!log.data?.hash && <TechnicalDetails className="mt-2 max-w-xs font-sans text-muted-foreground" explanation={HASH_EXPLAINED}><p>Hash: {String(log.data.hash)}</p></TechnicalDetails>}
                     </td>
-                    <td className="px-6 py-3 text-xs text-muted-foreground">{String(log.data?.objectId || '-')}</td>
-                    <td className="px-6 py-3 text-[10px] text-muted-foreground max-w-[150px] truncate" title={String(log.data?.hash || '')}>
-                      {String(log.data?.hash || '-')}
-                    </td>
+                    <td className="px-6 py-3 text-xs text-muted-foreground">{String(log.data?.objectId || 'None')}</td>
                   </tr>
                 ))}
               </tbody>

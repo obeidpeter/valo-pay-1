@@ -29,7 +29,7 @@ const fieldLabels: Readonly<Record<string, string>> = {
   name: "Name", reference: "Reference", status: "Status", amountKobo: "Amount",
   customerId: "Customer reference or ID", mandateId: "Mandate reference or ID", dueItemId: "Instalment reference or ID", policyId: "Policy ID",
   bankName: "Bank name", accountMasked: "Masked account number", phoneMasked: "Masked phone number", consentProvenance: "Consent source or reference",
-  payDay: "Pay day", consentCapturedAt: "Consent captured at", workflow: "Activation workflow", frequency: "Frequency", activationDeadline: "Activation deadline",
+  payDay: "Pay day", consentCapturedAt: "Consent captured at", workflow: "Activation method", frequency: "Frequency", activationDeadline: "Activation deadline",
   consentEvidence: "Consent evidence", consentGaps: "Missing consent evidence", consentGiven: "Consent given", providerReference: "Provider reference",
   dueDate: "Due date", owner: "Collection owner", overrideReason: "Override reason", instalmentId: "Instalment ID", number: "Attempt number",
   failureCode: "Failure code", occurredAt: "Occurred at", source: "Source", narration: "Narration", eventId: "Event ID", channel: "Channel",

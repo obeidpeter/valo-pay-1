@@ -22,6 +22,17 @@ import { LoadProblem, RefreshProblem } from '@/components/load-problem';
 import { DiscardOriginalRequest, DISCARD_ORIGINAL_WARNING } from '@/components/discard-original-request';
 import { KEPT_IN_OPERATIONS, OpenOperations } from '@/components/pilot-ui';
 
+/** The writing standard's words for a request whose answer was lost (docs/design/writing.md, Notices). */
+const NOT_CONFIRMED = 'We do not know yet whether Valo Pay saved this. Check the original request before you change anything.';
+/** Said when Valo Pay refused a request without giving its own words. */
+const NO_REASON = 'Valo Pay gave no reason. Try again.';
+/** A toast's words for a request that failed: the unconfirmed pattern when its answer was lost, otherwise `refused`. */
+const problemWords = (error: unknown, refused: string): [string, string] => outcomeIsUnconfirmed(error) ? ['Request not confirmed', saidBy(error, NOT_CONFIRMED)] : [refused, saidBy(error, NO_REASON)];
+/** Each way of approving instructions, in the same words in the form and on the page. */
+const approvalWords = { batch: 'Daily approval: Finance or Admin approves each day’s instructions', standing: 'Standing approval: instructions follow the signed settings' } as const;
+/** An hour of the collection window as the standard writes times: two digits, 24-hour, in WAT ("08:00 WAT"). */
+const watHour = (hour: unknown) => `${String(hour).padStart(2, '0')}:00 WAT`;
+
 export default function SettingsPage() {
   const { merchantId, workspace } = useWorkspace();
   const [role, setRole] = useState(workspace?.role || 'Admin');
@@ -78,38 +89,38 @@ export default function SettingsPage() {
     const isCurrent = captureVisit();
     try {
       await (updateRole.hasUnconfirmedOutcome ? updateRole.retryUnconfirmed() : updateRole.mutateAsync({ data: { action: 'set_role', data: { role } }, params: { merchantId } }));
-      if (isCurrent()) { setIsEditingExec(false); setKillReason(''); notifyDone('Demo role changed', 'Permissions now follow the selected sandbox role.'); }
-    } catch (error) { if (isCurrent()) notifyProblem(outcomeIsUnconfirmed(error) ? 'Demo role outcome unconfirmed' : 'Demo role was not changed', saidBy(error, 'Retry the original request to confirm its outcome.')); }
+      if (isCurrent()) { setIsEditingExec(false); setKillReason(''); notifyDone('Demo role changed', 'Permissions now follow your new demo role.'); }
+    } catch (error) { if (isCurrent()) notifyProblem(...problemWords(error, 'Demo role not changed')); }
   };
   const changeStop = async (enabled = !settings?.merchant.killSwitch) => {
     if (!merchantId || !settings || stopPending || approveStop.hasUnconfirmedOutcome) return;
     const blocked = permissionReason(workspace, { action: 'kill_switch' });
-    if (blocked) { notifyProblem('Emergency stop unchanged', blocked); return; }
+    if (blocked) { notifyProblem('Emergency stop not changed', blocked); return; }
     const isCurrent = captureVisit();
     setStopResult('');
     try {
       const data = await (killSwitch.hasUnconfirmedOutcome ? killSwitch.retryUnconfirmed() : killSwitch.mutateAsync({ data: { action: 'kill_switch', reason: killReason, data: { enabled } }, params: { merchantId } }));
       if (isCurrent()) { setKillReason(''); setStopResult(data.message); }
-    } catch (error) { if (isCurrent()) notifyProblem(outcomeIsUnconfirmed(error) ? 'Emergency stop outcome unconfirmed' : 'The emergency stop was not changed', saidBy(error, 'Retry the original request to confirm its outcome.')); }
+    } catch (error) { if (isCurrent()) notifyProblem(...problemWords(error, 'Emergency stop not changed')); }
   };
   const approveRelease = async () => {
     if (!merchantId || stopPending || killSwitch.hasUnconfirmedOutcome) return;
     const blocked = permissionReason(workspace, { action: 'approve_kill_switch_off' });
-    if (blocked) { notifyProblem('Emergency stop unchanged', blocked); return; }
+    if (blocked) { notifyProblem('Emergency stop not changed', blocked); return; }
     const isCurrent = captureVisit();
     setStopResult('');
     try {
       const data = await (approveStop.hasUnconfirmedOutcome ? approveStop.retryUnconfirmed() : approveStop.mutateAsync({ data: { action: 'approve_kill_switch_off', reason: killReason, data: {} }, params: { merchantId } }));
       if (isCurrent()) { setKillReason(''); setStopResult(data.message); }
-    } catch (error) { if (isCurrent()) notifyProblem(outcomeIsUnconfirmed(error) ? 'Emergency stop outcome unconfirmed' : 'The emergency stop was not turned off', saidBy(error, 'Retry the original request to confirm its outcome.')); }
+    } catch (error) { if (isCurrent()) notifyProblem(...problemWords(error, 'Emergency stop not turned off')); }
   };
   const testInstruction = async () => {
     if (!merchantId || requestInstruction.isPending) return;
     const isCurrent = captureVisit();
     try {
       const data = await (requestInstruction.hasUnconfirmedOutcome ? requestInstruction.retryUnconfirmed() : requestInstruction.mutateAsync({ data: { action: 'request_instruction' }, params: { merchantId } }));
-      if (isCurrent()) notifyDone('Live instruction requested', data.message);
-    } catch (error) { if (isCurrent()) notifyProblem(outcomeIsUnconfirmed(error) ? 'Instruction-block test outcome unconfirmed' : 'Live instruction refused', saidBy(error, 'Retry the original request to confirm its outcome.')); }
+      if (isCurrent()) notifyDone('Block test sent', data.message);
+    } catch (error) { if (isCurrent()) notifyProblem(...problemWords(error, 'Live instruction blocked')); }
   };
 
   // Edit, Cancel and Save each remove themselves, so focus goes into the form on Edit and back to Edit when
@@ -134,7 +145,7 @@ export default function SettingsPage() {
   const execKeys = ['closeTime', 'unallocatedAlertThreshold', 'notificationCostAlertKobo'] as const;
   /** The server's rule messages begin with the key they concern, so the message goes under that field. */
   const rejectExec = (err: any) => {
-    if (outcomeIsUnconfirmed(err)) { setExecConflict(false); setExecErrors({}); setExecAlert('The response was lost or unavailable. Your settings may already have been saved. Keep this draft unchanged and retry the original request to recover its result.'); return; }
+    if (outcomeIsUnconfirmed(err)) { setExecConflict(false); setExecErrors({}); setExecAlert('We do not know yet whether Valo Pay saved your settings. Keep this draft as it is, and check the original request before you change anything.'); return; }
     setExecConflict(err?.status === 409);
     const message = String(err?.data?.error || err?.message || 'The change was not saved.');
     const key = execKeys.find(candidate => message.startsWith(candidate));
@@ -185,7 +196,7 @@ export default function SettingsPage() {
     try {
       const response = await refetch({ throwOnError: true });
       if (isCurrentVisit() && submittedSession === execSession.current && response.data) { execSession.current += 1; focusAfterEdit.current = 'edit'; setIsEditingExec(false); setExecErrors({}); setExecAlert(''); setExecConflict(false); }
-    } catch (error) { if (isCurrentVisit() && submittedSession === execSession.current) setExecAlert('Latest settings could not be loaded. Your draft is still here. Try refreshing again.'); }
+    } catch (error) { if (isCurrentVisit() && submittedSession === execSession.current) setExecAlert('We could not load the latest settings. Your draft is still here. Try refreshing again.'); }
     finally { if (isCurrentVisit()) setRefreshingLatest(false); }
   };
   const startEditExec = () => {
@@ -206,20 +217,20 @@ export default function SettingsPage() {
   return (
     <div className="space-y-8 max-w-4xl mx-auto">
       <header>
-        <h1 className="text-3xl font-bold tracking-tight">Settings & administration</h1>
-        <p className="text-muted-foreground mt-1">Manage workspace settings and test access with demo roles.</p>
+        <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
+        <p className="text-muted-foreground mt-1">Manage this lender’s settings.{workspace?.accessMode !== 'staff' && ' In the sandbox, you can also switch demo roles to test access.'}</p>
       </header>
 
       <section className="bg-card border rounded-xl p-6" aria-labelledby="paystack-heading">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 id="paystack-heading" className="font-semibold text-lg">Paystack connection</h2>
+          <h2 id="paystack-heading" className="font-semibold text-lg">Paystack test connection</h2>
           <span className="rounded-full border px-3 py-1 text-xs font-medium">Not connected</span>
         </div>
-        <p className="text-sm text-muted-foreground mt-3">The Paystack adapter is prepared for testing. A Paystack test key and a successful connection check are needed before provider testing can begin.</p>
+        <p className="text-sm text-muted-foreground mt-3">Valo Pay is ready to test with Paystack. Testing needs a Paystack test key and a successful connection check.</p>
         <p className="text-sm text-muted-foreground mt-2">This sandbox uses sample records. No Paystack payments or mandates are created here. Direct-debit support must also be confirmed for your Paystack account.</p>
       </section>
 
-      {/* Staff roles are assigned through Team & access, never this demo switch. */}
+      {/* Staff roles are assigned through Team and access, never this demo switch. */}
       {workspace?.accessMode !== 'staff' && <section className="bg-card border rounded-xl shadow-sm p-6">
         <div className="flex items-center gap-2 mb-4">
           <Shield className="h-5 w-5 text-primary" />
@@ -247,9 +258,9 @@ export default function SettingsPage() {
             onClick={() => { void changeRole(); }}
             disabled={(!updateRole.hasUnconfirmedOutcome && role === workspace?.role) || otherActionPending || otherOutcomeUnconfirmed}
             busy={updateRole.isPending}
-            busyLabel="Switching role…"
+            busyLabel={updateRole.hasUnconfirmedOutcome ? 'Checking original request…' : 'Switching role…'}
           >
-            {updateRole.hasUnconfirmedOutcome ? 'Retry original role request' : 'Switch role'}
+            {updateRole.hasUnconfirmedOutcome ? 'Check original request' : 'Switch role'}
           </Button>
           
           <Button
@@ -257,18 +268,18 @@ export default function SettingsPage() {
             className="sm:ml-auto"
             onClick={() => { void testInstruction(); }}
             busy={requestInstruction.isPending}
-            busyLabel="Requesting…"
+            busyLabel={requestInstruction.hasUnconfirmedOutcome ? 'Checking original request…' : 'Testing…'}
           >
-            {requestInstruction.hasUnconfirmedOutcome ? 'Retry original block test' : 'Test live-instruction block'}
+            {requestInstruction.hasUnconfirmedOutcome ? 'Check original request' : 'Test live-instruction block'}
           </Button>
         </div>
-        {updateRole.hasUnconfirmedOutcome && <div role="alert" className="text-sm mt-3"><p>The role-change response is unconfirmed. Retry the original request before selecting another role.</p><DiscardOriginalRequest disabled={updateRole.isPending} onDiscard={updateRole.abandonUnconfirmed} /></div>}
-        {requestInstruction.hasUnconfirmedOutcome && <div role="alert" className="text-sm mt-3"><p>The block-test response is unconfirmed. Retry the original test to recover its result. This does not enable live instructions. {KEPT_IN_OPERATIONS}</p><div className="flex flex-wrap items-center gap-3"><OpenOperations /><DiscardOriginalRequest disabled={requestInstruction.isPending} onDiscard={requestInstruction.abandonUnconfirmed} /></div></div>}
-        {otherOutcomeUnconfirmed && <p className="text-sm text-muted-foreground mt-3">Resolve the unconfirmed settings or control request before changing roles.</p>}
+        {updateRole.hasUnconfirmedOutcome && <div role="alert" className="text-sm mt-3"><p>We do not know yet whether Valo Pay changed your role. Check the original request before you choose another role.</p><DiscardOriginalRequest disabled={updateRole.isPending} onDiscard={updateRole.abandonUnconfirmed} /></div>}
+        {requestInstruction.hasUnconfirmedOutcome && <div role="alert" className="text-sm mt-3"><p>We do not know yet whether Valo Pay received the block test. Check the original request before you change anything. Live instructions stay blocked either way. {KEPT_IN_OPERATIONS}</p><div className="flex flex-wrap items-center gap-3"><OpenOperations /><DiscardOriginalRequest disabled={requestInstruction.isPending} onDiscard={requestInstruction.abandonUnconfirmed} /></div></div>}
+        {otherOutcomeUnconfirmed && <p className="text-sm text-muted-foreground mt-3">Check the unconfirmed request on this page before you change roles.</p>}
       </section>}
 
       {/* Collection settings: a failed refresh keeps them, and any draft, on the page with a notice. */}
-      <RefreshProblem what="Collection settings" shown="settings" query={settingsQuery} />
+      <RefreshProblem what="the collection settings" shown="settings" query={settingsQuery} />
       {isLoading ? (
         <Loading what="settings" className="bg-card border rounded-xl" />
       ) : !settings ? (
@@ -285,11 +296,11 @@ export default function SettingsPage() {
             ) : (
               <div className="flex gap-2">
                 <Button size="sm" variant="ghost" onClick={cancelExec} disabled={updateExecSettings.isPending || updateExecSettings.hasUnconfirmedOutcome}>Cancel</Button>
-                <Button size="sm" action="update_settings" onClick={saveExec} disabled={refreshingLatest} busy={updateExecSettings.isPending} busyLabel="Saving…">{updateExecSettings.hasUnconfirmedOutcome ? 'Retry original settings request' : 'Save'}</Button>
+                <Button size="sm" action="update_settings" onClick={saveExec} disabled={refreshingLatest} busy={updateExecSettings.isPending} busyLabel={updateExecSettings.hasUnconfirmedOutcome ? 'Checking original request…' : 'Saving changes…'}>{updateExecSettings.hasUnconfirmedOutcome ? 'Check original request' : 'Save changes'}</Button>
               </div>
             )}
           </div>
-          {execAlert && <div className="px-6 pt-6"><FormAlert title={updateExecSettings.hasUnconfirmedOutcome ? 'Settings outcome unconfirmed' : 'Settings not saved'}>{execAlert}{updateExecSettings.hasUnconfirmedOutcome && <><p className="mt-2">{KEPT_IN_OPERATIONS}</p><div className="mt-2 flex flex-wrap items-center gap-3"><OpenOperations /><DiscardOriginalRequest disabled={updateExecSettings.isPending || refreshingLatest} onDiscard={() => { updateExecSettings.abandonUnconfirmed(); setExecAlert(''); setExecConflict(false); }} /></div></>}{execConflict && <><p className="mt-2">Your draft is still here. Refresh to review the latest settings before editing again.</p><Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => { void refreshLatest(); }} busy={refreshingLatest} busyLabel="Refreshing…">Discard draft and refresh</Button></>}</FormAlert></div>}
+          {execAlert && <div className="px-6 pt-6"><FormAlert title={updateExecSettings.hasUnconfirmedOutcome ? 'Request not confirmed' : 'Settings not saved'}>{execAlert}{updateExecSettings.hasUnconfirmedOutcome && <><p className="mt-2">{KEPT_IN_OPERATIONS}</p><div className="mt-2 flex flex-wrap items-center gap-3"><OpenOperations /><DiscardOriginalRequest disabled={updateExecSettings.isPending || refreshingLatest} onDiscard={() => { updateExecSettings.abandonUnconfirmed(); setExecAlert(''); setExecConflict(false); }} /></div></>}{execConflict && <><p className="mt-2">Your draft is still here. Refresh to review the latest settings before editing again.</p><Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => { void refreshLatest(); }} busy={refreshingLatest} busyLabel="Refreshing…">Discard draft and refresh</Button></>}</FormAlert></div>}
           <div className="p-6 space-y-6">
             <fieldset disabled={updateExecSettings.isPending || updateExecSettings.hasUnconfirmedOutcome || refreshingLatest} className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-6">
               <div>
@@ -301,11 +312,11 @@ export default function SettingsPage() {
                     value={execSettings.authorisationMode || authorisationModes[0]}
                     onChange={(e) => setExecSettings({...execSettings, authorisationMode: e.target.value})}
                   >
-                    {authorisationModes.map(mode => <option key={mode} value={mode}>{mode === 'batch' ? 'Batch approval — Finance or Admin approves daily instructions' : 'Standing authorisation — instructions follow signed settings'}</option>)}
+                    {authorisationModes.map(mode => <option key={mode} value={mode}>{approvalWords[mode === 'standing' ? 'standing' : 'batch']}</option>)}
                   </select>
                 ) : (
                   <div className="font-mono text-sm p-2 bg-secondary/50 rounded border">
-                    {settings.settings?.authorisationMode === 'standing' ? 'Standing authorisation — follows signed settings' : 'Batch approval — Finance or Admin approves each day'}
+                    {approvalWords[settings.settings?.authorisationMode === 'standing' ? 'standing' : 'batch']}
                   </div>
                 )}
               </div>
@@ -339,9 +350,10 @@ export default function SettingsPage() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-1 xl:grid-cols-2 gap-4">
                 <div>
-                  <label htmlFor="settings-closeTime" className="text-sm font-medium block mb-1">Daily close time (HH:MM, West Africa Time)</label>
+                  <label htmlFor="settings-closeTime" className="text-sm font-medium block mb-1">Daily close time (WAT)</label>
                   {isEditingExec ? (
-                    <><input id="settings-closeTime" {...invalidProps('settings-closeTime', execErrors.closeTime)} type="text" inputMode="numeric" placeholder={closeRules.defaultTime} className="w-full bg-background border rounded-md px-3 py-2 text-sm font-mono" value={execSettings.closeTime ?? closeRules.defaultTime} onChange={(e) => setExecSettings({...execSettings, closeTime: e.target.value})} />
+                    <><input id="settings-closeTime" aria-describedby="settings-closeTime-help" {...invalidProps('settings-closeTime', execErrors.closeTime)} type="text" inputMode="numeric" placeholder={closeRules.defaultTime} className="w-full bg-background border rounded-md px-3 py-2 text-sm font-mono" value={execSettings.closeTime ?? closeRules.defaultTime} onChange={(e) => setExecSettings({...execSettings, closeTime: e.target.value})} />
+                    <p id="settings-closeTime-help" className="mt-1 text-xs text-muted-foreground">24-hour time, for example 07:00.</p>
                     <FieldError id="settings-closeTime" message={execErrors.closeTime} /></>
                   ) : (
                     <div className="font-mono text-sm p-2 bg-secondary/50 rounded border">{String(settings.settings?.closeTime ?? closeRules.defaultTime)} WAT</div>
@@ -350,7 +362,7 @@ export default function SettingsPage() {
                 <div>
                   <label className="text-sm font-medium block mb-1">Automatic daily close</label>
                   {isEditingExec ? (
-                    <div className="space-y-2"><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={execSettings.scheduledCloseEnabled !== false} onChange={(e) => setExecSettings({...execSettings, scheduledCloseEnabled: e.target.checked})} /> Request an automatic close at this time every day.</label><p className="text-xs text-muted-foreground">This preference takes effect while the automatic close service is running. Saving it does not start the service. Missed closes run after the service recovers.</p><DailyCloseStatus value={settings.closeSchedule} /></div>
+                    <div className="space-y-2"><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={execSettings.scheduledCloseEnabled !== false} onChange={(e) => setExecSettings({...execSettings, scheduledCloseEnabled: e.target.checked})} /> Request an automatic close at this time every day.</label><p className="text-xs text-muted-foreground">When this is on, Valo Pay runs the daily close at this time each day. Saving this does not run a close now. A missed close runs as soon as Valo Pay can.</p><DailyCloseStatus value={settings.closeSchedule} /></div>
                   ) : (
                     <div className="p-3 bg-secondary/50 rounded border"><DailyCloseStatus value={settings.closeSchedule} showHistory /></div>
                   )}
@@ -373,8 +385,8 @@ export default function SettingsPage() {
                 )}
               </div>
               <div>
-                <label htmlFor="settings-executionWindowStart" className="text-sm font-medium block mb-1">Collection window starts (WAT hour, {executionWindow.earliestHour}–{executionWindow.latestHour})</label>
-                {isEditingExec ? (
+                <label htmlFor="settings-executionWindowStart" className="text-sm font-medium block mb-1">Collection window starts (WAT)</label>
+                {isEditingExec ? (<>
                   <input 
                     id="settings-executionWindowStart"
                     type="number"
@@ -382,17 +394,19 @@ export default function SettingsPage() {
                     max={executionWindow.latestHour - 1}
                     className="w-full bg-background border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                     value={execSettings.executionStart ?? executionWindow.defaultStartHour}
+                    aria-describedby="settings-executionWindowStart-help"
                     onChange={(e) => setExecSettings({...execSettings, executionStart: Number(e.target.value)})}
                   />
-                ) : (
+                  <p id="settings-executionWindowStart-help" className="mt-1 text-xs text-muted-foreground">Enter a whole hour from {executionWindow.earliestHour} to {executionWindow.latestHour - 1}, for example 8 for {watHour(8)}. The window must end by {watHour(executionWindow.latestHour)}.</p>
+                </>) : (
                   <div className="font-mono text-sm p-2 bg-secondary/50 rounded border">
-                    {String(settings.settings?.executionStart ?? executionWindow.defaultStartHour)}:00
+                    {watHour(settings.settings?.executionStart ?? executionWindow.defaultStartHour)}
                   </div>
                 )}
               </div>
               <div>
-                <label htmlFor="settings-executionWindowEnd" className="text-sm font-medium block mb-1">Collection window ends (WAT hour, up to {executionWindow.latestHour})</label>
-                {isEditingExec ? (
+                <label htmlFor="settings-executionWindowEnd" className="text-sm font-medium block mb-1">Collection window ends (WAT)</label>
+                {isEditingExec ? (<>
                   <input 
                     id="settings-executionWindowEnd"
                     type="number"
@@ -400,11 +414,13 @@ export default function SettingsPage() {
                     max={executionWindow.latestHour}
                     className="w-full bg-background border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                     value={execSettings.executionEnd ?? executionWindow.defaultEndHour}
+                    aria-describedby="settings-executionWindowEnd-help"
                     onChange={(e) => setExecSettings({...execSettings, executionEnd: Number(e.target.value)})}
                   />
-                ) : (
+                  <p id="settings-executionWindowEnd-help" className="mt-1 text-xs text-muted-foreground">Enter a whole hour from {executionWindow.earliestHour + 1} to {executionWindow.latestHour}, for example 18 for {watHour(18)}.</p>
+                </>) : (
                   <div className="font-mono text-sm p-2 bg-secondary/50 rounded border">
-                    {String(settings.settings?.executionEnd ?? executionWindow.defaultEndHour)}:00
+                    {watHour(settings.settings?.executionEnd ?? executionWindow.defaultEndHour)}
                   </div>
                 )}
               </div>
@@ -437,40 +453,40 @@ export default function SettingsPage() {
                   action="kill_switch" onClick={() => { void changeStop(); }}
                   disabled={(!killReason && !killSwitch.hasUnconfirmedOutcome) || approveStop.isPending || approveStop.hasUnconfirmedOutcome}
                   busy={killSwitch.isPending}
-                  busyLabel={killSwitch.hasUnconfirmedOutcome ? 'Checking original request…' : settings.merchant.killSwitch ? (staffPilot ? 'Asking…' : 'Deactivating…') : 'Activating…'}
+                  busyLabel={killSwitch.hasUnconfirmedOutcome ? 'Checking original request…' : settings.merchant.killSwitch ? (staffPilot ? 'Asking…' : 'Turning off…') : 'Turning on…'}
                 >
-                  {killSwitch.hasUnconfirmedOutcome ? 'Retry original emergency-stop request' : settings.merchant.killSwitch ? (staffPilot ? 'Ask to turn off emergency stop' : 'Turn off emergency stop') : 'Activate emergency stop'}
+                  {killSwitch.hasUnconfirmedOutcome ? 'Check original request' : settings.merchant.killSwitch ? (staffPilot ? 'Ask to turn off emergency stop' : 'Turn off emergency stop') : 'Turn on emergency stop'}
                 </Button>}
                 
                 <Button 
                   variant="outline"
                    action="hand_back" onClick={() => setIsHandBackOpen(true)}
                 >
-                  Return collection ownership
+                  Return collection
                 </Button>
                 </div>
               </div>
-              {killSwitch.hasUnconfirmedOutcome && <div ref={stopNotice} role="alert" className="text-sm mt-3"><p>The emergency-stop response is unconfirmed. The stop may already have changed. Retry the original request to recover its result; do not submit the opposite action. {KEPT_IN_OPERATIONS}</p><div className="flex flex-wrap items-center gap-3"><OpenOperations /><DiscardOriginalRequest disabled={killSwitch.isPending} onDiscard={killSwitch.abandonUnconfirmed} next={() => keepButton.current ?? stopButton.current} /></div></div>}
+              {killSwitch.hasUnconfirmedOutcome && <div ref={stopNotice} role="alert" className="text-sm mt-3"><p>We do not know yet whether Valo Pay changed the emergency stop. Check the original request before you change anything. Until then, do not switch the stop the other way. {KEPT_IN_OPERATIONS}</p><div className="flex flex-wrap items-center gap-3"><OpenOperations /><DiscardOriginalRequest disabled={killSwitch.isPending} onDiscard={killSwitch.abandonUnconfirmed} next={() => keepButton.current ?? stopButton.current} /></div></div>}
               {settings.merchant.killSwitch && (
                 <p className="text-xs text-destructive mt-2 flex items-center gap-1 font-bold">
-                  <AlertTriangle className="h-3 w-3" /> Emergency stop active. No instructions can be sent to a provider or bank.
+                  <AlertTriangle className="h-3 w-3" /> Emergency stop is on. No instructions can be sent to a provider or bank.
                 </p>
               )}
               {release ? (
                 <div role="status" className="mt-3 space-y-2 rounded-lg border p-3 text-sm">
-                  <p>{release.requestedBy} asked to turn the emergency stop off on {formatDate(release.requestedAt)}: “{release.reason}”. The stop stays on until another administrator approves it, with a reason above.</p>
+                  <p>{release.requestedBy} asked to turn the emergency stop off on {formatDate(release.requestedAt)}: “{release.reason}”. The stop stays on until another Admin approves, giving a reason in the box above.</p>
                   <div className="flex flex-wrap gap-2">
-                    {release.requestedBy === workspace?.actor ? <p className="self-center text-xs text-muted-foreground">You asked for this, so another administrator must approve it.</p> : (
+                    {release.requestedBy === workspace?.actor ? <p className="self-center text-xs text-muted-foreground">You asked for this, so another Admin must approve it.</p> : (
                       <Button ref={approveButton} variant="destructive" size="sm" action="approve_kill_switch_off" onClick={() => { void approveRelease(); }} disabled={!killReason || approveStop.hasUnconfirmedOutcome || killSwitch.isPending || killSwitch.hasUnconfirmedOutcome} busy={approveStop.isPending} busyLabel="Approving…">Approve turning it off</Button>
                     )}
                     <Button ref={keepButton} variant="outline" size="sm" action="kill_switch" onClick={() => { void changeStop(true); }} disabled={!killReason || killSwitch.hasUnconfirmedOutcome || approveStop.isPending || approveStop.hasUnconfirmedOutcome} busy={killSwitch.isPending} busyLabel="Keeping it on…">Keep the stop on</Button>
                   </div>
                 </div>
               ) : settings.merchant.killSwitch && (
-                <p className="mt-2 text-xs text-muted-foreground">{staffPilot ? 'Turning the stop off needs two administrators: your request waits until another administrator approves it.' : 'In a pilot, turning the stop off needs a second administrator’s approval. In this sandbox one person plays every role, so it takes effect at once.'}</p>
+                <p className="mt-2 text-xs text-muted-foreground">{staffPilot ? 'Turning the stop off needs two Admins. Your request waits until another Admin approves it.' : 'In a pilot, turning the stop off needs a second Admin’s approval. In this sandbox one person plays every role, so it takes effect at once.'}</p>
               )}
               {/* Outside the box: a refetch that shows the request settled, as a lost approval may have settled it, takes the box away. */}
-              {approveStop.hasUnconfirmedOutcome && <div ref={approvalNotice} role="alert" className="mt-3 space-y-2 text-sm"><p>The approval's response is unconfirmed. The stop may already be off. Retry the original approval to recover its result. {KEPT_IN_OPERATIONS}</p><div className="flex flex-wrap items-center gap-2"><Button variant="outline" size="sm" action="approve_kill_switch_off" onClick={() => { void approveRelease(); }} busy={approveStop.isPending} busyLabel="Checking original request…">Retry original approval</Button><OpenOperations /><DiscardOriginalRequest disabled={approveStop.isPending} onDiscard={approveStop.abandonUnconfirmed} next={() => approveButton.current ?? stopButton.current} /></div></div>}
+              {approveStop.hasUnconfirmedOutcome && <div ref={approvalNotice} role="alert" className="mt-3 space-y-2 text-sm"><p>We do not know yet whether Valo Pay turned the stop off. Check the original request before you change anything. {KEPT_IN_OPERATIONS}</p><div className="flex flex-wrap items-center gap-2"><Button variant="outline" size="sm" action="approve_kill_switch_off" onClick={() => { void approveRelease(); }} busy={approveStop.isPending} busyLabel="Checking original request…">Check original request</Button><OpenOperations /><DiscardOriginalRequest disabled={approveStop.isPending} onDiscard={approveStop.abandonUnconfirmed} next={() => approveButton.current ?? stopButton.current} /></div></div>}
               {stopResult && <p ref={stopResultMessage} role="status" className="mt-3 text-sm">{stopResult}</p>}
             </div>
           </div>
@@ -480,7 +496,7 @@ export default function SettingsPage() {
         kind="cutovers"
         isOpen={isHandBackOpen}
         onOpenChange={setIsHandBackOpen}
-        title="Return collection ownership"
+        title="Return collection to the previous owner?"
         actionMutation="hand_back"
         fields={[]}
         context={<HandBackContext merchantId={merchantId} />}
@@ -488,7 +504,7 @@ export default function SettingsPage() {
           // The service switched the emergency stop on: show it at once, before the refetch the write started returns.
           queryClient.setQueryData<typeof settings>(getGetSettingsQueryKey({ merchantId }), current => current && { ...current, merchant: { ...current.merchant, killSwitch: true } });
           setStopResult('');
-          notifyDone('Collection ownership returned', handBackResult(response));
+          notifyDone('Collection returned', handBackResult(response));
         }}
       />
 
@@ -496,7 +512,7 @@ export default function SettingsPage() {
           workspace setting, so it needs no account and no request (Nielsen 3: control; 7: personalisation). */}
       <section className="bg-card border rounded-xl shadow-sm p-6 print:hidden" aria-labelledby="appearance-title">
         <h2 id="appearance-title" className="font-semibold text-lg">Appearance</h2>
-        <p className="text-sm text-muted-foreground mt-1">Choose a theme for this browser. Other users and devices keep their own choice.</p>
+        <p className="text-sm text-muted-foreground mt-1">Choose a theme for this browser. Other people and devices keep their own choice.</p>
         <fieldset className="mt-4">
           <legend className="text-sm font-medium">Theme</legend>
           <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:gap-6">
@@ -509,7 +525,7 @@ export default function SettingsPage() {
           </div>
         </fieldset>
         <p role="status" className="mt-3 text-xs text-muted-foreground">
-          {themeChoice === 'system' ? `Following the device: ${theme} now.` : `${theme === 'dark' ? 'Dark' : 'Light'} until you change it here.`}
+          {themeChoice === 'system' ? `Following your device (currently ${theme === 'dark' ? 'Dark' : 'Light'}).` : `${theme === 'dark' ? 'Dark' : 'Light'} until you change it here.`}
         </p>
       </section>
 
@@ -517,7 +533,7 @@ export default function SettingsPage() {
       <section className="bg-card border rounded-xl shadow-sm overflow-hidden print:hidden" aria-labelledby="keyboard-title">
         <div className="p-4 border-b bg-secondary/20">
           <h2 id="keyboard-title" className="font-semibold text-lg">Keyboard</h2>
-          <p className="text-sm text-muted-foreground mt-1">Use these shortcuts to move around the console without a mouse.</p>
+          <p className="text-sm text-muted-foreground mt-1">Use these shortcuts to move around Valo Pay without a mouse.</p>
         </div>
         <dl className="divide-y">
           {keyboardShortcuts.map(shortcut => (

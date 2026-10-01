@@ -63,21 +63,21 @@ export const paystackTestConnectionIdentity = (connectionId: string) =>
 
 /** An adapter outcome that is not a verified payment: what it says about the check, and what to do next. */
 const inconclusive: Partial<Record<PaystackErrorCode, [PaystackVerificationOutcome, string, string]>> = {
-  authentication: ["credentials_refused", "Paystack refused the test credentials.", "correct the test key, then check the same event again"],
-  live_mode: ["live_mode", "Paystack answered with live-mode data, which is never accepted and says nothing about this test payment.", "check the configured test key, then check the same event again, and report it to Paystack if it repeats"],
-  invalid_response: ["invalid_response", "Paystack's answer could not be read as a test transaction.", "check the same event later, and investigate if this repeats"],
+  authentication: ["credentials_refused", "Paystack refused the test key.", "correct the test key, then check the same event again"],
+  live_mode: ["live_mode", "Paystack answered with live data, which is never accepted and says nothing about this test payment.", "check the configured test key, then check the same event again, and report it to Paystack if it repeats"],
+  invalid_response: ["invalid_response", "Paystack’s answer could not be read as a test payment.", "check the same event later, and contact the Valo Pay team if this repeats"],
   not_found: ["reference_not_found", "Paystack has not returned this test reference.", "check the same event later"],
 };
-const unavailable: [PaystackVerificationOutcome, string, string] = ["provider_unavailable", "Paystack did not complete the check: it timed out, could not be reached, limited the rate or failed.", "check the same event later"];
+const unavailable: [PaystackVerificationOutcome, string, string] = ["provider_unavailable", "Paystack did not complete the check: it was too slow, could not be reached, was busy or failed.", "check the same event later"];
 /**
  * What an inconclusive check leaves: an event awaiting verification, or one an earlier build quarantined
  * still quarantined, since that build also reported a test transaction in another currency as unreadable.
  */
 const inconclusiveMessage = (what: string, next: string, quarantined: boolean) =>
   quarantined
-    ? `${what} An earlier build quarantined this event after a check that may have found a disagreement, such as a transaction in another currency, so it stays quarantined until Paystack answers conclusively: ${next}. Do not issue another payment.`
-    : `${what} The event still awaits verification: ${next}. Do not issue another payment.`;
-const disagreement = "Paystack's answer conflicts with the signed event: another transaction, amount, currency or channel, or a failed or reversed payment. Both are retained for review; no observation was created.";
+    ? `${what} This event was put on hold earlier, because a check may have found a difference, such as another currency. It stays on hold until Paystack gives a clear answer: ${next}. Do not ask for another payment.`
+    : `${what} The event is still waiting to be checked: ${next}. Do not ask for another payment.`;
+const disagreement = "Paystack’s answer does not match the signed event. It names another transaction, amount, currency or channel, or a failed or reversed payment. Both are kept for review, and no payment evidence was created.";
 
 function eligible(state: DomainState) {
   if (
@@ -86,7 +86,7 @@ function eligible(state: DomainState) {
     !state.merchant.killSwitch
   )
     refuse(
-      "Verification requires a synthetic workspace in observation mode with its emergency stop on.",
+      "Test payments can be checked only for a sample lender that records payments only, with its emergency stop on.",
       403,
       "lender_not_eligible",
     );
@@ -100,17 +100,17 @@ function eventIn(state: DomainState, connectionId: string, eventId: string) {
       record.data.connectionId === connectionId,
   );
   if (!event)
-    refuse("The provider event was not found in the mapped test lender.", 404, "event_not_found");
+    refuse("This Paystack event was not found for the test lender. Check the event ID.", 404, "event_not_found");
   if (event.data.mode !== "test" || event.data.event?.kind !== "payment")
     refuse(
-      "Only an authenticated test payment event can be independently verified. Local fixtures cannot be promoted.",
+      "Only a signed test payment from Paystack can be checked. Practice messages cannot be checked.",
       403,
       "not_a_test_payment",
     );
   // An earlier build quarantined events whose check was only inconclusive; their history shows it.
   if (!["awaiting_verification", "verified"].includes(event.status) && !quarantinedWithoutDisagreement(event))
     refuse(
-      "This provider event is held for review and cannot be verified automatically.",
+      "This event is on hold for review, so it cannot be checked automatically.",
       409,
       "held_for_review",
     );
@@ -132,7 +132,7 @@ function expectation(
   );
   if (matches.length !== 1)
     refuse(
-      "Exactly one saved collection expectation must match this test reference.",
+      "Exactly one expected collection must have this test reference. Check the expected collections.",
       409,
       "expectation_mismatch",
     );
@@ -161,7 +161,7 @@ function expectation(
       paystackTestConnectionIdentity(connectionId)
   )
     refuse(
-      "The saved customer, instalment, amount, currency and test-provider connection must match the signed evidence.",
+      "The customer, instalment, amount, currency and test connection must match the signed Paystack event.",
       409,
       "expectation_mismatch",
     );
@@ -170,7 +170,7 @@ function expectation(
 const checkLimit = (event: ValopayRecord) => {
   if ((event.data.replayHistory?.length ?? 0) >= 100)
     refuse(
-      "This event reached its check limit. Ask the operator to review the retained evidence.",
+      "This event has been checked the maximum number of times. Ask the Valo Pay team to review it.",
       409,
       "check_limit_reached",
     );
@@ -197,14 +197,14 @@ const receiptOf = (state: DomainState, event: ValopayRecord) => {
   );
   if (!verification || !observation)
     refuse(
-      "The verified event is missing its retained observation. Hold it for recovery review; do not recreate it automatically.",
+      "This checked event has lost its payment evidence. Leave it on hold for review, and do not create it again.",
       409,
       "observation_missing",
     );
   return {
     status: "verified" as const,
     outcome: "verified" as PaystackVerificationOutcome,
-    message: "This event was independently verified earlier. Its observation is retained; no check was repeated.",
+    message: "This event was checked earlier, and its payment evidence is kept. It was not checked again.",
     observationCreated: false,
     financialRecordsCreated: 0 as const,
     instructions: "disabled" as const,
@@ -225,7 +225,7 @@ export async function verifyQueuedPaystackEvent(input: {
     !/^[A-Za-z0-9_-]{1,100}$/.test(input.eventId)
   )
     refuse(
-      "Use the opaque configured test connection and a saved event ID.",
+      "Give the configured test connection and a saved event ID.",
       400,
       "usage",
     );
@@ -282,7 +282,7 @@ export async function verifyQueuedPaystackEvent(input: {
       customer.id !== pending.customerId
     )
       refuse(
-        "The stored expectation or signed evidence changed during verification. Review it before checking the same reference again.",
+        "The expected collection or the signed event changed during the check. Review it before you check the same reference again.",
         409,
         "evidence_changed",
       );
@@ -292,7 +292,7 @@ export async function verifyQueuedPaystackEvent(input: {
     const quarantinedEarlier = event.status === "quarantined";
     let named: PaystackVerificationOutcome, message: string;
     if (outcome.outcome === "verified")
-      [named, message] = ["pending", "Paystack reports this test payment as still pending. Check the same event later; do not issue another payment."];
+      [named, message] = ["pending", "Paystack says this test payment is still pending. Check the same event later, and do not ask for another payment."];
     else if (outcome.reason === "mismatch") [named, message] = ["mismatch", disagreement];
     else {
       const [found, what, next] = inconclusive[outcome.reason] ?? unavailable;
@@ -326,12 +326,12 @@ export async function verifyQueuedPaystackEvent(input: {
           )
         )
           refuse(
-            "An observation already holds this transaction identity. Review the original evidence instead of creating another.",
+            "This payment is already recorded as payment evidence. Review the original evidence instead.",
             409,
             "duplicate_observation",
           );
         const observation = makeRecord(state, "observations", {
-          name: "Independently verified Paystack test receipt",
+          name: "Checked Paystack test payment",
           status: "unresolved",
           reference: payment.reference,
           amountKobo: payment.amountKobo,
@@ -362,7 +362,7 @@ export async function verifyQueuedPaystackEvent(input: {
         status = "verified";
         [named, message] = [
           "verified",
-          "Independent test verification matched the saved expectation. One observation is ready for normal reconciliation; settlement is not confirmed and no financial instruction was created.",
+          "The test payment matched the expected collection. It is now payment evidence, ready for Reconciliation. Settlement is not confirmed, and no money moved.",
         ];
       }
     }

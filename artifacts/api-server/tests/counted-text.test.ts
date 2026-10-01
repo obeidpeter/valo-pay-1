@@ -23,7 +23,7 @@ const empty = (id: string) => { const state = seedMerchant(id, true); state.reco
   const state = empty("counted-sources"), ctx = { actor: "Sandbox Admin", role: "Admin", now: "2026-09-22T08:00:00.000Z" };
   saveSourceProfile(state, ctx, { name: "Daily customers", source: "count-lms", kind: "customers", mapping: {}, identityColumn: "source_row_id", amountUnit: "naira", firstExpectedAt: "2026-09-22T09:00:00.000Z", cadenceHours: 24, graceMinutes: 60, expectedRows: 1, expectedAmountKobo: 0, status: "active", syntheticOnly: true });
   const batch = saveImportBatch(state, ctx, { name: "Two customers", source: "count-lms", sourceBatchId: "count-1", kind: "customers", csv: "source_row_id,name,reference,consentProvenance\nc-1,First customer,COUNT-C-1,Synthetic consent\nc-2,Second customer,COUNT-C-2,", mapping: {}, identityColumn: "source_row_id", amountUnit: "naira", syntheticOnly: true });
-  assert.deepEqual(batchSourceQuality(state, batch).issues, ["Expected 1 source row; this batch contains 2.", "1 source row still needs correction."]);
+  assert.deepEqual(batchSourceQuality(state, batch).issues, ["Expected 1 row; this batch has 2 rows.", "1 row still needs correcting."]);
   checks += 1;
 }
 
@@ -33,11 +33,11 @@ const empty = (id: string) => { const state = seedMerchant(id, true); state.reco
   const close = makeRecord(state, "closes" as string, { status: "completed", name: "Close", data: { report: { variances: { count: 1, batches: [] }, positionRebuild: { mismatches: [] }, unallocated: { count: 1, kobo: 500 }, proposed: { count: 2, kobo: 900 }, possibleDuplicates: { count: 0 } } } });
   const detail = Object.fromEntries(closeReviewIssues(close).map((issue) => [issue.id, issue.detail]));
   assert.equal(detail["settlement-variance"], "1 difference was recorded.");
-  assert.equal(detail.unallocated, "1 item totalling NGN 5.00 remains at this close.");
-  assert.equal(detail.proposed, "2 items totalling NGN 9.00 remain at this close.");
+  assert.equal(detail.unallocated, "1 item totalling ₦5.00 remains at this close.");
+  assert.equal(detail.proposed, "2 items totalling ₦9.00 remain at this close.");
   // Money in another currency is named beside the naira, in its own currency (the third review of the audit fixes).
   const withDollars = makeRecord(state, "closes" as string, { status: "completed", name: "Close", data: { report: { unallocated: { count: 2, kobo: 500, otherCurrencies: { USD: { count: 1, amount: 100_000 } } } } } });
-  assert.equal(Object.fromEntries(closeReviewIssues(withDollars).map((issue) => [issue.id, issue.detail])).unallocated, "2 items totalling NGN 5.00 and USD 1,000.00 remain at this close.");
+  assert.equal(Object.fromEntries(closeReviewIssues(withDollars).map((issue) => [issue.id, issue.detail])).unallocated, "2 items totalling ₦5.00 and USD 1,000.00 remain at this close.");
   checks += 4;
 }
 
@@ -52,11 +52,11 @@ const empty = (id: string) => { const state = seedMerchant(id, true); state.reco
   makeRecord(state, "exceptions", { name: "Open exception", status: "open", data: { type: "unmatched_payment" } });
   makeRecord(state, "exceptions", { name: "Resolved exception", status: "resolved", data: { type: "unmatched_payment" } });
   const step = (id: string) => pilotProgress(state).steps.find((item) => item.id === id)!;
-  assert.deepEqual(step("ingest").evidence, ["1 committed import batch; 1 customer record."]);
+  assert.deepEqual(step("ingest").evidence, ["1 imported batch; 1 customer record."]);
   assert.deepEqual(step("reconcile").evidence, ["1 confirmed allocation; 1 payment record.", "1 payment needs a match; 1 evidence record remains unresolved."]);
-  assert.deepEqual(step("resolve").evidence, ["1 resolved case; 1 open; 1 without an assignee."]);
-  assert.deepEqual(step("resolve").missing, ["Resolve 1 open case; a handover alone does not resolve a case."]);
-  assert.deepEqual(step("export").evidence, ["0 ready exports reference the current approved close and its exact snapshot."]);
+  assert.deepEqual(step("resolve").evidence, ["1 exception resolved; 1 open; 1 with no owner."]);
+  assert.deepEqual(step("resolve").missing, ["Resolve 1 open exception. A handover alone does not resolve an exception."]);
+  assert.deepEqual(step("export").evidence, ["0 ready exports contain the current approved close."]);
   checks += 5;
 }
 
@@ -69,7 +69,7 @@ const empty = (id: string) => { const state = seedMerchant(id, true); state.reco
   assert.equal(decision.rule, "ceiling");
   assert.match(decision.reason, /^The limit of 1 attempt has been reached across all collection systems\./);
   const pack = buildDisputePack(state, ctxAt(wat("2027-07-01T08:00:00"), "Finance"), customer.id);
-  assert.match(pack.documents.find((document) => document.kind === "policies")!.text, /^Up to 1 attempt counting every source;/);
+  assert.match(pack.documents.find((document) => document.kind === "policies")!.text, /^Version 1: up to 1 attempt in total across all collection systems;/);
   policy.data.maxAttempts = 3;
   assert.match(policySummary(policy), /: up to 3 attempts in total/);
   checks += 5;
@@ -79,7 +79,7 @@ const empty = (id: string) => { const state = seedMerchant(id, true); state.reco
 {
   const { state } = liveFixture({ merchantId: "counted-hand-back", withFailure: false });
   const result = executeAction(state, ctxAt(wat("2027-06-28T09:00:00")), { action: "hand_back", reason: "Pilot ends; the lender's system collects again." });
-  assert.deepEqual((result.record!.data.checklist as string[]).slice(0, 2), ["Ownership of 1 obligation reverted to lms", "0 scheduled attempts cancelled with notices"]);
+  assert.deepEqual((result.record!.data.checklist as string[]).slice(0, 2), ["Collection of 1 instalment returned to the loan management system", "0 scheduled collection attempts cancelled"]);
   checks += 1;
 }
 
@@ -101,10 +101,10 @@ const empty = (id: string) => { const state = seedMerchant(id, true); state.reco
   const paid = makeRecord(reports, "payments", { name: "Only payment", status: "allocated", amountKobo: 1_000_000, data: {} });
   makeRecord(reports, "allocations", { name: "R1", status: "confirmed", amountKobo: 1_000_000, data: { paymentId: paid.id, reviewed: true } });
   const detail = (key: string) => buildReports(reports, "2027-07-01T09:00:00.000Z").metrics.find((metric) => metric.key === key)!.detail;
-  assert.equal(detail("allocation_rate"), "1 of 1 payment is fully or partly allocated, or exceeds the amount due.");
+  assert.equal(detail("allocation_rate"), "1 of 1 payment is allocated in full or in part, including overpayments.");
   assert.equal(detail("allocation_precision"), "1 allocation reviewed. Unreviewed allocations are excluded from this accuracy measure.");
   makeRecord(reports, "payments", { name: "Second payment", status: "unallocated", amountKobo: 1_000_000, data: {} });
-  assert.equal(detail("allocation_rate"), "1 of 2 payments is fully or partly allocated, or exceeds the amount due.");
+  assert.equal(detail("allocation_rate"), "1 of 2 payments is allocated in full or in part, including overpayments.");
   checks += 4;
 }
 
@@ -113,12 +113,12 @@ const empty = (id: string) => { const state = seedMerchant(id, true); state.reco
   const ctx: CreditContext = { tenantId: "lender-a", actorId: "Sandbox Operations", permissions: ["credit:assess"], now: "2026-09-21T10:00:00.000Z" };
   const input = createSyntheticCreditInput({ tenantId: ctx.tenantId, applicantId: "applicant-a", applicationRef: "counted-application", now: ctx.now });
   const reason = (code: string, missedPayments: number) => assessCredit({ ...input, repaymentHistory: { ...input.repaymentHistory, missedPayments } }, ctx).score!.factors.find((factor) => factor.code === code)!.reason;
-  assert.equal(reason("commitment_behaviour", 1), "1 missed repayment in the supplied verified history. This does not establish complete bureau coverage.");
-  assert.equal(reason("commitment_behaviour", 2), "2 missed repayments in the supplied verified history. This does not establish complete bureau coverage.");
+  assert.equal(reason("commitment_behaviour", 1), "1 missed repayment in the checked repayment history. This history may not include every lender’s records.");
+  assert.equal(reason("commitment_behaviour", 2), "2 missed repayments in the checked repayment history. This history may not include every lender’s records.");
   const scope = { tenantId: "sample-tenant", legalEntityId: "sample-company", currency: "NGN" }, now = "2026-09-21T10:00:00.000Z";
   const account: CashAccount = { ...scope, id: "bank-1", name: "Operating account", source: "synthetic", sourceDefinition: "Provider booked and available balance", authorised: true, bookedMinor: 100_000, availableMinor: 90_000, pendingMinor: -10_000, balanceAsOf: now, fetchedAt: now, coverageComplete: true };
   const [position] = consolidateCashPositions(scope, [account, { ...account, id: "bank-2", authorised: false }], [], now);
-  assert.ok(position!.warnings.includes("1 account omitted: missing authority or not known at this as-of time."), JSON.stringify(position!.warnings));
+  assert.ok(position!.warnings.includes("1 account left out: no permission to read, or no balance known at this time."), JSON.stringify(position!.warnings));
   checks += 3;
 }
 

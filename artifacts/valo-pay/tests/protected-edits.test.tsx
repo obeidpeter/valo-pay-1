@@ -66,8 +66,8 @@ describe('protected console drafts', () => {
       return response;
     };
     if (outcome === 'error') api.failNext(/^\/v1\/settings$/, { status: 409, error: 'Earlier draft is outdated. Refresh and review it.' }, 'PATCH');
-    await user.click(screen.getByRole('button', { name: 'Save' }));
-    await screen.findByRole('button', { name: 'Saving…' });
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await screen.findByRole('button', { name: 'Saving changes…' });
     await user.selectOptions(screen.getAllByLabelText('Active lender')[0]!, api.merchantIds[1]!);
     await screen.findByRole('button', { name: 'Edit' });
     await user.click(screen.getByRole('button', { name: 'Edit' }));
@@ -83,7 +83,7 @@ describe('protected console drafts', () => {
     const user = userEvent.setup();
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
     renderApp('/overview');
-    await screen.findByRole('heading', { name: 'Operations overview' });
+    await screen.findByRole('heading', { name: 'Overview' });
     await user.click(screen.getAllByRole('link', { name: 'Settings' })[0]!);
     await screen.findByText('07:00 WAT');
     await user.click(screen.getByRole('button', { name: 'Edit' }));
@@ -94,7 +94,7 @@ describe('protected console drafts', () => {
     expect(screen.getByDisplayValue(/keep this/)).toBeTruthy();
     confirm.mockReturnValue(true);
     await act(async () => { window.history.back(); });
-    await screen.findByRole('heading', { name: 'Operations overview' });
+    await screen.findByRole('heading', { name: 'Overview' });
     expect(window.location.pathname).toBe('/overview');
   });
 
@@ -102,13 +102,13 @@ describe('protected console drafts', () => {
     const user = userEvent.setup();
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
     renderApp('/policies');
-    const edit = await screen.findAllByRole('button', { name: 'Edit' });
+    const edit = await screen.findAllByRole('button', { name: 'Edit template' });
     await user.click(edit[0]!);
     const dialog = await screen.findByRole('dialog');
     const input = within(dialog).getAllByRole('textbox')[0]!;
     fireEvent.change(input, { target: { value: 'Keep these reviewed edits' } });
     api.failNext(/^\/v1\/records\//, { status: 409, error: 'This record changed after you opened it. Refresh and review the latest version.' }, 'PATCH');
-    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
     await within(dialog).findByText('This record changed after you opened it. Refresh and review the latest version.');
     expect((input as HTMLInputElement).value).toBe('Keep these reviewed edits');
     const sent = api.calls.find(call => call.method === 'PATCH');
@@ -139,7 +139,7 @@ describe('protected console drafts', () => {
     expect(revisions[0]).toBeTruthy();
     expect(revisions.at(-1)).not.toBe(revisions[0]);
     api.failNext(/^\/v1\/settings$/, { status: 409, error: 'Settings changed after this form opened. Refresh and review the latest settings.' }, 'PATCH');
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
     await screen.findByText('Settings changed after this form opened. Refresh and review the latest settings.');
     expect((input as HTMLInputElement).value).toBe('10:15');
     expect(api.calls.find(call => call.method === 'PATCH')?.body).toMatchObject({ expectedRevision: revisions[0], closeTime: '10:15' });

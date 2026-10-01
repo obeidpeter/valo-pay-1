@@ -47,14 +47,14 @@ export function storedInstant(value: unknown): unknown {
 
 /** The lender a request is scoped to, as its merchantId query value. */
 export const merchantIdSchema = z
-  .string({ required_error: "Choose a lender: merchantId is required.", invalid_type_error: "Send merchantId once, as text." })
-  .min(1, "Choose a lender: merchantId is required.")
-  .max(100, "A merchantId is at most 100 characters.");
+  .string({ required_error: "Choose a lender.", invalid_type_error: "Choose one lender." })
+  .min(1, "Choose a lender.")
+  .max(100, "Choose a lender from the list.");
 /** The id an address names (a record, run, batch, case, review, correction, export, member or invitation): 1 to 100 characters. */
 export const pathIdSchema = z
-  .string({ required_error: "Name a record in the address.", invalid_type_error: "Name one record in the address." })
-  .min(1, "Name a record in the address.")
-  .max(100, "An id in the address is at most 100 characters.");
+  .string({ required_error: "This link does not name a record. Open the record from its list.", invalid_type_error: "This link names more than one record. Open the record from its list." })
+  .min(1, "This link does not name a record. Open the record from its list.")
+  .max(100, "This link is too long. Open the record from its list.");
 /** The id an address names, parsed so that a refusal names the parameter `id`: the same 400 on every route, before its body is read. */
 export function pathId(value: unknown): string {
   return pathIdSchema.parse(value, { path: ["id"] });
@@ -133,7 +133,7 @@ export const messageSchema = z.object({ message: z.string() }).strict();
  * proposal is read, so nothing is saved.
  */
 export const allocationDecisionDataSchema = z.object({
-  proposalId: z.string().min(1, "Send the id of the proposed match you reviewed.").describe("The id of the proposed allocation reviewed (the allocation record, not the payment)."),
+  proposalId: z.string().min(1, "Reload the page and choose the match again.").describe("The id of the proposed allocation reviewed (the allocation record, not the payment)."),
   proposalUpdatedAt: instantInputSchema.describe("The proposed allocation's updatedAt as it was read: an RFC 3339 date and time with Z or an offset. It is compared as an instant, so the same instant written another way names the same version."),
 });
 /** A person who can own a case or review a close: a demo role in the sandbox, an active staff member with lender access on a staff host. */

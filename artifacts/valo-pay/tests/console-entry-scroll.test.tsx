@@ -27,7 +27,7 @@ it('leaves a pinch-zoomed reader where they are, and resets the offset once they
   const scroll = vi.spyOn(window, 'scrollTo').mockImplementation(() => offset(0, 0));
   const viewport = visualViewport(1);
   renderApp('/overview');
-  await screen.findByRole('heading', { name: 'Operations overview' });
+  await screen.findByRole('heading', { name: 'Overview' });
   expect(scroll).not.toHaveBeenCalled();
   // iOS Safari moves the document as a pinch-zoomed reader pans: snapping it back would lose their place.
   viewport.scale = 2;
@@ -48,7 +48,7 @@ it('leaves the document where a phone moved it to show a focused field, and rese
   const user = userEvent.setup();
   const scroll = vi.spyOn(window, 'scrollTo').mockImplementation(() => offset(0, 0));
   renderApp('/overview');
-  await screen.findByRole('heading', { name: 'Operations overview' });
+  await screen.findByRole('heading', { name: 'Overview' });
   const field = screen.getByRole('searchbox', { name: 'Find a page' });
   await user.click(field);
   offset(0, 180);
@@ -76,10 +76,10 @@ it('clears the public offset and late document restoration without resetting con
   });
   const viewport = visualViewport(1);
   renderApp('/sign-in');
-  const entry = await screen.findByRole('link', { name: 'Continue to the sandbox' });
+  const entry = await screen.findByRole('link', { name: 'Open the sandbox' });
   Object.defineProperty(window, 'scrollY', { configurable: true, writable: true, value: 361 });
   await user.click(entry);
-  await screen.findByRole('heading', { name: 'Operations overview' });
+  await screen.findByRole('heading', { name: 'Overview' });
   expect(scroll).toHaveBeenCalledExactlyOnceWith({ top: 0, left: 0, behavior: 'instant' });
   expect(document.activeElement?.id).toBe('main');
 
@@ -107,7 +107,7 @@ it('clears the public offset and late document restoration without resetting con
 
   // Leaving the console removes the guard: the long public page can scroll, and neither a viewport resize nor focus
   // leaving a link puts it back to the top, then or a frame later.
-  await user.click(screen.getAllByRole('link', { name: 'Valo Pay, payments, credit and cash operations. Go to home page' })[0]!);
+  await user.click(screen.getAllByRole('link', { name: 'Valo Pay, collections, credit and cash operations. Back to home' })[0]!);
   expect(document.querySelector('.console-shell')).toBeNull();
   const beforePublicScroll = scroll.mock.calls.length;
   Object.defineProperty(window, 'scrollY', { configurable: true, writable: true, value: 441 });
@@ -126,11 +126,11 @@ it('drops the check it was waiting to make when the console is left within the s
   const user = userEvent.setup();
   const scroll = vi.spyOn(window, 'scrollTo').mockImplementation(() => offset(0, 0));
   renderApp('/overview');
-  await screen.findByRole('heading', { name: 'Operations overview' });
+  await screen.findByRole('heading', { name: 'Overview' });
   const field = screen.getByRole('searchbox', { name: 'Find a page' });
   await user.click(field);
   await nextFrame();
-  const home = screen.getAllByRole('link', { name: 'Valo Pay, payments, credit and cash operations. Go to home page' })[0]!;
+  const home = screen.getAllByRole('link', { name: 'Valo Pay, collections, credit and cash operations. Back to home' })[0]!;
   // Focus leaving the field asks for a check a frame later; by then the console has gone and the public page scrolls.
   act(() => { field.blur(); home.click(); });
   expect(document.querySelector('.console-shell')).toBeNull();

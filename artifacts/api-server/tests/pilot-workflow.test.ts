@@ -41,7 +41,7 @@ assert.throws(
       ...input,
       csv: "source_row_id,name,account_number\nsource-1,Same name,0123456789",
     }),
-  /not permitted/,
+  /Do not enter a full bank account number/,
   "Source rows are screened where the batch is saved, whatever route or key delivered them.",
 );
 let before = structuredClone(state);
@@ -192,7 +192,7 @@ assert.throws(
       { ...imported, data: { ...imported.data, importIdentity: {} } },
       true,
     ),
-  /provenance/,
+  /Imported details change only through an import correction/,
 );
 
 const exception = state.records.find(
@@ -269,7 +269,7 @@ assert.throws(
       },
       assignees,
     ),
-  /eligible record/,
+  /Link evidence only to this lender’s records/,
 );
 assert.throws(
   () =>
@@ -283,7 +283,7 @@ assert.throws(
         data: { resolutionCode: "allocated" },
       },
     ),
-  /case assignee/,
+  /Only the person this case is assigned to, or an Admin, can resolve this exception\./,
 );
 const otherCustomer = state.records.find(r => r.kind === 'customers' && r.id !== exception.customerId)!;
 assert.ok(exception.customerId && otherCustomer);
@@ -293,7 +293,7 @@ const event = state.records.find((r) => r.kind === "case-events")!;
 event.data.note = "Tampered note";
 assert.throws(
   () => assertFinalState(before, state, state.merchant.id, ctx.now),
-  /immutable/,
+  /Saved evidence cannot be changed\. Reload the page and try again\./,
 );
 assert.equal(
   recoverableRequest("POST", "/v1/actions", { action: "daily_close" }),

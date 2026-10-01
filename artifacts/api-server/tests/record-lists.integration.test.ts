@@ -207,7 +207,7 @@ try {
   assert.deepEqual([reduced.status, reduced.body.status, reduced.body.data.outstandingKobo], [200, "paid", 0], "reduced to what was paid, it is paid");
   const draftPolicy = editState.records.find(row => row.kind === "policies")!;
   const renumbered = await api(`/records/policies/${draftPolicy.id}`, "PATCH", { data: { version: 2 }, expectedUpdatedAt: draftPolicy.updatedAt });
-  assert.equal(renumbered.status, 400, JSON.stringify(renumbered.body)); assert.match(renumbered.body.error, /version numbers are assigned/);
+  assert.equal(renumbered.status, 400, JSON.stringify(renumbered.body)); assert.match(renumbered.body.error, /Valo Pay numbers each new draft version/);
   const roleChange = { action: "set_role", data: { role: "Operations" } };
   const roleChanged = await api("/actions", "POST", roleChange, "role-switch-once");
   assert.equal(roleChanged.status, 200);

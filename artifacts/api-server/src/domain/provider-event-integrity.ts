@@ -20,7 +20,7 @@ export function assertProviderEventChange(before: ValopayRecord, after: ValopayR
     for (const key of ["deliveryCount", "lastReceivedAt", "message", "replayHistory"]) delete data[key];
     return { ...record, status: before.status, updatedAt: before.updatedAt, data };
   };
-  const reject = (): never => { throw Object.assign(new Error("Provider evidence is immutable; only delivery counts and recorded rechecks may change."), { status: 409 }); };
+  const reject = (): never => { throw Object.assign(new Error("Saved provider messages cannot be changed. Reload the page and try again."), { status: 409 }); };
   if (!sameJson(stable(before), stable(after))) reject();
   const previousCount = before.data.deliveryCount, nextCount = after.data.deliveryCount;
   if (!Number.isSafeInteger(nextCount) || nextCount < previousCount) reject();

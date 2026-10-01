@@ -104,7 +104,7 @@ try {
   };
   const decide = (action: string, paymentId: string, data?: Record<string, unknown>) => call(q("/v1/actions"), "POST", { action, recordId: paymentId, reason: "Finance checked the evidence.", ...(data ? { data } : {}) });
   const pair = (proposal: { id: string; updatedAt: string }) => ({ proposalId: proposal.id, proposalUpdatedAt: proposal.updatedAt });
-  const refusedAsDecided = (answer: Answer) => answer.status === 409 || (answer.status === 400 && /no proposed allocation/.test(answer.data.error));
+  const refusedAsDecided = (answer: Answer) => answer.status === 409 || (answer.status === 400 && /This payment has no proposed match to review\. Reload the page to see its current status\./.test(answer.data.error));
 
   // ---- 1. Two decisions sent together: exactly one is applied, and the payment once ----
   // Both are sent while another transaction holds the lender's lock, so both are waiting when it is released.
@@ -152,7 +152,7 @@ try {
       const before = await saved();
       const stale = await decide(action, payment.id, pair(first));
       assert.equal(stale.status, 409, `${action} quoting the superseded proposal: ${JSON.stringify(stale.data)}`);
-      assert.match(stale.data.error, /changed since you opened it/);
+      assert.match(stale.data.error, /^This proposed match changed after you opened it\. Reload the page and try again\.$/);
       await refusedUnsaved(stale, before, `${action} quoting the superseded proposal`);
       // The current proposal's id with the superseded one's version is stale too.
       const mixed = await decide(action, payment.id, { proposalId: second.id, proposalUpdatedAt: first.updatedAt });

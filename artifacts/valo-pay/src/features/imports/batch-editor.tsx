@@ -5,6 +5,7 @@ import { PilotError, PilotPanel, RecoveryNotice } from "@/components/pilot-ui";
 import { Button } from "@/components/ui/button";
 import { useDialogFocusReturn } from "@/lib/focus";
 import { formatDate } from "@/lib/formatters";
+import { onlyRoles } from "@/lib/permissions";
 import { consoleSourcesViewSchema, type SourceProfile } from "@/lib/source-models";
 import {
   lenderPath,
@@ -30,6 +31,9 @@ import {
   type ExpectedSourceFile,
   type ImportBatch,
 } from "./models";
+
+/** The roles the service lets save or import a batch (pilot-workflow's writer); mandates and collection attempts need Admin or Operations. */
+const importers = ["Admin", "Operations", "Finance"];
 
 export function BatchEditor({
   id,
@@ -202,15 +206,13 @@ export function BatchEditor({
       mutation.reset();
     } catch {
       setLatestProblem(
-        "The latest version could not be loaded. Your draft is still here. Try again.",
+        "We could not load the latest version. Your draft is still here. Try again.",
       );
     } finally {
       setLoadingLatest(false);
     }
   };
-  const denied = !["Admin", "Operations", "Finance"].includes(
-    workspace?.role || "",
-  );
+  const denied = !importers.includes(workspace?.role || "");
   const set = <K extends keyof BatchInput>(key: K, value: BatchInput[K]) =>
     setForm((current) => ({
       ...current,
@@ -313,30 +315,33 @@ export function BatchEditor({
   };
   if (id && !batch)
     return (
-      <PilotPanel title="Open batch">
+      <PilotPanel title="Saved batch">
         <PilotError
           error={detail.error}
+          what="the saved batch"
           retry={() => {
             void detail.refetch();
           }}
         />
         {detail.isLoading && (
-          <p role="status">Loading the saved source and checks…</p>
+          <p role="status">Loading the saved batch…</p>
         )}
       </PilotPanel>
     );
   return (
-    <PilotPanel title={batch ? batch.name : "Start a source batch"}>
+    <PilotPanel title={batch ? batch.name : "New import batch"}>
       <p className="text-sm text-muted-foreground">
-        Use a stable source name and source batch ID. Each row needs a source
-        row ID that stays the same when you correct or upload it again. Two
-        separate payments must have different IDs, even if their amounts match.
+        Use the same source name and source batch ID each time you send this
+        file. Give every row a source row ID that never changes, even when you
+        correct the row or upload it again. Two different payments need
+        different IDs, even if their amounts match.
       </p>
       {batch?.data.rawCsvRemovedAt && (
         <p className="rounded-lg border bg-secondary/30 p-3 text-sm">
-          The original CSV expired under this lender's retention policy on{" "}
-          {formatDate(batch.data.rawCsvRemovedAt)}. Imported records, source row
-          identities and saved checks remain available.
+          The original CSV file was deleted on{" "}
+          {formatDate(batch.data.rawCsvRemovedAt)} under this lender’s data
+          retention policy. The imported records, their source row IDs and the
+          saved checks are still here.
         </p>
       )}
       <form
@@ -457,7 +462,7 @@ export function BatchEditor({
                   else commit();
                 }}
               >
-                Commit checked batch
+                Import checked batch
               </Button>
             </>
           )}
@@ -474,16 +479,16 @@ export function BatchEditor({
         </div>
         {denied && (
           <p className="text-sm text-muted-foreground">
-            Importing requires Admin, Operations or Finance. Some record types
-            have additional role requirements.
+            {onlyRoles(importers, "import batches", { brief: true })}{" "}
+            {onlyRoles(["Admin", "Operations"], "import mandates or collection attempts", { brief: true })}
           </p>
         )}
       </form>
       {id && !form.businessDate && (
         <p className="rounded-lg border p-3 text-sm">
-          This older batch has no recorded business date. It remains visible as
-          unresolved source evidence; Finance must explicitly account for it
-          during close review.
+          This older batch has no business date. It stays on the list of source
+          files to resolve, and Finance must account for it in the close
+          review.
         </p>
       )}
       {initialExpectation &&
@@ -492,9 +497,9 @@ export function BatchEditor({
           (file) => file.id === initialExpectation,
         ) && (
           <p role="alert" className="text-sm text-destructive">
-            The linked expected file is not part of this lender’s current
-            declaration for the selected date. Review Sources before saving this
-            batch.
+            The expected file in your link is not one of this lender’s expected
+            files for this date. Check the expected files in Data sources before
+            you save this batch.
           </p>
         )}
       {batch && check && (

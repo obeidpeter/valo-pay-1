@@ -21,7 +21,7 @@ export const connectedActionInputSchema = z
   .object({
     action: z.string().min(1).max(80),
     recordId: z.string().max(100).optional(),
-    reason: z.string().trim().min(8, "Explain the reason in at least eight characters.").max(500),
+    reason: z.string().trim().min(8, "Enter a reason of at least 8 characters. It is saved in the audit log.").max(500, "Use at most 500 characters for the reason."),
     data: z.record(z.string(), z.unknown()).default({}),
     expectedRevision: z.string().max(80),
   })

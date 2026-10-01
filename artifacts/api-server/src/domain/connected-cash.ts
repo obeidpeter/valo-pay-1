@@ -28,7 +28,10 @@ const required = (value: string, label: string) => {
 };
 function money(value: number, label: string, signed = false): number {
   if (!Number.isSafeInteger(value) || (!signed && value < 0))
-    fail("invalid_amount", `${label} must be a safe integer in minor units.`);
+    fail(
+      "invalid_amount",
+      `${label} must be a whole amount${signed ? "" : " of ₦0.00 or more"}.`,
+    );
   return value;
 }
 /** An exact sum. A total beyond the supported range is the money refusal every calculation gives
@@ -37,12 +40,12 @@ const total = (values: number[]): number => sumMoney(values);
 function instant(value: string, label: string): number {
   const parsed = Date.parse(value);
   if (!Number.isFinite(parsed))
-    fail("invalid_date", `${label} must be an ISO date.`);
+    fail("invalid_date", `${label} must be a valid date and time.`);
   return parsed;
 }
 function validateScope(scope: CashScope): void {
-  required(scope.tenantId, "Tenant");
-  required(scope.legalEntityId, "Legal entity");
+  required(scope.tenantId, "Lender");
+  required(scope.legalEntityId, "Business");
 }
 function assertScope(expected: CashScope, actual: CashScope): void {
   validateScope(expected);
@@ -53,14 +56,14 @@ function assertScope(expected: CashScope, actual: CashScope): void {
   )
     fail(
       "scope_mismatch",
-      "The record belongs to another tenant or legal entity.",
+      "This record belongs to another lender or business.",
     );
   if (
     "currency" in expected &&
     "currency" in actual &&
     expected.currency !== actual.currency
   )
-    fail("currency_mismatch", "Currencies must be reviewed separately.");
+    fail("currency_mismatch", "Review each currency separately.");
 }
 const currency = (value: string) => {
   if (!/^[A-Z]{3}$/.test(value))
@@ -130,7 +133,7 @@ export function consolidateCashPositions(
   validateScope(scope);
   const at = instant(asOf, "As-of time");
   if (!Number.isFinite(freshnessMinutes) || freshnessMinutes <= 0)
-    fail("invalid_input", "Freshness budget must be positive.");
+    fail("invalid_input", "The maximum age of the balances must be more than zero.");
   unique(
     accounts.map((a) => a.id),
     "Account ID",
@@ -152,14 +155,14 @@ export function consolidateCashPositions(
   observations.forEach((o) => {
     assertScope(scope, o);
     currency(o.currency);
-    money(o.amountMinor, "Observation amount", true);
-    required(o.id, "Observation ID");
+    money(o.amountMinor, "Transaction amount", true);
+    required(o.id, "Transaction ID");
     required(o.sourceReference, "Source reference");
     const account = accountById.get(o.accountId);
     if (!account || account.currency !== o.currency)
       fail(
         "account_mismatch",
-        "Observation account or currency does not match the authorised account list.",
+        "A transaction is for an account or currency the business has not given permission for.",
       );
     const observed = instant(o.observedAt, "Observed time");
     instant(o.occurredAt, "Occurrence time");
@@ -169,14 +172,14 @@ export function consolidateCashPositions(
     if (duplicate && cashEvidenceHash(duplicate) !== cashEvidenceHash(o))
       fail(
         "duplicate_conflict",
-        "Conflicting source observations need an explicit correction link.",
+        "Two transactions with the same reference disagree. Link the correction to the transaction it corrects.",
       );
     deduplicated.set(key, o);
   });
   const visible = [...deduplicated.values()];
   unique(
     visible.map((o) => o.id),
-    "Observation ID",
+    "Transaction ID",
   );
   const byId = new Map(visible.map((o) => [o.id, o]));
   const superseded = new Set<string>();
@@ -193,7 +196,7 @@ export function consolidateCashPositions(
       )
         fail(
           "invalid_lineage",
-          "Correction or reversal must link to the same account and currency.",
+          "A correction or reversal must be for the same account and currency as the transaction it changes.",
         );
       const visited = new Set([o.id]);
       let cursor: CashObservation | undefined = predecessor;
@@ -201,7 +204,7 @@ export function consolidateCashPositions(
         if (visited.has(cursor.id))
           fail(
             "invalid_lineage",
-            "Observation lineage cannot contain a cycle.",
+            "These transactions correct each other in a loop. Check the corrections.",
           );
         visited.add(cursor.id);
         cursor = byId.get(cursor.supersedesId ?? cursor.reversalOfId ?? "");
@@ -222,7 +225,7 @@ export function consolidateCashPositions(
     const omitted = all.filter((a) => !ids.has(a.id)).map((a) => a.id);
     if (omitted.length)
       warnings.push(
-        `${counted(omitted.length, "account")} omitted: missing authority or not known at this as-of time.`,
+        `${counted(omitted.length, "account")} left out: no permission to read, or no balance known at this time.`,
       );
     if (
       usable.some(
@@ -230,13 +233,13 @@ export function consolidateCashPositions(
           at - instant(a.balanceAsOf, "Bank time") > freshnessMinutes * 60_000,
       )
     )
-      warnings.push("One or more bank balances are stale.");
+      warnings.push("One or more bank balances are out of date.");
     if (usable.some((a) => !a.coverageComplete))
       warnings.push(
-        "Transaction coverage has gaps; this is not a completed close.",
+        "Some transactions are missing, so these totals are not final.",
       );
     if (usable.some((a) => a.availableMinor === null))
-      warnings.push("Available balance is not supplied for every account.");
+      warnings.push("Some accounts do not show an available balance.");
     const flows = visible.filter(
       (o) =>
         ids.has(o.accountId) &&
@@ -259,7 +262,7 @@ export function consolidateCashPositions(
         total(legs.map((o) => o.amountMinor)) !== 0
       )
         warnings.push(
-          "An internal transfer needs its matching opposite leg; excluded from income and expense pending review.",
+          "A transfer between the business’s own accounts does not match on both sides. It is left out of money in and out until it is reviewed.",
         );
     const external = flows.filter((o) => !o.internalTransferId);
     const qualified = warnings.length === 0 && usable.length > 0;
@@ -342,7 +345,7 @@ export function forecastCash(
     delay < 0 ||
     delay > 30
   )
-    fail("invalid_input", "Invalid forecast horizon or downside assumptions.");
+    fail("invalid_input", "Check the forecast period and the cautious case settings.");
   unique(
     commitments.map((c) => c.id),
     "Commitment ID",
@@ -440,13 +443,15 @@ export function forecastCash(
       ...(options.openingQualified
         ? []
         : [
-            "Refresh or reconcile the opening balance before using funding readiness.",
+            "The opening balance is not confirmed. Refresh the sample balances before you rely on this forecast.",
           ]),
       ...(overdueOutflows === 1
-        ? ["An approved outflow past its due date is included as due now."]
+        ? [
+            "An approved outgoing payment is past its due date, so it is counted as due now.",
+          ]
         : overdueOutflows
           ? [
-              `${overdueOutflows} approved outflows past their due dates are included as due now.`,
+              `${overdueOutflows} approved outgoing payments are past their due dates, so they are counted as due now.`,
             ]
           : []),
     ],
@@ -522,29 +527,32 @@ export function buildErpDraft(input: ErpDraftInput): ErpDraft {
   validateScope(input.scope);
   currency(input.scope.currency);
   assertScope(input.scope, input.mapping);
-  ["maker", "canonicalReceiptId", "bankReference"].forEach((key) =>
-    required(
-      input[key as "maker" | "canonicalReceiptId" | "bankReference"],
-      key,
-    ),
-  );
+  (
+    [
+      ["maker", "Preparer"],
+      ["canonicalReceiptId", "Receipt ID"],
+      ["bankReference", "Bank reference"],
+    ] as const
+  ).forEach(([key, label]) => required(input[key], label));
   instant(input.postingDate, "Accounting date");
-  [
-    "companyId",
-    "version",
-    "contactId",
-    "bankLedgerCode",
-    "revenueAccountCode",
-    "feeAccountCode",
-    "taxCode",
-  ].forEach((key) => required(input.mapping[key as "companyId"], key));
-  const gross = money(input.grossMinor, "Gross amount"),
+  (
+    [
+      ["companyId", "Accounting company"],
+      ["version", "Accounting setup version"],
+      ["contactId", "Accounting contact"],
+      ["bankLedgerCode", "Bank account code"],
+      ["revenueAccountCode", "Revenue account code"],
+      ["feeAccountCode", "Fee account code"],
+      ["taxCode", "Tax code"],
+    ] as const
+  ).forEach(([key, label]) => required(input.mapping[key], label));
+  const gross = money(input.grossMinor, "Amount before fees"),
     fee = money(input.feeMinor, "Fee"),
-    net = money(input.netMinor, "Net amount");
+    net = money(input.netMinor, "Amount received in the bank");
   if (gross <= 0 || total([net, fee]) !== gross)
     fail(
       "unbalanced_receipt",
-      "Gross amount must equal net bank receipt plus evidenced fee.",
+      "The amount before fees must equal the amount received in the bank plus the recorded fee.",
     );
   unique(
     input.invoices.map((i) => i.id),
@@ -560,7 +568,7 @@ export function buildErpDraft(input: ErpDraftInput): ErpDraft {
   );
   const reasons: string[] = [];
   if (!input.mapping.active || !input.mapping.financeApproved)
-    reasons.push("Finance must approve the active accounting mapping.");
+    reasons.push("Finance must approve the current accounting setup.");
   if (
     input.closedThrough &&
     instant(input.postingDate, "Accounting date") <=
@@ -570,7 +578,7 @@ export function buildErpDraft(input: ErpDraftInput): ErpDraft {
   const invoices = new Map(
     input.invoices.map((invoice) => {
       assertScope(input.scope, invoice);
-      money(invoice.outstandingMinor, "Invoice residual");
+      money(invoice.outstandingMinor, "Amount still owed on the invoice");
       if (
         invoice.companyId !== input.mapping.companyId ||
         invoice.contactId !== input.mapping.contactId ||
@@ -578,7 +586,7 @@ export function buildErpDraft(input: ErpDraftInput): ErpDraft {
       )
         fail(
           "mapping_mismatch",
-          "Invoice company, contact or tax code does not match the approved mapping.",
+          "The invoice’s company, contact or tax code does not match the approved accounting setup.",
         );
       required(invoice.version, "Invoice version");
       return [invoice.id, invoice] as const;
@@ -588,18 +596,18 @@ export function buildErpDraft(input: ErpDraftInput): ErpDraft {
     money(a.amountMinor, "Allocation");
     const invoice = invoices.get(a.invoiceId);
     if (!invoice || invoice.version !== a.invoiceVersion)
-      fail("invoice_changed", "Invoice identity or version has changed.");
+      fail("invoice_changed", "This invoice has changed. Refresh it and try again.");
   });
   if (total(input.allocations.map((a) => a.amountMinor)) !== gross)
     fail(
       "unallocated_receipt",
-      "Allocation total must equal gross receipt; unexplained differences cannot be written off.",
+      "The amounts applied to invoices must add up to the amount before fees. Differences cannot be written off.",
     );
   (input.creditNotes ?? []).forEach((c) => {
     money(c.amountMinor, "Credit note");
     required(c.version, "Credit note version");
     if (!invoices.has(c.invoiceId))
-      fail("invoice_missing", "Credit note invoice is missing.");
+      fail("invoice_missing", "The invoice for this credit note is missing.");
     if (!c.approved)
       reasons.push("A credit note still needs Finance approval.");
   });
@@ -622,7 +630,7 @@ export function buildErpDraft(input: ErpDraftInput): ErpDraft {
     if (afterMinor < 0)
       fail(
         "over_allocation",
-        "Payment and credit notes exceed the invoice residual.",
+        "The payment and credit notes are more than the amount still owed on the invoice.",
       );
     return {
       invoiceId: i.id,
@@ -667,7 +675,7 @@ export function reviewErpDraft(draft: ErpDraft, reviewer: string): ErpDraft {
   )
     fail(
       "draft_not_reviewable",
-      "The draft is blocked, already recorded or has changed.",
+      "This draft cannot be approved: it is blocked, already recorded or has changed. Refresh the accounting review to see why.",
     );
   return {
     ...structuredClone(draft),
@@ -699,18 +707,18 @@ export function guardErpDispatch(
   assertScope(current.scope, current.mapping);
   const reasons = [...draft.reasons];
   if (!current.readAuthorised)
-    reasons.push("The accounting permission has expired or been revoked.");
+    reasons.push("A permission this needs has expired or was withdrawn. Grant it again in Permissions and readiness.");
   if (
     draft.status !== "reviewed" ||
     draft.review?.reviewer === draft.input.maker ||
     draft.review?.approvedHash !== cashEvidenceHash(draft.input) ||
     draft.requestHash !== cashEvidenceHash(draft.input)
   )
-    reasons.push("Finance approval is missing or the approved draft changed.");
+    reasons.push("A different Finance reviewer must approve the current version of this draft.");
   if (
     cashEvidenceHash(current.mapping) !== cashEvidenceHash(draft.input.mapping)
   )
-    reasons.push("The accounting mapping has changed; review again.");
+    reasons.push("The accounting setup has changed. Refresh the accounting review.");
   if (
     current.closedThrough &&
     instant(draft.input.postingDate, "Accounting date") <=
@@ -725,16 +733,16 @@ export function guardErpDispatch(
     const fresh = current.invoices.find((i) => i.id === old.id);
     if (!fresh || cashEvidenceHash(fresh) !== cashEvidenceHash(old))
       reasons.push(
-        `Invoice ${old.id} changed; refresh its version and residual.`,
+        `Invoice ${old.id} has changed. Refresh the accounting review to see the amount still owed.`,
       );
   }
   const commands = ledger.filter(
     (c) => c.idempotencyKey === draft.idempotencyKey,
   );
   if (commands.some((c) => c.requestHash !== draft.requestHash))
-    reasons.push("Idempotency key was used with a different request.");
+    reasons.push("An earlier attempt used the same reference with different details. Check it before you try again.");
   if (commands.some((c) => c.status === "unknown" || c.status === "queued"))
-    reasons.push("An earlier command needs lookup before any retry.");
+    reasons.push("Check the outcome of the earlier attempt before you try again.");
   const alreadyRecorded =
     commands.some((c) => c.status === "posted") ||
     !!current.alreadyRecordedReceiptIds?.includes(
@@ -742,7 +750,7 @@ export function guardErpDispatch(
     ) ||
     draft.status === "already_recorded";
   if (alreadyRecorded)
-    reasons.push("This receipt is already recorded; do not post it again.");
+    reasons.push("This receipt is already recorded in accounting software. Do not post it again.");
   return {
     status: alreadyRecorded
       ? ("already_recorded" as const)
@@ -808,7 +816,7 @@ export function reconcileVatEvidence(
   validateScope(scope);
   currency(scope.currency);
   required(control.period, "Tax period");
-  required(control.configurationVersion, "Tax configuration version");
+  required(control.configurationVersion, "Tax settings version");
   unique(
     invoices.map((i) => i.id),
     "Tax invoice ID",
@@ -817,10 +825,10 @@ export function reconcileVatEvidence(
     bankAllocations.map((a) => a.id),
     "Bank allocation ID",
   );
-  money(control.openingPayableMinor, "Opening control", true);
+  money(control.openingPayableMinor, "Opening VAT balance", true);
   money(control.approvedAdjustmentMinor, "Approved adjustment", true);
-  money(control.ledgerClosingPayableMinor, "Ledger closing control", true);
-  money(control.remittancesMinor, "Remittance");
+  money(control.ledgerClosingPayableMinor, "Closing VAT balance in the ledger", true);
+  money(control.remittancesMinor, "VAT paid");
   const missing: string[] = [];
   invoices.forEach((i) => {
     assertScope(scope, i);
@@ -834,7 +842,7 @@ export function reconcileVatEvidence(
       (i.eInvoiceRequired && !i.eInvoiceReference)
     )
       missing.push(
-        `Invoice ${i.id} needs approved tax basis or validated invoice evidence.`,
+        `Invoice ${i.id} needs an approved VAT treatment or checked invoice evidence.`,
       );
   });
   bankAllocations.forEach((a) => {
@@ -845,7 +853,7 @@ export function reconcileVatEvidence(
       a.category === "invoice_payment" &&
       !invoices.some((i) => i.id === a.invoiceId)
     )
-      missing.push(`Bank allocation ${a.id} has no invoice evidence.`);
+      missing.push(`Bank payment ${a.id} has no matching invoice.`);
   });
   const eligible = invoices.filter(
     (i) =>
@@ -873,11 +881,11 @@ export function reconcileVatEvidence(
   );
   if (blockedInputVatMinor)
     missing.push(
-      "Purchase VAT without an approved recovery decision is excluded from recoverable input VAT.",
+      "VAT on purchases is left out of the VAT you can reclaim until a decision to reclaim it is approved.",
     );
   if (control.remittancesMinor && !control.authorisedRemittanceEvidence)
     missing.push(
-      "Remittance is unverified and has not reduced the expected control balance.",
+      "The VAT payment is not confirmed, so it has not reduced the expected VAT balance.",
     );
   const verifiedRemittancesMinor = control.authorisedRemittanceEvidence
     ? control.remittancesMinor
@@ -895,7 +903,7 @@ export function reconcileVatEvidence(
   ]);
   if (varianceMinor !== 0)
     missing.push(
-      "The invoice schedule does not reconcile to the ledger tax control.",
+      "The invoice totals do not match the VAT account in the ledger.",
     );
   const lines = invoices
     .filter((i) => i.taxPeriod === control.period)
@@ -1085,26 +1093,26 @@ export function preparePayrollFundingPlan(
   assertScope(input.scope, input.run);
   assertScope(input.scope, input.sourceAccount);
   currency(input.scope.currency);
-  required(input.maker, "Maker");
+  required(input.maker, "Preparer");
   required(input.run.sourceApprover, "Payroll source approver");
   required(input.run.version, "Payroll version");
-  required(input.run.sourceHash, "Approved source hash");
+  required(input.run.sourceHash, "Approved payroll file check");
   if (!input.run.approved || input.importedHash !== input.run.sourceHash)
     fail(
       "unapproved_payroll",
-      "Import must match the approved net-pay run and source hash.",
+      "The payroll file must match the approved net-pay run exactly.",
     );
   unique(
     input.run.items.map((i) => i.id),
     "Payroll item",
   );
   if (!input.run.items.length)
-    fail("empty_payroll", "The approved run needs at least one item.");
+    fail("empty_payroll", "The approved payroll run needs at least one payment.");
   const at = instant(input.asOf, "As-of time");
   instant(input.paymentDate, "Payment date");
   const freshness = input.freshnessMinutes ?? 60;
   if (!Number.isFinite(freshness) || freshness <= 0)
-    fail("invalid_input", "Freshness budget must be positive.");
+    fail("invalid_input", "The maximum age of the balances must be more than zero.");
   const items = input.run.items.map((i) => {
     money(i.netMinor, "Approved net pay");
     required(i.employeeReference, "Employee reference");
@@ -1132,7 +1140,7 @@ export function preparePayrollFundingPlan(
   )
     fail(
       "payroll_total_mismatch",
-      "Approved payroll total does not match its items.",
+      "The approved payroll total does not match its payments.",
     );
   const commitmentsMinor = money(input.commitmentsMinor, "Other commitments"),
     estimatedFeesMinor = money(input.estimatedFeesMinor, "Estimated fees"),
@@ -1197,16 +1205,19 @@ export function approvePayrollPlan(
   plan: PayrollPlan,
   checker: string,
 ): PayrollPlan {
-  required(checker, "Checker");
+  required(checker, "Approver");
   if (checker === plan.maker)
-    fail("self_approval", "Payroll requires a different maker and checker.");
+    fail(
+      "self_approval",
+      "A different person must approve the payroll funding plan. The person who prepared it cannot approve it.",
+    );
   if (
     plan.fundingStatus !== "ready_for_review" ||
     plan.frozenHash !== cashEvidenceHash(payrollFrozenPayload(plan))
   )
     fail(
       "payroll_not_ready",
-      "Refresh funding or rebuild the changed payroll plan before approval.",
+      "This plan is not ready to approve. Its funding is short or unknown, or the plan has changed. Refresh the payroll funding review first.",
     );
   return {
     ...structuredClone(plan),
@@ -1229,11 +1240,11 @@ export function refreshPayrollFundingPlan(
   maker: string,
 ): PayrollPlan {
   assertScope(plan.scope, sourceAccount);
-  required(maker, "Maker");
+  required(maker, "Preparer");
   if (sourceAccount.id !== plan.sourceAccountId)
     fail(
       "account_mismatch",
-      "A source-account change requires a separate approved correction.",
+      "To pay from a different account, prepare a correction and have a different person approve it.",
     );
   const at = instant(asOf, "As-of time"),
     balanceAt = instant(sourceAccount.balanceAsOf, "Balance time"),
@@ -1322,13 +1333,13 @@ export function transitionPayrollItem(
   )
     fail(
       "payroll_approval_changed",
-      "Payroll approval is missing or its frozen details changed.",
+      "This payroll funding plan is not approved, or it changed after approval. Ask a different Finance reviewer to approve it again.",
     );
   const found = plan.items.find((i) => i.id === itemId);
   if (!found)
     throw new ConnectedCashError(
       "payroll_item_missing",
-      "Payroll item was not found.",
+      "This payment is not in the payroll funding plan. Reload the page and try again.",
     );
   const item = found;
   required(evidence.reference, "Outcome evidence");
@@ -1339,10 +1350,13 @@ export function transitionPayrollItem(
   )
     fail(
       "payroll_evidence_mismatch",
-      "Evidence amount or beneficiary version does not match the approved item.",
+      "The amount or the employee’s account details do not match the approved payment.",
     );
   if (evidence.source === "export" && evidence.status !== "exported")
-    fail("bank_evidence_required", "A bank export cannot prove payment.");
+    fail(
+      "bank_evidence_required",
+      "An export file does not show that anyone was paid. Record the bank’s outcome instead.",
+    );
   if (
     item.status === evidence.status &&
     item.evidenceReference === evidence.reference
@@ -1364,12 +1378,12 @@ export function transitionPayrollItem(
   )
     fail(
       "unknown_requires_lookup",
-      "An unknown outcome requires a confirmed lookup before it can be marked not submitted.",
+      "Check with the bank that this payment was not sent before you record it as failed.",
     );
   if (!allowed[item.status].includes(evidence.status))
     fail(
       "invalid_payroll_transition",
-      "This item cannot be retried or moved to that state. Prepare a separately approved correction after review.",
+      "This payment cannot be retried or changed to that outcome. After review, prepare a correction and have a different person approve it.",
     );
   const copy = structuredClone(plan);
   const updated = copy.items.find((i) => i.id === itemId)!;
@@ -1422,7 +1436,7 @@ export function exportPayrollManifest(plan: PayrollPlan) {
   )
     fail(
       "payroll_approval_changed",
-      "A current checker approval is required for the bank export.",
+      "A different Finance reviewer must approve the current version of this plan before the export file can be prepared.",
     );
   const items = plan.items
     .filter((i) => i.status === "planned" || i.status === "exported")
@@ -1458,6 +1472,6 @@ export function exportPayrollManifest(plan: PayrollPlan) {
     ...manifest,
     manifestHash: cashEvidenceHash(manifest),
     warning:
-      "This approved export does not reserve funds or prove payment. Confirm bank outcomes before any retry.",
+      "This file does not show that anyone was paid, and it does not set money aside. Record each payment’s outcome from the bank before you try any payment again.",
   };
 }

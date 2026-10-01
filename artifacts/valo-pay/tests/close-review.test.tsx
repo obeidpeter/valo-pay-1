@@ -37,7 +37,7 @@ it("keeps preparation notes and the selected snapshot when discarding is cancell
   renderApp(`/close-review?close=${latest.id}`);
   await user.selectOptions(await screen.findByLabelText("Finance reviewer"), "Sandbox Finance");
   await user.type(screen.getByLabelText("Preparation summary"), "These checks still need the provider statement.");
-  await user.type(screen.getByLabelText(/Expected source files have not been declared/), "The source delivery is still being checked.");
+  await user.type(screen.getByLabelText(/Expected files have not been declared/), "The source delivery is still being checked.");
   await user.type(screen.getByLabelText(/Why the unresolved items may remain open/), "Finance will inspect the final statement tomorrow.");
   const olderLink = screen.getByRole("link", { name: /Earlier close/ });
   await user.click(olderLink);
@@ -45,7 +45,7 @@ it("keeps preparation notes and the selected snapshot when discarding is cancell
   expect(window.location.search).toBe(`?close=${latest.id}`);
   expect(screen.getByLabelText("Preparation summary")).toHaveProperty("value", "These checks still need the provider statement.");
   expect(screen.getByLabelText("Finance reviewer")).toHaveProperty("value", "Sandbox Finance");
-  expect(screen.getByLabelText(/Expected source files have not been declared/)).toHaveProperty("value", "The source delivery is still being checked.");
+  expect(screen.getByLabelText(/Expected files have not been declared/)).toHaveProperty("value", "The source delivery is still being checked.");
   expect(screen.getByLabelText(/Why the unresolved items may remain open/)).toHaveProperty("value", "Finance will inspect the final statement tomorrow.");
   confirm.mockReturnValue(true);
   await user.click(olderLink);
@@ -88,7 +88,7 @@ it("preserves the Finance note, acceptance reason and evidence when a snapshot c
   await user.type(await screen.findByLabelText("Review note"), "Waiting for the final independent evidence check.");
   await user.type(screen.getByLabelText(/Finance acceptance reason/), "This limited source coverage is acceptable for the rehearsal.");
   await user.type(screen.getByLabelText(/Finance supporting evidence/), "Synthetic case FIN-48.");
-  await user.click(screen.getByRole("checkbox", { name: /I inspected this snapshot/ }));
+  await user.click(screen.getByRole("checkbox", { name: /I checked this daily close/ }));
   const olderLink = screen.getByRole("link", { name: /Earlier close/ });
   await user.click(olderLink);
   expect(confirm).toHaveBeenCalledTimes(1);
@@ -96,7 +96,7 @@ it("preserves the Finance note, acceptance reason and evidence when a snapshot c
   expect(screen.getByLabelText("Review note")).toHaveProperty("value", "Waiting for the final independent evidence check.");
   expect(screen.getByLabelText(/Finance acceptance reason/)).toHaveProperty("value", "This limited source coverage is acceptable for the rehearsal.");
   expect(screen.getByLabelText(/Finance supporting evidence/)).toHaveProperty("value", "Synthetic case FIN-48.");
-  expect(screen.getByRole("checkbox", { name: /I inspected this snapshot/ })).toHaveProperty("checked", true);
+  expect(screen.getByRole("checkbox", { name: /I checked this daily close/ })).toHaveProperty("checked", true);
   confirm.mockReturnValue(true);
   await user.click(olderLink);
   expect(confirm).toHaveBeenCalledTimes(2);
@@ -115,7 +115,7 @@ it("tracks Finance decision and acknowledgement changes as drafts and releases t
   expect(decision).toHaveProperty("value", "return");
   expect(window.location.search).toBe(`?close=${latest.id}`);
   await user.selectOptions(decision, "approve");
-  const acknowledgement = screen.getByRole("checkbox", { name: /I inspected this snapshot/ });
+  const acknowledgement = screen.getByRole("checkbox", { name: /I checked this daily close/ });
   await user.click(acknowledgement);
   await user.click(olderLink);
   expect(confirm).toHaveBeenCalledTimes(2);
@@ -134,15 +134,15 @@ it("clears a saved Finance draft before a slow refresh without leaving later edi
   await user.type(await screen.findByLabelText("Review note"), "Independently accepted this synthetic source limitation.");
   await user.type(screen.getByLabelText(/Finance acceptance reason/), "The synthetic rehearsal may proceed with limited source coverage.");
   await user.type(screen.getByLabelText(/Finance supporting evidence/), "Synthetic case FIN-49.");
-  await user.click(screen.getByRole("checkbox", { name: /I inspected this snapshot/ }));
+  await user.click(screen.getByRole("checkbox", { name: /I checked this daily close/ }));
   const release = api.hold(/^\/v1\/pilot\/close-reviews(?:\/[^/]+)?$/);
   try {
-    await user.click(screen.getByRole("button", { name: "Record Finance approval" }));
+    await user.click(screen.getByRole("button", { name: "Approve close" }));
     await waitFor(() => expect(api.state().records.find(record => record.kind === "close-reviews")!.status).toBe("approved"));
     await waitFor(() => expect(screen.getByLabelText("Review note")).toHaveProperty("value", ""));
     expect(screen.getByLabelText(/Finance acceptance reason/)).toHaveProperty("value", "");
     expect(screen.getByLabelText(/Finance supporting evidence/)).toHaveProperty("value", "");
-    expect(screen.getByRole("checkbox", { name: /I inspected this snapshot/ })).toHaveProperty("checked", false);
+    expect(screen.getByRole("checkbox", { name: /I checked this daily close/ })).toHaveProperty("checked", false);
     await user.type(screen.getByLabelText("Review note"), "An additional note before the refresh arrives.");
     await user.click(screen.getByRole("link", { name: /Earlier close/ }));
     expect(confirm).toHaveBeenCalledTimes(1);
@@ -165,7 +165,7 @@ it("shows evidence-led journey states instead of treating a payment or close as 
   expect(screen.getByText(/Records changed after this close/)).toBeTruthy();
   const exceptions = screen.getByRole("link", { name: /Resolve exceptions/ });
   expect(within(exceptions).getByText(/Not started/)).toBeTruthy();
-  expect(screen.getByText(/Real staff access is not enabled/)).toBeTruthy();
+  expect(screen.getByText(/Staff sign-in is not switched on/)).toBeTruthy();
 });
 
 it("prepares an exact close snapshot and prevents approving it by switching demo roles", async () => {
@@ -174,7 +174,7 @@ it("prepares an exact close snapshot and prevents approving it by switching demo
   renderApp("/close-review");
   await user.selectOptions(await screen.findByLabelText("Finance reviewer"), "Sandbox Finance");
   await user.type(screen.getByLabelText("Preparation summary"), "Checked the source records and synthetic zero-activity close.");
-  await user.type(screen.getByLabelText(/Expected source files have not been declared/),"This synthetic rehearsal has no external delivery set yet.");
+  await user.type(screen.getByLabelText(/Expected files have not been declared/),"This synthetic rehearsal has no external delivery set yet.");
   await user.type(screen.getByLabelText(/Why the unresolved items may remain open/),"Finance must confirm the limited synthetic source scope.");
   await user.click(screen.getByRole("button", { name: "Submit for Finance review" }));
   await screen.findByText(/Waiting for the named Finance reviewer/);
@@ -187,27 +187,35 @@ it("prepares an exact close snapshot and prevents approving it by switching demo
   expect(window.location.search).toBe(`?close=${earlier.id}`);
   cleanup(); queryClient.clear(); api.role = "Finance"; renderApp("/close-review");
   await screen.findByText(/You prepared this close/);
-  expect(screen.queryByRole("button", { name: "Record Finance approval" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Approve close" })).toBeNull();
   expect(JSON.stringify(api.state().records.find(record => record.id === review.id)!.data.snapshot)).toBe(snapshot);
+});
+
+it("says who can prepare a close under its disabled form, in the service's words", async () => {
+  twoCloses();
+  api.role = "Read-only";
+  renderApp("/close-review");
+  expect(await screen.findByText("Only Admin, Operations or Finance can prepare a close for review.")).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Submit for Finance review" }).closest("fieldset")?.disabled).toBe(true);
 });
 
 it("requires an independent reviewer acknowledgement and preserves the recorded snapshot", async () => {
   emptyClose(); const user = userEvent.setup(); renderApp("/close-review");
   await user.selectOptions(await screen.findByLabelText("Finance reviewer"), "Sandbox Finance");
   await user.type(screen.getByLabelText("Preparation summary"), "Checked the complete synthetic closing report.");
-  await user.type(screen.getByLabelText(/Expected source files have not been declared/),"This synthetic rehearsal has no external delivery set yet.");
+  await user.type(screen.getByLabelText(/Expected files have not been declared/),"This synthetic rehearsal has no external delivery set yet.");
   await user.type(screen.getByLabelText(/Why the unresolved items may remain open/),"Finance must confirm the limited synthetic source scope.");
   await user.click(screen.getByRole("button", { name: "Submit for Finance review" }));
   await screen.findByText(/Waiting for the named Finance reviewer/);
   cleanup(); queryClient.clear(); api.role = "Finance"; api.principalId = "synthetic-independent-reviewer"; renderApp("/close-review");
   await user.type(await screen.findByLabelText("Review note"), "Independently checked this exact close snapshot and accepted it.");
-  const button = screen.getByRole("button", { name: "Record Finance approval" }) as HTMLButtonElement;
+  const button = screen.getByRole("button", { name: "Approve close" }) as HTMLButtonElement;
   expect(button.disabled).toBe(true);
-  await user.click(screen.getByRole("checkbox", { name: /I inspected this snapshot/ }));
+  await user.click(screen.getByRole("checkbox", { name: /I checked this daily close/ }));
   await user.type(screen.getByLabelText(/Finance acceptance reason/),"I accept the missing declaration only for this synthetic rehearsal.");
   await user.type(screen.getByLabelText(/Finance supporting evidence/),"Synthetic acceptance case FIN-22.");
   await user.click(button);
-  await screen.findByText("Approved");
+  await within(screen.getByRole("heading", { name: "Finance review" }).closest("section")!).findByText("Approved");
   expect(api.state().records.find(record => record.kind === "close-reviews")!.status).toBe("approved");
 });
 
@@ -223,14 +231,14 @@ it("opens a historical Finance decision directly beyond 25 closes and searches i
   await screen.findByText("Historical decision: await the provider statement.");
   expect(screen.getByRole("region", { name: "Recorded close statement" })).toBeTruthy();
   expect(screen.queryByText("This close is not in the recent list")).toBeNull();
-  expect(within(screen.getByRole("navigation", { name: "Close snapshots" })).getAllByRole("link")).toHaveLength(25);
+  expect(within(screen.getByRole("navigation", { name: "Daily closes" })).getAllByRole("link")).toHaveLength(25);
   await user.click(screen.getByRole("button", { name: "Next" }));
   await screen.findByText(/27 matching closes · page 2/);
   expect(screen.getByText("Historical decision: await the provider statement.")).toBeTruthy();
   await user.type(screen.getByLabelText("Search close history"), "Sandbox Finance");
   await user.click(screen.getByRole("button", { name: "Search history" }));
-  await screen.findByText(/1 matching closes · page 1/);
-  expect(within(screen.getByRole("navigation", { name: "Close snapshots" })).getAllByRole("link")).toHaveLength(1);
+  await screen.findByText(/1 matching close · page 1/);
+  expect(within(screen.getByRole("navigation", { name: "Daily closes" })).getAllByRole("link")).toHaveLength(1);
 });
 
 it("shows recorded amounts and supporting links without presenting technical JSON as the statement", async () => {
@@ -238,17 +246,17 @@ it("shows recorded amounts and supporting links without presenting technical JSO
   const close = api.state().records.find(record => record.kind === "closes")!, report = close.data.report;
   renderApp(`/close-review?close=${close.id}`);
   const statement = await screen.findByRole("region", { name: "Recorded close statement" });
-  expect(within(statement).getByText("Receipts and payment matching")).toBeTruthy();
-  expect(within(statement).getByText("Source records received").nextElementSibling?.textContent).toBe(String(report.observations.received));
+  expect(within(statement).getByText("Payments and matching")).toBeTruthy();
+  expect(within(statement).getByText("Payment evidence received").nextElementSibling?.textContent).toBe(String(report.observations.received));
   expect(within(statement).getByText("Confirmed allocations").nextElementSibling?.textContent).toContain(`${report.allocated.count} items`);
-  expect(within(statement).getByRole("link", { name: "Open reconciliation queues" }).getAttribute("href")).toBe("/reconciliation");
-  expect(within(statement).getByText("Technical report (JSON)").closest("details")!.open).toBe(false);
+  expect(within(statement).getByRole("link", { name: "Open Reconciliation" }).getAttribute("href")).toBe("/reconciliation");
+  expect(within(statement).getByText("Technical details (JSON)").closest("details")!.open).toBe(false);
   expect(screen.queryByText("Inspect the complete recorded report")).toBeNull();
 });
 
 it("does not show another lender's directly requested close", async () => {
   emptyClose(); renderApp("/close-review?close=other-lender-record");
-  await screen.findByText("Close not found in this lender.");
+  await screen.findByText("Daily close not found. It may have been deleted, or it belongs to another lender.");
   expect(screen.queryByRole("region", { name: "Recorded close statement" })).toBeNull();
 });
 
@@ -260,7 +268,7 @@ it("keeps foreign currency amounts separate and explains unavailable fee compari
   close.data.report.variances = { count: 1, feeVarianceKobo: 0, otherCurrencies: { USD: { count: 1, amount: 2500 } }, batches: [{ batchId: "usd-batch", reference: "USD-SETTLEMENT", currency: "USD", feeVarianceKobo: 0, netKobo: 2500, statementNetKobo: null, explanation: "The USD statement is still missing." }] };
   renderApp(`/close-review?close=${close.id}`);
   const statement = await screen.findByRole("region", { name: "Recorded close statement" });
-  const unmatched = within(statement).getByText("Unmatched at close").nextElementSibling!;
+  const unmatched = within(statement).getByText("Unallocated at close").nextElementSibling!;
   expect(unmatched.textContent).toContain("₦100.00");
   expect(unmatched.textContent).toMatch(/USD\s*25\.00/);
   expect(within(statement).getByText("Not checked: no USD fee schedule")).toBeTruthy();

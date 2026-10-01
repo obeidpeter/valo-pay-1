@@ -46,8 +46,9 @@ it("freezes an unconfirmed settings draft and recovers the original revision and
   await user.clear(amount);
   await user.type(amount, "10.29");
   const requests = loseFirstResponse("/v1/settings", "PATCH");
-  await user.click(screen.getByRole("button", { name: "Save" }));
-  await screen.findByText("Settings outcome unconfirmed");
+  await user.click(screen.getByRole("button", { name: "Save changes" }));
+  const lost = await screen.findByText(/We do not know yet whether Valo Pay saved your settings/);
+  expect(within(lost.closest("[role=alert]") as HTMLElement).getByText("Request not confirmed")).toBeTruthy();
   expect(api.state().settings.notificationCostAlertKobo).toBe(1029);
   expect(amount.closest("fieldset")?.disabled).toBe(true);
   expect(
@@ -55,7 +56,7 @@ it("freezes an unconfirmed settings draft and recovers the original revision and
       .disabled,
   ).toBe(true);
   await user.click(
-    screen.getByRole("button", { name: "Retry original settings request" }),
+    screen.getByRole("button", { name: "Check original request" }),
   );
   await screen.findByText("Settings saved");
   expect(requests).toHaveLength(2);
@@ -72,10 +73,10 @@ it("retries an emergency-stop outcome without toggling the changed server state 
   await user.type(reason, "Stop sample operations for a review");
   const requests = loseFirstResponse("/v1/actions", "POST");
   await user.click(
-    screen.getByRole("button", { name: "Activate emergency stop" }),
+    screen.getByRole("button", { name: "Turn on emergency stop" }),
   );
   const retry = await screen.findByRole("button", {
-    name: "Retry original emergency-stop request",
+    name: "Check original request",
   });
   expect(api.state().merchant.killSwitch).toBe(true);
   await queryClient.invalidateQueries();
@@ -96,7 +97,7 @@ it("keeps a lost demo-role request recoverable even after the server changed rol
   const requests = loseFirstResponse("/v1/actions", "POST");
   await user.click(screen.getByRole("button", { name: "Switch role" }));
   const retry = await screen.findByRole("button", {
-    name: "Retry original role request",
+    name: "Check original request",
   });
   expect(api.role).toBe("Finance");
   expect((select as HTMLSelectElement).disabled).toBe(true);
@@ -110,10 +111,10 @@ it("locks a mandate draft after a lost create response, then recovers one mandat
   const user = userEvent.setup();
   renderApp("/mandates");
   await user.click(
-    await screen.findByRole("button", { name: "Create synthetic mandate" }),
+    await screen.findByRole("button", { name: "Add mandate" }),
   );
   const dialog = await screen.findByRole("dialog", {
-    name: "Create synthetic mandate",
+    name: "Add mandate",
   });
   await user.type(
     within(dialog).getByLabelText(/Mandate name/),
@@ -134,12 +135,12 @@ it("locks a mandate draft after a lost create response, then recovers one mandat
     within(dialog).getByLabelText(/Consent evidence reference/),
     "SYN-CONSENT-RECOVERY",
   );
-  await user.selectOptions(within(dialog).getByLabelText(/^Policy/), policy.id);
+  await user.selectOptions(within(dialog).getByLabelText(/^Retry policy/), policy.id);
   const requests = loseFirstResponse("/v1/records/mandates", "POST");
   await user.click(
-    within(dialog).getByRole("button", { name: "Create mandate" }),
+    within(dialog).getByRole("button", { name: "Add mandate" }),
   );
-  await screen.findByText("Mandate creation outcome unconfirmed");
+  await within(dialog).findByText("Request not confirmed");
   expect(
     within(dialog)
       .getByLabelText(/Mandate name/)
@@ -156,7 +157,7 @@ it("locks a mandate draft after a lost create response, then recovers one mandat
   expect(screen.getByRole("dialog")).toBeTruthy();
   await user.click(
     within(dialog).getByRole("button", {
-      name: "Retry original mandate request",
+      name: "Check original request",
     }),
   );
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
@@ -208,8 +209,8 @@ async function loseSettingsSave(user: ReturnType<typeof userEvent.setup>) {
   );
   await user.clear(amount);
   await user.type(amount, "10.29");
-  await user.click(screen.getByRole("button", { name: "Save" }));
-  await screen.findByText("Settings outcome unconfirmed");
+  await user.click(screen.getByRole("button", { name: "Save changes" }));
+  await screen.findByText(/We do not know yet whether Valo Pay saved your settings/);
 }
 
 it("a settings retry refused as cancelled is a known failure, and Discard draft and refresh works", async () => {
@@ -217,10 +218,12 @@ it("a settings retry refused as cancelled is a known failure, and Discard draft 
   const traffic = staleSettingsRetry(true);
   await loseSettingsSave(user);
   await user.click(
-    screen.getByRole("button", { name: "Retry original settings request" }),
+    screen.getByRole("button", { name: "Check original request" }),
   );
-  await screen.findByText("Settings not saved");
-  expect(screen.queryByText("Settings outcome unconfirmed")).toBeNull();
+  const known = (await screen.findByText("Settings not saved")).closest("[role=alert]") as HTMLElement;
+  // A known refusal: the notice no longer says the request is not confirmed.
+  expect(within(known).queryByText("Request not confirmed")).toBeNull();
+  expect(screen.queryByText(/We do not know yet whether Valo Pay saved your settings/)).toBeNull();
   expect(traffic.patches[1]).toBe(traffic.patches[0]);
   const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
   const reads = traffic.reads();
@@ -237,18 +240,20 @@ it("Discard draft and refresh keeps an interrupted identity until the server can
   const traffic = staleSettingsRetry(false);
   await loseSettingsSave(user);
   await user.click(
-    screen.getByRole("button", { name: "Retry original settings request" }),
+    screen.getByRole("button", { name: "Check original request" }),
   );
   const refresh = await screen.findByRole("button", {
     name: "Discard draft and refresh",
   });
-  expect(screen.getByText("Settings outcome unconfirmed")).toBeTruthy();
+  // The retry was refused without the cancelled marker, so the first request's outcome is still not confirmed.
+  const unconfirmed = () => within(refresh.closest("[role=alert]") as HTMLElement).getByText("Request not confirmed");
+  expect(unconfirmed()).toBeTruthy();
   const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
   const reads = traffic.reads();
   await user.click(refresh);
   expect(confirm).toHaveBeenCalledWith(expect.stringContaining("may already have been saved"));
   expect(traffic.reads()).toBe(reads);
-  expect(screen.getByText("Settings outcome unconfirmed")).toBeTruthy();
+  expect(unconfirmed()).toBeTruthy();
   confirm.mockReturnValue(true);
   await user.click(refresh);
   await screen.findByRole("button", { name: "Edit" });
@@ -261,7 +266,7 @@ it("Discard draft and refresh keeps an interrupted identity until the server can
   );
   await user.clear(amount);
   await user.type(amount, "10.31");
-  await user.click(screen.getByRole("button", { name: "Save" }));
+  await user.click(screen.getByRole("button", { name: "Save changes" }));
   await waitFor(() => expect(traffic.patches).toHaveLength(3));
   expect(traffic.patches[2]).not.toBe(traffic.patches[0]);
 });
@@ -270,10 +275,10 @@ it("a lost mandate create can be discarded deliberately, which unlocks the dialo
   const user = userEvent.setup();
   renderApp("/mandates");
   await user.click(
-    await screen.findByRole("button", { name: "Create synthetic mandate" }),
+    await screen.findByRole("button", { name: "Add mandate" }),
   );
   const dialog = await screen.findByRole("dialog", {
-    name: "Create synthetic mandate",
+    name: "Add mandate",
   });
   await user.type(
     within(dialog).getByLabelText(/Mandate name/),
@@ -293,14 +298,14 @@ it("a lost mandate create can be discarded deliberately, which unlocks the dialo
     "SYN-CONSENT-DISCARD",
   );
   await user.selectOptions(
-    within(dialog).getByLabelText(/^Policy/),
+    within(dialog).getByLabelText(/^Retry policy/),
     api.state().records.find((r) => r.kind === "policies")!.id,
   );
   api.failNext(/^\/v1\/records\/mandates$/, "offline", "POST");
   await user.click(
-    within(dialog).getByRole("button", { name: "Create mandate" }),
+    within(dialog).getByRole("button", { name: "Add mandate" }),
   );
-  await screen.findByText("Mandate creation outcome unconfirmed");
+  await within(dialog).findByText("Request not confirmed");
   const cancel = within(dialog).getByRole("button", {
     name: "Cancel",
   }) as HTMLButtonElement;
@@ -309,11 +314,12 @@ it("a lost mandate create can be discarded deliberately, which unlocks the dialo
   await user.click(
     within(dialog).getByRole("button", { name: "Discard original request" }),
   );
-  expect(confirm).toHaveBeenCalledWith(expect.stringContaining("Check Operations"));
+  expect(confirm).toHaveBeenCalledWith(expect.stringContaining("check Request history"));
   await waitFor(() => expect(cancel.disabled).toBe(false));
-  expect(screen.queryByText("Mandate creation outcome unconfirmed")).toBeNull();
+  // The dialog's notice goes. The request stays in the notice above the page, also headed Request not confirmed, until it is cancelled.
+  expect(within(dialog).queryByText("Request not confirmed")).toBeNull();
   // The notice went with its button: focus is on the form's own button again, not on the page or the dialog's top.
-  await waitFor(() => expect(document.activeElement).toBe(within(dialog).getByRole("button", { name: "Create mandate" })));
+  await waitFor(() => expect(document.activeElement).toBe(within(dialog).getByRole("button", { name: "Add mandate" })));
   expect(
     within(dialog).getByLabelText(/Mandate name/).closest("fieldset")?.disabled,
   ).toBe(false);
@@ -344,20 +350,20 @@ it("the unconfirmed settings notice discards its form, and a server cancellation
   const keys = recordKeys("/v1/settings", "PATCH");
   api.failNext(/^\/v1\/settings$/, "offline", "PATCH");
   await loseSettingsSave(user);
-  const alert = screen.getByText("Settings outcome unconfirmed").closest("[role=alert]") as HTMLElement;
+  const alert = screen.getByText(/We do not know yet whether Valo Pay saved your settings/).closest("[role=alert]") as HTMLElement;
   vi.spyOn(window, "confirm").mockReturnValue(true);
   await user.click(
     within(alert).getByRole("button", { name: "Discard original request" }),
   );
   await waitFor(() =>
-    expect(screen.queryByText("Settings outcome unconfirmed")).toBeNull(),
+    expect(screen.queryByText(/We do not know yet whether Valo Pay saved your settings/)).toBeNull(),
   );
   const amount = screen.getByLabelText(
     "Notification cost alert (₦ per collection)",
   );
   expect(amount.closest("fieldset")?.disabled).toBe(false);
   await cancelInterrupted(user);
-  await user.click(screen.getByRole("button", { name: "Save" }));
+  await user.click(screen.getByRole("button", { name: "Save changes" }));
   await screen.findByText("Settings saved");
   expect(api.state().settings.notificationCostAlertKobo).toBe(1029);
   expect(keys).toHaveLength(2);
@@ -375,10 +381,10 @@ it("the emergency-stop notice discards its form, and a confirmed cancellation pe
   const keys = recordKeys("/v1/actions", "POST");
   api.failNext(/^\/v1\/actions$/, "offline", "POST");
   await user.click(
-    screen.getByRole("button", { name: "Activate emergency stop" }),
+    screen.getByRole("button", { name: "Turn on emergency stop" }),
   );
   const notice = (
-    await screen.findByText(/The emergency-stop response is unconfirmed/)
+    await screen.findByText(/We do not know yet whether Valo Pay changed the emergency stop/)
   ).closest("[role=alert]") as HTMLElement;
   expect(reason.disabled).toBe(true);
   vi.spyOn(window, "confirm").mockReturnValue(true);
@@ -387,15 +393,15 @@ it("the emergency-stop notice discards its form, and a confirmed cancellation pe
   );
   await waitFor(() =>
     expect(
-      screen.queryByText(/The emergency-stop response is unconfirmed/),
+      screen.queryByText(/We do not know yet whether Valo Pay changed the emergency stop/),
     ).toBeNull(),
   );
   expect(reason.disabled).toBe(false);
   expect(api.state().merchant.killSwitch).toBe(false);
-  await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "Activate emergency stop" })));
+  await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "Turn on emergency stop" })));
   await cancelInterrupted(user);
   await user.click(
-    screen.getByRole("button", { name: "Activate emergency stop" }),
+    screen.getByRole("button", { name: "Turn on emergency stop" }),
   );
   await screen.findByText("Lender emergency stop is on. No collection instruction was sent.");
   expect(api.state().merchant.killSwitch).toBe(true);
@@ -424,8 +430,8 @@ it("offers the retry of a lost emergency-stop answer while a request to lift the
   api.failNext(/^\/v1\/actions$/, "offline", "POST");
   await user.click(screen.getByRole("button", { name: "Keep the stop on" }));
   // The answer was lost, so the stop may already be kept on and the request settled: only the original is retried.
-  const retry = await screen.findByRole("button", { name: "Retry original emergency-stop request" });
-  expect(screen.getByText(/The emergency-stop response is unconfirmed/)).toBeTruthy();
+  const retry = await screen.findByRole("button", { name: "Check original request" });
+  expect(screen.getByText(/We do not know yet whether Valo Pay changed the emergency stop/)).toBeTruthy();
   expect((screen.getByRole("button", { name: "Approve turning it off" }) as HTMLButtonElement).disabled).toBe(true);
   expect((screen.getByRole("button", { name: "Keep the stop on" }) as HTMLButtonElement).disabled).toBe(true);
   expect(reason.disabled).toBe(true);
@@ -446,11 +452,11 @@ it("moves focus back to Approve turning it off when its lost answer is discarded
   // The approval never reached the service: the request still waits.
   api.failNext(/^\/v1\/actions$/, "offline", "POST");
   await user.click(screen.getByRole("button", { name: "Approve turning it off" }));
-  const notice = (await screen.findByText(/The approval's response is unconfirmed/)).closest("[role=alert]") as HTMLElement;
+  const notice = (await screen.findByText(/We do not know yet whether Valo Pay turned the stop off/)).closest("[role=alert]") as HTMLElement;
   vi.spyOn(window, "confirm").mockReturnValue(true);
   within(notice).getByRole("button", { name: "Discard original request" }).focus();
   await user.keyboard("{Enter}");
-  await waitFor(() => expect(screen.queryByText(/The approval's response is unconfirmed/)).toBeNull());
+  await waitFor(() => expect(screen.queryByText(/We do not know yet whether Valo Pay turned the stop off/)).toBeNull());
   await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "Approve turning it off" })));
 });
 
@@ -462,19 +468,19 @@ it("keeps a lost approval's notice and its retry when a refetch takes the waitin
   await user.type(screen.getByLabelText("Reason for changing the emergency stop"), "Checked the incident notes with Operations.");
   const requests = loseFirstResponse("/v1/actions", "POST");
   await user.click(screen.getByRole("button", { name: "Approve turning it off" }));
-  await screen.findByText(/The approval's response is unconfirmed/);
+  await screen.findByText(/We do not know yet whether Valo Pay turned the stop off/);
   expect((screen.getByRole("button", { name: "Keep the stop on" }) as HTMLButtonElement).disabled).toBe(true);
   // The approval did reach the service: read again, the settings show the stop off and no request waiting.
   expect(api.state().merchant.killSwitch).toBe(false);
   await queryClient.invalidateQueries();
   await waitFor(() => expect(screen.queryByText(/asked to turn the emergency stop off/)).toBeNull());
-  const notice = screen.getByText(/The approval's response is unconfirmed/).closest("[role=alert]") as HTMLElement;
+  const notice = screen.getByText(/We do not know yet whether Valo Pay turned the stop off/).closest("[role=alert]") as HTMLElement;
   // Nothing that would reverse it is offered while its outcome is unconfirmed.
-  expect((screen.getByRole("button", { name: "Activate emergency stop" }) as HTMLButtonElement).disabled).toBe(true);
-  await user.click(within(notice).getByRole("button", { name: "Retry original approval" }));
+  expect((screen.getByRole("button", { name: "Turn on emergency stop" }) as HTMLButtonElement).disabled).toBe(true);
+  await user.click(within(notice).getByRole("button", { name: "Check original request" }));
   expect(await screen.findByText("Lender emergency stop is off. No collection instruction was sent.")).toBeTruthy();
-  expect(screen.queryByText(/The approval's response is unconfirmed/)).toBeNull();
+  expect(screen.queryByText(/We do not know yet whether Valo Pay turned the stop off/)).toBeNull();
   expect(requests).toHaveLength(2);
   expect(requests[1]).toEqual(requests[0]);
-  expect((screen.getByRole("button", { name: "Activate emergency stop" }) as HTMLButtonElement).disabled).toBe(true);
+  expect((screen.getByRole("button", { name: "Turn on emergency stop" }) as HTMLButtonElement).disabled).toBe(true);
 });

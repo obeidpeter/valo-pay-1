@@ -33,7 +33,7 @@ describe("theme", () => {
   it("switches the theme from the sidebar and keeps the saved choice", async () => {
     const user = userEvent.setup();
     renderApp("/overview");
-    await screen.findByRole("heading", { name: "Operations overview" });
+    await screen.findByRole("heading", { name: "Overview" });
     await user.click(screen.getByRole("button", { name: "Switch to dark theme" }));
     expect(html()).toBe(true);
     expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe("dark");
@@ -73,7 +73,7 @@ describe("theme", () => {
     renderApp("/settings");
     const darkRadio = await screen.findByRole("radio", { name: "Dark" });
     expect((screen.getByRole("radio", { name: "Follow the device" }) as HTMLInputElement).checked).toBe(true);
-    expect(screen.getByText("Following the device: light now.")).toBeTruthy();
+    expect(screen.getByText("Following your device (currently Light).")).toBeTruthy();
     await user.click(darkRadio);
     expect(html()).toBe(true);
     expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe("dark");

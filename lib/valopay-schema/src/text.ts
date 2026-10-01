@@ -1,33 +1,50 @@
 /**
- * Wording helpers shared by the API and the console, so a count reads the same
- * everywhere and the market's number conventions are named once.
+ * Wording helpers shared by the API and the console, so a count, an amount and a
+ * date read the same everywhere and the market's conventions are named once.
  */
+import { WAT_OFFSET_MS } from "./policy";
 
 /** Nigerian English for numbers and money: 1,234.56 and the naira sign. */
 export const MARKET_LOCALE = "en-NG";
 
 const numberFormat = new Intl.NumberFormat(MARKET_LOCALE);
 const moneyFormat = new Intl.NumberFormat(MARKET_LOCALE, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-// The layout (sign and separators) of an amount above zero and one below.
-const moneyLayout = { positive: moneyFormat.formatToParts(1), negative: moneyFormat.formatToParts(-1) };
+// The layout (separators) of an amount above zero; a credit's sign goes before the naira sign, as the console writes it.
+const moneyLayout = { positive: moneyFormat.formatToParts(1) };
 const pluralRules = new Intl.PluralRules(MARKET_LOCALE);
 
+/** A number as people read it, with thousands separators: "1,016". */
+export function numberText(value: number): string {
+  return numberFormat.format(value);
+}
 /** A count with its noun in the right number: "1 item", "0 items", "1,234 records". An irregular plural is passed in. */
 export function counted(count: number, singular: string, plural = `${singular}s`): string {
   return `${numberFormat.format(count)} ${pluralRules.select(count) === "one" ? singular : plural}`;
 }
 /**
- * An amount in kobo as the API's messages write money: "NGN 25,000.00". A whole
+ * A length of time as people read it, from whole minutes: "45 minutes" under
+ * two hours, then hours under two days, then days, with "about" when the time
+ * is not a whole number of them ("about 3 hours").
+ */
+export function durationText(minutes: number): string {
+  const whole = Math.max(0, Math.floor(minutes));
+  if (whole < 120) return counted(whole, "minute");
+  const [unit, size] = whole < 2880 ? ["hour", 60] as const : ["day", 1440] as const;
+  return `${whole % size === 0 ? "" : "about "}${counted(Math.round(whole / size), unit)}`;
+}
+/**
+ * An amount in kobo as Valo Pay writes money for people, in messages, notes and
+ * PDFs: "₦25,000.00", and "-₦1.50" for a credit, as the console shows it. A whole
  * number of kobo is split into naira and kobo with integer arithmetic, so every
  * safe integer reads exactly; dividing by 100 as a float loses a kobo above about
- * NGN 10 trillion.
+ * ₦10 trillion. CSV and JSON files keep amounts as numbers.
  */
 export function nairaText(kobo: number): string {
-  if (!Number.isSafeInteger(kobo)) return `NGN ${moneyFormat.format(kobo / 100)}`;
+  if (!Number.isSafeInteger(kobo)) return `${kobo < 0 ? "-" : ""}₦${moneyFormat.format(Math.abs(kobo) / 100)}`;
   const minor = BigInt(kobo), whole = minor < 0n ? -minor : minor;
-  const parts = (minor < 0n ? moneyLayout.negative : moneyLayout.positive)
+  const parts = moneyLayout.positive
     .map((part) => part.type === "integer" ? numberFormat.format(whole / 100n) : part.type === "fraction" ? String(whole % 100n).padStart(2, "0") : part.value);
-  return `NGN ${parts.join("")}`;
+  return `${minor < 0n ? "-" : ""}₦${parts.join("")}`;
 }
 
 /** Currency codes with the same number of decimal places, as a table's entries. */
@@ -62,7 +79,7 @@ export function smallestUnitText(amount: number, currency: string): string {
 }
 /**
  * An amount in its currency's minor unit, as a payment stores it, written the
- * way the API's messages write money: naira as nairaText does ("NGN 25,000.00"),
+ * way Valo Pay writes money for people: naira as nairaText does ("₦25,000.00"),
  * any other currency by its code with its ISO 4217 decimals ("USD 1,000.00" for
  * 100,000 cents), with the same integer arithmetic, and a code without them as
  * smallestUnitText does. The console's formatMinor prints the same figure.
@@ -87,4 +104,50 @@ export function moneyText(amount: number, currency = "NGN"): string {
 export function otherCurrenciesText(other: Readonly<Record<string, { amount: number }>> | undefined): string {
   const rows = Object.entries(other ?? {}).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
   return new Intl.ListFormat("en-GB").format(rows.map(([code, row]) => moneyText(row.amount, code)));
+}
+
+/** The short names of the months as the console's dates write them (en-GB): "Sept", not "Sep". */
+const shortMonths = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sept", "Oct", "Nov", "Dec"] as const;
+const longMonths = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"] as const;
+const DAY_ONLY = /^(\d{4})-(\d{2})-(\d{2})$/;
+const MONTH_ONLY = /^(\d{4})-(\d{2})$/;
+const two = (value: number) => String(value).padStart(2, "0");
+/** The West Africa Time calendar parts of an instant, a YYYY-MM-DD day as it is, or undefined for anything that is not a date. */
+function watParts(value: unknown): { year: number; month: number; day: number; hour?: number; minute?: number } | undefined {
+  if (typeof value === "string" && DAY_ONLY.test(value)) {
+    const [, year, month, day] = DAY_ONLY.exec(value)!.map(Number);
+    const date = new Date(Date.UTC(year!, month! - 1, day!));
+    return date.getUTCMonth() === month! - 1 && date.getUTCDate() === day ? { year: year!, month: month!, day: day! } : undefined;
+  }
+  const ms = typeof value === "number" ? value : value instanceof Date ? value.getTime() : typeof value === "string" && value.trim() ? Date.parse(value) : Number.NaN;
+  if (!Number.isFinite(ms)) return undefined;
+  const wat = new Date(ms + WAT_OFFSET_MS);
+  return Number.isFinite(wat.getTime()) ? { year: wat.getUTCFullYear(), month: wat.getUTCMonth() + 1, day: wat.getUTCDate(), hour: wat.getUTCHours(), minute: wat.getUTCMinutes() } : undefined;
+}
+/**
+ * A day as people read it, "29 Sept 2026", as the console writes dates: a
+ * YYYY-MM-DD day as it is, and an instant as its day in West Africa Time.
+ * Anything that is not a date is returned as it was given.
+ */
+export function dayText(value: unknown): string {
+  const parts = watParts(value);
+  return parts ? `${parts.day} ${shortMonths[parts.month - 1]} ${parts.year}` : String(value ?? "");
+}
+/**
+ * An instant as people read it, "29 Sept 2026, 14:05 WAT", as the console
+ * writes it: its date and 24-hour time in West Africa Time. A YYYY-MM-DD day
+ * is only a day, with no invented time; anything else is returned as given.
+ */
+export function instantText(value: unknown): string {
+  const parts = watParts(value);
+  if (!parts) return String(value ?? "");
+  const day = `${parts.day} ${shortMonths[parts.month - 1]} ${parts.year}`;
+  return parts.hour === undefined ? day : `${day}, ${two(parts.hour)}:${two(parts.minute!)} WAT`;
+}
+/** A billing month (YYYY-MM), or the month of an instant in West Africa Time, as people read it: "September 2026". */
+export function monthText(value: unknown): string {
+  const month = typeof value === "string" ? MONTH_ONLY.exec(value) : null;
+  if (month && Number(month[2]) >= 1 && Number(month[2]) <= 12) return `${longMonths[Number(month[2]) - 1]} ${month[1]}`;
+  const parts = watParts(value);
+  return parts ? `${longMonths[parts.month - 1]} ${parts.year}` : String(value ?? "");
 }

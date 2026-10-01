@@ -47,18 +47,21 @@ function toError(value: unknown): Error {
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
 
 /**
- * What a page that stopped working says: that it did, that an error on a
- * page changes no record, the time and the address for a report, and two
- * ways on (Nielsen 1 and 9; Dix: recoverability; Shneiderman: simple error
- * handling). It never shows a stack trace or an API response to a lender's
+ * What a page that stopped working says: that it did, the time and the
+ * address for a report, and two ways on (Nielsen 1 and 9; Dix:
+ * recoverability; Shneiderman: simple error handling). Inside the console it
+ * also says where a change just saved can be checked, Request history, before
+ * it is sent again, and offers the Overview; in the public frame a visitor has
+ * made no change and may have no workspace, so it offers only Try again and
+ * Back to home. It never shows a stack trace or an API response to a lender's
  * staff; the error's message can carry internals, so it is printed in
  * development only. The links are plain anchors rather than router links,
  * so the notice works outside the router too and a click starts the page
  * afresh rather than re-entering the state that broke.
  */
-export function ErrorNotice({ error, resetError }: ErrorFallbackProps) {
+export function ErrorNotice({ error, resetError, where = 'console' }: ErrorFallbackProps & { where?: 'console' | 'public' }) {
   const [at] = useState(() => new Date().toISOString());
-  const where = window.location.pathname;
+  const address = window.location.pathname;
   useEffect(() => {
     const previous = document.title;
     document.title = 'Page error · Valo Pay';
@@ -70,11 +73,13 @@ export function ErrorNotice({ error, resetError }: ErrorFallbackProps) {
       title="We could not display this page"
       actions={<>
         <Button onClick={resetError}>Try again</Button>
-        <Button asChild variant="outline"><a href={`${basePath}/overview`}>Go to overview</a></Button>
+        {where === 'console'
+          ? <Button asChild variant="outline"><a href={`${basePath}/overview`}>Open Overview</a></Button>
+          : <Button asChild variant="outline"><a href={`${basePath}/`}>Back to home</a></Button>}
       </>}
     >
-      <p>Try loading the page again. If you had just submitted an action, check the <a href={`${basePath}/audit`} className="font-medium text-primary underline-offset-4 hover:underline">audit log</a> before repeating it.</p>
-      <p>When reporting the problem, include this time and page address: <LookedFor>{formatDate(at)}</LookedFor>, <LookedFor>{where}</LookedFor>.</p>
+      {where === 'console' && <p>If you had just saved a change, check <a href={`${basePath}/operations`} className="font-medium text-primary underline-offset-4 hover:underline">Request history</a> before you send it again.</p>}
+      <p>When reporting the problem, include this time and page address: <LookedFor>{formatDate(at)}</LookedFor>, <LookedFor>{address}</LookedFor>.</p>
       {import.meta.env.DEV ? (
         <details className="text-xs">
           <summary className="cursor-pointer">Technical details (development only)</summary>
@@ -85,12 +90,12 @@ export function ErrorNotice({ error, resetError }: ErrorFallbackProps) {
   );
 }
 
-/** The fallback outside the console: the notice in the public frame. Inside the console the layout passes ErrorNotice on its own, so the sidebar stays. */
+/** The fallback outside the console: the public notice in the public frame. Inside the console the layout passes ErrorNotice on its own, so the sidebar stays. */
 function DefaultFallback(props: ErrorFallbackProps) {
   return (
     <PublicFrame>
       <main id="main" tabIndex={-1} className="mx-auto max-w-6xl px-4 py-12 sm:px-6 lg:py-16 focus:outline-none">
-        <ErrorNotice {...props} />
+        <ErrorNotice {...props} where="public" />
       </main>
     </PublicFrame>
   );

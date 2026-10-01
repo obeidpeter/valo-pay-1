@@ -6,6 +6,7 @@ import { customerTimeline } from "../../api-server/src/domain/timeline";
 import { makeRecord } from "../../api-server/src/domain/records";
 import { reconcile } from "../../api-server/src/domain/reconciliation";
 import { importCsv } from "../../api-server/src/lib/valopay-import";
+import { executeAction } from "../../api-server/src/domain/actions";
 
 let api: FakeApi;
 beforeEach(() => { api = installFakeApi(); });
@@ -20,7 +21,7 @@ describe("customer timeline", () => {
     renderApp(`/customers/${ada.id}`);
     expect(await screen.findByRole("heading", { name: "Ada Okonkwo" })).toBeTruthy();
     expect(screen.getByText("DEMO-C1001")).toBeTruthy();
-    expect(screen.getByText("Customer position")).toBeTruthy();
+    expect(screen.getByText("Balance summary")).toBeTruthy();
 
     await user.click(screen.getByRole("button", { name: "Export dispute pack (PDF)" }));
     expect(await screen.findByText("Dispute pack ready")).toBeTruthy();
@@ -29,8 +30,12 @@ describe("customer timeline", () => {
     const record = api.state().records.find((item) => item.kind === "exports")!;
     expect(record.customerId).toBe(ada.id);
     await waitFor(() => expect(opened).toHaveBeenCalledWith(`/api/v1/exports/${record.id}/download?merchantId=${api.merchantIds[0]}`, "_blank"));
-    // Radix also announces a new notice through a hidden copy for a moment, so the text may be present twice.
-    expect(screen.getAllByText(new RegExp(`SHA-256 checksum: ${String(record.data.checksum).slice(0, 16)}`)).length).toBeGreaterThanOrEqual(1);
+    // Radix also announces a new notice through a hidden copy for a moment, so the text may be present twice. The notice
+    // says the file is sample data; the file's checksum is kept in the export's closed Technical details, never in a notice.
+    const notices = screen.getAllByText(/^Your browser blocked the new tab\. Select Open to view the file\. Sample data only\.$/);
+    expect(notices.length).toBeGreaterThanOrEqual(1);
+    for (const notice of notices) expect(notice.textContent).not.toContain(String(record.data.checksum).slice(0, 16));
+    expect(screen.getByText(`Checksum (SHA-256): ${String(record.data.checksum)}`).closest("details")!.open).toBe(false);
   });
 
   // Third review of the audit fixes: the customer's positions list money in another currency beside the naira credit
@@ -45,12 +50,12 @@ describe("customer timeline", () => {
       unapplied("eur-card-payment-2", "SBX-EUR-CARD-2", 3_000, "EUR");
     });
     renderApp(`/customers/${ada.id}`);
-    const position = (await screen.findByText("Customer position")).parentElement!;
-    expect(position.textContent).toContain("Unapplied credit");
+    const position = (await screen.findByText("Balance summary")).parentElement!;
+    expect(position.textContent).toContain("Unallocated payments");
     // The service derives the money beside the naira (the position the fake API serves is the domain's), and the page shows it as it comes.
     expect(customerTimeline(api.state(), ada.id).position.unallocatedOtherCurrencies).toEqual({ EUR: { count: 2, amount: 5_000 }, USD: { count: 1, amount: 100_000 } });
     // Each currency is an item of its own under the label, by code, as close evidence writes it.
-    const others = screen.getByRole("list", { name: "Unapplied in other currencies" });
+    const others = screen.getByRole("list", { name: "Unallocated, other currencies" });
     expect(within(others).getAllByRole("listitem").map((item) => item.textContent!.replace(/\u00a0/g, " "))).toEqual(["EUR 50.00 (2 payments)", "USD 1,000.00 (1 payment)"]);
     // The payment itself is listed in its own currency, never as naira.
     const listed = (await screen.findByRole("heading", { name: "Payments" })).closest("section")!;
@@ -104,9 +109,24 @@ describe("customer timeline", () => {
       return state.records.find((record) => record.kind === "exceptions" && record.data.linkedRecordId === card.data.paymentId)!;
     });
     renderApp(`/cases/${exception.id}`);
-    const panel = (await screen.findByRole("heading", { name: "Unallocated payment" })).closest("section")!;
+    const panel = (await screen.findByRole("heading", { name: "Exception details" })).closest("section")!;
     expect(panel.textContent!.replace(/ /g, " ")).toContain("USD 1,000.00");
     expect(panel.textContent).not.toContain("₦1,000.00");
+  });
+
+  // Review of the language pass, F3: Finance's decision changes only a proposal's status, so its history line must say why
+  // it was proposed, never that Finance still has to confirm a match it has confirmed.
+  it("says a confirmed match was proposed for Finance to confirm, and no longer asks Finance to confirm it", async () => {
+    const proposal = api.state().records.find((record) => record.kind === "allocations" && record.status === "proposed")!;
+    expect([proposal.data.automatic, proposal.data.confidence]).toEqual([false, "probable"]);
+    api.mutate((state, ctx) => executeAction(state, { ...ctx, actor: "Sandbox Finance", role: "Finance" }, { action: "confirm_allocation", recordId: String(proposal.data.paymentId), reason: "Checked the sample payment and instalment.", data: { proposalId: proposal.id, proposalUpdatedAt: proposal.updatedAt } }));
+    expect(api.state().records.find((record) => record.id === proposal.id)?.status).toBe("confirmed");
+    renderApp(`/customers/${proposal.customerId}`);
+    await screen.findByRole("heading", { name: "Customer history" });
+    const event = [...document.querySelectorAll("main ol > li")].find((item) => item.querySelector(`[title="${proposal.id}"]`)) as HTMLElement;
+    expect(event.textContent).toContain(`Proposed by rule ${proposal.data.rule} for Finance to confirm. Confidence: Probable.`);
+    expect(event.textContent).not.toContain("Finance needs to confirm");
+    expect(within(event).getByText("Confirmed")).toBeTruthy();
   });
 
   it("says when the lender has no customer with the reference, inside the console", async () => {
@@ -116,8 +136,8 @@ describe("customer timeline", () => {
     expect(api.calls.find((call) => call.path.endsWith("/history"))?.status).toBe(404);
     // The sidebar stays as the way out, and each action names where it goes.
     expect(screen.getByRole("link", { name: /Audit log/ })).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Back to customers" }).getAttribute("href")).toBe("/customers");
-    expect(screen.getByRole("link", { name: "Go to overview" }).getAttribute("href")).toBe("/overview");
+    expect(screen.getByRole("link", { name: "Back to Customers" }).getAttribute("href")).toBe("/customers");
+    expect(screen.getByRole("link", { name: "Open Overview" }).getAttribute("href")).toBe("/overview");
     await waitFor(() => expect(document.title).toBe("Customer not found · Valo Pay"));
   });
 
@@ -128,11 +148,11 @@ describe("customer timeline", () => {
     try {
       renderApp("/cases/no-such-case");
       expect(await screen.findByRole("heading", { level: 1, name: "Case not found" })).toBeTruthy();
-      expect(screen.queryByRole("heading", { name: "Coordinate a case" })).toBeNull();
+      expect(screen.queryByRole("heading", { name: /^Case(: .+)?$/ })).toBeNull();
       expect(screen.getByText("no-such-case")).toBeTruthy();
       expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
-      expect(screen.getByRole("link", { name: "Back to exceptions" }).getAttribute("href")).toBe("/exceptions");
-      expect(screen.getByRole("link", { name: "Go to overview" }).getAttribute("href")).toBe("/overview");
+      expect(screen.getByRole("link", { name: "Back to Exceptions" }).getAttribute("href")).toBe("/exceptions");
+      expect(screen.getByRole("link", { name: "Open Overview" }).getAttribute("href")).toBe("/overview");
       await waitFor(() => expect(document.title).toBe("Case not found · Valo Pay"));
       expect(api.calls.filter((call) => call.path === "/v1/pilot/cases/no-such-case").map((call) => call.status)).toEqual([404]);
     } finally {
@@ -141,10 +161,11 @@ describe("customer timeline", () => {
   });
 
   it("keeps a temporary case loading failure retryable", async () => {
-    api.failNext(/^\/v1\/pilot\/cases\/no-such-case$/, { status: 503, error: "The service is busy. Try again in a moment." });
+    api.failNext(/^\/v1\/pilot\/cases\/no-such-case$/, { status: 503, error: "Valo Pay is busy. Try again in a moment." });
     renderApp("/cases/no-such-case");
-    expect(await screen.findByText(/^The service is busy\. Try again in a moment\./)).toBeTruthy();
-    expect(screen.getByRole("heading", { level: 1, name: "Coordinate a case" })).toBeTruthy();
+    expect(await screen.findByText(/^Valo Pay is busy\. Try again in a moment\./)).toBeTruthy();
+    // Before the exception loads, the heading is the page's name alone.
+    expect(screen.getByRole("heading", { level: 1, name: "Case" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy();
   });
 });

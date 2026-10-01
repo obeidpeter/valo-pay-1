@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { notFoundText, recordTypeLabel, recordTypeTitle } from "@workspace/valopay-schema";
 import type { DomainState, RecordInput, RecordOf, ValopayRecord } from "./types";
 
 /** Keys that name a raw financial identifier, matched on snake_case word boundaries so "accountableUser" is not an account number. */
@@ -16,11 +17,11 @@ export function assertNoRealBankDetails(value: unknown, key = ""): void {
     const name = snakeCase(key);
     if (name.includes("masked")) return;
     if (forbiddenBankKey.test(name)) {
-      throw new Error("Raw bank account details are not permitted; store a masked identifier only.");
+      throw new Error("Do not enter a full bank account number. Enter a masked number, for example •••• 1234.");
     }
     // Separators do not matter ("Account ID" is account_id), and record IDs are set aside before looking for a number.
     if (financialKey.test(name.replace(/[^a-z0-9]+/g, "_")) && digitRun.test(value.replace(recordId, "#"))) {
-      throw new Error("Raw financial identifiers are not permitted in this sandbox.");
+      throw new Error("Do not enter full account, card or BVN numbers. Mask them, for example •••• 1234.");
     }
     return;
   }
@@ -41,7 +42,7 @@ export function assertNoRealBankDetails(value: unknown, key = ""): void {
  */
 export function findRecord<K extends string = string>(state: DomainState, id: string, kind?: K): RecordOf<K> {
   const record = state.records.find((item) => item.id === id && (!kind || item.kind === kind));
-  if (!record) throw Object.assign(new Error(`Record ${id.length > 100 ? `${id.slice(0, 100)}…` : id} was not found in this lender.`), { status: 404 });
+  if (!record) throw Object.assign(new Error(notFoundText(recordTypeLabel(kind))), { status: 404 });
   return record as RecordOf<K>;
 }
 
@@ -63,7 +64,7 @@ export function makeRecord<K extends string>(state: DomainState, kind: K, input:
     id: input.id || randomUUID(),
     merchantId: state.merchant.id,
     kind,
-    name: input.name || kind,
+    name: input.name || recordTypeTitle(kind),
     status: input.status || "draft",
     reference: input.reference || `SYN-${kind}-${randomUUID().slice(0, 8)}`,
     amountKobo: Number.isInteger(input.amountKobo) ? Number(input.amountKobo) : 0,
@@ -72,7 +73,7 @@ export function makeRecord<K extends string>(state: DomainState, kind: K, input:
     updatedAt: input.updatedAt || timestamp,
     data: { ...(input.data || {}), synthetic: true },
   };
-  if (record.amountKobo < 0) throw new Error("Amounts must be integer kobo greater than or equal to zero.");
+  if (record.amountKobo < 0) throw new Error("Enter an amount of ₦0 or more.");
   state.records.push(record);
   return record as RecordOf<K>;
 }

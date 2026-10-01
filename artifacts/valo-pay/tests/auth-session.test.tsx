@@ -8,12 +8,15 @@ import { Router } from "wouter";
 import { AuthShow, ClerkLoader, ClerkSlot, ClerkSignIn, useSessionUser, useSignOut } from "@/lib/auth";
 
 vi.unmock("@/lib/auth");
-const clerk = vi.hoisted(() => ({ signOut: () => {}, signedOut: 0 }));
+const clerk = vi.hoisted(() => ({ signOut: () => {}, signedOut: 0, provider: null as Record<string, unknown> | null }));
 vi.mock("@clerk/react", async () => {
   const React = await import("react");
   const Provided = React.createContext(false);
   return {
-    ClerkProvider: ({ children }: { children: React.ReactNode }) => <Provided.Provider value>{children}</Provided.Provider>,
+    ClerkProvider: ({ children, ...props }: { children: React.ReactNode }) => {
+      clerk.provider = props;
+      return <Provided.Provider value>{children}</Provided.Provider>;
+    },
     useAuth: () => {
       if (!React.useContext(Provided)) throw new Error("useAuth outside ClerkProvider");
       return { userId: "user_sample", orgId: "org_sample", isLoaded: true };
@@ -93,11 +96,11 @@ it("explains a failed auth load and retries it without losing a draft or treatin
   const draft = screen.getByLabelText("Draft") as HTMLInputElement;
   fireEvent.change(draft, { target: { value: "Keep my unsaved work" } });
   const failure = await screen.findByRole("alert");
-  expect(failure.textContent).toContain("Sign-in could not be loaded");
+  expect(failure.textContent).toContain("We could not load sign-in.");
   expect(screen.queryByText("Signed out content")).toBeNull();
   expect(screen.queryByText("Signed in content")).toBeNull();
   expect(screen.getByText("Waiting for Clerk")).toBeTruthy();
-  fireEvent.click(within(failure).getByRole("button", { name: "Try loading sign-in again" }));
+  fireEvent.click(within(failure).getByRole("button", { name: "Try again" }));
   await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
   expect(screen.getByRole("status").textContent).toBe("Loading sign-in…");
   expect(screen.queryByRole("alert")).toBeNull();
@@ -109,4 +112,29 @@ it("explains a failed auth load and retries it without losing a draft or treatin
   expect(screen.getByText("Signed in content")).toBeTruthy();
   expect(screen.getByRole("region", { name: "Sign-in under Clerk's provider" })).toBeTruthy();
   expect(screen.queryByRole("status")).toBeNull();
+});
+
+it("gives Clerk's own screens British English and the pages' own names", async () => {
+  const pending = import("@/lib/clerk-session");
+  render(<Router><ClerkLoader load={() => pending}>
+    <ClerkSlot><ClerkSignIn path="/sign-in" signUpUrl="/sign-up" fallbackRedirectUrl="/overview" /></ClerkSlot>
+  </ClerkLoader></Router>);
+  await screen.findByRole("region", { name: "Sign-in under Clerk's provider" });
+  const localization = clerk.provider?.localization as Record<string, unknown>;
+  expect(localization).toMatchObject({
+    locale: "en-GB",
+    signIn: { start: { title: "Sign in", actionLink: "Create an account" }, totpMfa: { title: "Two-step verification" } },
+    signUp: { start: { title: "Create an account", actionLink: "Sign in" } },
+    organizationSwitcher: { notSelected: "No organisation selected", action__createOrganization: "Create organisation" },
+    taskChooseOrganization: { chooseOrganization: { title: "Choose an organisation" } },
+  });
+  // Every word given to Clerk spells organisation the British way and calls a second factor two-step verification.
+  const words: string[] = [];
+  const collect = (value: unknown): void => {
+    if (typeof value === "string") words.push(value);
+    else if (value && typeof value === "object") Object.values(value).forEach(collect);
+  };
+  collect(localization);
+  expect(words.length).toBeGreaterThan(20);
+  expect(words.filter((word) => /organization|two-step authentication|two-factor|\bMFA\b/i.test(word))).toEqual([]);
 });

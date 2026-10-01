@@ -26,14 +26,14 @@ it("names the viewer's own ending access and the last administrator's, only with
   // Mine soon, another administrator's later: only mine.
   const own = administratorExpiryWarnings(directory([member("Clerk:user_me", "Admin", inDays(10)), member("Clerk:user_other", "Admin", inDays(80))]), now);
   expect(own).toHaveLength(1);
-  expect(own[0]).toMatch(/^Your administrator access ends on .* Ask the operator to renew it before then; it cannot be renewed from the console\.$/);
+  expect(own[0]).toMatch(/^Your Admin access ends on .*\. You cannot renew it yourself\. Before then, ask the Valo Pay team to renew it\.$/);
   // Mine the last to end, and soon: one message that says nobody is left after it.
   const last = administratorExpiryWarnings(directory([member("Clerk:user_me", "Admin", inDays(13)), member("Clerk:user_other", "Admin", inDays(3)), member("Clerk:user_gone", "Admin", inDays(-2))]), now);
-  expect(last).toEqual([expect.stringMatching(/^Your administrator access ends on .*, and no other administrator's lasts longer: after that nobody can invite, change or renew staff\./)]);
+  expect(last).toEqual([expect.stringMatching(/^Your Admin access ends on .*, and no other Admin’s access lasts longer\. After that, nobody can invite, change or renew team members\./)]);
   // Another administrator lasts longer, but also ends soon: both.
   const both = administratorExpiryWarnings(directory([member("Clerk:user_me", "Admin", inDays(2)), member("Clerk:user_other", "Admin", inDays(12))]), now);
   expect(both).toHaveLength(2);
-  expect(both[1]).toMatch(/^Every administrator's access ends by .*: after that nobody can invite, change or renew staff\. Ask the operator to renew an administrator, or to add another, before then\.$/);
+  expect(both[1]).toMatch(/^Every Admin’s access ends by .*\. After that, nobody can invite, change or renew team members\. Before then, ask the Valo Pay team to renew an Admin’s access or add another Admin\.$/);
   // A suspended administrator does not count as staying; a Finance member or a sandbox is never warned.
   expect(administratorExpiryWarnings(directory([member("Clerk:user_me", "Admin", inDays(40)), member("Clerk:user_other", "Admin", inDays(80), "suspended")]), now)).toEqual([]);
   expect(administratorExpiryWarnings(directory([member("Clerk:user_me", "Finance", inDays(2)), member("Clerk:user_other", "Admin", inDays(3))]), now)).toEqual([]);
@@ -63,25 +63,25 @@ it("warns a staff administrator above the page when every administrator's access
   const soon = new Date(Date.now() + 5 * DAY).toISOString();
   staffHost("Admin", [member("Clerk:user_me", "Admin", soon)]);
   renderApp("/overview");
-  const notice = await screen.findByRole("status", { name: "Administrator access" });
-  expect(notice.textContent).toMatch(/Administrator access is ending/);
-  expect(notice.textContent).toMatch(/Your administrator access ends on .* and no other administrator's lasts longer/);
+  const notice = await screen.findByRole("status", { name: "Admin access" });
+  expect(notice.textContent).toMatch(/Admin access is ending/);
+  expect(notice.textContent).toMatch(/Your Admin access ends on .* and no other Admin’s access lasts longer/);
 });
 
 it("says nothing to a staff administrator whose access lasts", async () => {
   const reads = staffHost("Admin", [member("Clerk:user_me", "Admin", new Date(Date.now() + 60 * DAY).toISOString())]);
   // Team & access shows the same read of the team, so once its member is on screen the warning has had its data.
   renderApp("/team");
-  await screen.findByText(/^Admin · active · expires /);
-  expect(screen.queryByRole("status", { name: "Administrator access" })).toBeNull();
+  await screen.findByText(/^Admin · Active · expires /);
+  expect(screen.queryByRole("status", { name: "Admin access" })).toBeNull();
   expect(reads.team).toBe(1);
 });
 
 it("never reads the team for this outside a staff administrator's console", async () => {
   const reads = staffHost("Finance", [member("Clerk:user_me", "Finance", new Date(Date.now() + 2 * DAY).toISOString())]);
   renderApp("/overview");
-  await screen.findByRole("heading", { name: "Operations overview" });
-  expect(screen.queryByRole("status", { name: "Administrator access" })).toBeNull();
+  await screen.findByRole("heading", { name: "Overview" });
+  expect(screen.queryByRole("status", { name: "Admin access" })).toBeNull();
   expect(reads.team).toBe(0);
 });
 
@@ -93,7 +93,7 @@ it("never reads the team for this in the sandbox", async () => {
     return send(input, options);
   };
   renderApp("/overview");
-  await screen.findByRole("heading", { name: "Operations overview" });
-  expect(screen.queryByRole("status", { name: "Administrator access" })).toBeNull();
+  await screen.findByRole("heading", { name: "Overview" });
+  expect(screen.queryByRole("status", { name: "Admin access" })).toBeNull();
   expect(team).toBe(0);
 });

@@ -1,6 +1,6 @@
 import { Link, useSearch } from 'wouter';
 import { getListRecordsQueryKey, useListRecords, type ValopayRecord } from '@workspace/api-client-react';
-import { heldEvidenceCodes, heldEvidenceOf, providerIdentityConfirmedCode, providerIdentityOf, providerIdentityParts, providerIdentityReviewOf, resolutionCodesForException, resolveExceptionType, unseenReversalCodes, unseenReversalOf } from '@workspace/valopay-schema';
+import { conditionClearedCode, heldEvidenceCodes, heldEvidenceOf, providerIdentityConfirmedCode, providerIdentityOf, providerIdentityParts, providerIdentityReviewOf, resolutionCodesForException, resolveExceptionType, unseenReversalCodes, unseenReversalOf } from '@workspace/valopay-schema';
 import { formatDate, formatNumber } from '@/lib/formatters';
 import { formatRecordMoney } from '@/lib/currencies';
 import { readableLabel } from '@/components/record-label';
@@ -37,8 +37,8 @@ export function providerIdentityLabel(identity: unknown): string {
 type IdentityClaim = { identity: string; batchId: string; reference: string; handEntered: boolean };
 /** Why a held batch can be confirmed as none of its connections: each is another batch's too, which the data owner settles. */
 function collisionExplanation(claims: readonly IdentityClaim[]): string {
-  const named = claims.map(claim => `settlement batch ${claim.reference}${claim.handEntered ? ', entered by hand,' : ', built from the provider\'s lines,'} also records or claims ${providerIdentityLabel(claim.identity)}`);
-  return `No connection can be confirmed for this settlement batch now: ${named.join('; ')}. A confirmation settles which connection's payout a batch is, not a collision between two batches: the data owner corrects the duplicate batch's reference or provider, and the next reconciliation then releases the genuine batch and closes this exception. Leave it open until then.`;
+  const named = claims.map(claim => `settlement batch ${claim.reference} (${claim.handEntered ? 'entered by hand' : 'built from the provider’s lines'}) also names ${providerIdentityLabel(claim.identity)}`);
+  return `You cannot confirm a connection for this settlement batch yet. ${claims.length === 1 ? 'Another batch names the same connection' : 'Other batches name the same connections'}: ${named.join('; ')}. Confirming a connection cannot settle two batches that claim one payout. Ask the person who manages this data to correct the reference or provider of the duplicate batch. The next reconciliation then releases the correct batch and closes this exception. Leave it open until then.`;
 }
 
 /**
@@ -71,8 +71,8 @@ export function useHeldBatchIdentities(exception: ValopayRecord | null | undefin
 
 /** What the resolve dialog refuses before sending for a held batch: a confirmation with no identity, or an identity with another outcome. */
 export function providerIdentityErrors(values: Record<string, unknown>): Record<string, string> {
-  if (values.resolutionCode === providerIdentityConfirmedCode && !values.confirmedProviderIdentity) return { confirmedProviderIdentity: 'Choose the connection the providers confirmed this batch pays out.' };
-  if (values.resolutionCode !== providerIdentityConfirmedCode && values.confirmedProviderIdentity) return { confirmedProviderIdentity: 'Choose a connection only when you record Provider identity confirmed.' };
+  if (values.resolutionCode === providerIdentityConfirmedCode && !values.confirmedProviderIdentity) return { confirmedProviderIdentity: 'Choose the connection the providers confirmed for this batch.' };
+  if (values.resolutionCode !== providerIdentityConfirmedCode && values.confirmedProviderIdentity) return { confirmedProviderIdentity: `Clear the connection, or choose the outcome ${readableLabel(providerIdentityConfirmedCode)}.` };
   return {};
 }
 
@@ -82,42 +82,71 @@ export function providerIdentityErrors(values: Record<string, unknown>): Record<
  * every other code is named as everywhere else.
  */
 export function resolutionLabel(exception: ValopayRecord | null | undefined, code: unknown): string {
-  if (waitingReversal(exception) && code === unseenReversalCodes.adopted) return 'Provider state adopted; reversal waits for its payment';
-  if (waitingReversal(exception) && code === unseenReversalCodes.setAside) return 'Platform state confirmed; reversal set aside for good';
+  if (waitingReversal(exception) && code === unseenReversalCodes.adopted) return 'Provider status accepted; reversal waits for its payment';
+  if (waitingReversal(exception) && code === unseenReversalCodes.setAside) return 'Valo Pay status kept; reversal set aside permanently';
   return readableLabel(code);
 }
 
 /**
- * What recording the chosen outcome does where the service acts on it: evidence held as a suspected duplicate, a payment
+ * An exception's status as a person reads it. Valo Pay closes an exception whose cause went away (condition_cleared):
+ * that one reads Closed automatically, and one a person resolved reads Resolved.
+ */
+export function exceptionStatus(exception: { status: string; data?: Record<string, unknown> | null }): string {
+  return exception.status === 'closed' && exception.data?.resolutionCode === conditionClearedCode ? conditionClearedCode : exception.status;
+}
+
+/**
+ * What the resolve dialog explains: one paragraph about the chosen outcome, or, where the reader still has a choice, the
+ * writing standard's three parts: what happened, each choice on its own line, then what happens next.
+ */
+export type Guidance = string | { happened: string; choices: ReadonlyArray<readonly [choice: string, effect: string]>; next: string };
+
+/**
+ * What recording the chosen outcome does where the service acts on it: evidence held as a possible duplicate, a payment
  * held as one, and a reversal waiting for its payment, which the next reconciliation reads the resolution of before it
  * looks for any payment, and a settlement batch held for its provider identity, which a confirmation of its connection
  * releases. Undefined where resolving records the outcome and reason alone.
  */
-export function resolutionEffect(exception: ValopayRecord, code: unknown, held?: boolean, blocked?: string): string | undefined {
+export function resolutionEffect(exception: ValopayRecord, code: unknown, held?: boolean, blocked?: string): Guidance | undefined {
   const type = resolveExceptionType(exception.data?.type), chosen = String(code || '');
   if (identityHold(exception) && held !== false) {
     if (blocked) return blocked;
     // Its only outcome confirms whose payout the batch is: any other would close it while the batch stays held.
     const review = providerIdentityReviewOf(exception.data?.condition) !== undefined, it = review ? 'this review' : 'this exception';
-    if (!chosen) return `${review ? 'An earlier resolution of this batch\'s hold keeps its meaning, but the batch stays held, with its evidence uncounted, until Finance or an administrator confirms whose payout it is. ' : ''}Once the providers have confirmed whose payout this settlement batch is, choose Provider identity confirmed and that connection. If they cannot attribute it to one connection, leave ${it} open: once the data owner has repaired the evidence, the next reconciliation releases the batch and closes ${it}.`;
-    if (chosen === providerIdentityConfirmedCode) return 'The next reconciliation releases this settlement batch as the payout of the connection you choose. Its settlement lines and statement credits of that connection stay with it, and so does evidence that names no connection. Each settlement line of another connection moves to that connection\'s own batch, and each statement credit of another connection is left to link to its own; the batch\'s gross, fee and net leave out the lines that move, unless they were typed by hand, and its expected fee always does. No money moves.';
+    if (!chosen) return {
+      happened: `${review ? 'An earlier resolution of this batch’s hold still stands, but the batch stays on hold. ' : 'This settlement batch is on hold. '}Its evidence is not counted until Finance or an Admin confirms which connection paid it out.`,
+      choices: [
+        [readableLabel(providerIdentityConfirmedCode), 'Choose this with the connection the providers confirmed. The next reconciliation then releases the batch.'],
+        [`Leave ${it} open`, `Do this if the providers cannot say which connection it was. When the person who manages this data has corrected it, the next reconciliation releases the batch and closes ${it}.`],
+      ],
+      next: 'Check with the providers before you choose. No money moves.',
+    };
+    if (chosen === providerIdentityConfirmedCode) return 'The next reconciliation releases this settlement batch as a payout of the connection you choose. Settlement lines and bank statement lines for that connection stay with the batch. So does evidence that names no connection. Settlement lines for other connections move to their own batches, and bank statement lines for them are left to link to their own. The batch’s amounts before fees, fee and after fees leave out the lines that move, unless someone typed them by hand. The expected fee always leaves them out. No money moves.';
   }
   if (waitingReversal(exception)) {
     // No code keeps it open for Finance to check (escalated_to_provider is not offered), so the box says to leave it open.
-    if (!chosen) return 'Leave this exception open while you check with the provider which collection the reversal reverses: if its payment arrives meanwhile through the same connection and agrees with it, the reversal applies to it; if the payment comes through another connection, or names another payer, currency or amount, the reversal is held for you with an exception of its own. Either way this exception closes. Once the provider has answered, choose the outcome, and this box says what the next reconciliation does with it.';
+    if (!chosen) return {
+      happened: 'This reversal names a payment that no connection has reported yet.',
+      choices: [
+        ['Leave this exception open', 'Do this while you ask the provider which payment the reversal belongs to. If that payment arrives through the same connection and matches, the reversal applies to it. If it arrives through another connection, or names a different payer, currency or amount, the reversal is held for you as a new exception. Either way, this exception then closes.'],
+        [resolutionLabel(exception, unseenReversalCodes.adopted), 'The reversal keeps waiting for its payment, with no new exception.'],
+        [resolutionLabel(exception, unseenReversalCodes.setAside), 'The reversal reverses nothing, even if its payment arrives later.'],
+      ],
+      next: 'When the provider has answered, choose an outcome. This box then shows what the next reconciliation will do.',
+    };
     return chosen === unseenReversalCodes.adopted
-      ? 'The reversal keeps waiting for its payment, with no new exception: the reconciliation that records that payment reverses it, or holds it for you if the payment names another payer, currency or amount. No money moves.'
-      : 'The next reconciliation sets the reversal aside for good: it reverses nothing, even if its payment arrives later. No money moves.';
+      ? 'The reversal keeps waiting for its payment, and no new exception is raised. When reconciliation records that payment, it reverses it. If the payment names a different payer, currency or amount, the reversal is held for you instead. No money moves.'
+      : 'The next reconciliation sets the reversal aside permanently. It reverses nothing, even if its payment arrives later. No money moves.';
   }
   if (type !== 'suspected_duplicate') return undefined;
   if (!heldEvidenceOf(exception.data?.condition)) {
-    // A payment held as a suspected duplicate: only distinct payments changes it.
-    return chosen === 'distinct_payments' ? 'Distinct payments releases this payment from its duplicate hold at once: it is then matched like any other payment. No money moves.' : undefined;
+    // A payment held as a possible duplicate: only distinct payments changes it.
+    return chosen === 'distinct_payments' ? `Choosing ${readableLabel(chosen)} releases this payment from its duplicate hold straight away. It is then matched like any other payment. No money moves.` : undefined;
   }
-  if (!chosen) return 'Choose the outcome once you have checked the evidence. This box then says what the next reconciliation does with it.';
-  if (chosen === heldEvidenceCodes.samePayment) return 'The next reconciliation joins this evidence to the payment this exception names, while it is held for its connection alone: evidence of a payment becomes more evidence of it, with no second payment made, and evidence of a reversal reverses that payment. If the payment changes first so that the evidence no longer agrees with it, the evidence is held for you again. No money moves.';
-  if (chosen === heldEvidenceCodes.notMoney) return 'The next reconciliation sets this evidence aside for good: no payment is made from it, and it is joined to no payment. No money moves.';
-  return `The next reconciliation records this evidence as a payment of its own${chosen === 'confirmed_duplicate_refund' ? ', held until its refund is recorded' : ''}. Evidence of a reversal is set aside instead, since no payment is made only to be reversed. No money moves.`;
+  if (!chosen) return 'Choose the outcome once you have checked the evidence. This box then shows what the next reconciliation will do.';
+  if (chosen === heldEvidenceCodes.samePayment) return 'The next reconciliation joins this evidence to the payment this exception names. Evidence of that payment becomes extra evidence for it, and no second payment is created. Evidence of a reversal reverses that payment. If the payment changes first and the evidence no longer matches it, the evidence is held for you again. No money moves.';
+  if (chosen === heldEvidenceCodes.notMoney) return 'The next reconciliation sets this evidence aside permanently. It does not create a payment and is not joined to any payment. No money moves.';
+  return `The next reconciliation records this evidence as a separate payment${chosen === 'confirmed_duplicate_refund' ? ', held until its refund is recorded' : ''}. Evidence of a reversal is set aside instead, because Valo Pay does not create a payment only to reverse it. No money moves.`;
 }
 
 /**
@@ -126,7 +155,7 @@ export function resolutionEffect(exception: ValopayRecord, code: unknown, held?:
  */
 const heldCarried = (exception: ValopayRecord, held: boolean | undefined, what: string, one: boolean): string | undefined =>
   identityHold(exception) && held !== false
-    ? `This exception also carries ${what}. Confirming whose payout the batch is settles no report: after the release, ${one ? 'the report comes' : 'each report comes'} back as an exception of its own, to resolve once you have checked with the provider.`
+    ? `This exception also includes ${what}. Confirming the connection does not settle ${one ? 'it' : 'them'}. After the batch is released, ${one ? 'the report comes' : 'each report comes'} back as its own exception. Resolve it after you have checked with the provider.`
     : undefined;
 
 /**
@@ -138,11 +167,11 @@ const heldCarried = (exception: ValopayRecord, held: boolean | undefined, what: 
 export function countedTwiceEffect(exception: ValopayRecord, held?: boolean): string | undefined {
   const reports = Array.isArray(exception.data?.countedTwice) ? exception.data.countedTwice.length : 0;
   if (!reports) return undefined;
-  const carried = heldCarried(exception, held, reports === 1 ? 'the provider\'s report of a collection counted in two settlement batches' : `${formatNumber(reports)} of the provider's reports of collections counted in two settlement batches`, reports === 1);
+  const carried = heldCarried(exception, held, reports === 1 ? 'the provider’s report of a payment counted in two settlement batches' : `${formatNumber(reports)} provider reports of payments counted in two settlement batches`, reports === 1);
   if (carried) return carried;
   return reports === 1
-    ? 'This exception also carries the provider\'s report of a collection counted in two settlement batches. Resolving it settles that report too, whichever outcome you record: it is not raised again, so check both payouts with the provider first.'
-    : `This exception also carries ${formatNumber(reports)} of the provider's reports of collections counted in two settlement batches. Resolving it settles those reports too, whichever outcome you record: they are not raised again, so check both payouts of each with the provider first.`;
+    ? 'This exception also includes the provider’s report of a payment counted in two settlement batches. Resolving the exception also closes that report, whatever outcome you choose, and it will not be raised again. Check both payouts with the provider first.'
+    : `This exception also includes ${formatNumber(reports)} provider reports of payments counted in two settlement batches. Resolving the exception also closes those reports, whatever outcome you choose, and they will not be raised again. Check both payouts of each with the provider first.`;
 }
 
 /**
@@ -154,11 +183,11 @@ export function countedTwiceEffect(exception: ValopayRecord, held?: boolean): st
 export function otherCurrencyLinesEffect(exception: ValopayRecord, held?: boolean): string | undefined {
   const reports = Array.isArray(exception.data?.otherCurrencyLines) ? exception.data.otherCurrencyLines.length : 0;
   if (!reports) return undefined;
-  const carried = heldCarried(exception, held, reports === 1 ? 'the report of a settlement line in another currency than its batch' : `${formatNumber(reports)} reports of settlement lines in another currency than their batch`, reports === 1);
+  const carried = heldCarried(exception, held, reports === 1 ? 'the report of a settlement line in a different currency from its batch' : `${formatNumber(reports)} reports of settlement lines in a different currency from their batch`, reports === 1);
   if (carried) return carried;
   return reports === 1
-    ? 'This exception also carries the report of a settlement line in another currency than its batch, which the batch does not count. Resolving it settles that report too, whichever outcome you record: it is not raised again, so check with the provider which batch pays the line out first.'
-    : `This exception also carries ${formatNumber(reports)} reports of settlement lines in another currency than their batch, which the batch does not count. Resolving it settles those reports too, whichever outcome you record: they are not raised again, so check with the provider which batch pays each line out first.`;
+    ? 'This exception also includes a report of a settlement line in a different currency from its batch. The batch does not count that line. Resolving the exception also closes the report, whatever outcome you choose, and it will not be raised again. First ask the provider which batch pays out the line.'
+    : `This exception also includes ${formatNumber(reports)} reports of settlement lines in a different currency from their batch. The batch does not count those lines. Resolving the exception also closes those reports, whatever outcome you choose, and they will not be raised again. First ask the provider which batch pays out each line.`;
 }
 
 export function ExceptionContext({ exception, customer, resolutionCode, resolving }: { exception: ValopayRecord; customer?: ValopayRecord; resolutionCode?: unknown; resolving: boolean }) {
@@ -179,18 +208,43 @@ export function ExceptionContext({ exception, customer, resolutionCode, resolvin
   const checkout = exception.data?.linkedKind === 'connected-intents';
   // What recording the outcome does: a dispute's instalment and a pay-by-bank checkout's instalment follow the resolution,
   // and so do held evidence, a held payment, a waiting reversal and a batch held for its provider identity (resolutionEffect).
-  const effect = checkout
-    ? 'Confirmed successful records the pay-by-bank payment as received, with your evidence reference, and applies it to its instalment; Confirmed failed, or Provider confirmed no debit, records the checkout as failed. Either way the checkout no longer holds its instalment, so a new checkout or retry may follow. No money moves.'
+  const guidance: Guidance = checkout
+    ? {
+        happened: 'The outcome of this Pay by Bank payment is unknown.',
+        choices: [
+          [readableLabel('resolved_succeeded'), 'Records the payment as received, with your evidence reference, and allocates it to its instalment.'],
+          [readableLabel('resolved_failed'), 'Records the checkout as failed.'],
+          [readableLabel('provider_confirmed_no_debit'), 'Records the checkout as failed.'],
+        ],
+        next: 'Whichever you choose, the checkout stops holding its instalment, so a new checkout or a retry can follow. No money moves.',
+      }
     : type === 'customer_dispute'
-      ? 'Not upheld takes the instalment out of dispute: its status then follows its balance, and collection and allocation resume. Upheld or mandate cancelled keeps it in dispute until Finance releases it from dispute on the Collections page. No money moves.'
-      : resolutionEffect(exception, resolutionCode, held, blocked) ?? 'Resolving this exception records your outcome and reason. It does not allocate a payment, issue a refund, reissue a mandate or move money. Complete any required action in its workflow and include its evidence reference in your reason.';
+      ? {
+          happened: 'The customer disputes this instalment. Collection and allocation are paused while it is in dispute.',
+          choices: [
+            [readableLabel('not_upheld'), 'Takes the instalment out of dispute. Its status goes back to match its balance, and collection and allocation start again.'],
+            [readableLabel('upheld_refund'), 'Keeps the instalment in dispute until Finance releases it on the Collections page.'],
+            [readableLabel('mandate_cancelled'), 'Keeps the instalment in dispute until Finance releases it on the Collections page.'],
+          ],
+          next: 'Your outcome and reason are saved in the audit log. No money moves.',
+        }
+      : resolutionEffect(exception, resolutionCode, held, blocked) ?? 'Resolving records your outcome and reason. It does not allocate a payment, issue a refund, reissue a mandate or move money. If the outcome needs another action, such as a refund, do it first and put its reference in your reason.';
   const carried = [countedTwiceEffect(exception, held), otherCurrencyLinesEffect(exception, held)].filter(Boolean).join(' ') || undefined;
   return <section aria-label="Exception context" className="space-y-3 rounded-lg border bg-secondary/10 p-4 text-sm">
-    <div><h3 className="font-semibold">{readableLabel(exception.data?.type)}</h3><p className="mt-1 font-mono text-xs">{exception.reference || exception.id}</p></div>
-    <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2"><dt className="text-muted-foreground">Customer</dt><dd className="min-w-0 break-words">{customer ? `${customer.name} · ${customer.reference}` : exception.customerId ? `Customer ${exception.customerId} (name unavailable)` : 'No customer linked'}</dd><dt className="text-muted-foreground">Amount</dt><dd className="font-semibold">{formatRecordMoney(exception, exception.amountKobo)}</dd><dt className="text-muted-foreground">Owner</dt><dd>{String(exception.data?.owner || 'Unassigned')}</dd>{Boolean(exception.data?.dueBy) && <><dt className="text-muted-foreground">Deadline</dt><dd>{formatDate(String(exception.data.dueBy))}</dd></>}</dl>
-    <div className="rounded-md border bg-background p-3"><p className="font-medium">Recorded issue</p><p className="mt-1 whitespace-pre-wrap break-words">{String(exception.data?.notes || 'No notes have been recorded. Review the linked evidence before choosing an outcome.')}</p></div>
-    {linkedId && <p className="break-all text-xs text-muted-foreground">Linked record: {linkedId}</p>}
-    <div className="flex flex-wrap gap-x-4 gap-y-2">{exception.customerId && <Link className="min-h-6 text-primary underline" href={`/customers/${encodeURIComponent(exception.customerId)}?${customerParams}${linkedId ? `#record-${encodeURIComponent(linkedId)}` : ''}`}>Review customer history</Link>}{financial && <Link className="min-h-6 text-primary underline" href={`/reconciliation?${lender}`}>Review reconciliation</Link>}{mandate && <Link className="min-h-6 text-primary underline" href={`/mandates?${lender}`}>Review mandates</Link>}{checkout && <Link className="min-h-6 text-primary underline" href={`/pay-by-bank?${lender}`}>Review the pay-by-bank checkout</Link>}{!financial && !mandate && !checkout && <Link className="min-h-6 text-primary underline" href={`/collections?${lender}`}>Review collections</Link>}</div>
-    {resolving && <div className="rounded-md border bg-background p-3"><p className="font-medium">{resolutionCode ? `Record outcome: ${resolutionLabel(exception, resolutionCode)}` : 'Record an outcome after reviewing the evidence.'}</p><p className="mt-1">{effect}</p>{carried && <p className="mt-1">{carried}</p>}</div>}
+    <div><h3 className="font-semibold">{readableLabel(exception.data?.type)}</h3><p className="mt-1 font-mono text-xs">{exception.reference || 'No reference'}</p></div>
+    <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2"><dt className="text-muted-foreground">Customer</dt><dd className="min-w-0 break-words">{customer ? `${customer.name} · ${customer.reference}` : exception.customerId ? 'Name not available' : 'No customer linked'}</dd><dt className="text-muted-foreground">Amount</dt><dd className="font-semibold">{formatRecordMoney(exception, exception.amountKobo)}</dd><dt className="text-muted-foreground">Team</dt><dd>{String(exception.data?.owner || 'No team')}</dd>{Boolean(exception.data?.dueBy) && <><dt className="text-muted-foreground">Deadline</dt><dd>{formatDate(String(exception.data.dueBy))}</dd></>}</dl>
+    <div className="rounded-md border bg-background p-3"><p className="font-medium">Notes</p><p className="mt-1 whitespace-pre-wrap break-words">{String(exception.data?.notes || 'No notes yet. Check the linked evidence before you choose an outcome.')}</p></div>
+    <div className="flex flex-wrap gap-x-4 gap-y-2">{exception.customerId && <Link className="min-h-6 text-primary underline" href={`/customers/${encodeURIComponent(exception.customerId)}?${customerParams}${linkedId ? `#record-${encodeURIComponent(linkedId)}` : ''}`}>Open Customer history</Link>}{financial && <Link className="min-h-6 text-primary underline" href={`/reconciliation?${lender}`}>Open Reconciliation</Link>}{mandate && <Link className="min-h-6 text-primary underline" href={`/mandates?${lender}`}>Open Mandates</Link>}{checkout && <Link className="min-h-6 text-primary underline" href={`/pay-by-bank?${lender}`}>Open Pay by Bank</Link>}{!financial && !mandate && !checkout && <Link className="min-h-6 text-primary underline" href={`/collections?${lender}`}>Open Collections</Link>}</div>
+    {resolving && <div className="rounded-md border bg-background p-3"><p className="font-medium">{resolutionCode ? `Record outcome: ${resolutionLabel(exception, resolutionCode)}` : 'Record an outcome after reviewing the evidence.'}</p><GuidanceText guidance={guidance} />{carried && <p className="mt-2">{carried}</p>}</div>}
   </section>;
+}
+
+/** A paragraph, or what happened, each choice on its own line, then what happens next. */
+function GuidanceText({ guidance }: { guidance: Guidance }) {
+  if (typeof guidance === 'string') return <p className="mt-1">{guidance}</p>;
+  return <>
+    <p className="mt-1">{guidance.happened}</p>
+    <ul className="mt-2 space-y-1.5">{guidance.choices.map(([choice, effect]) => <li key={choice}><span className="font-medium">{choice}:</span> {effect}</li>)}</ul>
+    <p className="mt-2">{guidance.next}</p>
+  </>;
 }

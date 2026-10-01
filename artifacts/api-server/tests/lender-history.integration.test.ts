@@ -61,7 +61,7 @@ const chainOf = async (lender: string) => (await pool.query<{ chain: Record<stri
 const customer = (name: string) => ({ name, reference: `HISTORY-${randomUUID()}`, data: { consentProvenance: "Synthetic fixture" } });
 const brokenAlert = (overview: any) => overview.alerts.some((alert: { key: string }) => alert.key === "audit_chain_broken");
 // The entry the audit_chain_broken alert says the check stopped at (NaN without the alert).
-const brokenEntry = (overview: any) => Number(/stopped at entry (\d+)/.exec(overview.alerts.find((alert: { key: string }) => alert.key === "audit_chain_broken")?.detail ?? "")?.[1]);
+const brokenEntry = (overview: any) => Number(/Entry (\d+) of the audit log/.exec(overview.alerts.find((alert: { key: string }) => alert.key === "audit_chain_broken")?.detail ?? "")?.[1]);
 /** A caller of another sandbox of this run, with a cookie of its own. */
 const sandboxCaller = () => {
   const own = `valopay_sandbox=${randomBytes(32).toString("hex")}`;

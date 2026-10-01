@@ -39,16 +39,16 @@ it('keeps presentation controls separate from platform actions and resumes after
   await user.click(await screen.findByRole('button', { name: 'Start presentation guide' }));
   let guide = screen.getByRole('region', { name: 'Presentation guide' });
   expect(within(guide).getByText(/Show presenter notes/).closest('details')?.open).toBe(false);
-  await user.click(within(guide).getByRole('link', { name: 'Open overview' }));
-  await screen.findByRole('heading', { name: 'Operations overview' });
-  expect(screen.queryByRole('region', { name: 'Sandbox guide' })).toBeNull();
+  await user.click(within(guide).getByRole('link', { name: 'Open Overview' }));
+  await screen.findByRole('heading', { name: 'Overview' });
+  expect(screen.queryByRole('region', { name: 'Tips' })).toBeNull();
   await user.click(screen.getByRole('button', { name: 'Next talking point' }));
   expect(window.location.pathname).toBe('/overview');
   cleanup();
   renderApp('/overview');
   guide = await screen.findByRole('region', { name: 'Presentation guide' });
   expect(within(guide).getByText('2 of 6 · Bring in payment evidence')).toBeTruthy();
-  await user.click(within(guide).getByRole('link', { name: 'Open import batches' }));
+  await user.click(within(guide).getByRole('link', { name: 'Open Import batches' }));
   await screen.findByRole('heading', { name: 'Import batches' });
   await user.click(screen.getByRole('button', { name: 'End presentation' }));
   expect(screen.queryByRole('region', { name: 'Presentation guide' })).toBeNull();
@@ -110,11 +110,11 @@ it('imports the exact sample pack through batch validation, matches it automatic
   expect(observation.data.dueItemId).toBe(due.id);
   reconcile(state, ctx);
   expect(observation.status).toBe('resolved');
-  // The payment names its instalment and equals it, so rule R1 matches it automatically and with certainty, for exactly 1,800,050 kobo.
+  // The payment names its instalment and equals it, so rule R1 matches it automatically, with the confidence Certain, for exactly 1,800,050 kobo.
   const allocations = state.records.filter(r => r.kind === 'allocations' && r.data.dueItemId === due.id);
   expect(allocations).toHaveLength(1);
   expect(allocations[0]).toMatchObject({ status: 'confirmed', amountKobo: 1_800_050, data: { rule: 'R1', confidence: 'certain', automatic: true } });
-  expect(String(allocations[0]!.data.explanation)).toContain('resolved to instalment PRES-D001');
+  expect(String(allocations[0]!.data.explanation)).toContain('matches instalment PRES-D001');
   const payment = state.records.find(r => r.kind === 'payments' && r.id === allocations[0]!.data.paymentId)!;
   expect(payment).toMatchObject({ status: 'allocated', amountKobo: 1_800_050, data: { allocatedKobo: 1_800_050 } });
   expect(due).toMatchObject({ status: 'paid', data: { outstandingKobo: 0 } });
@@ -128,10 +128,39 @@ it('imports the exact sample pack through batch validation, matches it automatic
 // that name. It names the option each record type offers (amountUnitName).
 it('names the amount unit of each sample file as Import batches offers it', async () => {
   const brief = presenterBrief('2026-09-22');
-  expect(brief).toContain("In Import batches choose the matching record type and, under Amounts in the source file, Naira (₦), or Major units (₦, or the row's currency) for Payment evidence;");
+  expect(brief).toContain("In Import batches, choose the record type that matches each file. Under Amounts in the source file, choose Naira (₦). For Payment evidence, choose Main unit (₦, or the row’s own currency).");
   expect(brief).not.toMatch(/choose Naira,/);
   renderApp('/presentation');
-  expect((await screen.findByText(/^In Import batches, choose each matching record type/)).textContent).toMatch(/^In Import batches, choose each matching record type and, under Amounts in the source file, Naira \(₦\), or Major units \(₦, or the row's currency\) for Payment evidence\. Use source name/);
+  expect((await screen.findByText(/^In Import batches, choose the record type/)).textContent).toMatch(/^In Import batches, choose the record type that matches each file\. Under Amounts in the source file, choose Naira \(₦\)\. For Payment evidence, choose Main unit \(₦, or the row’s own currency\)\. Use the source name/);
+});
+
+// The brief's answer to an investor's direct question claims only what exists: code, tested with local sample scenarios.
+it('answers whether Paystack is connected with what exists and no more', () => {
+  const brief = presenterBrief('2026-09-22');
+  expect(brief).toContain('- Is Paystack connected? No.');
+  expect(brief).toContain('No Paystack account or test key is set up');
+  expect(brief).toContain('external connection has not been verified');
+  expect(brief).not.toMatch(/has a Paystack test connection/);
+});
+
+// Dates as the console writes them, never ISO, in the brief and on the page; durations in numerals.
+it("writes the pack's dates and the talking points' durations as the rest of the console does", async () => {
+  const brief = presenterBrief('2026-09-22');
+  expect(brief).toContain('Prepared for 22 Sept 2026 (WAT). Suggested length: about 6 minutes.');
+  expect(brief).toContain('Set the business date to 22 Sept 2026.');
+  expect(brief).toContain('### 1. Start with the work · 45 seconds');
+  expect(brief).toContain('### 2. Bring in payment evidence · 1 minute');
+  expect(brief).toContain('### 3. Explain the match · 90 seconds');
+  expect(brief).not.toMatch(/\d{4}-\d{2}-\d{2}|\bsec\b|six minutes/);
+  // The files themselves keep the ISO date other systems read.
+  expect(presentationSamples('2026-09-22')[1]!.csv).toContain(',2026-09-22,');
+  renderApp('/presentation');
+  const pack = (await screen.findByRole('heading', { name: 'A repeatable sample import' })).closest('section')!;
+  expect(within(pack).getByText(/^Import the customer and instalment files/).textContent).toMatch(/The files’ business date is \d{1,2} \w{3,4} \d{4} \(WAT\)\.$/);
+  expect(pack.textContent).not.toMatch(/\d{4}-\d{2}-\d{2}/);
+  // Each download's name starts with its visible label, then says which file.
+  for (const kind of ['customers', 'instalments', 'payment evidence']) expect(within(pack).getByRole('button', { name: `Download CSV of ${kind}` })).toBeTruthy();
+  expect(screen.getAllByText('45 seconds')).toHaveLength(2);
 });
 
 it('opens the sample customer at step three, where the automatic R1 match and its explanation are shown', async () => {
@@ -145,13 +174,13 @@ it('opens the sample customer at step three, where the automatic R1 match and it
   const link = within(guide).getByRole('link', { name: 'Open the sample customer' });
   await waitFor(() => expect(link.getAttribute('href')).toBe(`/customers/${customer.id}`));
   await user.click(within(guide).getByText(/Show presenter notes/));
-  expect(within(guide).getByText(/rule R1 matched them automatically and with certainty/)).toBeTruthy();
+  expect(within(guide).getByText(/rule R1 matched them automatically, with the confidence Certain/)).toBeTruthy();
   expect(within(guide).getByText(/never appears in Matches to review/)).toBeTruthy();
   await user.click(link);
   await screen.findByRole('heading', { level: 1, name: 'Presentation customer' });
   const history = screen.getByRole('heading', { name: 'Customer history' }).closest('div.bg-card') as HTMLElement;
-  const match = within(history).getByText(/^Matched automatically and with certainty by rule R1\./);
-  expect(match.textContent).toContain('Provider reference PRES-O001 resolved to instalment PRES-D001');
+  const match = within(history).getByText(/^Matched automatically by rule R1\. Confidence: Certain\./);
+  expect(match.textContent).toContain('Provider reference PRES-O001 matches instalment PRES-D001');
   expect(within(match.parentElement!).getByText('₦18,000.50')).toBeTruthy();
   expect(api.calls.filter(c => c.method !== 'GET')).toEqual([]);
 });
@@ -187,7 +216,7 @@ it('keeps the toolbar and End presentation when a page stops working during a pr
   expect(await screen.findByRole('heading', { level: 1, name: 'We could not display this page' })).toBeTruthy();
   const guide = await screen.findByRole('region', { name: 'Presentation guide' });
   expect(within(guide).getByText('1 of 6 · Start with the work')).toBeTruthy();
-  expect(within(guide).getByRole('link', { name: 'Open overview' })).toBeTruthy();
+  expect(within(guide).getByRole('link', { name: 'Open Overview' })).toBeTruthy();
   await user.click(within(guide).getByRole('button', { name: 'End presentation' }));
   expect(screen.queryByRole('region', { name: 'Presentation guide' })).toBeNull();
   // Ending the presentation leaves the page's notice, and every record, as they were.

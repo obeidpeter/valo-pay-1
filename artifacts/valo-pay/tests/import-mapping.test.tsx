@@ -5,7 +5,7 @@ import { renderApp, screen, userEvent, waitFor, within } from './harness';
 // Audit item 11: a CSV whose name is in full_name passed as valid, the mapping showed Skip column, and commit saved the
 // customer named after its reference. The console now suggests the field and the check says when a value falls back.
 const csv = 'source_row_id,full_name,reference,consentProvenance\nrow-1,Named in an unmapped column,UNMAPPED-C1,Synthetic consent';
-const warning = "No column is mapped to Name, so each record's name is taken from its reference (or its row number without one). Not mapped to a field: full_name, which looks like the name. Map the column that holds the name, or commit knowing the fallback is saved.";
+const warning = "No column is mapped to Name, so each record’s name is taken from its reference (or its row number without one). Not mapped to a field: full_name, which looks like the name. Map the column that holds the name, or import anyway to save the fallback.";
 let api: FakeApi;
 beforeEach(() => { api = installFakeApi(); });
 afterEach(() => api.uninstall());
@@ -28,18 +28,18 @@ describe('import batches', () => {
   it('reports the name fallback, suggests full_name as the name and saves the name once mapped', async () => {
     const user = await savedBatch();
     const results = screen.getByRole('region', { name: 'Saved batch results' });
-    expect(within(results).getByRole('heading', { name: 'Check before you commit' })).toBeTruthy();
+    expect(within(results).getByRole('heading', { name: 'Check before you import' })).toBeTruthy();
     expect(within(results).getByText(warning)).toBeTruthy();
     // The suggestion is shown as the mapping and is an unsaved change: the check above is the previous one.
     expect((screen.getByRole('combobox', { name: 'full_name' }) as HTMLSelectElement).value).toBe('name');
     expect(screen.getByText('Suggested from the column names: full_name as Full name. Save and check the batch to use it, or choose another option.')).toBeTruthy();
-    expect(within(results).getByRole('heading', { name: 'Previous check · save your corrections to check again' })).toBeTruthy();
-    expect((screen.getByRole('button', { name: 'Commit checked batch' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(within(results).getByRole('heading', { name: 'Previous check' })).toBeTruthy();
+    expect((screen.getByRole('button', { name: 'Import checked batch' }) as HTMLButtonElement).disabled).toBe(true);
     await user.click(screen.getByRole('button', { name: 'Save and check batch' }));
     await within(results).findByRole('heading', { name: 'Saved check results' });
-    expect(within(results).queryByRole('heading', { name: 'Check before you commit' })).toBeNull();
-    await user.click(screen.getByRole('button', { name: 'Commit checked batch' }));
-    await screen.findByRole('heading', { name: 'Import complete' });
+    expect(within(results).queryByRole('heading', { name: 'Check before you import' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Import checked batch' }));
+    await screen.findByRole('heading', { name: 'Batch imported' });
     expect(customer()?.name).toBe('Named in an unmapped column');
   });
 
@@ -54,7 +54,7 @@ describe('import batches', () => {
     await user.click(screen.getByRole('button', { name: 'Save and check batch' }));
     const results = screen.getByRole('region', { name: 'Saved batch results' });
     await within(results).findByRole('heading', { name: 'Saved check results' });
-    expect(within(results).queryByRole('heading', { name: 'Check before you commit' })).toBeNull();
+    expect(within(results).queryByRole('heading', { name: 'Check before you import' })).toBeNull();
     expect(api.calls.filter(call => call.path.startsWith('/v1/pilot/batches') && call.method === 'POST').map(call => call.status)).toEqual([200, 200]);
   });
 
@@ -86,20 +86,20 @@ describe('import batches', () => {
     const results = screen.getByRole('region', { name: 'Saved batch results' });
     await within(results).findByRole('heading', { name: 'Saved check results' });
     expect(within(results).getByText(warning)).toBeTruthy();
-    const commit = screen.getByRole('button', { name: 'Commit checked batch' });
+    const commit = screen.getByRole('button', { name: 'Import checked batch' });
     await user.click(commit);
-    let dialog = await screen.findByRole('dialog', { name: 'Commit with fallback values?' });
+    let dialog = await screen.findByRole('dialog', { name: 'Import with default values?' });
     expect(within(dialog).getByText(warning)).toBeTruthy();
     await user.click(within(dialog).getByRole('button', { name: 'Review the mapping' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(document.activeElement).toBe(commit);
     expect(api.calls.some(call => call.path.endsWith('/commit'))).toBe(false);
     await user.click(commit);
-    dialog = await screen.findByRole('dialog', { name: 'Commit with fallback values?' });
-    await user.click(within(dialog).getByRole('button', { name: 'Commit anyway' }));
-    await screen.findByRole('heading', { name: 'Import complete' });
+    dialog = await screen.findByRole('dialog', { name: 'Import with default values?' });
+    await user.click(within(dialog).getByRole('button', { name: 'Import anyway' }));
+    await screen.findByRole('heading', { name: 'Batch imported' });
     expect(customer()?.name).toBe('UNMAPPED-C1');
-    expect(screen.getByRole('heading', { name: 'Saved with fallback values' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Imported with default values' })).toBeTruthy();
   });
 });
 
@@ -134,9 +134,9 @@ describe('sample data import on Collections', () => {
     await user.click(screen.getByRole('button', { name: 'Check data' }));
     await waitFor(() => expect(screen.getByRole('button', { name: 'Import data' })).toHaveProperty('disabled', false));
     await user.click(screen.getByRole('button', { name: 'Import data' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Import with fallback values?' });
+    const dialog = await screen.findByRole('dialog', { name: 'Import with default values?' });
     expect(api.calls.some(call => call.path === '/v1/imports' && (call.body as { commit?: boolean }).commit)).toBe(false);
-    await user.click(within(dialog).getByRole('button', { name: 'Import anyway' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Import with default values' }));
     await screen.findByText(/Import complete\./);
     expect(customer()?.name).toBe('UNMAPPED-C1');
   });

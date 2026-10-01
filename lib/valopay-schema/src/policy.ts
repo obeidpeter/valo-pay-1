@@ -61,7 +61,7 @@ export const experimentRules = {
 } as const;
 
 /** The pre-registered pass rule for the recovery experiment, as written (RET-11). */
-export const passRuleText = "For each lender: engine minus holdout recovery rate by value ≥ 8 percentage points; the 90% confidence interval of the difference excludes zero; each arm has at least the pre-computed minimum sample. Any other result is 'not proven'.";
+export const passRuleText = "For each lender, the automated retry group must recover at least 8 percentage points more by value than the comparison group. The 90% confidence interval for that difference must be above zero. Each group must reach its planned minimum size. Any other result is ‘not proven’.";
 
 /** REC-09 and MEA-05 measurement rules: the monthly precision sample, its interval, the fortnightly review cadence and the Test 5 live-day floor. */
 export const measurementRules = {
