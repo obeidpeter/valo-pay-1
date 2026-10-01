@@ -110,7 +110,7 @@ it('imports the exact sample pack through batch validation, matches it automatic
   expect(observation.data.dueItemId).toBe(due.id);
   reconcile(state, ctx);
   expect(observation.status).toBe('resolved');
-  // The payment names its instalment and equals it, so rule R1 matches it automatically and with certainty, for exactly 1,800,050 kobo.
+  // The payment names its instalment and equals it, so rule R1 matches it automatically, with the confidence Certain, for exactly 1,800,050 kobo.
   const allocations = state.records.filter(r => r.kind === 'allocations' && r.data.dueItemId === due.id);
   expect(allocations).toHaveLength(1);
   expect(allocations[0]).toMatchObject({ status: 'confirmed', amountKobo: 1_800_050, data: { rule: 'R1', confidence: 'certain', automatic: true } });
@@ -174,7 +174,7 @@ it('opens the sample customer at step three, where the automatic R1 match and it
   const link = within(guide).getByRole('link', { name: 'Open the sample customer' });
   await waitFor(() => expect(link.getAttribute('href')).toBe(`/customers/${customer.id}`));
   await user.click(within(guide).getByText(/Show presenter notes/));
-  expect(within(guide).getByText(/rule R1 matched them automatically and with certainty/)).toBeTruthy();
+  expect(within(guide).getByText(/rule R1 matched them automatically, with the confidence Certain/)).toBeTruthy();
   expect(within(guide).getByText(/never appears in Matches to review/)).toBeTruthy();
   await user.click(link);
   await screen.findByRole('heading', { level: 1, name: 'Presentation customer' });
