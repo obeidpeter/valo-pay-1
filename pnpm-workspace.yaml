@@ -43,6 +43,8 @@ onlyBuiltDependencies:
 overrides:
   # gaxios 6 uses uuid's CommonJS v4 API. 11.1.1 retains it and fixes GHSA-w5hq-g745-h8pq.
   'gaxios@6.7.1>uuid': 11.1.1
+  # minimatch 10 (typedoc, through orval) uses brace-expansion 5. 5.0.12 fixes GHSA-6j4f-fj2g-mc7p, GHSA-qhr7-859c-m2p7 and GHSA-q2hr-2g5m-vwhr.
+  'minimatch@10.2.6>brace-expansion': 5.0.12
   '@esbuild-kit/esm-loader': npm:tsx@^4.21.0
   '@expo/ngrok-bin>@expo/ngrok-bin-darwin-arm64': '-'
   '@expo/ngrok-bin>@expo/ngrok-bin-darwin-x64': '-'
