@@ -1,4 +1,4 @@
-import { valueLabel } from "@workspace/valopay-schema";
+import { exportKindName, recordTypeTitle, valueLabel } from "@workspace/valopay-schema";
 
 /**
  * Actions and routes in plain words: what Request history calls a request, and what the audit log calls an entry.
@@ -102,28 +102,13 @@ export function connectedActionDone(action: string): string {
   return own(connectedActions, action)?.done ?? "Connected banking change saved";
 }
 
-/** A record type in words, one and many: the kinds the record routes name, and what an export holds. */
-const recordTypes: Readonly<Record<string, readonly [one: string, many: string]>> = {
-  customers: ["Customer", "Customers"], mandates: ["Mandate", "Mandates"], "due-items": ["Instalment", "Instalments"],
-  attempts: ["Collection attempt", "Collection attempts"], observations: ["Payment evidence", "Payment evidence"],
-  payments: ["Payment", "Payments"], allocations: ["Allocation", "Allocations"], "settlement-batches": ["Settlement batch", "Settlement batches"],
-  exceptions: ["Exception", "Exceptions"], policies: ["Retry policy", "Retry policies"], templates: ["Message template", "Message templates"],
-  notifications: ["Notification", "Notifications"], cutovers: ["Collection transfer", "Collection transfers"], audit: ["Audit log entry", "Audit log"],
-  closes: ["Daily close", "Daily closes"], exports: ["Export", "Exports"], commercial: ["Commercial terms", "Commercial terms"],
-  reviews: ["Review", "Reviews"], evidence: ["Evidence", "Evidence register"], experiments: ["Experiment", "Experiments"],
-  costs: ["Cost", "Costs"], calendar: ["Calendar date", "Calendar"], integrations: ["Integration", "Integrations"],
-  members: ["Member", "Members"], "retry-decisions": ["Retry decision", "Retry decisions"], invoices: ["Invoice", "Invoices"],
-  "gate-pack": ["Go-live evidence pack", "Go-live evidence pack"], billing: ["Billing statement", "Billing statement"],
-  "reviewed-close": ["Reviewed close evidence", "Reviewed close evidence"], "dispute-pack": ["Dispute pack", "Dispute pack"],
-  "customer-pack": ["Dispute pack", "Dispute pack"],
-};
-/** One record of a type in words: "Instalment". */
+/** One record of a type in words, as the shared schema names it everywhere: "Instalment". */
 export function recordTypeName(kind: string): string {
-  return own(recordTypes, kind)?.[0] ?? valueLabel(kind);
+  return recordTypeTitle(kind, 1);
 }
-/** A type of record, or what an export holds, in words: "Instalments", "Dispute pack". */
+/** A type of record, or what an export holds, in the one name Saved exports gives it: "Instalments", "Dispute pack". */
 export function recordTypesName(kind: string): string {
-  return own(recordTypes, kind)?.[1] ?? valueLabel(kind);
+  return exportKindName(kind);
 }
 
 /** A route's audit entry, by the method and path it stores ("post.records.customers", "patch.records.exceptions.{id}"). */
