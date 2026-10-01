@@ -281,9 +281,10 @@ function assertOnePayment(state: DomainState, due: ValopayRecord, label: string)
 {
   const state = seedMerchant("exceptions");
   const ctx = finance(wat("2027-07-02T07:00:00")); // Friday
-  makeRecord(state, "payments", { name: "old", status: "unallocated", reference: "OLD-1", amountKobo: 1_000_000, createdAt: wat("2027-06-30T07:00:00"), data: { allocatedKobo: 0, observedAt: wat("2027-06-30T07:00:00") } });
+  const old = makeRecord(state, "payments", { name: "old", status: "unallocated", reference: "OLD-1", amountKobo: 1_000_000, createdAt: wat("2027-06-30T07:00:00"), data: { allocatedKobo: 0, observedAt: wat("2027-06-30T07:00:00") } });
   reconcile(state, ctx);
-  const aged = recordsOf(state, "exceptions").find((item) => item.data.type === "unallocated_payment" && item.name === "Unallocated payment")!;
+  // The sample lender's own unallocated-payment exception has the same catalogue name, so the one reconciliation raised is found by its payment.
+  const aged = recordsOf(state, "exceptions").find((item) => item.data.type === "unallocated_payment" && item.name === "Unallocated payment" && item.data.linkedRecordId === old.id)!;
   assert.equal(aged.data.owner, "Finance");
   assert.equal(aged.data.dueBy, wat("2027-07-06T07:00:00"), "two business days after a Friday is Tuesday");
   assert.equal(buildReports(state, wat("2027-07-02T07:01:00")).operational.overdueExceptionRate, recordsOf(state, "exceptions").filter((item) => Date.parse(String(item.data.dueBy)) < Date.parse(wat("2027-07-02T07:01:00"))).length / recordsOf(state, "exceptions").filter((item) => ["open", "assigned", "in_progress"].includes(item.status)).length);

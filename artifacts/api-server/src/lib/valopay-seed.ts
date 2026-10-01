@@ -12,7 +12,7 @@ export function seedMerchant(id: string, smaller = false): DomainState {
     state.records.push(r); return r;
   }
   const policy=add("policies","Standard lender retry policy","draft",{version:1,maxAttempts:3,spacingHours:48,firstNoticeHours:48,retryNoticeHours:24,partialAllowed:false,author:"Sandbox Admin",reviewer:"",complianceMapping:"Central Bank of Nigeria rules on notices and retries; FCCPC rules on debt-recovery conduct. Needs independent review."});
-  add("templates","Pre-debit notice","draft",{version:1,purpose:"pre_debit",text:"{{merchant}}: Your payment of {{amount}} is due on {{date}}. For help, contact {{contact}}.",author:"Sandbox Admin"});
+  add("templates","Pre-debit notice","draft",{version:1,purpose:"pre_debit",text:"{{lender}}: Your payment of {{amount}} is due on {{date}}. For help, contact {{contact}}.",author:"Sandbox Admin"});
   const names=["Ada Okonkwo","Túndé Bakare","Chiamaka Ọbi","Yusuf Bello","Ngozi Eze","Dami Adéyẹmí","Ifẹ Nwosu","Ṣeyi Ajayi"]; // Yoruba and Igbo names carry their marks, as their bearers write them
   names.forEach((name,i)=>{
     const c=add("customers",name,"active",{bankName:["Access Bank","GTBank","Zenith Bank","UBA"][i%4],accountMasked:`•••• ${1000+i}`,phoneMasked:`+234 ••• ••${30+i}`,consentProvenance:"Sample imported consent",synthetic:true},0,"",`DEMO-C${1001+i}`);
@@ -40,7 +40,7 @@ export function seedMerchant(id: string, smaller = false): DomainState {
       due.status="in_collection";
     }
     if([2,5,7].includes(i)){
-      add("exceptions",i===7?"Missing consent evidence":i===5?"Activation awaiting consent":"Payment needs confirmation","open",{type:i===7?"imported_consent_gap":i===5?"activation_expired":"unallocated_payment",severity:i===7?"high":"medium",owner:i===2?"Finance":i===7?"Admin":"Operations",dueBy:date(i===7?-1:1),linkedRecordId:i===2?due.id:mandate.id,notes:"Sample exception. Review the linked record and choose an outcome.",synthetic:true},amount,c.id);
+      add("exceptions",i===7?"Missing consent evidence":i===5?"Activation deadline passed":"Unallocated payment","open",{type:i===7?"imported_consent_gap":i===5?"activation_expired":"unallocated_payment",severity:i===7?"high":"medium",owner:i===2?"Finance":i===7?"Admin":"Operations",dueBy:date(i===7?-1:1),linkedRecordId:i===2?due.id:mandate.id,notes:"Sample exception. Review the linked record and choose an outcome.",synthetic:true},amount,c.id);
     }
   });
   const unidentified=add("payments","Unidentified transfer","unallocated",{channel:"transfer",collectionStatus:"succeeded",settlementStatus:"settled",reversalStatus:"none",refundStatus:"none",allocatedKobo:0,narration:"Loan repayment",observedAt:date(-3),synthetic:true},3200000,"","SBX-UNIDENTIFIED-001");
@@ -48,7 +48,7 @@ export function seedMerchant(id: string, smaller = false): DomainState {
   add("cutovers","Initial lender cohort","draft",{inventory:"Loan management system schedule; provider’s recurring plan; lender’s manual collections",incumbentDisabled:false,externalAttemptsImported:true,dualRunComplete:false,accountableUser:"",fallbackOwner:"lms",confirmation:"",synthetic:true});
   add("experiments","Recovery test plan","draft",{baselineRate:0.4,holdoutShare:0.5,minPerArm:600,analysisDate:date(120).slice(0,10),enrolmentClose:date(90).slice(0,10),seed:"valopay-stage1-sandbox",policyId:policy.id,synthetic:true});
   add("commercial",merchant.name,"discovery",{monthlyVolume:merchant.monthlyVolume,averageTicketKobo:2500000,implementationKobo:smaller?100000000:300000000,licenceKobo:smaller?35000000:60000000,usageBps:30,usageCapKobo:15000,signed:false,signedFullPriceTerms:false,effectiveDate:"2028-01-01",startCondition:"After funding is confirmed and the launch date is agreed",conversationComplete:false,designPartner:true,synthetic:true});
-  for(const [key,name] of [["P1","Legal opinion"],["P2","Aggregator partner access"],["P3","Data protection registration and data-processing agreement"],["P4","Security and operational readiness"],["P5","Two design-partner lenders"]]){
+  for(const [key,name] of [["P1","Legal opinion"],["P2","Aggregator partner access"],["P3","Permission to process data"],["P4","Security and operational readiness"],["P5","Two design-partner lenders"]]){
     add("evidence",`${key} · ${name}`,"pending",{gateId:key,reference:"",notes:"External evidence required. Sample records cannot satisfy this gate."},0,"",key);
   }
   add("integrations","Sandbox Rail","simulated",{type:"aggregator",description:"Simulated provider for sample data only. No real provider is connected.",capabilities:["mandate tracking","sample payment evidence"],synthetic:true});

@@ -17,7 +17,7 @@ export function previousVersion(record: ValopayRecord, records: ValopayRecord[])
 }
 
 const sampleValues: Record<string, string> = {
-  amount: '₦25,000.00', date: '25 September 2026', merchant: 'Example Lender', contact: 'support@example.com',
+  amount: '₦25,000.00', date: '25 September 2026', lender: 'Example Lender', merchant: 'Example Lender', contact: 'support@example.com',
 };
 
 export function renderSampleMessage(text: unknown) {
