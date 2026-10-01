@@ -1,5 +1,6 @@
 import { canTakeAllocation, instantInputSchema } from "@workspace/valopay-schema";
 import type { ValopayRecord } from "../domain/types";
+import { auditEntryName } from "./action-names";
 
 /** Hard ceiling on one page so a list can never return more than this. */
 export const LIST_PAGE_CEILING = 500;
@@ -29,15 +30,20 @@ export function foldForSearch(value: string): string {
  * included, each value on its own, so a search never runs from one value into
  * the next. A field's name, true, false, null and JSON's own quotes and braces
  * are not searched: "synthetic" or "true" no longer matches every record, and
- * a value holding a double quote is found as written.
+ * a value holding a double quote is found as written. An audit entry is also
+ * found by the name in words the audit log shows for its stored action
+ * (auditEntryName, as withAuditName names it), as well as by that code.
  */
-export function matchesSearch(record: { name: string; reference: string; data: unknown }, search: string): boolean {
+export function matchesSearch(record: { kind?: string; name: string; reference: string; data: unknown }, search: string): boolean {
   const matches = (value: unknown): boolean =>
     typeof value === "string" ? foldForSearch(value).includes(search)
     : typeof value === "number" ? String(value).includes(search)
     : Array.isArray(value) ? value.some(matches)
     : value !== null && typeof value === "object" ? Object.values(value).some(matches) : false;
-  return matches(record.name) || matches(record.reference) || matches(record.data);
+  if (matches(record.name) || matches(record.reference) || matches(record.data)) return true;
+  if (record.kind !== "audit") return false;
+  const action = (record.data as { action?: unknown } | null)?.action;
+  return matches(auditEntryName(typeof action === "string" ? action : record.name));
 }
 
 export interface ListQuery { status?: string; search?: string; limit?: number; offset?: number; updatedSince?: string; customerId?: string; id?: string; allocatable?: "true" | "false"; paymentId?: string }

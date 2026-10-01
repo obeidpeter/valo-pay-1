@@ -21,6 +21,21 @@ describe("audit", () => {
     expect(within(cell).getByText("Sample lender created")).not.toBe(summary);
   });
 
+  it("finds an entry by the action name it shows, and still by its stored code", async () => {
+    const user = userEvent.setup();
+    renderApp("/audit");
+    await screen.findByText("Created a sample lender. Sample data only.");
+    const search = screen.getByLabelText("Search the audit log");
+    for (const term of ["Sample lender created", "sandbox.created"]) {
+      await user.clear(search);
+      await user.type(search, term);
+      await waitFor(() => expect(api.calls.some(call => call.path === "/v1/records/audit" && call.query.search === term)).toBe(true));
+      const cell = (await screen.findByText("Created a sample lender. Sample data only.")).closest("td")!;
+      expect(within(cell).getByText("Sample lender created")).toBeTruthy();
+      expect(screen.queryByText(/No entries match/)).toBeNull();
+    }
+  });
+
   it("verifies the chain and shows the result on the page", async () => {
     const user = userEvent.setup();
     renderApp("/audit");
