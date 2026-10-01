@@ -147,7 +147,8 @@ describe('held payments and instalments', () => {
     expect((screen.getByRole('button', { name: /Create checkout/ }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByText(create)).toBeTruthy();
     expect((screen.getByRole('button', { name: 'Simulate authorisation' }) as HTMLButtonElement).disabled).toBe(true);
-    expect(screen.getByText(authorise)).toBeTruthy();
+    // The held checkout says it once, in its progress card, in the service's words.
+    expect(screen.getByText(authorise).closest('section')!.getAttribute('aria-label')).toBe('Checkout progress');
     // Another instalment is offered as before.
     await user.selectOptions(screen.getByLabelText('Customer and instalment'), byReference('DEMO-LOAN-1006', 'due-items').id);
     expect((screen.getByRole('button', { name: /Create checkout/ }) as HTMLButtonElement).disabled).toBe(false);

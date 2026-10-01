@@ -482,11 +482,6 @@ function PaymentContent({ api }: { api: ReturnType<typeof useConnected> }) {
                         one.
                       </p>
                     )}
-                    {intentHeld && (
-                      <p className="text-sm text-muted-foreground">
-                        {reversalReviewRefusals.authorise}
-                      </p>
-                    )}
                   </>
                 )}
                 {intent.status === "authorised" && (

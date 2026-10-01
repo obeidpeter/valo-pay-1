@@ -1,4 +1,5 @@
 import { WorkflowProgress, type WorkflowStep } from "@/components/workflow-progress";
+import { reversalReviewRefusals } from "@/lib/permissions";
 
 /** A presentation of persisted checkout state only; the service still decides every permitted action. */
 export function paymentProgress(status: string, { expired = false, held = false, refundRequested = false } = {}) {
@@ -11,7 +12,8 @@ export function paymentProgress(status: string, { expired = false, held = false,
   if (status === "created") {
     steps[1].state = expired || held ? "attention" : "current";
     title = held ? "Finish the reversal review first" : expired ? "Checkout expired" : "Check the details before authorisation";
-    detail = held ? "Finance must finish a reversal review on this instalment before this checkout can be authorised."
+    // The hold is said once, in the service's words, with what lifts it.
+    detail = held ? reversalReviewRefusals.authorise
       : expired ? "Cancel this checkout, then create a new one. An expired checkout does not mean that a payment failed."
       : "Check the customer, instalment, recipient and exact amount. No payment is confirmed at this stage.";
   } else if (["authorised", "pending", "unknown"].includes(status)) {
