@@ -34,6 +34,11 @@ it('starts disabled and requires a policy, exact preview and explicit approval b
   await prepare(user);
   expect((screen.getByRole('button', { name: 'Approve deletion' }) as HTMLButtonElement).disabled).toBe(true);
   expect(screen.getByRole('list', { name: 'Items in this deletion preview' }).textContent).toContain(batchId);
+  // Each item is named by the page's own words; the service's stored label ("Committed import source CSV") is not shown.
+  const item = within(screen.getByRole('list', { name: 'Items in this deletion preview' })).getByText(batchId).closest('li')!;
+  expect(within(item).getByText('Import file (CSV)')).toBeTruthy();
+  expect(item.textContent).toMatch(/Kept since \d{1,2} \w{3,4} 2026/);
+  expect(item.textContent).not.toMatch(/Committed import source CSV/);
   expect(api.state().records.find(record => record.id === batchId)!.data.csv).toContain('SAMPLE-ROW');
   await approve(user);
   await screen.findByRole('button', { name: 'Start deletion' });
@@ -280,6 +285,8 @@ it('says why an export file kept as evidence is never offered for deletion', asy
   await screen.findByText(/1 item can be deleted now · 1 kept as evidence/);
   await user.selectOptions(await screen.findByRole('combobox', { name: 'Item to hold or release' }), `export_file:${exportId}`);
   expect(screen.getByText(new RegExp(`It is kept as evidence \\(linked to open case ${caseId}\\), so it cannot be deleted`))).toBeTruthy();
+  expect(screen.getByText(/^Age counted from 2 Aug 2026, \d{2}:\d{2} WAT\. This item has no hold\./)).toBeTruthy();
+  expect(screen.queryByText(/Private export file/)).toBeNull();
   expect(screen.getByRole('option', { name: new RegExp(`${exportId} · Kept as evidence`) })).toBeTruthy();
 });
 
