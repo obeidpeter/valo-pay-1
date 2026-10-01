@@ -126,7 +126,7 @@ function reconcileRecords(state: DomainState, ctx: Context) {
   const observationsBySource: Record<string, number> = {};
   for (const observation of observations.filter((item) => item.status === "resolved")) observationsBySource[String(observation.data.source)] = (observationsBySource[String(observation.data.source)] || 0) + 1;
   return {
-    message: "Reconciliation complete. Payment evidence has been checked for matches. No money was moved and no collection instruction was sent.",
+    message: "Reconciliation complete. Payment evidence has been checked for matches. No money moved, and no collection instruction was sent.",
     data: {
       observationsResolved: observations.filter((item) => item.status === "resolved").length, observationsBySource, canonicalPayments: resolved.length,
       settlementStatementsMatched: statements.linked, settlementVariances: batchVariances, allocationsByRule, paymentStatusesRepaired: repaired.length, dueStatusesRepaired: duesRepaired, paymentsSkipped, attemptOutcomesConfirmed: outcomesConfirmed,

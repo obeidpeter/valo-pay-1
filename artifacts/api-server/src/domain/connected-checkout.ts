@@ -396,7 +396,7 @@ export function paymentAction(
     cleared.push(...clearSettledExceptions(state, ctx));
     return event(
       refund ? "refunded" : "reversed",
-      `${input.reason} (sample evidence only)`,
+      `${input.reason} (sample data only)`,
     );
   }
   reject("This Pay by Bank action is not available.");
