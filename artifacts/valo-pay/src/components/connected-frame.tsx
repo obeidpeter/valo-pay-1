@@ -4,7 +4,6 @@ import {
   KeyRound,
   Landmark,
   ShieldCheck,
-  Sparkles,
 } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
@@ -63,7 +62,9 @@ export function ConnectedFrame({
 /**
  * A connected page's heading and the tabs between the four Connected banking
  * pages. The page shows them while its data loads and when it cannot be
- * loaded too, so every state has its h1 and a way to the other pages.
+ * loaded too, so every state has its h1 and a way to the other pages. The
+ * heading is the page's name with no eyebrow above it (docs/design/writing.md);
+ * the tabs carry the group's name.
  */
 export function ConnectedHeader({ title, description }: { title: string; description: string }) {
   const [location] = useLocation();
@@ -71,9 +72,6 @@ export function ConnectedHeader({ title, description }: { title: string; descrip
     <>
       <header className="connected-heading">
         <div>
-          <p className="connected-eyebrow">
-            <Sparkles size={14} aria-hidden="true" /> Connected banking
-          </p>
           <h1>{title}</h1>
           <p className="text-sm text-muted-foreground max-w-2xl mt-2">
             {description}

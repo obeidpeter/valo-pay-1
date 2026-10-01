@@ -10,17 +10,6 @@
   letter-spacing: -0.055em;
   line-height: 1.15;
 }
-.connected-eyebrow {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  color: hsl(var(--primary));
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.13em;
-  font-weight: 650;
-  margin-bottom: 12px;
-}
 .connected-mode {
   border: 1px solid hsl(var(--border));
   border-radius: 30px;

@@ -144,3 +144,15 @@ it("shows a reason's minimum under the field and refuses a short one in the page
   );
   expect(screen.getByRole("status").textContent).toContain("No money moved.");
 });
+// The standard: a page heading is the page's name, with no eyebrow above it. The tabs keep the group's name.
+it.each([
+  ["/pay-by-bank", "Pay by Bank"],
+  ["/credit-desk", "Credit Desk"],
+  ["/connections", "Permissions and readiness"],
+])("heads %s with its name only, and names the tabs Connected banking", async (route, name) => {
+  renderApp(route);
+  const heading = await screen.findByRole("heading", { name, level: 1 });
+  expect(heading.previousElementSibling).toBeNull();
+  expect(heading.closest("header")!.textContent).not.toContain("Connected banking");
+  expect(screen.getByRole("navigation", { name: "Connected banking" })).toBeTruthy();
+});
