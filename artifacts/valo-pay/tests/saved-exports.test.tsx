@@ -127,6 +127,14 @@ it.each(['wrong identity','missing status','malformed checksum','foreign downloa
   expect(screen.queryByRole('link',{name:'Open saved export'})).toBeNull();
   await waitFor(()=>expect(api.calls.filter(call=>call.path==='/v1/exports'&&call.method==='POST')).toHaveLength(0));
 });
+// A list of one record type is opened as the saved export, since "Open customers" would name a page; a pack keeps its name.
+it('offers a ready export of records as Open saved export',async()=>{
+  const id=api.mutate(state=>makeRecord(state,'exports',{status:'ready',name:'Customers (JSON)',createdAt:'2026-09-19T09:00:00.000Z',data:{kind:'customers',format:'json',checksum:'e'.repeat(64),generatedAt:'2026-09-19T09:00:00.000Z',byteLength:12}}).id);
+  renderApp(`/exports?job=${id}`);
+  const link=await screen.findByRole('link',{name:'Open saved export'});
+  expect(link.getAttribute('href')).toContain(id);
+  expect(screen.queryByRole('link',{name:'Open customers'})).toBeNull();
+});
 it('lists deleted files under File deleted, never under Ready to download or Failed',async()=>{
   const user=userEvent.setup();
   const saved=(state:Parameters<Parameters<FakeApi['mutate']>[0]>[0],minute:number,status:string,removed:boolean)=>makeRecord(state,'exports',{status,name:`Synthetic ${minute}`,createdAt:`2026-09-19T0${minute}:00:00.000Z`,data:{kind:'customers',format:'json',...(status==='ready'?{checksum:'a'.repeat(64),generatedAt:api.now}:{lastError:'Generation could not finish.'}),...(removed?{fileDeletedAt:'2026-09-19T09:30:00.000Z'}:{})}});

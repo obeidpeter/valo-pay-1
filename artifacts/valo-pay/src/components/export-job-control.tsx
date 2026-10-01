@@ -16,6 +16,8 @@ import { readAnswer } from '@/lib/answers';
 import { Link } from 'wouter';
 
 type Format = 'pdf' | 'csv' | 'json';
+/** The exports that are documents with their own names (exportKindName); the others are lists of one record type. */
+const PACKS = ['gate-pack', 'billing', 'reviewed-close', 'dispute-pack', 'customer-pack'];
 /** What a saved export holds, in the one name the service gives its saved export and its file (exportKindName): "Dispute pack". */
 export function exportKindTitle(kind: string): string {
   return kind ? exportKindName(kind) : 'Saved export';
@@ -46,8 +48,9 @@ export function ExportJobControl({ kind, customerId, closeReviewId, savedJobId, 
   // Which request failed: a new export (start) or a retry or restart of a saved one, so a refusal names the right action.
   const [problem, setProblem] = useState<{ scope: string; action: 'start' | 'restart'; message: string } | null>(null);
   const title = exportKindTitle(kind);
-  // A pack named after its page keeps the page's capital: "Open Go-live evidence pack".
-  const openLabel = `Open ${kind === 'gate-pack' ? title : title.charAt(0).toLowerCase() + title.slice(1)}`;
+  // A pack is opened by its name, and one named after its page keeps the page's capital: "Open billing statement",
+  // "Open Go-live evidence pack". Any other export holds records whose name is also a page's, so it is the saved export.
+  const openLabel = !PACKS.includes(kind) ? 'Open saved export' : `Open ${kind === 'gate-pack' ? title : title.charAt(0).toLowerCase() + title.slice(1)}`;
   // Search the saved review identity before paging, then enforce the exact match.
   const params = { merchantId: merchantId!, customerId, search: closeReviewId || kind, limit: 5 };
   const recent = useListRecords('exports', params, { query: { enabled: !!merchantId && !savedJobId, queryKey: getListRecordsQueryKey('exports', params), refetchInterval: savedJobId ? false : 5000 } });
