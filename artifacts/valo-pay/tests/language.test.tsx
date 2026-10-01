@@ -1,8 +1,9 @@
-// The writing standard's mechanical rules, checked on every page of the console (docs/design/writing.md,
-// Checking your writing): each page has one name, used by its navigation link, its heading and the browser's
-// title, and the words a reader sees carry no "&", em dash, arrow, straight apostrophe, raw code, retired
-// page name or word the standard keeps from readers. Checksums and hashes may appear only inside a closed
-// Technical details section, so the text inside a closed <details> other than its summary is not read.
+// The writing standard's mechanical rules, checked on the first view of every page of the console, as Admin
+// (docs/design/writing.md, Checking your writing): each page has one name, used by its navigation link, its heading
+// and the browser's title, and the words a reader sees carry no "&", em dash, arrow, straight apostrophe, raw code,
+// retired page name or word the standard keeps from readers. Checksums and hashes may appear only inside a closed
+// Technical details section, so the text inside a closed <details> other than its summary is not read. Dialogs,
+// other roles and the states after an action are not read.
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { installFakeApi, type FakeApi } from "./fake-api";
 import { renderApp, screen, waitFor } from "./harness";
@@ -24,14 +25,22 @@ const pages = pageGroups.flatMap(([, list]) => list);
 /** Words the standard keeps from readers ("Things never shown to readers"), matched as whole words. */
 const hiddenWords = [
   "principal", "digests?", "snapshots?", "payloads?", "idempoten\\w*", "journal\\w*", "leases?", "tombstones?", "fingerprints?",
-  "hash(?:es)?", "checksums?", "provenance", "canonical", "schemas?", "record kinds?", "basis points?", "projections?",
+  "hash(?:es)?", "checksums?", "provenance", "canonical", "schemas?", "record kinds?", "basis", "projections?",
   "workers?", "jobs?", "builds?", "hosts?", "webhooks?", "adapters?", "provision\\w*", "MFA",
 ];
 const hiddenWord = new RegExp(`\\b(?:${hiddenWords.join("|")})\\b`, "gi");
 /** Page and product names the standard retired. */
 const retiredNames = /Pay-by-bank|pay-by-bank|Operations overview|Your pilot journey|Finance close review|Reports & analytics|Settings & administration|Team & access|Policies & templates|Permissions & readiness/g;
-/** A raw code such as review_pending. */
-const rawCode = /\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/g;
+/**
+ * A raw code: a lower-case code such as review_pending, an upper-case one such as REVIEW_PENDING, or a dotted one
+ * such as post.records.customers. A dotted code stands on its own, so an e-mail address or a web address after
+ * "https://" is not one. Words with hyphens, such as sign-in and read-only, are ordinary words.
+ */
+const rawCodes = [
+  /\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/g,
+  /\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b/g,
+  /(?<![\w@./:-])[a-z][a-z0-9_-]*(?:\.[a-z][a-z0-9_-]*)+(?![\w@/-]|\.\w)/g,
+];
 
 /** The words a reader sees or hears on the page: its text and the names, titles, placeholders and alt text of its elements. */
 function readerText(): string {
@@ -55,7 +64,7 @@ function problems(text: string): string[] {
   add("arrow", text.matchAll(/→|←|->|=>/g));
   add("straight apostrophe", text.matchAll(/[A-Za-z]'[A-Za-z]/g));
   add("retired name", text.matchAll(retiredNames));
-  add("raw code", text.matchAll(rawCode));
+  for (const rawCode of rawCodes) add("raw code", text.matchAll(rawCode));
   add("hidden word", text.matchAll(hiddenWord));
   return found;
 }
@@ -71,6 +80,22 @@ function navigationLabel(link: Element): string {
   label.querySelectorAll('[id$="-purpose"]').forEach((purpose) => purpose.remove());
   return label.textContent?.trim() ?? "";
 }
+
+describe("the rules", () => {
+  it("finds each kind of raw code and a word kept from readers", () => {
+    const rules = (text: string) => problems(text).map((problem) => problem.slice(0, problem.indexOf(":")));
+    expect(rules("A review_pending mandate.")).toEqual(["raw code"]);
+    expect(rules("The bank answered TIMEOUT_UNKNOWN.")).toEqual(["raw code"]);
+    expect(rules("Recorded post.records.customers for this lender.")).toEqual(["raw code"]);
+    expect(rules("The run is payroll-run.completed now.")).toEqual(["raw code"]);
+    expect(rules("The fee is worked out on a daily basis.")).toEqual(["hidden word"]);
+  });
+
+  it("reads e-mail addresses, web addresses, numbers and words with hyphens as ordinary words", () => {
+    expect(problems("Write to ops@valopay.example or ada.okonkwo@valopay.example. Open https://console.valopay.example/sign-in to sign in.")).toEqual([]);
+    expect(problems("Read-only can view it. Sign-in is not available. Version 1.5 is ready.")).toEqual([]);
+  });
+});
 
 describe("page names", () => {
   it("lists every page under its group in the navigation, by the standard's names", async () => {

@@ -313,4 +313,4 @@ Before you finish a change to visible text:
 2. Check each sentence is 30 words or fewer, and most are 20 or fewer.
 3. Check names and terms against this guide.
 4. Check a boundary statement still says what it said.
-5. Run the console's tests and `node scripts/check-docs.mjs`. `artifacts/valo-pay/tests/language.test.tsx` checks the mechanical rules on every page: one name per page in its navigation link, heading and browser title, and no "&", em dash, arrow, straight apostrophe, raw code, retired name or word kept from readers.
+5. Run the console's tests and `node scripts/check-docs.mjs`. `artifacts/valo-pay/tests/language.test.tsx` checks the first view of every page, as Admin: one name per page in its navigation link, heading and browser title, and no "&", em dash, arrow, straight apostrophe, code such as `review_pending`, `REVIEW_PENDING` or `post.records.customers`, retired name or word kept from readers.
