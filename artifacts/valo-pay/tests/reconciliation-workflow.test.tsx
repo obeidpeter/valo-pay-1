@@ -418,7 +418,7 @@ describe('payments that cannot be allocated', () => {
     const allocate = within(row).getByRole('button', { name: 'Allocate payment' });
     expect(allocate.getAttribute('aria-disabled')).toBe('true');
     const reason = document.getElementById(allocate.getAttribute('aria-describedby') || '')?.textContent;
-    expect(reason).toBe('Payment SBX-USD-CARD is in USD. Instalments are owed in naira, so it cannot be applied to one. Record its refund or resolve it with Finance.');
+    expect(reason).toBe('Payment SBX-USD-CARD is in USD. Instalments are owed in naira, so it cannot be allocated to one. Record its refund or resolve it with Finance.');
     expect(reason).toBe(serviceRefusal(payment));
     await user.click(allocate);
     expect(screen.queryByRole('dialog')).toBeNull();

@@ -81,7 +81,7 @@ export function onlyRoles(roles: readonly string[], action: string, { reason, ro
 export function allocationRefusal(payment: PermissionRecord): string | null {
   if (!payment) return null;
   const currency = String(payment.data?.currency || 'NGN').trim().toUpperCase();
-  if (currency !== 'NGN') return `Payment ${payment.reference} is in ${currency}. Instalments are owed in naira, so it cannot be applied to one. Record its refund or resolve it with Finance.`;
+  if (currency !== 'NGN') return `Payment ${payment.reference} is in ${currency}. Instalments are owed in naira, so it cannot be allocated to one. Record its refund or resolve it with Finance.`;
   if (paymentMoneyReturned(payment)) return `Payment ${payment.reference} was ${normaliseReversalStatus(payment.data?.reversalStatus) === 'reversed' ? 'reversed by the provider' : 'refunded to the payer'}. Its money went back, so it cannot be allocated to an instalment.`;
   const refunded = paymentRefundedKobo(payment);
   if (refunded > 0 && paymentUnappliedKobo(payment) <= 0) return `Payment ${payment.reference} was refunded to the payer in part: ${nairaText(refunded)} went back, so nothing is left to allocate to an instalment.`;
@@ -90,16 +90,16 @@ export function allocationRefusal(payment: PermissionRecord): string | null {
 
 /**
  * The service's words when a hold for a renewed review of an earlier reversal decision refuses an action
- * (reconciliation.ts and connected.ts in the API). Reconciliation records the hold on the payments and
+ * (reconciliation-payments.ts and connected-checkout.ts in the API, which say exactly the same). Reconciliation records the hold on the payments and
  * instalments it concerns (heldForReversalReview); one the service derives before its first reconciliation is
  * not recorded yet, so the console cannot see it, and the service's refusal says so then.
  */
 export const reversalReviewRefusals = {
-  payment: 'This payment is held for renewed Finance review of an earlier reversal decision. Resolve that review and run reconciliation before allocating it.',
-  instalment: 'This instalment is held for renewed Finance review of an earlier reversal decision. Resolve that review and run reconciliation before allocating a payment.',
-  release: 'Resolve the renewed reversal review and run reconciliation before releasing this instalment.',
-  checkout: 'This instalment is held for renewed Finance review of an earlier reversal decision. Resolve that review and run reconciliation before creating a checkout.',
-  authorise: 'This instalment is held for renewed Finance review of an earlier reversal decision. Resolve that review and run reconciliation before authorising a checkout.',
+  payment: 'This payment is on hold while Finance reviews an earlier reversal decision again. Resolve that review and run reconciliation before you allocate it.',
+  instalment: 'This instalment is on hold while Finance reviews an earlier reversal decision again. Resolve that review and run reconciliation before you allocate a payment to it.',
+  release: 'This instalment is on hold while Finance reviews an earlier reversal decision again. Resolve that review and run reconciliation before you release it from dispute.',
+  checkout: 'This instalment is on hold while Finance reviews an earlier reversal decision again. Resolve that review and run reconciliation before you create a checkout for it.',
+  authorise: 'This instalment is on hold while Finance reviews an earlier reversal decision again. Resolve that review and run reconciliation before this checkout can be authorised.',
 } as const;
 
 /** Whether reconciliation holds this payment or instalment for a renewed reversal review (data.legacyReversalReviewIds). */

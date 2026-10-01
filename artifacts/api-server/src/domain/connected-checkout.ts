@@ -178,7 +178,7 @@ export function paymentAction(
       .strict()
       .parse(input.data);
     const due = owned(state, dueItemId, "due-items");
-    if (dueNeedsReversalReview(state, due)) reject("This instalment is held for renewed Finance review of an earlier reversal decision. Resolve that review and run reconciliation before creating a checkout.", 409);
+    if (dueNeedsReversalReview(state, due)) reject("This instalment is on hold while Finance reviews an earlier reversal decision again. Resolve that review and run reconciliation before you create a checkout for it.", 409);
     if (
       ["paid", "cancelled", "closed", "in_dispute"].includes(due.status) ||
       amountKobo > Number(due.data.outstandingKobo ?? due.amountKobo)
@@ -233,7 +233,7 @@ export function paymentAction(
   const due = owned(state, String(intent.data.dueItemId), "due-items");
   const event = (status: string, detail: string) => recordEvent(intent, ctx, status, detail);
   if (input.action === "payment.authorise") {
-    if (dueNeedsReversalReview(state, due)) reject("This instalment is held for renewed Finance review of an earlier reversal decision. Resolve that review and run reconciliation before authorising a checkout.", 409);
+    if (dueNeedsReversalReview(state, due)) reject("This instalment is on hold while Finance reviews an earlier reversal decision again. Resolve that review and run reconciliation before this checkout can be authorised.", 409);
     if (intent.status !== "created")
       reject("This checkout is no longer new, so it cannot be authorised. Reload the page to see its status.", 409);
     if (Date.parse(String(intent.data.expiresAt)) <= Date.parse(ctx.now))

@@ -159,9 +159,9 @@ export function withdrawPayerIdentification(state: DomainState, ctx: Context, pa
  * Instalments are owed in naira, so money in another currency is never applied.
  */
 function assertPaymentAllocatable(state: DomainState, payment: TypedRecord<"payments">, amount: number): void {
-  if (paymentNeedsReversalReview(state, payment)) throw Object.assign(new Error("This payment is held for renewed Finance review of an earlier reversal decision. Resolve that review and run reconciliation before allocating it."), { status: 409 });
+  if (paymentNeedsReversalReview(state, payment)) throw Object.assign(new Error("This payment is on hold while Finance reviews an earlier reversal decision again. Resolve that review and run reconciliation before you allocate it."), { status: 409 });
   if (currencyOf(payment) !== "NGN") {
-    throw Object.assign(new Error(`Payment ${payment.reference} is in ${currencyOf(payment)}. Instalments are owed in naira, so it cannot be applied to one. Record its refund or resolve it with Finance.`), { status: 409 });
+    throw Object.assign(new Error(`Payment ${payment.reference} is in ${currencyOf(payment)}. Instalments are owed in naira, so it cannot be allocated to one. Record its refund or resolve it with Finance.`), { status: 409 });
   }
   if (paymentReturned(payment)) {
     const how = paymentReversed(payment) ? "reversed by the provider" : "refunded to the payer";
@@ -174,7 +174,7 @@ function assertPaymentAllocatable(state: DomainState, payment: TypedRecord<"paym
 }
 
 function assertAllocationEligible(state: DomainState, due: TypedRecord<'due-items'>): void {
-  if (dueNeedsReversalReview(state, due)) throw Object.assign(new Error("This instalment is held for renewed Finance review of an earlier reversal decision. Resolve that review and run reconciliation before allocating a payment."), { status: 409 });
+  if (dueNeedsReversalReview(state, due)) throw Object.assign(new Error("This instalment is on hold while Finance reviews an earlier reversal decision again. Resolve that review and run reconciliation before you allocate a payment to it."), { status: 409 });
   if ((allocationClosedStatuses as readonly string[]).includes(due.status)) throw Object.assign(new Error('This instalment is cancelled, closed or in dispute. Refresh the queue and review its status before allocating a payment.'), { status: 409 });
 }
 
@@ -252,7 +252,7 @@ export function supersedeAllocation(state: DomainState, ctx: Context, allocation
  * is closed as its condition cleared. Returns those exceptions.
  */
 export function releaseDispute(state: DomainState, ctx: Context, due: TypedRecord<"due-items">, release: { via: "not_upheld" | "finance_release"; reason: string; exceptionId?: string }): TypedRecord<"exceptions">[] {
-  if (dueNeedsReversalReview(state, due)) throw Object.assign(new Error("Resolve the renewed reversal review and run reconciliation before releasing this instalment."), { status: 409 });
+  if (dueNeedsReversalReview(state, due)) throw Object.assign(new Error("This instalment is on hold while Finance reviews an earlier reversal decision again. Resolve that review and run reconciliation before you release it from dispute."), { status: 409 });
   if (due.status !== "in_dispute") throw Object.assign(new Error(`Instalment ${due.reference} is not in dispute, so there is nothing to release. Reload the page to see its current status.`), { status: 409 });
   const status = statusHeldInDispute(state, due) ?? balanceStatus(state, due);
   delete due.data.legacyReversalReviewPause;

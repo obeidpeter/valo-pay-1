@@ -50,19 +50,19 @@ for (const link of ["attempt", "allocation", "observation", "payment"] as const)
   if (link === "observation") reversal.data.dueItemId = due.id;
   const proposal = makeRecord(state, "allocations", { name: "Earlier proposal", status: "proposed", customerId: due.customerId, amountKobo: due.amountKobo, data: { paymentId: payment.id, dueItemId: link === "allocation" ? due.id : "unrelated", rule: "R5", confidence: "probable", automatic: true } });
   const snapshot = structuredClone(state);
-  assert.throws(() => allocatePayment(state, finance, payment, due, due.amountKobo, "manual", "manual", false), /renewed Finance review/);
+  assert.throws(() => allocatePayment(state, finance, payment, due, due.amountKobo, "manual", "manual", false), /on hold while Finance reviews an earlier reversal decision again/);
   assert.deepEqual(state, snapshot, "refusal does not first rewrite historical state");
   proposal.data.dueItemId = due.id;
-  assert.throws(() => applyConfirmedAllocation(state, finance, proposal), /renewed Finance review/);
+  assert.throws(() => applyConfirmedAllocation(state, finance, proposal), /on hold while Finance reviews an earlier reversal decision again/);
   proposal.data.dueItemId = link === "allocation" ? due.id : "unrelated";
   const policy = recordsOf(state, "policies")[0]!;
   assert.equal(evaluateRetry(state, finance, due, policy).rule, "reversal_review");
   due.status = "in_dispute";
-  assert.throws(() => releaseDispute(state, finance, due, { via: "not_upheld", reason: "Ordinary dispute release" }), /renewed reversal review/);
+  assert.throws(() => releaseDispute(state, finance, due, { via: "not_upheld", reason: "Ordinary dispute release" }), /on hold while Finance reviews an earlier reversal decision again/);
   due.status = "scheduled";
-  assert.throws(() => runConnectedAction(state, finance, { action: "payment.create", reason: "New checkout", recordId: "", data: { dueItemId: due.id, amountKobo: due.amountKobo }, expectedRevision: connectedRevision(state) }), /renewed Finance review/);
+  assert.throws(() => runConnectedAction(state, finance, { action: "payment.create", reason: "New checkout", recordId: "", data: { dueItemId: due.id, amountKobo: due.amountKobo }, expectedRevision: connectedRevision(state) }), /on hold while Finance reviews an earlier reversal decision again/);
   const intent = makeRecord(state, "connected-intents", { name: "Earlier checkout", status: "created", customerId: due.customerId, amountKobo: due.amountKobo, data: { dueItemId: due.id, expiresAt: wat("2027-07-03T10:10:00"), events: [] } });
-  assert.throws(() => runConnectedAction(state, finance, { action: "payment.authorise", reason: "Continue checkout", recordId: intent.id, data: {}, expectedRevision: connectedRevision(state) }), /renewed Finance review/);
+  assert.throws(() => runConnectedAction(state, finance, { action: "payment.authorise", reason: "Continue checkout", recordId: intent.id, data: {}, expectedRevision: connectedRevision(state) }), /on hold while Finance reviews an earlier reversal decision again/);
   intent.status = "pending"; // An earlier authorised checkout can still deliver evidence while the hold exists.
   runConnectedAction(state, finance, { action: "payment.outcome", reason: "Existing checkout receipt", recordId: intent.id, data: { outcome: "confirmed" }, expectedRevision: connectedRevision(state) });
   const receipt = recordsOf(state, "payments").find((record) => record.id === intent.data.paymentId)!;
@@ -83,8 +83,8 @@ for (const code of ["provider_state_adopted", "platform_state_confirmed", "escal
   assert.equal(review.status, "open");
   assert.equal(payment.data.allocatedKobo, 0);
   assert.equal(due.status, "in_dispute");
-  assert.throws(() => allocatePayment(state, finance, payment, due, due.amountKobo, "manual", "manual", false), /dispute|renewed Finance review/);
-  assert.throws(() => releaseDispute(state, finance, due, { via: "finance_release", reason: "Attempt to bypass review" }), /renewed reversal review/);
+  assert.throws(() => allocatePayment(state, finance, payment, due, due.amountKobo, "manual", "manual", false), /dispute|on hold while Finance reviews an earlier reversal decision again/);
+  assert.throws(() => releaseDispute(state, finance, due, { via: "finance_release", reason: "Attempt to bypass review" }), /on hold while Finance reviews an earlier reversal decision again/);
   assert.throws(() => executeAction(structuredClone(state), ctxAt(now, "Operations"), { action: "resolve_exception", recordId: review.id, reason: "Attempt to bypass Finance", data: { resolutionCode: "provider_state_adopted" } }), (error: any) => error.status === 403);
   resolve(state, review, "provider_state_adopted");
   run(state); run(state);
@@ -785,7 +785,7 @@ function holdAsPr61(review: TypedRecord<"exceptions">, dues: TypedRecord<"due-it
   run(held.state); run(held.state);
   assert.deepEqual([held.due.status, final.status, collectable.status, pauseOf(collectable)?.status], ["paid", "unpaid_final", "in_dispute", "in_collection"], "a paid or finally unpaid instalment keeps its status; a collectable one is paused with the status it had");
   assert.deepEqual([held.due, final, collectable].map((due) => due.data.legacyReversalReviewIds), [[reviewOf(held.state).id], [reviewOf(held.state).id], [reviewOf(held.state).id]], "each is still held");
-  for (const due of [held.due, final, collectable]) assert.throws(() => releaseDispute(structuredClone(held.state), finance, structuredClone(due), { via: "finance_release", reason: "Bypass" }), /renewed reversal review/);
+  for (const due of [held.due, final, collectable]) assert.throws(() => releaseDispute(structuredClone(held.state), finance, structuredClone(due), { via: "finance_release", reason: "Bypass" }), /on hold while Finance reviews an earlier reversal decision again/);
   resolve(held.state, reviewOf(held.state), "provider_state_adopted");
   const answer = run(held.state); run(held.state); run(held.state);
   assert.deepEqual([collectable.status, pauseOf(collectable), collectable.data.legacyReversalReviewIds, collectable.data.disputeRelease], ["in_collection", undefined, undefined, undefined], "the collectable instalment gets exactly its status back, with no release");
@@ -864,7 +864,7 @@ function reversalElsewhere(merchantId: string) {
   run(state);
   const review = reviewOf(state);
   assert.deepEqual([review.status, holdsOf(payment), holdsOf(due), due.status, pauseOf(due)?.status], ["open", [review.id], [review.id], "in_dispute", "scheduled"], "the payment an adoption would reverse, and the instalment its evidence names, are held");
-  assert.throws(() => transaction(state, () => allocatePayment(state, finance, payment, due, due.amountKobo, "manual", "manual", false)), /held for renewed Finance review/);
+  assert.throws(() => transaction(state, () => allocatePayment(state, finance, payment, due, due.amountKobo, "manual", "manual", false)), /on hold while Finance reviews an earlier reversal decision again/);
   resolve(state, review, "provider_state_adopted");
   run(state); run(state);
   assert.deepEqual([payment.data.reversalStatus, reversal.data.paymentId, reversal.data.resolutionKey, due.status, holdsOf(payment), holdsOf(due), pauseOf(due)], ["reversed", payment.id, "adopted_after_review", "scheduled", undefined, undefined, undefined], "adopted, the reversal reverses that payment, which was never applied, and the instalment gets its status back");

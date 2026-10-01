@@ -80,11 +80,11 @@ describe('held payments and instalments', () => {
     const button = within(row).getByRole('button', { name: 'Allocate payment' });
     expect(button.getAttribute('aria-disabled')).toBe('true');
     expect(reasonFor(button)).toBe(allocate(payment.id, open));
-    expect(reasonFor(button)).toBe('This payment is held for renewed Finance review of an earlier reversal decision. Resolve that review and run reconciliation before allocating it.');
+    expect(reasonFor(button)).toBe('This payment is on hold while Finance reviews an earlier reversal decision again. Resolve that review and run reconciliation before you allocate it.');
     // The unidentified receipt may take any customer's instalment, but the service refuses a held one, so the picker
     // does not offer it, whatever its status, and counts only the choices the service accepts.
     const unidentified = byReference('SBX-UNIDENTIFIED-001', 'payments');
-    expect(allocate(unidentified.id, held)).toBe('This instalment is held for renewed Finance review of an earlier reversal decision. Resolve that review and run reconciliation before allocating a payment.');
+    expect(allocate(unidentified.id, held)).toBe('This instalment is on hold while Finance reviews an earlier reversal decision again. Resolve that review and run reconciliation before you allocate a payment to it.');
     const other = within(payments).getByText('SBX-UNIDENTIFIED-001').closest('tr')!;
     await user.click(within(other).getByRole('button', { name: 'Allocate payment' }));
     const dialog = await screen.findByRole('dialog', { name: 'Allocate payment' });
@@ -101,7 +101,7 @@ describe('held payments and instalments', () => {
     holdFor(held);
     const proposal = api.state().records.find(record => record.kind === 'allocations' && record.status === 'proposed')!;
     const confirm = serviceSays('Finance', (state, ctx) => executeAction(state, ctx, { action: 'confirm_allocation', recordId: String(proposal.data.paymentId), reason: 'Checking what the service says', data: { proposalId: proposal.id, proposalUpdatedAt: proposal.updatedAt } }));
-    expect(confirm).toBe('This instalment is held for renewed Finance review of an earlier reversal decision. Resolve that review and run reconciliation before allocating a payment.');
+    expect(confirm).toBe('This instalment is on hold while Finance reviews an earlier reversal decision again. Resolve that review and run reconciliation before you allocate a payment to it.');
     api.role = 'Finance';
     renderApp('/reconciliation');
     const matches = (await screen.findByRole('heading', { name: 'Matches to review' })).parentElement!.parentElement!;
@@ -118,7 +118,7 @@ describe('held payments and instalments', () => {
     heldStatus('DEMO-LOAN-1005', 'paused');
     const due = byReference('DEMO-LOAN-1005', 'due-items');
     const release = serviceSays('Finance', (state, ctx) => executeAction(state, ctx, { action: 'release_dispute', recordId: due.id, reason: 'Checking what the service says' }));
-    expect(release).toBe('Resolve the renewed reversal review and run reconciliation before releasing this instalment.');
+    expect(release).toBe('This instalment is on hold while Finance reviews an earlier reversal decision again. Resolve that review and run reconciliation before you release it from dispute.');
     api.role = 'Finance';
     renderApp('/collections');
     const row = (await screen.findByText('DEMO-LOAN-1005')).closest('tr')!;
@@ -136,8 +136,8 @@ describe('held payments and instalments', () => {
     heldStatus('DEMO-LOAN-1005', 'unpaid_final');
     const connected = (action: string, recordId: string, data: Record<string, unknown>) => serviceSays('Finance', (state, ctx) => runConnectedAction(state, ctx, { action, reason: 'Checking what the service says', recordId, data, expectedRevision: connectedRevision(state) } as never));
     const create = connected('payment.create', '', { dueItemId: due.id, amountKobo: 1000 }), authorise = connected('payment.authorise', intent.id, {});
-    expect(create).toBe('This instalment is held for renewed Finance review of an earlier reversal decision. Resolve that review and run reconciliation before creating a checkout.');
-    expect(authorise).toBe('This instalment is held for renewed Finance review of an earlier reversal decision. Resolve that review and run reconciliation before authorising a checkout.');
+    expect(create).toBe('This instalment is on hold while Finance reviews an earlier reversal decision again. Resolve that review and run reconciliation before you create a checkout for it.');
+    expect(authorise).toBe('This instalment is on hold while Finance reviews an earlier reversal decision again. Resolve that review and run reconciliation before this checkout can be authorised.');
     api.role = 'Finance';
     renderApp('/pay-by-bank');
     await screen.findByRole('heading', { name: 'Pay by Bank', level: 1 });
