@@ -14,6 +14,7 @@ import { fieldMessageId } from "@/components/form-field";
 import { StatusBadge } from "@/components/record-label";
 import { requestClosed, savedAnswerWithheld } from "@/lib/safe-mutations";
 import { errorWords } from "@/lib/notify";
+import { onlyRoles } from "@/lib/permissions";
 import { valueLabel, valueLabels } from "@workspace/valopay-schema";
 import "@/connected.css";
 /** The connected workspace's held request and, for a failed refresh, its query. */
@@ -257,13 +258,12 @@ export function describedBy(id: string, error?: string): string {
   return error ? `${id}-help ${fieldMessageId(id)}` : `${id}-help`;
 }
 /**
- * Why a role cannot take an action, in one shape on every connected page:
- * "Only Admin or Operations can grant a permission. Your role is Finance." In
- * the sandbox the demo role is the way to try it.
+ * Why a role cannot take an action, in one shape on every connected page and the rest of the console (the shared
+ * onlyRoles, which names roles as the standard lists them, with no article): "Only Admin or Operations can grant a
+ * permission. Your role is Finance." In the sandbox the demo role is the way to try it.
  */
 export function roleRefusal(roles: readonly string[], action: string, role: string, accessMode?: string): string {
-  const who = roles.length < 2 ? roles[0] : `${roles.slice(0, -1).join(", ")} or ${roles.at(-1)}`;
-  return `Only ${who} can ${action}. Your role is ${role}.${accessMode === "staff" ? "" : " Change your demo role in Settings."}`;
+  return onlyRoles(roles, action, { role, accessMode });
 }
 /** The records whose statuses these pages show. */
 export type ConnectedStatusRecord =
