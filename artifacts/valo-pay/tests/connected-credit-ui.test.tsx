@@ -66,7 +66,7 @@ beforeEach(() => {
         ],
         assessments: [],
         model: {
-          name: "Illustrative salaried rulecard",
+          name: "Sample scoring rules for salaried applicants",
           version: "illustrative-rulecard-v1",
           validation: "Not validated for real lending",
           weights: [],
