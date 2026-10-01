@@ -12,6 +12,15 @@ describe("audit", () => {
     expect(await screen.findByText("A permanent record of every change for this lender. Each entry is linked to the one before it. Select Check audit log to find any entry that was changed.")).toBeTruthy();
   });
 
+  it("names each entry's action in words, with the summary saved with it on a second line", async () => {
+    renderApp("/audit");
+    const summary = await screen.findByText("Created a sample lender. Sample data only.");
+    const cell = summary.closest("td")!;
+    // The service names the stored action ("sandbox.created") in words; the summary does not replace it.
+    expect(within(cell).getByText("Sample lender created")).toBeTruthy();
+    expect(within(cell).getByText("Sample lender created")).not.toBe(summary);
+  });
+
   it("verifies the chain and shows the result on the page", async () => {
     const user = userEvent.setup();
     renderApp("/audit");

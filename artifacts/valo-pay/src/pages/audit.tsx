@@ -143,7 +143,9 @@ export default function AuditPage() {
                     <td className="px-6 py-3 whitespace-nowrap text-muted-foreground">{formatDate(log.createdAt)}</td>
                     <td className="px-6 py-3 font-sans font-medium">{String(log.data?.actor || 'Valo Pay')}</td>
                     <td className="px-6 py-3">
-                      <span className="bg-secondary/50 text-foreground px-2 py-1 rounded text-xs">{String(log.data?.summary || log.name)}</span>
+                      {/* The action in words, as Valo Pay names it ("Customer added"), then the summary saved with it. */}
+                      <span className="bg-secondary/50 text-foreground px-2 py-1 rounded text-xs">{String(log.name)}</span>
+                      {!!log.data?.summary && String(log.data.summary) !== String(log.name) && <p className="mt-1.5 max-w-sm font-sans text-xs text-muted-foreground">{String(log.data.summary)}</p>}
                       {!!log.data?.hash && <TechnicalDetails className="mt-2 max-w-xs font-sans text-muted-foreground" explanation={HASH_EXPLAINED}><p>Hash: {String(log.data.hash)}</p></TechnicalDetails>}
                     </td>
                     <td className="px-6 py-3 text-xs text-muted-foreground">{String(log.data?.objectId || 'None')}</td>
