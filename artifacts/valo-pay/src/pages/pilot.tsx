@@ -13,6 +13,7 @@ import {
   pilotField,
 } from "@/components/pilot-ui";
 import { Button } from "@/components/ui/button";
+import { readableLabel } from "@/components/record-label";
 
 export default function PilotPage() {
   const { merchantId, workspace, setMerchantId } = useWorkspace();
@@ -27,12 +28,11 @@ export default function PilotPage() {
   const created = create.data?.id;
   useEffect(() => { if (created) setMerchantId(created); }, [created]);
   const steps = journey.data?.steps || [];
-  const labels = { not_started: "Not started", in_progress: "In progress", awaiting_review: "Awaiting review", completed: "Completed", blocked: "Blocked" };
   return (
     <div className="space-y-7 pb-10">
-      <PilotHeading title="Your pilot journey">
-        Bring the operational steps together for one lender. Progress below
-        reflects verified work and recorded decisions; it is not approval to use real customer data or
+      <PilotHeading title="Pilot journey">
+        Follow the pilot steps for one lender. Progress shows checked work and
+        recorded decisions. It is not approval to use real customer data or to
         move money.
       </PilotHeading>
       <PilotError
@@ -41,11 +41,11 @@ export default function PilotPage() {
           void journey.refetch();
         }}
       />
-      {journey.isLoading && <p role="status">Checking the saved evidence for each step…</p>}
+      {journey.isLoading && <p role="status">Loading pilot progress…</p>}
       {journey.data?.access && <section className="rounded-xl border bg-secondary/20 p-4 text-sm">
-        <p className="font-semibold">Staff access · {journey.data.access.state === "configured" ? "Configured for synthetic testing" : "Not configured"}</p>
+        <p className="font-semibold">Staff access · {journey.data.access.state === "configured" ? "Set up for sample data" : "Not set up"}</p>
         <p className="mt-1 text-muted-foreground">{journey.data.access.message}</p>
-        <Link href="/team" className="mt-2 inline-flex min-h-11 items-center text-primary underline">Review staff access</Link>
+        <Link href="/team" className="mt-2 inline-flex min-h-11 items-center text-primary underline">Open Team and access</Link>
       </section>}
       <div className="grid gap-4 lg:grid-cols-3">
         {steps.map((step, index) => (
@@ -68,7 +68,7 @@ export default function PilotPage() {
             <div className="min-w-0">
               <p className="text-xs text-muted-foreground">
                 Step {index + 1} ·{" "}
-                {labels[step.state]}
+                {readableLabel(step.state)}
               </p>
               <h2 className="mt-2 font-semibold">{step.name}</h2>
               {step.evidence.map(item => <p key={item} className="mt-2 break-words text-sm text-muted-foreground [overflow-wrap:anywhere]">{item}</p>)}
@@ -83,8 +83,8 @@ export default function PilotPage() {
       </div>
       <PilotPanel title="Set up a lender">
         <p className="text-sm text-muted-foreground">
-          Create an empty synthetic lender for the pilot rehearsal. Import your
-          sample customers first, then their mandates, instalments and payment
+          Create an empty sample lender to practise the pilot. Then import its
+          sample customers, followed by their mandates, instalments and payment
           evidence. Scheduled actions start switched off.
         </p>
         <form
@@ -141,7 +141,10 @@ export default function PilotPage() {
         </form>
         {workspace?.role !== "Admin" && (
           <p className="text-sm text-muted-foreground">
-            An administrator must create the lender.
+            Only Admin can create a lender. Your role is{" "}
+            {workspace?.role || "not set"}.
+            {workspace?.accessMode !== "staff" &&
+              " Change your demo role in Settings."}
           </p>
         )}
         <RecoveryNotice mutation={create} persistent={false} />
@@ -153,10 +156,10 @@ export default function PilotPage() {
       </PilotPanel>
       <div className="flex flex-wrap gap-5 text-sm">
         <Link href="/operations" className="text-primary underline">
-          Recover an uncertain request
+          Open Request history
         </Link>
         <Link href="/team" className="text-primary underline">
-          Review staff access
+          Open Team and access
         </Link>
       </div>
     </div>

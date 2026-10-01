@@ -62,10 +62,10 @@ async function propose(batchId: string, targetId: string, wait = true) {
     "SOURCE-CORRECT-001",
   );
   await user.selectOptions(
-    screen.getByLabelText("Independent Finance reviewer"),
+    screen.getByLabelText("Finance reviewer"),
     "Sandbox Finance",
   );
-  await user.click(screen.getByRole("button", { name: "Propose correction" }));
+  await user.click(screen.getByRole("button", { name: "Send correction for review" }));
   if (wait) await screen.findByRole("heading", { name: "Waiting for review" });
   return user;
 }
@@ -89,13 +89,13 @@ it("preserves the original batch, shows before/after, and requires a different p
   expect(
     screen.queryByRole("button", { name: "Approve and apply correction" }),
   ).toBeNull();
-  expect(screen.getByText(/You proposed this correction/)).toBeTruthy();
+  expect(screen.getByText(/You prepared this correction/)).toBeTruthy();
   cleanup();
   queryClient.clear();
   api.principalId = "independent-synthetic-finance";
   renderApp(`/imports?batch=${batchId}`);
   await user.type(
-    await screen.findByLabelText("Decision reason"),
+    await screen.findByLabelText("Reason for your decision"),
     "Independently checked source evidence",
   );
   await user.click(
@@ -126,13 +126,13 @@ it('opens the exact linked correction and lets an administrator recover its revi
   renderApp(`/imports?batch=${batchId}&correction=${proposal.id}`);
   const card = await screen.findByRole('article', { name: 'Correction c-1' });
   await waitFor(() => expect(document.activeElement).toBe(card));
-  await user.click(screen.getByText('Recover reviewer assignment'));
+  await user.click(screen.getByText('Change the reviewer'));
   // A demo persona is the same browser person as the proposer and could never decide, so it is not offered (review of PR #71).
-  expect(within(screen.getByLabelText('Replacement Finance reviewer')).getAllByRole('option').map(option => option.textContent)).toEqual(['Choose an independent reviewer', 'Replacement Finance reviewer']);
-  await user.selectOptions(screen.getByLabelText('Replacement Finance reviewer'), 'Clerk:replacement-finance');
-  expect((screen.getByRole('button', { name: 'Reassign correction reviewer' }) as HTMLButtonElement).disabled).toBe(true);
-  await user.type(screen.getByLabelText('Reassignment reason'), 'The named reviewer no longer has access to this lender.');
-  await user.click(screen.getByRole('button', { name: 'Reassign correction reviewer' }));
+  expect(within(screen.getByLabelText('New Finance reviewer')).getAllByRole('option').map(option => option.textContent)).toEqual(['Choose a reviewer', 'Replacement Finance reviewer']);
+  await user.selectOptions(screen.getByLabelText('New Finance reviewer'), 'Clerk:replacement-finance');
+  expect((screen.getByRole('button', { name: 'Change reviewer' }) as HTMLButtonElement).disabled).toBe(true);
+  await user.type(screen.getByLabelText('Reason for changing the reviewer'), 'The named reviewer no longer has access to this lender.');
+  await user.click(screen.getByRole('button', { name: 'Change reviewer' }));
   await screen.findByText('Reviewer assignment history');
   expect(screen.getByRole('heading', { name: 'Waiting for review' })).toBeTruthy();
   expect(api.state().records.find(record => record.id === targetId)!.name).toBe('Original sample customer');
@@ -141,8 +141,8 @@ it('opens the exact linked correction and lets an administrator recover its revi
   cleanup(); queryClient.clear(); api.role = 'Finance'; api.actor = 'Clerk:replacement-finance'; api.principalId = 'independent-replacement-person';
   renderApp(`/imports?batch=${batchId}&correction=${proposal.id}`);
   expect(await screen.findByRole('button', { name: 'Approve and apply correction' })).toBeTruthy();
-  expect(screen.queryByText('Recover reviewer assignment')).toBeNull();
-  await user.type(screen.getByLabelText('Decision reason'), 'Independently checked the unchanged source comparison.');
+  expect(screen.queryByText('Change the reviewer')).toBeNull();
+  await user.type(screen.getByLabelText('Reason for your decision'), 'Independently checked the unchanged source comparison.');
   await user.click(screen.getByRole('button', { name: 'Approve and apply correction' }));
   await screen.findByRole('heading', { name: 'Approved' });
   expect(api.state().records.find(record => record.id === targetId)!.name).toBe('Corrected sample customer');
@@ -184,9 +184,9 @@ it("makes stale proposal recovery explicit and lets its proposer withdraw it", a
   cleanup();
   queryClient.clear();
   renderApp(`/imports?batch=${batchId}`);
-  await screen.findByText(/The record or its related evidence changed/);
+  await screen.findByText(/The record or its related records changed/);
   await user.type(
-    screen.getByLabelText("Decision reason"),
+    screen.getByLabelText("Reason for your decision"),
     "Withdraw stale comparison and prepare fresh evidence",
   );
   await user.click(screen.getByRole("button", { name: "Withdraw correction" }));
@@ -217,9 +217,9 @@ it("shows payment blockers and real investigation routes instead of proposing an
     "30000",
   );
   await user.click(screen.getByRole("button", { name: "Preview correction" }));
-  await screen.findByText("This correction cannot proceed");
+  await screen.findByText("This correction cannot go ahead");
   expect(
-    screen.queryByRole("button", { name: "Propose correction" }),
+    screen.queryByRole("button", { name: "Send correction for review" }),
   ).toBeNull();
   expect(screen.getByText("Payment evidence requiring review")).toBeTruthy();
   expect(

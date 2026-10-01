@@ -13,13 +13,13 @@ describe('saved background exports',()=>{
   api.failNext(/^\/v1\/exports$/, 'offline', 'POST');
   renderApp(`/customers/${customer.id}`);
   await user.click(await screen.findByRole('button',{name:'CSV'}));
-  await screen.findByRole('button',{name:'Retry original request'});
+  await screen.findByRole('button',{name:'Check original request'});
   expect(screen.getByRole('button',{name:'JSON'}).hasAttribute('disabled')).toBe(true);
   expect(screen.getByRole('button',{name:'Export dispute pack (PDF)'}).hasAttribute('disabled')).toBe(true);
   await user.click(screen.getByRole('button',{name:'JSON'}));
   expect(api.calls.filter(call=>call.path==='/v1/exports'&&call.method==='POST')).toHaveLength(1);
-  await user.click(screen.getByRole('button',{name:'Retry original request'}));
-  expect(await screen.findByText('Dispute pack is queued')).toBeTruthy();
+  await user.click(screen.getByRole('button',{name:'Check original request'}));
+  expect(await screen.findByText('Dispute pack: Waiting')).toBeTruthy();
   const attempts=api.calls.filter(call=>call.path==='/v1/exports'&&call.method==='POST');
   expect(attempts).toHaveLength(2);
   expect(attempts.map(call=>(call.body as any).format)).toEqual(['csv','csv']);
@@ -33,18 +33,18 @@ describe('saved background exports',()=>{
   api.failNext(/^\/v1\/exports$/, 'offline', 'POST');
   renderApp(`/customers/${customer.id}`);
   await user.click(await screen.findByRole('button',{name:'CSV'}));
-  await screen.findByRole('button',{name:'Retry original request'});
+  await screen.findByRole('button',{name:'Check original request'});
   expect(screen.getByRole('button',{name:'Check saved exports'})).toBeTruthy();
   vi.spyOn(window,'confirm').mockReturnValue(true);
   await user.click(screen.getByRole('button',{name:'Discard original request'}));
-  await waitFor(()=>expect(screen.queryByRole('button',{name:'Retry original request'})).toBeNull());
+  await waitFor(()=>expect(screen.queryByRole('button',{name:'Check original request'})).toBeNull());
   expect(screen.queryByRole('button',{name:'Check saved exports'})).toBeNull();
   // The notice went with its button: focus is on the export's own buttons again, not on the page.
   await waitFor(()=>expect(document.activeElement).toBe(screen.getByRole('button',{name:'JSON'})));
   expect(screen.getByRole('button',{name:'JSON'}).hasAttribute('disabled')).toBe(false);
   await cancelInterrupted(user);
   await user.click(screen.getByRole('button',{name:'JSON'}));
-  expect(await screen.findByText('Dispute pack is queued')).toBeTruthy();
+  expect(await screen.findByText('Dispute pack: Waiting')).toBeTruthy();
   expect(keys).toHaveLength(2);
   expect(keys[1]).not.toBe(keys[0]);
   expect(api.calls.filter(call=>call.path==='/v1/exports'&&call.method==='POST').map(call=>(call.body as any).format)).toEqual(['csv','json']);
@@ -54,12 +54,12 @@ describe('saved background exports',()=>{
   api.failNext(/^\/v1\/exports$/, 'offline', 'POST');
   renderApp('/reports?view=billing');
   await user.click(await screen.findByRole('button',{name:'Export billing CSV'}));
-  expect(await screen.findByText('Billing export request could not be confirmed')).toBeTruthy();
-  expect(screen.getByText(/The request may have been saved/)).toBeTruthy();
+  expect(await screen.findByText('Request not confirmed')).toBeTruthy();
+  expect(screen.getByText('Check saved exports before you start another request.')).toBeTruthy();
   // Represent a server-committed job whose acknowledgement did not reach the browser.
   api.mutate((state,ctx)=>queueExport(state,ctx,{kind:'billing',format:'csv'},'sample/private'));
   await user.click(screen.getByRole('button',{name:'Check saved exports'}));
-  expect(await screen.findByText('Billing CSV is queued')).toBeTruthy();
+  expect(await screen.findByText('Billing CSV: Waiting')).toBeTruthy();
   expect(api.calls.filter(call=>call.path==='/v1/exports'&&call.method==='POST')).toHaveLength(1);
   expect(window.open).not.toHaveBeenCalled();
  });
@@ -67,13 +67,13 @@ describe('saved background exports',()=>{
   const user=userEvent.setup();
   const view=renderApp('/reports?view=billing');
   await user.click(await screen.findByRole('button',{name:'Export billing CSV'}));
-  expect(await screen.findByText('Billing CSV is queued')).toBeTruthy();
+  expect(await screen.findByText('Billing CSV: Waiting')).toBeTruthy();
   expect(screen.getByText(/You can leave this page/)).toBeTruthy();
   expect(window.open).not.toHaveBeenCalled();
   const job=api.state().records.find(record=>record.kind==='exports')!;
   view.unmount();
   renderApp('/reports?view=billing');
-  expect(await screen.findByText('Billing CSV is queued')).toBeTruthy();
+  expect(await screen.findByText('Billing CSV: Waiting')).toBeTruthy();
   api.mutate(state=>{const record=state.records.find(record=>record.id===job.id)!;record.status='ready';Object.assign(record.data,{checksum:'a'.repeat(64),generatedAt:api.now,byteLength:123});});
   const link=await screen.findByRole('link',{name:'Open billing CSV'},{timeout:5000});
   expect(link.getAttribute('href')).toContain(job.id);
@@ -90,7 +90,7 @@ describe('saved background exports',()=>{
   expect(screen.getByRole('button',{name:'Export dispute pack (PDF)'}).hasAttribute('disabled')).toBe(true);
   view.unmount();
   renderApp(`/exports?job=${pack.id}`);
-  expect(await screen.findByText(/Dispute pack is ready to download/)).toBeTruthy();
+  expect(await screen.findByText(/Dispute pack: Ready to download/)).toBeTruthy();
   expect(screen.getByText(refusal)).toBeTruthy();
   expect(screen.queryByRole('link',{name:'Open dispute pack'})).toBeNull();
  });
@@ -105,26 +105,39 @@ describe('saved background exports',()=>{
  it('retries a failed saved job using the same id and private object key',async()=>{
   const user=userEvent.setup();renderApp('/evidence');
   await user.click(await screen.findByRole('button',{name:'Export evidence pack'}));
-  await screen.findByText('Evidence pack is queued');
+  await screen.findByText('Evidence pack: Waiting');
   const job=api.state().records.find(record=>record.kind==='exports')!;
   const objectName=job.data.objectName;
   api.mutate(state=>{const record=state.records.find(record=>record.id===job.id)!;record.status='failed';record.data.lastError='Generation could not finish.';});
   await user.click(await screen.findByRole('button',{name:'Retry export'},{timeout:5000}));
-  expect(await screen.findByText('Evidence pack is queued')).toBeTruthy();
+  expect(await screen.findByText('Evidence pack: Waiting')).toBeTruthy();
   expect(api.state().records.filter(record=>record.kind==='exports')).toHaveLength(1);
   expect(api.state().records.find(record=>record.id===job.id)!.data.objectName).toBe(objectName);
   expect(api.calls.some(call=>call.path===`/v1/exports/${job.id}/retry`&&call.method==='POST')).toBe(true);
  });
+ it('titles a refused retry "Export not restarted", since the export already exists',async()=>{
+  const user=userEvent.setup();renderApp('/evidence');
+  await user.click(await screen.findByRole('button',{name:'Export evidence pack'}));
+  await screen.findByText('Evidence pack: Waiting');
+  const job=api.state().records.find(record=>record.kind==='exports')!;
+  api.mutate(state=>{const record=state.records.find(record=>record.id===job.id)!;record.status='failed';record.data.lastError='Generation could not finish.';});
+  api.failNext(new RegExp(`^/v1/exports/${job.id}/retry$`),{status:409,error:'This export cannot be retried now.'},'POST');
+  await user.click(await screen.findByRole('button',{name:'Retry export'},{timeout:5000}));
+  const alert=(await screen.findByText('This export cannot be retried now.')).closest('[role="alert"]') as HTMLElement;
+  expect(within(alert).getByText('Export not restarted')).toBeTruthy();
+  expect(within(alert).queryByText('Export not started')).toBeNull();
+  expect(api.state().records.filter(record=>record.kind==='exports')).toHaveLength(1);
+ });
  it('retains an uncertain queued request and refreshes saved jobs without creating another one',async()=>{
   const user=userEvent.setup();renderApp('/reports?view=billing');
   await user.click(await screen.findByRole('button',{name:'Export billing CSV'}));
-  await screen.findByText('Billing CSV is queued');
+  await screen.findByText('Billing CSV: Waiting');
   const job=api.state().records.find(record=>record.kind==='exports')!;
   api.failNext(new RegExp(`^/v1/exports/${job.id}$`),'offline','GET');
-  expect(await screen.findByText(/Saved export status could not be loaded/,{},{timeout:5000})).toBeTruthy();
+  expect(await screen.findByText(/We could not load the export status/,{},{timeout:5000})).toBeTruthy();
   await user.click(screen.getByRole('button',{name:'Refresh export status'}));
-  await waitFor(()=>expect(screen.queryByText(/Saved export status could not be loaded/)).toBeNull());
-  expect(screen.getByText('Billing CSV is queued')).toBeTruthy();
+  await waitFor(()=>expect(screen.queryByText(/We could not load the export status/)).toBeNull());
+  expect(screen.getByText('Billing CSV: Waiting')).toBeTruthy();
   expect(api.calls.filter(call=>call.path==='/v1/exports'&&call.method==='POST')).toHaveLength(1);
  });
  it('names recent exports by the states Saved exports shows, never their machine words',async()=>{
@@ -140,8 +153,8 @@ describe('saved background exports',()=>{
   const summary=await screen.findByText('Recent exports (2)');
   await user.click(summary);
   const recent=summary.closest('details')!;
-  expect(within(recent).getByRole('button',{name:/^CSV · .+ · Completed$/})).toBeTruthy();
-  expect(within(recent).getByRole('button',{name:/^JSON · .+ · Needs retry$/})).toBeTruthy();
+  expect(within(recent).getByRole('button',{name:/^CSV · .+ · Ready to download$/})).toBeTruthy();
+  expect(within(recent).getByRole('button',{name:/^JSON · .+ · Failed$/})).toBeTruthy();
   expect(recent.textContent).not.toMatch(/\b(ready|failed)\b/);
  });
 });

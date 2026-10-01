@@ -30,11 +30,11 @@ test("paging a table keeps its pager in view even where the browser does not anc
   }
 });
 
-test("an empty Operations page still has something to focus, so a keyboard can scroll it on a short screen", async ({ page }) => {
+test("an empty Request history page still has something to focus, so a keyboard can scroll it on a short screen", async ({ page }) => {
   await page.goto("/operations");
-  await expect(page.getByRole("heading", { level: 1, name: "Operations" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Request history" })).toBeVisible();
   await page.waitForLoadState("networkidle");
-  await expect(page.getByRole("link", { name: "Start with an import batch" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Open Import batches" })).toBeVisible();
   await page.addScriptTag({ path: path.resolve("node_modules/axe-core/axe.min.js") });
   const violations = await page.evaluate(async () => (await (window as any).axe.run(document, { runOnly: { type: "rule", values: ["scrollable-region-focusable"] } })).violations.map((violation: any) => violation.id));
   expect(violations).toEqual([]);

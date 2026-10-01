@@ -30,8 +30,12 @@ describe("customer timeline", () => {
     const record = api.state().records.find((item) => item.kind === "exports")!;
     expect(record.customerId).toBe(ada.id);
     await waitFor(() => expect(opened).toHaveBeenCalledWith(`/api/v1/exports/${record.id}/download?merchantId=${api.merchantIds[0]}`, "_blank"));
-    // Radix also announces a new notice through a hidden copy for a moment, so the text may be present twice.
-    expect(screen.getAllByText(new RegExp(`SHA-256 checksum: ${String(record.data.checksum).slice(0, 16)}`)).length).toBeGreaterThanOrEqual(1);
+    // Radix also announces a new notice through a hidden copy for a moment, so the text may be present twice. The notice
+    // says the file is sample data; the file's checksum is kept in the export's closed Technical details, never in a notice.
+    const notices = screen.getAllByText(/^Your browser blocked the new tab\. Select Open to view the file\. Sample data only\.$/);
+    expect(notices.length).toBeGreaterThanOrEqual(1);
+    for (const notice of notices) expect(notice.textContent).not.toContain(String(record.data.checksum).slice(0, 16));
+    expect(screen.getByText(`Checksum (SHA-256): ${String(record.data.checksum)}`).closest("details")!.open).toBe(false);
   });
 
   // Third review of the audit fixes: the customer's positions list money in another currency beside the naira credit

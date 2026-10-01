@@ -30,6 +30,8 @@ import {
 type Workbench = z.infer<typeof importCorrectionsResponseSchema>;
 type Preview = z.infer<typeof importCorrectionPreviewSchema>;
 type Proposal = Workbench["proposals"][number];
+/** A reviewer's or preparer's decision on a correction, as a past event: "Approved by Ada Finance: …". */
+const decisionWords: Record<string, string> = { approve: "Approved", reject: "Rejected", withdraw: "Withdrawn" };
 function RemedyLinks() {
   return (
     <p className="text-sm">
@@ -93,7 +95,7 @@ function Comparison({ preview }: { preview: Preview }) {
           role="alert"
           className="space-y-2 rounded-lg border border-amber-500/40 p-3"
         >
-          <strong className="text-sm">This correction cannot proceed</strong>
+          <strong className="text-sm">This correction cannot go ahead</strong>
           <ul className="list-disc space-y-1 pl-5 text-sm">
             {preview.blockers.map((b) => (
               <li key={b}>{b}</li>
@@ -122,7 +124,8 @@ function Comparison({ preview }: { preview: Preview }) {
             ))
           ) : (
             <p className="text-sm text-muted-foreground">
-              No dependent financial records or saved closes were found.
+              No payments, collection records or saved closes depend on this
+              record.
             </p>
           )}
         </div>
@@ -171,7 +174,7 @@ function CorrectionEditor({
         preview.batchId !== batchId
       )
         throw new Error(
-          "The comparison belongs to another record. Refresh this batch.",
+          "This preview belongs to another record. Refresh this batch and preview the correction again.",
         );
       return { input, preview };
     },
@@ -251,13 +254,13 @@ function CorrectionEditor({
     >
       <p className="text-sm text-muted-foreground">
         Current record: {target.reference || target.name} · source row{" "}
-        {target.rowId}. Approval requires a different person with the Finance
-        role. Switching demo roles does not count as independent review.
+        {target.rowId}. A different person with the Finance role must review
+        it. Switching demo roles is not a second person.
       </p>
       {pending && (
         <p role="status" className="rounded-lg border p-3 text-sm">
-          This record already has a pending correction. Review or withdraw it
-          below before preparing another.
+          This record already has a correction waiting for review. Review or
+          withdraw it below before you prepare another.
         </p>
       )}
       <fieldset disabled={locked} className="grid gap-4 sm:grid-cols-2">
@@ -328,9 +331,9 @@ function CorrectionEditor({
       {!target.supported && (
         <div className="space-y-2 rounded-lg border p-3">
           <p className="text-sm">
-            Amendments currently support customer names, masked phone numbers,
-            and unpaid scheduled instalment amounts or due dates. This record
-            type remains unchanged.
+            You can correct customer names, masked phone numbers, and the amount
+            or due date of an unpaid instalment. Records of this type cannot be
+            corrected here.
           </p>
           <RemedyLinks />
         </div>
@@ -341,40 +344,52 @@ function CorrectionEditor({
         disabled={locked}
         busy={dryRun.isPending}
       >
-        {target.supported ? "Preview correction" : "Inspect affected evidence"}
+        {target.supported ? "Preview correction" : "Show affected records"}
       </Button>
-      <PilotError error={localError || dryRun.error} fallback="The correction preview could not be prepared. Check your connection and try again." />
+      <PilotError error={localError || dryRun.error} fallback="The correction preview was not prepared. Check your connection and try again." />
       {comparison && (
         <>
           <Comparison preview={comparison.preview} />
           {comparison.preview.blockers.length === 0 && (
             <>
               <fieldset disabled={locked} className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <label className="block space-y-1 text-sm font-medium">
+                    Reason for correction
+                    <textarea
+                      required
+                      minLength={10}
+                      maxLength={1000}
+                      className={pilotField}
+                      value={reason}
+                      aria-describedby="correction-reason-help"
+                      onChange={(e) => setReason(e.target.value)}
+                    />
+                  </label>
+                  <p id="correction-reason-help" className="text-xs text-muted-foreground">
+                    At least 10 characters.
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <label className="block space-y-1 text-sm font-medium">
+                    Evidence reference
+                    <input
+                      required
+                      minLength={5}
+                      maxLength={1000}
+                      className={pilotField}
+                      value={evidence}
+                      aria-describedby="correction-evidence-help"
+                      onChange={(e) => setEvidence(e.target.value)}
+                      placeholder="Corrected file, case or source reference"
+                    />
+                  </label>
+                  <p id="correction-evidence-help" className="text-xs text-muted-foreground">
+                    At least 5 characters.
+                  </p>
+                </div>
                 <label className="space-y-1 text-sm font-medium">
-                  Reason for correction
-                  <textarea
-                    required
-                    minLength={10}
-                    maxLength={1000}
-                    className={pilotField}
-                    value={reason}
-                    onChange={(e) => setReason(e.target.value)}
-                  />
-                </label>
-                <label className="space-y-1 text-sm font-medium">
-                  Evidence reference
-                  <input
-                    required
-                    minLength={5}
-                    maxLength={1000}
-                    className={pilotField}
-                    value={evidence}
-                    onChange={(e) => setEvidence(e.target.value)}
-                    placeholder="Corrected file, case or source reference"
-                  />
-                </label>
-                <label className="space-y-1 text-sm font-medium">
-                  Independent Finance reviewer
+                  Finance reviewer
                   <select
                     required
                     className={pilotField}
@@ -414,11 +429,12 @@ function CorrectionEditor({
                   })
                 }
               >
-                Propose correction
+                Send correction for review
               </Button>
               <p className="text-xs text-muted-foreground">
-                The imported record changes only after independent approval. A
-                pending instalment correction blocks approval of a daily close.
+                The imported record changes only after a different person
+                approves the correction. While an instalment correction waits
+                for review, the daily close cannot be approved.
               </p>
             </>
           )}
@@ -473,35 +489,42 @@ function ProposalCard({
       </div>
       <p className="text-sm">{proposal.reason}</p>
       <p className="break-words text-xs text-muted-foreground">
-        Evidence: {proposal.evidence} · proposed by {proposal.proposedBy} ·
+        Evidence: {proposal.evidence} · prepared by {proposal.proposedBy} ·
         reviewer {proposal.reviewer}
       </p>
       <Comparison preview={proposal.preview} />
       {pending && !proposal.current && (
         <p role="alert" className="text-sm text-destructive">
-          The record or its related evidence changed. This proposal cannot be
-          approved. Withdraw or reject it, then prepare a fresh comparison.
+          The record or its related records changed, so this correction cannot
+          be approved. Withdraw or reject it, then preview the correction
+          again.
         </p>
       )}
       {pending && own && (
         <p className="text-sm text-muted-foreground">
-          You proposed this correction. A different person must review it; you
+          You prepared this correction. A different person must review it. You
           can withdraw it.
         </p>
       )}
       {pending && (reviewer || own) && (
         <div className="space-y-3">
-          <label className="block space-y-1 text-sm font-medium">
-            Decision reason
-            <textarea
-              className={pilotField}
-              minLength={10}
-              maxLength={1000}
-              value={reason}
-              disabled={busy}
-              onChange={(e) => setReason(e.target.value)}
-            />
-          </label>
+          <div className="space-y-1">
+            <label className="block space-y-1 text-sm font-medium">
+              Reason for your decision
+              <textarea
+                className={pilotField}
+                minLength={10}
+                maxLength={1000}
+                value={reason}
+                disabled={busy}
+                aria-describedby={`decision-reason-help-${proposal.id}`}
+                onChange={(e) => setReason(e.target.value)}
+              />
+            </label>
+            <p id={`decision-reason-help-${proposal.id}`} className="text-xs text-muted-foreground">
+              At least 10 characters.
+            </p>
+          </div>
           <div className="flex flex-wrap gap-2">
             {reviewer && (
               <>
@@ -536,34 +559,37 @@ function ProposalCard({
       )}
       {proposal.decision && (
         <p className="rounded-lg bg-secondary/40 p-3 text-sm">
-          {readableLabel(proposal.decision.action)} · {proposal.decision.actor}{" "}
-          · {proposal.decision.reason}
+          {decisionWords[proposal.decision.action] ?? readableLabel(proposal.decision.action)} by{" "}
+          {proposal.decision.actor}: {proposal.decision.reason}
         </p>
       )}
       {!!proposal.assignmentHistory.length && <details className="rounded-lg border p-3 text-sm">
         <summary className="cursor-pointer font-medium">Reviewer assignment history</summary>
-        <p className="mt-2 text-muted-foreground">Original reviewer: {proposal.originalReviewer}. The original proposal and comparison remain unchanged.</p>
+        <p className="mt-2 text-muted-foreground">Original reviewer: {proposal.originalReviewer}. The correction and its preview have not changed.</p>
         <ol className="mt-2 space-y-2">{proposal.assignmentHistory.map(event => <li key={event.id}>
-          <p>{event.fromReviewer} → {event.reviewer}</p><p className="text-xs text-muted-foreground">{event.actor} · {formatDate(event.at)}</p><p>{event.reason}</p>
+          <p>From {event.fromReviewer} to {event.reviewer}</p><p className="text-xs text-muted-foreground">{event.actor} · {formatDate(event.at)}</p><p>{event.reason}</p>
         </li>)}</ol>
       </details>}
       {pending && workbench.role === 'Admin' && <details className="rounded-lg border p-3 text-sm">
-        <summary className="cursor-pointer font-medium">Recover reviewer assignment</summary>
+        <summary className="cursor-pointer font-medium">Change the reviewer</summary>
         <div className="mt-3 space-y-3">
           <p>If the reviewer is unavailable, assign another active Finance reviewer. This records the reason and preserves the original evidence. It does not approve or apply the correction.</p>
-          <label className="block space-y-1 font-medium">Replacement Finance reviewer
+          <label className="block space-y-1 font-medium">New Finance reviewer
             <select className={pilotField} value={replacement} disabled={busy} onChange={event => setReplacement(event.target.value)}>
-              <option value="">Choose an independent reviewer</option>
+              <option value="">Choose a reviewer</option>
               {workbench.reviewers.filter(person => person.actor !== proposal.reviewer && person.actor !== proposal.proposedBy && !person.actor.startsWith('Sandbox ')).map(person => <option key={person.actor} value={person.actor}>{person.name}</option>)}
             </select>
           </label>
-          <p className="text-xs text-muted-foreground">If no eligible reviewer is listed, grant another person Finance access in Team first. The new reviewer may reject stale evidence so a fresh proposal can be prepared.</p>
-          <label className="block space-y-1 font-medium">Reassignment reason
-            <textarea className={pilotField} minLength={10} maxLength={1000} value={recoveryReason} disabled={busy} onChange={event => setRecoveryReason(event.target.value)} />
-          </label>
+          <p className="text-xs text-muted-foreground">If no reviewer is listed, give another person the Finance role in Team and access first. The new reviewer can reject a correction whose records are out of date, so that a new one can be prepared.</p>
+          <div className="space-y-1">
+            <label className="block space-y-1 font-medium">Reason for changing the reviewer
+              <textarea className={pilotField} minLength={10} maxLength={1000} value={recoveryReason} disabled={busy} aria-describedby={`reviewer-reason-help-${proposal.id}`} onChange={event => setRecoveryReason(event.target.value)} />
+            </label>
+            <p id={`reviewer-reason-help-${proposal.id}`} className="text-xs text-muted-foreground">At least 10 characters.</p>
+          </div>
           <Button variant="outline" disabled={busy || !replacement || recoveryReason.trim().length < 10} onClick={() => recovery.mutate({
             path: `/pilot/import-corrections/${proposal.id}/recovery`, data: { proposalDigest: proposal.proposalDigest, expectedAssignmentEventId: proposal.assignmentEventId, reviewer: replacement, reason: recoveryReason },
-          })}>Reassign correction reviewer</Button>
+          })}>Change reviewer</Button>
         </div>
       </details>}
       <RecoveryNotice mutation={mutation} />
@@ -583,15 +609,15 @@ export function ImportCorrections({ batchId }: { batchId: string }) {
   return (
     <section
       className="space-y-4 border-t pt-6"
-      aria-label="Controlled import corrections"
+      aria-label="Import corrections"
     >
       <div>
-        <h3 className="text-lg font-semibold">Correct a committed import</h3>
+        <h3 className="text-lg font-semibold">Correct an imported record</h3>
         <p className="mt-1 text-sm text-muted-foreground">
-          Keep the original file and row history intact. Compare a supported
-          change, record its evidence, then send it for independent review.
-          Other source fields cannot be edited directly; use the dedicated
-          workflow action to record a change with its evidence.
+          The original file and row history stay as they are. Choose a record,
+          preview your change and add its evidence. Then send it to a different
+          person for review. To change anything else, use the action for that
+          record on its own page, such as Mandates or Collections.
         </p>
       </div>
       <PilotError
@@ -601,7 +627,7 @@ export function ImportCorrections({ batchId }: { batchId: string }) {
         }}
       />
       {query.isLoading && (
-        <p role="status">Loading source records and correction history…</p>
+        <p role="status">Loading imported records and corrections…</p>
       )}
       {data && (
         <>
@@ -614,7 +640,7 @@ export function ImportCorrections({ batchId }: { batchId: string }) {
                 if (confirmUnsavedChanges()) setSelected(e.target.value);
               }}
             >
-              <option value="">Choose a record to compare</option>
+              <option value="">Choose a record to correct</option>
               {data.targets.map((t) => (
                 <option key={t.id} value={t.id}>
                   {t.name || t.reference} · {t.rowId}
@@ -631,14 +657,15 @@ export function ImportCorrections({ batchId }: { batchId: string }) {
             />
           )}
           <h4 className="pt-2 font-semibold">Correction history</h4>
-          {requestedCorrection && !data.proposals.some(proposal => proposal.id === requestedCorrection) && <p role="status" className="rounded-lg border p-3 text-sm">The linked correction was not found in this batch. Check the selected lender and open the assignment again from My work.</p>}
+          {requestedCorrection && !data.proposals.some(proposal => proposal.id === requestedCorrection) && <p role="status" className="rounded-lg border p-3 text-sm">Correction not found in this batch. It may belong to another lender. Check the selected lender, then open it again from My work.</p>}
           {data.proposals.length ? (
             data.proposals.map((p) => (
               <ProposalCard key={`${p.id}:${p.assignmentEventId || 'original'}`} proposal={p} workbench={data} highlighted={p.id === requestedCorrection} />
             ))
           ) : (
             <p className="text-sm text-muted-foreground">
-              No corrections have been proposed for this batch.
+              No corrections yet for this batch. Choose an imported record above
+              to prepare one.
             </p>
           )}
         </>

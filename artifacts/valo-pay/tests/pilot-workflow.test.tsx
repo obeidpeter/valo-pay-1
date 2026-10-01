@@ -39,9 +39,9 @@ it("saves source rows, reopens them and commits a checked batch exactly once", a
     ).toContain("PILOT-C001"),
   );
   await user.click(
-    screen.getByRole("button", { name: "Commit checked batch" }),
+    screen.getByRole("button", { name: "Import checked batch" }),
   );
-  await screen.findByRole("heading", { name: "Import complete" });
+  await screen.findByRole("heading", { name: "Batch imported" });
   expect(
     api
       .state()
@@ -50,7 +50,7 @@ it("saves source rows, reopens them and commits a checked batch exactly once", a
       ),
   ).toHaveLength(1);
   expect(
-    screen.queryByRole("button", { name: "Commit checked batch" }),
+    screen.queryByRole("button", { name: "Import checked batch" }),
   ).toBeNull();
   expect(JSON.stringify(localStorage)).not.toContain("PILOT-C001");
 });
@@ -72,7 +72,7 @@ it("keeps a rejected batch available for correction and guards unsaved changes",
   expect(
     (
       screen.getByRole("button", {
-        name: "Commit checked batch",
+        name: "Import checked batch",
       }) as HTMLButtonElement
     ).disabled,
   ).toBe(true);
@@ -92,7 +92,7 @@ it("keeps a rejected batch available for correction and guards unsaved changes",
     expect(
       (
         screen.getByRole("button", {
-          name: "Commit checked batch",
+          name: "Import checked batch",
         }) as HTMLButtonElement
       ).disabled,
     ).toBe(false),
@@ -171,7 +171,7 @@ it("identifies demo access honestly and does not offer working staff invitation 
   expect(
     screen.queryByRole("button", { name: "Create invitation" }),
   ).toBeNull();
-  expect(screen.getByText(/requires a configured organisation/)).toBeTruthy();
+  expect(screen.getByText(/Named staff accounts need the Valo Pay team to set up your organisation and its first Admin/)).toBeTruthy();
 });
 
 it("offers the latest saved version after a colleague saves the batch", async () => {
@@ -367,15 +367,15 @@ it("lists what waits for a second administrator and never offers the asker their
   };
   const user = userEvent.setup();
   renderApp("/team");
-  const panel = (await screen.findByRole("heading", { name: "Waiting for a second administrator" })).closest("section")!;
+  const panel = (await screen.findByRole("heading", { name: "Waiting for a second Admin" })).closest("section")!;
   expect(within(panel).getAllByRole("button", { name: "Approve invitation" })).toHaveLength(1);
-  expect(within(panel).getByText("You sent it: another administrator approves it.")).toBeTruthy();
+  expect(within(panel).getByText("You sent this, so another Admin must approve it.")).toBeTruthy();
   expect(within(panel).getAllByRole("button", { name: "Approve change" })).toHaveLength(1);
-  expect(within(panel).getByText("You asked for it: another administrator approves it.")).toBeTruthy();
-  expect(within(panel).getAllByRole("button", { name: "Decline change" })).toHaveLength(1);
-  expect(within(panel).getByText("A change to your own membership: another administrator approves or declines it.")).toBeTruthy();
-  expect(screen.getByText(/finance@example\.test · Finance/).parentElement?.textContent).toContain("waiting for a second administrator");
-  expect(screen.getByText("Operations · active").textContent).not.toContain("expires");
+  expect(within(panel).getByText("You asked for this, so another Admin must approve it.")).toBeTruthy();
+  expect(within(panel).getAllByRole("button", { name: "Reject change" })).toHaveLength(1);
+  expect(within(panel).getByText("This change is to your own access, so another Admin must approve or reject it.")).toBeTruthy();
+  expect(screen.getByText(/finance@example\.test · Finance/).parentElement?.textContent).toContain("waiting for a second Admin");
+  expect(screen.getByText("Operations · Active").textContent).not.toContain("expires");
   await user.click(within(panel).getByRole("button", { name: "Approve invitation" }));
   expect(await within(panel).findByText("Invitation approved: finance@example.test can now accept it as Finance.")).toBeTruthy();
   await user.click(within(panel).getByRole("button", { name: "Withdraw request" }));
@@ -557,7 +557,7 @@ it("asks for confirmation before revoking a staff member, and keeps their access
   const user = userEvent.setup();
   renderApp("/team");
   await user.selectOptions(await screen.findByLabelText("Access for Bola Sample"), "revoked");
-  await user.type(screen.getByLabelText("Reason for changing Bola Sample"), "Left the collections team");
+  await user.type(screen.getByLabelText("Reason for changing Bola Sample’s access"), "Left the collections team");
   const save = screen.getByRole("button", { name: "Save access change" });
   await user.click(save);
   // One more step, which says what revoking does and cannot undo; nothing is sent yet.
@@ -599,7 +599,7 @@ for (const page of ["/pilot", "/team"] as const) it(`asks before leaving ${page}
     expect(leaving()).toBe(false);
     await user.click(screen.getByRole("button", { name: "Create lender" }));
   } else {
-    const verify = await screen.findByRole("button", { name: "Verify encryption access" });
+    const verify = await screen.findByRole("button", { name: "Check the encryption key" });
     expect(leaving()).toBe(false);
     await user.click(verify);
   }
@@ -640,4 +640,11 @@ for (const recovered of [false, true]) it(`selects a new lender without asking t
   await screen.findByText("Lender created. Open Import batches to add its sample records.");
   expect(confirm).not.toHaveBeenCalled();
   await waitFor(() => expect(Object.keys(sessionStorage).filter((key) => key.startsWith("valopay-lender:")).map((key) => sessionStorage.getItem(key))).toContain("lender-new"));
+});
+
+it("tells a sandbox member who is not an Admin which role creates a lender and where to change their demo role", async () => {
+  api.role = "Finance";
+  renderApp("/pilot");
+  expect(await screen.findByText("Only Admin can create a lender. Your role is Finance. Change your demo role in Settings.")).toBeTruthy();
+  expect((screen.getByRole("button", { name: "Create lender" }) as HTMLButtonElement).disabled).toBe(true);
 });

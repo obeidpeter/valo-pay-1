@@ -91,6 +91,13 @@ it("opens the saved result of every record kind that has a page", async () => {
   }
 });
 
+it("says when a request can be cancelled and that cancelling never undoes a saved financial record", async () => {
+  journal([entry("pending-one", "pending")]);
+  renderApp("/operations");
+  await screen.findByRole("heading", { name: "Request history" });
+  expect(await screen.findByText("You can cancel a request only while it has not finished. Cancelling stops it from running later. If the request is being processed, cancelling waits for that to end first. Cancelling does not undo a saved financial record. Your permissions are checked again each time you check or cancel a request.")).toBeTruthy();
+});
+
 it("shows the count of unconfirmed requests on the Operations link", async () => {
   journal([entry("one", "pending"), entry("two", "pending")]);
   renderApp("/overview");
@@ -132,6 +139,7 @@ for (const refusal of refusals) it(`reads the list and the count again once ${re
   await user.click(await screen.findByRole("button", { name: refusal.button }));
   await screen.findByText(refusal.error);
   await waitFor(() => expect(screen.queryAllByRole("link", { name: /unconfirmed/ })).toEqual([]), { timeout: 2000 });
-  await screen.findByText(refusal.settled);
+  // The settled status is shown in words, through the shared labels.
+  await screen.findByText(refusal.settled === "cancelled" ? "Cancelled" : "Completed");
   expect([listReads > listed, countReads > counted]).toEqual([true, true]);
 });

@@ -137,7 +137,7 @@ describe('CSV amount units', () => {
     await user.paste('source_row_id,reference,customerId,amount,ccy,source,eventId\no1,BATCH-JPY-1,DEMO-C1001,"1,000",JPY,webhook,evt-b-j1\no2,BATCH-USD-1,DEMO-C1001,10.00,usd,webhook,evt-b-u1\no3,BATCH-NGN-1,DEMO-C1001,10.00,NGN,webhook,evt-b-n1\no4,BATCH-NGN-2,DEMO-C1001,5.00,,webhook,evt-b-n2');
     await user.click(screen.getByRole('button', { name: 'Save and check batch' }));
     let results = await screen.findByRole('region', { name: 'Saved batch results' });
-    const rowsShown = async () => [...(await within(results).findByText('Converted amounts · first rows')).parentElement!.querySelectorAll('p')].map(row => row.textContent);
+    const rowsShown = async () => [...(await within(results).findByText('Converted amounts in the first rows')).parentElement!.querySelectorAll('p')].map(row => row.textContent);
     // The currency column is found as the service finds it: a column the mapping leaves out names its own field, so ccy is no currency until mapped.
     expect(await rowsShown()).toEqual(['Row 2: ₦1,000.00', 'Row 3: ₦10.00', 'Row 4: ₦10.00', 'Row 5: ₦5.00']);
     await user.selectOptions(screen.getByLabelText('ccy'), 'currency');
@@ -147,8 +147,8 @@ describe('CSV amount units', () => {
     await waitFor(async () => expect((await rowsShown())[0]).toBe('Row 2: JPY\u00a01,000'));
     expect(await rowsShown()).toEqual(['Row 2: JPY\u00a01,000', 'Row 3: USD\u00a010.00', 'Row 4: ₦10.00', 'Row 5: ₦5.00']);
     expect(within(results).getByText(/source total$/).textContent).toBe('4 source rows · ₦15.00, JPY\u00a01,000 (1 row) and USD\u00a010.00 (1 row) source total');
-    await user.click(screen.getByRole('button', { name: 'Commit checked batch' }));
-    await screen.findByRole('heading', { name: 'Import complete' });
+    await user.click(screen.getByRole('button', { name: 'Import checked batch' }));
+    await screen.findByRole('heading', { name: 'Batch imported' });
     results = screen.getByRole('region', { name: 'Saved batch results' });
     expect(await rowsShown()).toEqual(['Row 2: JPY\u00a01,000', 'Row 3: USD\u00a010.00', 'Row 4: ₦10.00', 'Row 5: ₦5.00']);
     expect(within(results).getByText(/newly imported total$/).textContent).toBe('4 newly imported rows · ₦15.00, JPY\u00a01,000 (1 row) and USD\u00a010.00 (1 row) newly imported total');
@@ -162,7 +162,7 @@ describe('CSV amount units', () => {
     const file = { id: 'f1', source: 'Card processor', sourceBatchId: 'currency-001', kind: 'observations', expectedRows: 4, expectedAmountKobo: 1500, batchId: null, batchStatus: 'committed', businessDate: '2026-09-22', receivedRows: 4, receivedAmountKobo: 1500, receivedOtherCurrencies: { USD: { count: 1, amount: 1000 } }, status: 'incomplete', problems: [] };
     render(<Router hook={memoryLocation({ path: '/sources' }).hook}><SourceCompletenessPanel completeness={{ businessDate: '2026-09-22', completeFiles: 0, expectedFiles: 1, status: 'incomplete', issues: [], files: [file], manifest: null }} /></Router>);
     expect(screen.getByText(/^Received:/).textContent).toBe('Received: 4 rows · ₦15.00 and USD\u00a010.00 (1 row)');
-    expect(screen.getByText(/^Declared:/).textContent).toBe('Declared: 4 rows · ₦15.00');
+    expect(screen.getByText(/^Expected:/).textContent).toBe('Expected: 4 rows · ₦15.00');
   });
 
   // Review of the integration fixes, finding 2: a batch committed before totals were kept by currency keeps the totals it
@@ -177,12 +177,12 @@ describe('CSV amount units', () => {
     const view = renderApp('/sources');
     const row = (await screen.findByRole('link', { name: 'Older currency rows' })).closest('tr')!;
     expect([...row.querySelectorAll('td')].slice(1, 3).map(cell => cell.textContent)).toEqual(['3₦30.00', '3₦30.00']);
-    const totals = within(screen.getByRole('heading', { name: 'Source totals & import evidence' }).closest('section')!).getByText(/^Source totals include/).textContent!;
-    expect(totals).toContain('never added to it. A batch committed by an earlier build keeps the totals it was committed with, which may add rows in other currencies.');
+    const totals = within(screen.getByRole('heading', { name: 'Batch totals and checks' }).closest('section')!).getByText(/^Source totals count/).textContent!;
+    expect(totals).toContain('never added to it. Some older batches kept totals that also added rows in other currencies.');
     view.unmount();
     const file = { id: 'f1', source: 'Card processor', sourceBatchId: 'older-001', kind: 'observations', expectedRows: 3, expectedAmountKobo: 3_000, batchId: null, batchStatus: 'committed', businessDate: '2026-09-01', receivedRows: 3, receivedAmountKobo: 3_000, status: 'complete', problems: [] };
     render(<Router hook={memoryLocation({ path: '/sources' }).hook}><SourceCompletenessPanel completeness={{ businessDate: '2026-09-01', completeFiles: 1, expectedFiles: 1, status: 'complete', issues: [], files: [file], manifest: null }} /></Router>);
-    expect(screen.getByText(/^A file counts only when/).textContent).toContain('stays incomplete for Finance to review. A file whose batch was committed by an earlier build is compared with the total it was committed with, which may add rows in other currencies.');
+    expect(screen.getByText(/^A file is complete when/).textContent).toContain('stays incomplete until Finance reviews it. Some older batches kept totals that also added rows in other currencies; those totals are compared as they were saved.');
   });
 
   it('reads and writes a form amount in its currency\'s major unit exactly', () => {

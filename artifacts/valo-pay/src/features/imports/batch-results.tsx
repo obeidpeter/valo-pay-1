@@ -46,11 +46,17 @@ export function BatchResults({
         className="font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
       >
         {batch.status === "committed"
-          ? "Import complete"
+          ? "Batch imported"
           : dirty
-            ? "Previous check · save your corrections to check again"
+            ? "Previous check"
             : "Saved check results"}
       </h3>
+      {batch.status !== "committed" && dirty && (
+        <p className="text-sm text-muted-foreground">
+          You have changes that are not saved. Select Save and check batch to
+          check them.
+        </p>
+      )}
       <p role="status" className="text-sm">
         {importSummary(check)}
       </p>
@@ -58,8 +64,8 @@ export function BatchResults({
         <div className="space-y-2 rounded-lg border border-warning-border bg-warning/20 p-3 text-sm">
           <h4 className="font-medium">
             {batch.status === "committed"
-              ? "Saved with fallback values"
-              : "Check before you commit"}
+              ? "Imported with default values"
+              : "Check before you import"}
           </h4>
           {check.warnings.map((warning: string) => (
             <p key={warning}>{warning}</p>
@@ -73,7 +79,7 @@ export function BatchResults({
           <p>
             {formatCount(batch.data.sourceQuality.sourceRows, "source row")}
             {batch.data.kind !== "customers" &&
-              ` · ${batch.data.sourceQuality.sourceAmountKobo == null ? "Source total unavailable" : `${formatWithOtherCurrencies(batch.data.sourceQuality.sourceAmountKobo, batch.data.sourceQuality.sourceOtherCurrencies, "row")} source total`}`}
+              ` · ${batch.data.sourceQuality.sourceAmountKobo == null ? "Source total not recorded" : `${formatWithOtherCurrencies(batch.data.sourceQuality.sourceAmountKobo, batch.data.sourceQuality.sourceOtherCurrencies, "row")} source total`}`}
           </p>
           <p>
             {formatCount(
@@ -81,7 +87,7 @@ export function BatchResults({
               "newly imported row",
             )}
             {batch.data.kind !== "customers" &&
-              ` · ${batch.data.sourceQuality.importedAmountKobo == null ? "Imported total unavailable" : `${formatWithOtherCurrencies(batch.data.sourceQuality.importedAmountKobo, batch.data.sourceQuality.importedOtherCurrencies, "row")} newly imported total`}`}
+              ` · ${batch.data.sourceQuality.importedAmountKobo == null ? "Imported total not recorded" : `${formatWithOtherCurrencies(batch.data.sourceQuality.importedAmountKobo, batch.data.sourceQuality.importedOtherCurrencies, "row")} newly imported total`}`}
           </p>
           {batch.data.sourceQuality.issues.map((issue: string) => (
             <p key={issue} className="text-destructive">
@@ -89,14 +95,14 @@ export function BatchResults({
             </p>
           ))}
           <Link href="/sources" className="text-primary underline">
-            Review source profile and delivery schedule
+            Open Data sources
           </Link>
         </div>
       )}
       {batch.status !== "committed" && (
         <p className="text-sm text-muted-foreground">
-          Your source and mapping are saved. No business records are imported
-          until you commit a batch with no row errors.
+          Your file and column mapping are saved. Nothing is imported until no
+          rows need fixing and you select Import checked batch.
         </p>
       )}
       {/* The wizard's rows to fix, errors CSV and correction focus; a new check starts again from its rows to fix. */}
@@ -114,7 +120,7 @@ export function BatchResults({
       />
       {check.preview?.some((row) => row.amountKobo !== undefined) && (
         <div className="rounded-lg bg-secondary/30 p-3 text-sm">
-          <h4 className="font-medium">Converted amounts · first rows</h4>
+          <h4 className="font-medium">Converted amounts in the first rows</h4>
           {check.preview.map(
             (row) =>
               row.amountKobo !== undefined && (

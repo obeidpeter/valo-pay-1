@@ -36,22 +36,22 @@ test("onboards an empty lender, persists imports and discovers a lost acknowledg
     expect(result.status()).toBe(200);
     await route.abort("connectionreset");
   });
-  await page.getByRole("button", { name: "Commit checked batch" }).click();
+  await page.getByRole("button", { name: "Import checked batch" }).click();
   await expect(
     page.getByText("Outcome not confirmed", { exact: true }),
   ).toBeVisible();
   page.once("dialog", (dialog) => dialog.accept());
   await page.goto("/operations");
   await expect(
-    page.getByRole("heading", { name: "Operations", exact: true }),
+    page.getByRole("heading", { name: "Request history", exact: true }),
   ).toBeVisible();
-  await expect(page.getByText("completed", { exact: true })).toHaveCount(2);
+  await expect(page.getByText("Completed", { exact: true })).toHaveCount(2);
   const records = await context.request.get(
     `/api/v1/records/customers?merchantId=${lender}`,
   );
   expect((await records.json()).total).toBe(1);
   await page.reload();
-  await expect(page.getByText("completed", { exact: true })).toHaveCount(2);
+  await expect(page.getByText("Completed", { exact: true })).toHaveCount(2);
   await expect(
     page.getByRole("link", { name: "Open saved result" }),
   ).toHaveCount(2);

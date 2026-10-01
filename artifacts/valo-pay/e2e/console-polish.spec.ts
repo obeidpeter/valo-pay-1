@@ -62,7 +62,7 @@ test("a Pay by Bank step that removes its button moves focus to what it did", as
   await expect.poll(() => focused(page)).toMatchObject({ tag: "p", text: expect.stringMatching(/^Return from the bank recorded\./) });
 });
 
-test("a decision on Team & access moves focus to what it did, and a staff administrator is still warned", async ({ page }) => {
+test("a decision on Team and access moves focus to what it did, and a staff administrator is still warned", async ({ page }) => {
   // Console review of 24 September, item 3, with the staff answers at the network edge.
   await staffAdministrator(page);
   const member = (id: string, name: string, role: string, expiresAt: string) => ({ id, actor: `Clerk:user_${id}`, name, role, status: "active", expiresAt, updatedAt: inDays(-1), lenderIds: [], allLenders: role === "Admin" });
@@ -83,8 +83,8 @@ test("a decision on Team & access moves focus to what it did, and a staff admini
   await page.goto("/team");
   // Administrator A's access ends within 14 days: the warning's code loads for a staff administrator.
   await expect(page.getByRole("status", { name: "Administrator access" })).toContainText("Your administrator access ends on");
-  const panel = page.locator("section").filter({ has: page.getByRole("heading", { name: "Waiting for a second administrator" }) });
-  for (const [name, said] of [["Approve invitation", /^Invitation approved/], ["Approve change", /^Change approved: Chidi Ops/], ["Decline change", /^Change request declined/]] as const) {
+  const panel = page.locator("section").filter({ has: page.getByRole("heading", { name: "Waiting for a second Admin" }) });
+  for (const [name, said] of [["Approve invitation", /^Invitation approved/], ["Approve change", /^Change approved: Chidi Ops/], ["Reject change", /^Change request declined/]] as const) {
     const count = await panel.getByRole("button", { name }).count();
     await panel.getByRole("button", { name }).first().focus();
     await page.keyboard.press("Enter");
@@ -418,7 +418,7 @@ test("confirming Revoke access moves focus to what the revocation did once it is
   await page.goto("/team");
   const card = page.locator("article").filter({ has: page.getByRole("heading", { name: "Chidi Ops" }) });
   await card.getByLabel("Access for Chidi Ops").selectOption("revoked");
-  await card.getByLabel("Reason for changing Chidi Ops").fill("Left the pilot team this week");
+  await card.getByLabel("Reason for changing Chidi Ops’s access").fill("Left the pilot team this week");
   await card.getByRole("button", { name: "Save access change" }).focus();
   await page.keyboard.press("Enter");
   const dialog = page.getByRole("dialog", { name: "Revoke Chidi Ops’s access?" });
@@ -428,7 +428,7 @@ test("confirming Revoke access moves focus to what the revocation did once it is
   // While the answer is on its way (1.5 s), focus waits on the page's main region, never on the body.
   await expect.poll(() => focused(page), { timeout: 1000 }).toMatchObject({ tag: "main", id: "main" });
   await expect.poll(() => focused(page)).toMatchObject({ tag: "p", text: expect.stringMatching(/^Chidi Ops’s access is revoked\./) });
-  await expect(card.getByText(/^Operations · revoked/)).toBeVisible();
+  await expect(card.getByText(/^Operations · Revoked/)).toBeVisible();
   await expect.poll(() => focused(page)).toMatchObject({ tag: "p", text: expect.stringMatching(/^Chidi Ops’s access is revoked\./) });
 });
 
@@ -501,7 +501,7 @@ for (const how of ["refused", "lost"] as const) test(`a ${how} Save lender acces
   await page.goto("/team");
   const card = page.locator("article").filter({ has: page.getByRole("heading", { name: "Chidi Ops" }) });
   await card.getByRole("checkbox", { checked: false }).first().check();
-  await card.getByLabel("Reason for lender access change for Chidi Ops").fill("Needs the second lender for cover");
+  await card.getByLabel("Reason for changing Chidi Ops’s lenders").fill("Needs the second lender for cover");
   const save = card.getByRole("button", { name: "Save lender access" });
   await save.focus();
   await page.keyboard.press("Enter");
@@ -533,7 +533,7 @@ test("an invitation's answer takes the focus, not a member's Save lender access 
   await page.goto("/team");
   const card = page.locator("article").filter({ has: page.getByRole("heading", { name: "Chidi Ops" }) });
   await card.getByRole("checkbox", { checked: false }).first().check();
-  await card.getByLabel("Reason for lender access change for Chidi Ops").fill("Needs the second lender for cover");
+  await card.getByLabel("Reason for changing Chidi Ops’s lenders").fill("Needs the second lender for cover");
   const save = card.getByRole("button", { name: "Save lender access" });
   await save.focus();
   await page.keyboard.press("Enter");

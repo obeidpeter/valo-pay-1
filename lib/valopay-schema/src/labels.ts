@@ -50,6 +50,17 @@ export const valueLabels: Readonly<Record<string, string>> = {
   "accounting-draft.review_required": "Needs new approval", "vat-schedule.review_required": "Needs evidence",
   "payroll-run.completed": "All confirmed", "payroll-run.submitted": "Sent to bank", "payroll-item.submitted": "Sent to bank",
   "payroll-item.succeeded": "Confirmed", "payroll-item.unknown": "Outcome unknown", "payroll-funding.unknown": "Balance unknown",
+  // Import batches, Data sources, Reports, Data retention and Team and access.
+  committed: "Imported", awaiting_first_delivery: "Waiting for the first delivery",
+  awaiting_verification: "Waiting for a Paystack check", quarantined: "Held for review", ignored_stale: "Ignored: older message",
+  rejected_fixture: "Rejected: signature did not match", wrong_allocation: "Wrong match undone",
+  re_allocation: "Allocated again at a higher value",
+  preview: "Waiting for review", running: "In progress", attention: "Needs attention", already_absent: "Already deleted",
+  "staff.invited": "Invitation created", "staff.invitation_approved": "Invitation approved", "staff.invitation_revoked": "Invitation revoked",
+  "staff.accepted": "Invitation accepted", "staff.change_requested": "Access change requested", "staff.changed": "Access changed",
+  "staff.change_approved": "Access change approved", "staff.change_declined": "Access change rejected or withdrawn",
+  "staff.lender_access_changed": "Lender access changed", "staff.provisioned": "First Admin set up by the Valo Pay team",
+  "staff.administrator_added": "Admin added by the Valo Pay team", "staff.renewed": "Access renewed",
 };
 
 /** A stored value in words: its label, or the value spelled out ("pending_review" as "Pending review"). */

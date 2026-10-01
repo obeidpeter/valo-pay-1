@@ -17,8 +17,8 @@ test('a proposed source correction preserves the original record and shows its r
   await expect(page.getByRole('heading', { name: 'Before and after', exact: true })).toBeVisible();
   await page.getByLabel('Reason for correction', { exact: true }).fill('Correct the spelling against the original source evidence.');
   await page.getByLabel('Evidence reference', { exact: true }).fill('SYNTHETIC-CORRECTION-001');
-  await page.getByRole('combobox', { name: 'Independent Finance reviewer', exact: true }).selectOption('Sandbox Finance');
-  await page.getByRole('button', { name: 'Propose correction', exact: true }).click();
+  await page.getByRole('combobox', { name: 'Finance reviewer', exact: true }).selectOption('Sandbox Finance');
+  await page.getByRole('button', { name: 'Send correction for review', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Waiting for review', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Approve and apply correction', exact: true })).toHaveCount(0);
   await page.reload();

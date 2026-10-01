@@ -27,16 +27,16 @@ describe("reports", () => {
     const issue = screen.getByRole('button', { name: 'Issue invoice' });
     expect((issue as HTMLButtonElement).disabled).toBe(true);
     expect(document.getElementById(issue.getAttribute('aria-describedby')!)!.textContent).toContain('Review discount dates for the next invoice');
-    expect(screen.getByRole('link', { name: 'Review commercial terms in Go-live evidence' }).getAttribute('href')).toBe('/evidence');
+    expect(screen.getByRole('link', { name: 'Open Go-live evidence' }).getAttribute('href')).toBe('/evidence');
     expect(screen.getByText('Current statement total').parentElement!.textContent).toContain('Needs review');
-    await user.click(screen.getByText('Statement lines · 0'));
-    expect(screen.getByText(/Statement lines are withheld until/)).toBeTruthy();
+    await user.click(screen.getByText('Statement lines (0)'));
+    expect(screen.getByText(/Statement lines are hidden until/)).toBeTruthy();
     expect(screen.queryByText(/No signed partner terms apply/)).toBeNull();
     await user.click(screen.getByText('Revenue and costs'));
-    expect(screen.getByText(/Usage fees: Not available. Licence fees: Not available/)).toBeTruthy();
-    expect(screen.getByText(/Recurring revenue at an annual rate: Not available/)).toBeTruthy();
+    expect(screen.getByText(/Usage fees: Not recorded. Licence fees: Not recorded/)).toBeTruthy();
+    expect(screen.getByText(/Recurring revenue at an annual rate: Not recorded/)).toBeTruthy();
     await user.click(issue);
-    expect(screen.queryByRole('dialog', { name: 'Issue the monthly invoice' })).toBeNull();
+    expect(screen.queryByRole('dialog', { name: 'Issue the monthly invoice?' })).toBeNull();
   });
 
   it('names the cause the service gives when design-partner terms cannot price the next invoice', async () => {
@@ -69,7 +69,7 @@ describe("reports", () => {
     const name = api.state().records.find(record => record.kind === 'commercial')!.name;
     // Each difference says why, in the service's words: the terms compared with, when they took effect, and the whole-month rule.
     const why = (reference: string, month: string) => `${reference} for ${month} charged the 50% design-partner discount. A month takes the terms in effect by its end: for ${month} those are “${name}”, design-partner terms in effect from 2027-01-01, whose confirmed agreement SYN-AGREEMENT gives the full public price.`;
-    expect(rows).toEqual([['Invoice', 'Month', 'Rate charged', 'Rate in the terms in effect'],
+    expect(rows).toEqual([['Invoice', 'Billing month', 'Rate charged', 'Rate in the terms in effect'],
       ['INV-2027-01-001', '2027-01', '50% discount', 'Full public price'], [why('INV-2027-01-001', '2027-01')],
       ['INV-2027-02-002', '2027-02', '50% discount', 'Full public price'], [why('INV-2027-02-002', '2027-02')]]);
     expect(box.textContent).toContain("An issued invoice is never changed, and Valo Pay has no way to correct an issued invoice's discount");
@@ -225,10 +225,10 @@ describe("reports", () => {
       return new Response(JSON.stringify(body), { status: response.status, headers: response.headers });
     };
     renderApp("/reports?view=billing");
-    const receipts = (await screen.findByText("Receipts by payment method")).closest("details")!;
+    const receipts = (await screen.findByText("Payments by method")).closest("details")!;
     await user.click(receipts.querySelector("summary")!);
     const row = within(receipts).getByText("Card").closest("tr")!;
-    await waitFor(() => expect([...row.querySelectorAll("td")].map(cell => cell.textContent)).toEqual(["Card", "2", usd("₦2,500.00 and USD 1,000.00 (1 receipt)"), "0"]));
+    await waitFor(() => expect([...row.querySelectorAll("td")].map(cell => cell.textContent)).toEqual(["Card", "2", usd("₦2,500.00 and USD 1,000.00 (1 payment)"), "0"]));
   });
 
   it("says when the automatic close is off", async () => {
@@ -244,7 +244,34 @@ describe("reports", () => {
     expect(within(card).getByText('Not measured yet')).toBeTruthy();
     expect(within(card).queryByText('0.0%')).toBeNull();
     expect(within(card).getByRole('link', { name: 'Review matches' }).getAttribute('href')).toBe('/reconciliation#precision-audit');
-    expect(screen.getByText(/Current workspace totals.+All figures use sample data/)).toBeTruthy();
+    expect(screen.getByText(/Current totals for this lender.+All figures use sample data/)).toBeTruthy();
+  });
+
+  it('takes experiment rates in per cent, saves them as exact fractions and shows them back in per cent', async () => {
+    api.mutate(state => { state.records.find(record => record.kind === 'policies')!.status = 'approved'; });
+    const user = userEvent.setup();
+    renderApp('/reports?view=evidence');
+    const draft = (await screen.findByText('Recovery measurement · pre-registration')).closest('div.border')! as HTMLElement;
+    await user.click(within(draft).getByRole('button', { name: 'Edit' }));
+    let dialog = await screen.findByRole('dialog', { name: 'Edit experiment' });
+    const baseline = () => within(dialog).getByLabelText(/^Baseline recovery rate \(%\)/) as HTMLInputElement;
+    const share = () => within(dialog).getByLabelText(/^Comparison group share \(%\)/) as HTMLInputElement;
+    // Saved as 0.4 and 0.5, shown in per cent.
+    expect([baseline().value, share().value]).toEqual(['40', '50']);
+    await user.clear(baseline()); await user.type(baseline(), '7.125');
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    expect(await within(dialog).findByText('Enter a percentage from 0 to 100 with no more than 2 decimal places, for example 0.3 or 40.')).toBeTruthy();
+    expect(api.state().records.find(record => record.kind === 'experiments')!.data.baselineRate).toBe(0.4);
+    // 7 per cent is 0.07 exactly, never 0.07 times a rounding error.
+    await user.clear(baseline()); await user.type(baseline(), '7');
+    await user.clear(share()); await user.type(share(), '20');
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Edit experiment' })).toBeNull());
+    const saved = api.state().records.find(record => record.kind === 'experiments')!;
+    expect([saved.data.baselineRate, saved.data.holdoutShare]).toEqual([0.07, 0.2]);
+    await user.click(within(draft).getByRole('button', { name: 'Edit' }));
+    dialog = await screen.findByRole('dialog', { name: 'Edit experiment' });
+    expect([baseline().value, share().value]).toEqual(['7', '20']);
   });
 
   it('shows the daily-close failure and a safe way to check for a completed record before retrying', async () => {
@@ -252,12 +279,43 @@ describe("reports", () => {
     api.failNext(/^\/v1\/actions$/, 'offline', 'POST');
     renderApp('/reports');
     await user.click(await screen.findByRole('button', { name: 'Run daily close' }));
-    expect(await screen.findByText('Daily close could not be confirmed')).toBeTruthy();
+    expect(await screen.findByText('Request not confirmed')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Refresh close records' })).toBeTruthy();
     expect(api.state().records.filter(record => record.kind === 'closes')).toHaveLength(0);
     await user.click(screen.getByRole('button', { name: 'Run daily close' }));
     expect(await screen.findByText('Daily close completed')).toBeTruthy();
     expect(screen.getByRole('link', { name: 'View close record' }).getAttribute('href')).toBe('/reports?view=operations#daily-closes');
+  });
+
+  it('checks a daily close whose answer was lost with Check original request, which never runs a second close', async () => {
+    const user = userEvent.setup();
+    // The close reaches Valo Pay and runs, but its answer is lost; the same request sent again gets the saved answer.
+    const send = globalThis.fetch, keys: string[] = [], replies = new Map<string, Response>();
+    globalThis.fetch = async (input, options) => {
+      const url = String(input instanceof Request ? input.url : input);
+      if (!url.includes('/api/v1/actions') || options?.method !== 'POST') return send(input, options);
+      const key = new Headers(options.headers).get('Idempotency-Key')!;
+      keys.push(key);
+      if (replies.has(key)) return replies.get(key)!.clone();
+      const response = await send(input, options);
+      replies.set(key, response.clone());
+      throw new TypeError('Failed to fetch');
+    };
+    try {
+      renderApp('/reports');
+      await user.click(await screen.findByRole('button', { name: 'Run daily close' }));
+      const notice = (await screen.findByText(/^We do not know yet whether Valo Pay ran this close\. Select Check original request to find out\. It does not run a second close\./)).closest('[role="alert"]') as HTMLElement;
+      expect(within(notice).getByText('Request not confirmed')).toBeTruthy();
+      expect(within(notice).getByRole('button', { name: 'Refresh close records' })).toBeTruthy();
+      await user.click(within(notice).getByRole('button', { name: 'Check original request' }));
+      const done = await screen.findByText('Daily close completed');
+      // The check sent the original request again, with its key, and Valo Pay ran one close.
+      expect(keys).toHaveLength(2);
+      expect(keys[1]).toBe(keys[0]);
+      expect(api.state().records.filter(record => record.kind === 'closes')).toHaveLength(1);
+      // The button went with the notice it was in; reading continues from the outcome.
+      await waitFor(() => expect(document.activeElement).toBe(done.closest('[role="status"]')));
+    } finally { globalThis.fetch = send; }
   });
 
   it('invoices every month in order and names the month to issue first', async () => {
@@ -266,11 +324,11 @@ describe("reports", () => {
     api.mutate(state => { const terms = state.records.find(record => record.kind === 'commercial')!; terms.data.signed = true; terms.data.designPartner = false; terms.data.effectiveDate = '2027-01-01'; });
     const user = userEvent.setup();
     renderApp('/reports?view=billing');
-    expect(await screen.findByText(/^No invoice has been issued\. The next covers 2027-01\./)).toBeTruthy();
+    expect(await screen.findByText(/^No invoices yet\. The next invoice covers 2027-01\./)).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Issue invoice' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Issue the monthly invoice' });
-    expect(within(dialog).getByText('Months are invoiced in order, a month with nothing to bill for zero. The next invoice covers 2027-01.')).toBeTruthy();
-    await user.type(within(dialog).getByLabelText(/^Invoice month/), '2027-03');
+    const dialog = await screen.findByRole('dialog', { name: 'Issue the monthly invoice?' });
+    expect(within(dialog).getByText('Leave blank to invoice the previous month, or enter a month as YYYY-MM, for example 2027-01. Months are invoiced in order, and a month with nothing to bill gets a zero invoice. The next invoice covers 2027-01.')).toBeTruthy();
+    await user.type(within(dialog).getByLabelText(/^Billing month/), '2027-03');
     await user.type(within(dialog).getByLabelText('Reason *'), 'Month-end invoice');
     await user.click(within(dialog).getByRole('button', { name: 'Issue invoice' }));
     expect(await within(dialog).findByText(/issue the invoice for 2027-01 first, the month the signed terms took effect\.$/)).toBeTruthy();
@@ -283,8 +341,8 @@ describe("reports", () => {
     api.failNext(/^\/v1\/exports$/, 'offline', 'POST');
     renderApp('/reports?view=billing');
     await user.click(await screen.findByRole('button', { name: 'Export billing CSV' }));
-    expect(await screen.findByText('Billing export request could not be confirmed')).toBeTruthy();
-    await user.click(screen.getByRole('button', { name: 'Retry original request' }));
+    expect(await screen.findByText('Request not confirmed')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Check original request' }));
     expect(await screen.findByRole('link', { name: 'Open billing CSV' })).toBeTruthy();
   });
 });

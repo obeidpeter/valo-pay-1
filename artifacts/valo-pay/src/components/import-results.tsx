@@ -28,9 +28,9 @@ export function downloadCsv(contents: string, filename: string) {
   const url = URL.createObjectURL(new Blob([contents], { type: 'text/csv;charset=utf-8' }));
   const anchor = document.createElement('a'); anchor.href = url; anchor.download = filename; anchor.click(); URL.revokeObjectURL(url);
 }
-/** A row's outcome in the same words on both screens: a duplicate row is one already imported. */
+/** A row's outcome in the same words on both screens: a duplicate row is one already imported, an invalid one needs fixing. */
 export function importRowStatus(status: string): string {
-  return status === 'duplicate' ? 'Already imported' : readableLabel(status);
+  return status === 'duplicate' ? 'Already imported' : status === 'invalid' ? 'Needs fixing' : readableLabel(status);
 }
 /** A check's or an import's totals in the same words on both screens. */
 export function importSummary(result: { imported: number; skipped?: number; invalid: number; valid: number; rows: Row[] }): string {
@@ -54,7 +54,7 @@ export function sampleMapping(kind: string, values: Array<[string, string]>, row
 
 /**
  * Row results that open on the rows to fix when there are any, with the errors
- * CSV and Correct CSV, which moves focus to the CSV. Give it a key per result so
+ * CSV and Edit CSV, which moves focus to the CSV. Give it a key per result so
  * a new check starts from its own rows to fix.
  */
 export function ImportRowResults({ rows, label, filename, onCorrect, className }: { rows: Row[]; label: string; filename: string; onCorrect?: () => void; className: string }) {
@@ -64,7 +64,7 @@ export function ImportRowResults({ rows, label, filename, onCorrect, className }
     {toFix && <div className="flex flex-wrap gap-2">
       <Button type="button" variant="outline" size="sm" onClick={() => downloadCsv(importErrorCsv(rows), filename)}>Download errors CSV</Button>
       <Button type="button" variant="outline" size="sm" aria-pressed={onlyErrors} onClick={() => setOnlyErrors(value => !value)}>{onlyErrors ? 'Show all row results' : 'Show rows to fix'}</Button>
-      {onCorrect && <Button type="button" variant="ghost" size="sm" onClick={onCorrect}>Correct CSV</Button>}
+      {onCorrect && <Button type="button" variant="ghost" size="sm" onClick={onCorrect}>Edit CSV</Button>}
     </div>}
     <ScrollFrame label={label} className={className}>
       {rows.filter(row => !onlyErrors || row.status === 'invalid').map(row => <p className="border-b py-1.5 last:border-0" key={row.row}><strong>Row {row.row} · {importRowStatus(row.status)}:</strong> {row.message}</p>)}

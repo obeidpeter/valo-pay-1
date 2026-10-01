@@ -15,12 +15,12 @@ describe("notices", () => {
     renderApp(`/customers/${ada().id}`);
     await user.click(await screen.findByRole("button", { name: "Export dispute pack (PDF)" }));
     // A notice is also announced through a copy that lives for a second, so a text may be found twice.
-    expect(await screen.findAllByText("Check the dispute pack request")).toBeTruthy();
-    expect(screen.getAllByText(/Packs are limited to five a day for this customer\. Check saved exports before starting another request\./)).toBeTruthy();
+    expect(await screen.findAllByText("Dispute pack not started")).toBeTruthy();
+    expect(screen.getAllByText(/Packs are limited to five a day for this customer\. Check saved exports before you start another request\./)).toBeTruthy();
     const dismiss = screen.getByRole("button", { name: "Dismiss" });
     expect(dismiss).toBeTruthy();
     await user.click(dismiss);
-    await waitFor(() => expect(screen.queryByText("Check the dispute pack request")).toBeNull());
+    await waitFor(() => expect(screen.queryByText("Dispute pack not started")).toBeNull());
   });
 
   it("says where a generated pack went and offers to open it again", async () => {

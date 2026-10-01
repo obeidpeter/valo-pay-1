@@ -1,4 +1,5 @@
 import { PilotError, pilotField } from "@/components/pilot-ui";
+import { formatDate } from "@/lib/formatters";
 import { amountUnitName, type BatchInput } from "@workspace/valopay-schema";
 import { Link } from "wouter";
 import { types } from "./mapping";
@@ -39,14 +40,14 @@ export function BatchSourceFields({
       {!id && (
         <div className="space-y-2">
           <label className="block space-y-1 text-sm font-medium">
-            Reusable source mapping
+            Source profile
             <select
               className={pilotField}
               disabled={disabled || sourcesLoading}
               value={selectedProfile}
               onChange={(event) => onProfileChange(event.target.value)}
             >
-              <option value="">Start without a saved mapping</option>
+              <option value="">No source profile</option>
               {sources?.profiles.map((profile) => (
                 <option key={profile.id} value={profile.id}>
                   {profile.name} · {types[profile.data.kind]}
@@ -55,16 +56,17 @@ export function BatchSourceFields({
             </select>
           </label>
           <p className="text-xs text-muted-foreground">
-            A profile fills the source, record type, row identity, units and
-            column mapping. Its active expectations are checked again before
-            commit.
+            A source profile fills in the source name, record type, source row
+            ID column, amount unit and column mapping. Its expected rows and
+            total are checked again before you import.
           </p>
           {initialProfile &&
             sources &&
             !sources.profiles.some((p) => p.id === initialProfile) && (
               <p role="alert" className="text-sm text-destructive">
-                This source profile is not available in the selected lender.
-                Choose a profile below or return to Sources.
+                Source profile not found. It may have been deleted, or it
+                belongs to another lender. Choose a source profile above, or
+                open Data sources.
               </p>
             )}
           <PilotError error={sourcesError} />
@@ -90,13 +92,13 @@ export function BatchSourceFields({
             id="import-business-date-help"
             className="text-xs font-normal text-muted-foreground"
           >
-            The date this file belongs to, rather than its upload date. Saved
-            batches keep this date.
+            The day this file covers, not the day you upload it. You cannot
+            change it after you save the batch.
           </p>
         </div>
         {!id && (
           <label className="space-y-1 text-sm font-medium">
-            Expected source file
+            Expected file
             <select
               className={pilotField}
               value={form.sourceExpectationId || ""}
@@ -113,12 +115,13 @@ export function BatchSourceFields({
               ))}
             </select>
             <span className="block text-xs text-muted-foreground">
-              Declarations for {form.businessDate || "the selected date"}.{" "}
+              Expected files for{" "}
+              {form.businessDate ? formatDate(form.businessDate) : "the chosen date"}.{" "}
               <Link
                 className="text-primary underline"
                 href={`/sources?businessDate=${form.businessDate || ""}`}
               >
-                Review expected files
+                Open Data sources for this date
               </Link>
             </span>
           </label>
@@ -195,10 +198,10 @@ export function BatchSourceFields({
             }
           >
             <option value="naira">
-              {amountUnitName("naira", form.kind)} — 1,000.50
+              {amountUnitName("naira", form.kind)}, for example 1,000.50
             </option>
             <option value="kobo">
-              {amountUnitName("kobo", form.kind)} — 100050
+              {amountUnitName("kobo", form.kind)}, for example 100050
             </option>
           </select>
         </label>

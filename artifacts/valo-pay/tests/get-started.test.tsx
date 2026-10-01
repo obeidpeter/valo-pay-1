@@ -74,8 +74,8 @@ describe('role-aware starting point', () => {
     expect(within(start()).queryByText('Step 1 · Committed')).toBeNull();
     await user.click(within(start()).getAllByRole('link', { name: 'Open this task' })[0]!);
     await user.click(await screen.findByRole('button', { name: /Customers sample.*Pilot sample/ }));
-    await user.click(await screen.findByRole('button', { name: 'Commit checked batch' }));
-    await screen.findByRole('heading', { name: 'Import complete' });
+    await user.click(await screen.findByRole('button', { name: 'Import checked batch' }));
+    await screen.findByRole('heading', { name: 'Batch imported' });
     await user.click(screen.getByRole('link', { name: 'Overview' }));
     expect(await screen.findByText('Step 1 · Committed')).toBeTruthy();
     expect(api.calls.filter(call => call.method === 'POST' && /\/commit$/.test(call.path))).toHaveLength(1);

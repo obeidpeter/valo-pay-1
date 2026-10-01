@@ -19,7 +19,7 @@ function keptInOperations(notice: HTMLElement) {
   return notice;
 }
 /** The export control's notice about a request whose outcome is unconfirmed. */
-const exportNotice = () => screen.getByText(/^Other export requests are paused until this result is confirmed/).parentElement as HTMLElement;
+const exportNotice = () => screen.getByText(/^Other export requests wait until this one is confirmed/).parentElement as HTMLElement;
 /** The alert holding `text`, which says the request stays in Operations and links there. */
 const pointsToOperations = (text: string | RegExp) => keptInOperations(screen.getByText(text).closest('[role="alert"]') as HTMLElement);
 
@@ -48,15 +48,15 @@ describe("unconfirmed changes the journal records point to Operations", () => {
     const user = userEvent.setup();
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
     renderApp("/evidence");
-    await user.click(await screen.findByRole("button", { name: "Log review" }));
+    await user.click(await screen.findByRole("button", { name: "Record review" }));
     const dialog = screen.getByRole("dialog");
     await user.type(within(dialog).getByRole("textbox", { name: "Review notes" }), "Checked the sample mandates this fortnight.");
     api.failNext(/^\/v1\/records\/reviews$/, "offline", "POST");
-    await user.click(within(dialog).getByRole("button", { name: "Save review" }));
-    await within(dialog).findByText("Review outcome not confirmed");
-    pointsToOperations("Review outcome not confirmed");
+    await user.click(within(dialog).getByRole("button", { name: "Record review" }));
+    await within(dialog).findByText("Request not confirmed");
+    pointsToOperations("Request not confirmed");
     await user.click(within(dialog).getAllByRole("button", { name: "Close" }).find((button) => button.textContent === "Close")!);
-    expect(confirm).toHaveBeenCalledWith(expect.stringContaining("If the service received the review, it stays in Operations, where you can check it before starting again."));
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining("If it arrived, it is listed in Request history."));
   });
 
   it("in the mandate dialog", async () => {
@@ -81,7 +81,7 @@ describe("unconfirmed changes the journal records point to Operations", () => {
     renderApp("/reports?view=billing");
     api.failNext(/^\/v1\/exports$/, "offline", "POST");
     await user.click(await screen.findByRole("button", { name: "Export billing CSV" }));
-    await screen.findByRole("button", { name: "Retry original request" });
+    await screen.findByRole("button", { name: "Check original request" });
     keptInOperations(exportNotice());
   });
 
@@ -97,7 +97,7 @@ describe("unconfirmed changes the journal records point to Operations", () => {
     renderApp(`/exports?job=${id}`);
     api.failNext(new RegExp(`^/v1/exports/${id}/retry$`), "offline", "POST");
     await user.click(await screen.findByRole("button", { name: "Retry export" }));
-    await screen.findByRole("button", { name: "Retry original request" });
+    await screen.findByRole("button", { name: "Check original request" });
     keptInOperations(exportNotice());
   });
 
@@ -126,8 +126,8 @@ describe("unconfirmed changes the journal records point to Operations", () => {
     expect(within(refused).queryByRole("link", { name: "Open Operations" })).toBeNull();
     api.failNext(/^\/v1\/actions$/, "offline", "POST");
     await user.click(screen.getByRole("button", { name: "Run daily close" }));
-    await screen.findByText(/The service could not confirm the result/);
-    pointsToOperations("Daily close could not be confirmed");
+    await screen.findByText(/We do not know yet whether Valo Pay ran this close/);
+    pointsToOperations("Request not confirmed");
   });
 
   it("on Reconciliation, for a run", async () => {
@@ -162,15 +162,15 @@ describe("unconfirmed changes the journal records point to Operations", () => {
     await user.type(amount, "10.29");
     api.failNext(/^\/v1\/settings$/, "offline", "PATCH");
     await user.click(screen.getByRole("button", { name: "Save" }));
-    await screen.findByText("Settings outcome unconfirmed");
-    pointsToOperations("Settings outcome unconfirmed");
+    await screen.findByText(/We do not know yet whether Valo Pay saved your settings/);
+    pointsToOperations(/We do not know yet whether Valo Pay saved your settings/);
     // The live-instruction block test and the emergency stop.
     api.failNext(/^\/v1\/actions$/, "offline", "POST");
     await user.click(screen.getByRole("button", { name: "Test live-instruction block" }));
-    await screen.findByText(/The block-test response is unconfirmed/);
-    pointsToOperations(/The block-test response is unconfirmed/);
+    await screen.findByText(/We do not know yet whether Valo Pay received the block test/);
+    pointsToOperations(/We do not know yet whether Valo Pay received the block test/);
     vi.spyOn(window, "confirm").mockReturnValue(true);
-    for (const notice of [/The block-test response is unconfirmed/, "Settings outcome unconfirmed"]) {
+    for (const notice of [/We do not know yet whether Valo Pay received the block test/, /We do not know yet whether Valo Pay saved your settings/]) {
       const alert = screen.getByText(notice).closest('[role="alert"]') as HTMLElement;
       await user.click(within(alert).getByRole("button", { name: "Discard original request" }));
       await waitFor(() => expect(screen.queryByText(notice)).toBeNull());
@@ -178,16 +178,16 @@ describe("unconfirmed changes the journal records point to Operations", () => {
     await cancelInterrupted(user);
     await user.type(screen.getByLabelText("Reason for changing the emergency stop"), "Stop sample operations for a review");
     api.failNext(/^\/v1\/actions$/, "offline", "POST");
-    await user.click(screen.getByRole("button", { name: "Activate emergency stop" }));
-    await screen.findByText(/The emergency-stop response is unconfirmed/);
-    const stop = pointsToOperations(/The emergency-stop response is unconfirmed/);
+    await user.click(screen.getByRole("button", { name: "Turn on emergency stop" }));
+    await screen.findByText(/We do not know yet whether Valo Pay changed the emergency stop/);
+    const stop = pointsToOperations(/We do not know yet whether Valo Pay changed the emergency stop/);
     await user.click(within(stop).getByRole("button", { name: "Discard original request" }));
-    await waitFor(() => expect(screen.queryByText(/The emergency-stop response is unconfirmed/)).toBeNull());
+    await waitFor(() => expect(screen.queryByText(/We do not know yet whether Valo Pay changed the emergency stop/)).toBeNull());
     // The role switch is not journaled: its notice keeps the retry and names no Operations.
     await user.selectOptions(screen.getByLabelText("Demo role"), "Finance");
     api.failNext(/^\/v1\/actions$/, "offline", "POST");
     await user.click(screen.getByRole("button", { name: "Switch role" }));
-    const role = (await screen.findByText(/The role-change response is unconfirmed/)).closest('[role="alert"]') as HTMLElement;
+    const role = (await screen.findByText(/We do not know yet whether Valo Pay changed your role/)).closest('[role="alert"]') as HTMLElement;
     expect(role.textContent).not.toMatch(/Operations/);
     expect(within(role).queryByRole("link", { name: "Open Operations" })).toBeNull();
   });
