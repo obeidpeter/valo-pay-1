@@ -227,7 +227,7 @@ export function evaluateRetry(state: DomainState, ctx: Context, due: TypedRecord
   if (arm === "holdout") return explain("holdout", "holdout", "This instalment is in the comparison group. The lender’s documented manual process is responsible for collection; automated retries are not allowed.", null, { purpose: "failed_debit", leadHours: 0, requiredBy: null, noticeId: null, acceptedAt: null, evidenced: false });
   // SCH-08 and DEB-10: only owner-valo obligations of a merchant in instruction mode are instructed.
   if (due.data.owner !== PLATFORM_OWNER) return explain("observation_only", "ownership", `Another collection system is responsible for this instalment (${valueWords(due.data.owner)}). Valo Pay cannot send its collection instructions.`);
-  if (state.merchant.mode !== "instruction" || !state.merchant.preLiveReady) return explain("observation_only", "observation_mode", "Valo Pay only watches this lender’s collections, so no instruction can be sent. Sample data can never approve live collection instructions.");
+  if (state.merchant.mode !== "instruction" || !state.merchant.preLiveReady) return explain("observation_only", "observation_mode", `${state.merchant.mode !== "instruction" ? "This lender is set to ‘Records payments only’, so no instruction can be sent." : "This lender is set to ‘Instructions after go-live’, but its go-live checks are not complete, so no instruction can be sent."} Sample data can never approve live collection instructions.`);
   // Row 8: plan the earliest slot that satisfies spacing, the calendar and the window; the required notice must be evidenced the lead time before it.
   const spacingHours = Math.max(policyGuardrails.minSpacingHours, Number(policy.data.spacingHours) || policyGuardrails.defaultSpacingHours);
   const leadHours = Math.max(policyGuardrails.minRetryNoticeHours, Number(policy.data.retryNoticeHours) || policyGuardrails.defaultRetryNoticeHours);
@@ -301,7 +301,7 @@ const retryRuleWords: Record<string, string> = {
   mandate_limit: "above the mandate limit", minimum_ticket: "below the lender’s minimum", policy_version_not_consented: "new policy version not consented",
   reversal_review: "reversal review open", timeout_unknown: "outcome unknown", unapproved_policy: "policy not approved", window: "no collection time available",
   notice_not_evidenced: "notice not confirmed", ceiling: "attempt limit reached", non_retryable: "cannot be retried", restricted_once: "one retry used",
-  holdout: "comparison group", no_failure: "no failed attempt", observation_mode: "watch only", ownership: "another collection system",
+  holdout: "comparison group", no_failure: "no failed attempt", observation_mode: "records payments only", ownership: "another collection system",
   customer_disputed: "customer disputed", dispute_released: "dispute released", disputed: "in dispute", final: "no attempts left",
   floor: "below the minimum debit", settled: "paid or closed", plan: "retry planned",
 };

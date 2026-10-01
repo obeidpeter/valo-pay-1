@@ -70,6 +70,8 @@ const pages = Number(body.match(/\/Count (\d+)/)?.[1]);
 assert.ok(pages >= 3, `summary, timeline and documents pages: ${pages}`);
 for (const needle of ["Valo Pay dispute pack", `Timeline: ${pack.timeline.length} events`, "Documents in effect at the time", `Page 1 of ${pages}`, `Page ${pages} of ${pages}`, "₦25,000.00", customer.name, "Retry policy version 1", "Message template version 2"]) assert.ok(decoded.includes(needle), `PDF text contains "${needle}"`);
 assert.ok(!/NGN [0-9]/.test(decoded), "naira amounts are printed with the naira sign, as the console shows them");
+// The lender's mode is printed by the name Settings gives it, never as its code ("observation mode").
+assert.ok(decoded.includes(`mode: ${pack.merchant.mode === "observation" ? "Records payments only" : "Instructions after go-live"}`) && !decoded.includes(`${pack.merchant.mode} mode`), "the PDF names the lender's mode"); checks += 1;
 assert.match(body, /\/BaseFont \/[A-Z]{6}\+ValoPackSans-Regular/, "the pack embeds its own typeface rather than a WinAnsi standard font");
 assert.match(body, /\/Lang \(en-GB\)/, "the document declares its language");
 checks += 12;

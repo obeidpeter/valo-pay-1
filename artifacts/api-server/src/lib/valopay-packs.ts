@@ -7,7 +7,7 @@
  */
 import PDFDocument from "pdfkit";
 import { VALO_PACK_SANS_BOLD, VALO_PACK_SANS_REGULAR } from "../fonts/valo-pack-sans";
-import { collectionOwnerText, counted, dayText, evidenceSourceText, instantText, moneyText, nairaText, notFoundText, optionText, otherCurrenciesText, recordTypeTitle, supersededReasonText, valueLabel, valueWords, WAT_OFFSET_MS } from "@workspace/valopay-schema";
+import { collectionOwnerText, counted, dayText, evidenceSourceText, instantText, lenderModeText, moneyText, nairaText, notFoundText, optionText, otherCurrenciesText, recordTypeTitle, supersededReasonText, valueLabel, valueWords, WAT_OFFSET_MS } from "@workspace/valopay-schema";
 import type { Context, DomainState, ValopayRecord } from "../domain/types";
 import { inNaira, positionFor, unallocatedOtherCurrencies, type CustomerPosition, type OtherCurrencies } from "../domain/close";
 import { currencyOf, exceptionCurrency } from "../domain/reconciliation";
@@ -274,7 +274,7 @@ export async function renderDisputePackPdf(pack: DisputePack, options: PdfOption
     document.font("Sans-Bold").fontSize(20).fillColor("#102E2A").text("Valo Pay dispute pack");
     document.font("Sans").fontSize(9).fillColor("#9B6524").text("Sample data only: not live evidence").fillColor("#222222").moveDown(0.5);
     line("Customer", `${text(pack.customer.name)} (${text(pack.customer.reference)}) · ${valueWords(pack.customer.status)}`);
-    line("Lender", `${pack.merchant.name} · provider ${pack.merchant.provider} · ${pack.merchant.mode === "observation" ? "Valo Pay only watches collections" : "Valo Pay sends collection instructions"}`);
+    line("Lender", `${pack.merchant.name} · provider ${pack.merchant.provider} · mode: ${lenderModeText(pack.merchant.mode)}`);
     line("Bank", `${text(pack.customer.bankName) || "not recorded"} ${text(pack.customer.accountMasked)} · phone ${text(pack.customer.phoneMasked) || "not recorded"}`);
     line("Prepared", `${when(pack.generatedAt)} by ${pack.generatedBy}`);
     line("Audit log", `${pack.auditVerification.valid ? "every entry checked and intact" : "the check failed; ask an Admin to investigate"} (${counted(pack.auditVerification.count, "entry", "entries")})`);

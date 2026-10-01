@@ -128,6 +128,11 @@ export function evidenceSourceText(source: unknown): string {
   return Object.hasOwn(phrases, code) ? phrases[code]! : valueWords(code);
 }
 
+/** A lender's mode by the name Settings gives it: "Records payments only" (observation) or "Instructions after go-live" (instruction). */
+export function lenderModeText(mode: unknown): string {
+  return mode === "observation" ? "Records payments only" : mode === "instruction" ? "Instructions after go-live" : valueLabel(mode);
+}
+
 /** Who collects an instalment, inside a sentence: "the loan management system", "the lender team", "Valo Pay". */
 export function collectionOwnerText(owner: unknown): string {
   const phrases: Record<string, string> = {
