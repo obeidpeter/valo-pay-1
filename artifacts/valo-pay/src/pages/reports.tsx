@@ -470,6 +470,8 @@ export default function ReportsPage() {
         isOpen={experimentDialog !== null}
         onOpenChange={(open) => { if (!open) setExperimentDialog(null); }}
         title={experimentDialog === 'preregister' ? 'Register experiment plan?' : experimentDialog === 'edit' ? 'Edit experiment' : 'Create experiment'}
+        submitLabel={experimentDialog === 'edit' ? 'Save changes' : experimentDialog === 'create' ? 'Create experiment' : undefined}
+        busyLabel={experimentDialog === 'edit' ? 'Saving changes…' : experimentDialog === 'create' ? 'Creating experiment…' : undefined}
         actionMutation={experimentDialog === 'preregister' ? 'preregister_experiment' : undefined}
         fields={experimentDialog === 'preregister' ? [] : [
           { name: 'name', label: 'Experiment name', type: 'text', required: true },

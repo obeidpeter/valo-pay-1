@@ -55,7 +55,7 @@ describe('evidence register and operational reviews', () => {
     expect(within(dialog).getByText(/Leave the dates blank until the agreement has been reviewed/)).toBeTruthy();
     await user.clear(within(dialog).getByLabelText(/^Lender name/));
     await user.type(within(dialog).getByLabelText(/^Lender name/), 'Updated legacy agreement');
-    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     const saved = api.state().records.find(record => record.kind === 'commercial')!;
     expect(saved.name).toBe('Updated legacy agreement');
@@ -81,7 +81,7 @@ describe('evidence register and operational reviews', () => {
     fireEvent.change(within(dialog).getByLabelText('Full-price billing starts on'), { target: { value: '2028-02-01' } });
     await user.type(within(dialog).getByLabelText('Signed agreement reference for these dates'), 'SYNTHETIC-AGREEMENT-2027');
     expect(within(dialog).queryByLabelText(/Reviewed by|Review time|Review date/)).toBeNull();
-    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     const submitted = api.calls.findLast(call => call.method === 'PATCH' && call.path.includes('/records/commercial/'))!;
     expect(submitted.body).toMatchObject({ data: { signed: true, designPartner: true, signedFullPriceTerms: true, discountStartDate: '2027-02-01', fullPriceStartDate: '2028-02-01', discountTermsReference: 'SYNTHETIC-AGREEMENT-2027' } });
@@ -109,7 +109,7 @@ describe('evidence register and operational reviews', () => {
     fireEvent.change(within(dialog).getByLabelText('50% discount starts on'), { target: { value: agreement.discountStartDate } });
     fireEvent.change(within(dialog).getByLabelText('Full-price billing starts on'), { target: { value: agreement.fullPriceStartDate } });
     await user.type(within(dialog).getByLabelText('Signed agreement reference for these dates'), agreement.discountTermsReference);
-    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(api.state().records.find(record => record.kind === 'commercial')!.data.discountReview).toBeUndefined();
     const flag = 'These design-partner terms cannot be used on a new invoice yet. The full-price terms are not recorded as signed. Tick “Full-price terms are signed” once they are, so the discount dates can be proposed.';
@@ -127,7 +127,7 @@ describe('evidence register and operational reviews', () => {
     // Saved unchanged, the prospect is still unsigned: nothing is said about pricing an invoice.
     const section = (await screen.findByRole('heading', { name: 'Commercial terms' })).closest('section')!;
     await user.click(within(table).getByRole('button', { name: 'Edit' }));
-    await user.click(within(await screen.findByRole('dialog', { name: 'Edit commercial terms' })).getByRole('button', { name: 'Save' }));
+    await user.click(within(await screen.findByRole('dialog', { name: 'Edit commercial terms' })).getByRole('button', { name: 'Save changes' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(api.calls.some(call => call.method === 'PATCH' && call.path.includes('/records/commercial/') && call.status === 200)).toBe(true);
     expect(within(section).getByRole('status').textContent).toBe('');
@@ -241,17 +241,17 @@ describe('evidence register and operational reviews', () => {
     const fullPrice = within(dialog).getByLabelText('Full-price billing starts on') as HTMLInputElement;
     const reference = within(dialog).getByLabelText('Signed agreement reference for these dates') as HTMLInputElement;
     fireEvent.change(start, { target: { value: '2027-02-15' } });
-    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
     expect(await within(dialog).findByText(/Enter both discount dates and the signed agreement reference/)).toBeTruthy();
     expect(start.value).toBe('2027-02-15');
     fireEvent.change(fullPrice, { target: { value: '2028-02-01' } });
     await user.type(reference, 'SYNTHETIC-CORRECTED-AGREEMENT');
-    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
     expect(await within(dialog).findByText(/Each discount date must be the first day of a month, because a monthly invoice uses one price for the whole month/)).toBeTruthy();
     expect([start.value, fullPrice.value, reference.value]).toEqual(['2027-02-15', '2028-02-01', 'SYNTHETIC-CORRECTED-AGREEMENT']);
     expect(api.state().records.find(record => record.kind === 'commercial')!.data.discountReview).toBeUndefined();
     fireEvent.change(start, { target: { value: '2027-02-01' } });
-    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(api.state().records.find(record => record.kind === 'commercial')!.data.discountReview).toMatchObject({ discountStartDate: '2027-02-01', termsReference: 'SYNTHETIC-CORRECTED-AGREEMENT' });
   });
@@ -292,13 +292,13 @@ describe('evidence register and operational reviews', () => {
     // The seeded terms are saved as 2,500,000 kobo, 30 basis points and a 15,000 kobo cap.
     expect([average().value, rate().value, cap().value]).toEqual(['25000.00', '0.3', '150.00']);
     await user.clear(rate()); await user.type(rate(), '0.275');
-    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
     expect(await within(dialog).findByText('Enter a percentage from 0 to 100 with no more than 2 decimal places, for example 0.3 or 40.')).toBeTruthy();
     expect(api.calls.some(call => call.method === 'PATCH' && call.path.includes('/records/commercial/'))).toBe(false);
     await user.clear(rate()); await user.type(rate(), '0.45');
     await user.clear(average()); await user.type(average(), '12,345.67');
     await user.clear(cap()); await user.type(cap(), '200');
-    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(api.state().records.find(record => record.kind === 'commercial')!.data).toMatchObject({ usageBps: 45, averageTicketKobo: 1_234_567, usageCapKobo: 20_000 });
     expect(within(table).getByText('0.45% (up to ₦200.00 per collection)')).toBeTruthy();

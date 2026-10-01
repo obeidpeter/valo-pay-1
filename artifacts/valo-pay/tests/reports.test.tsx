@@ -259,13 +259,13 @@ describe("reports", () => {
     // Saved as 0.4 and 0.5, shown in per cent.
     expect([baseline().value, share().value]).toEqual(['40', '50']);
     await user.clear(baseline()); await user.type(baseline(), '7.125');
-    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
     expect(await within(dialog).findByText('Enter a percentage from 0 to 100 with no more than 2 decimal places, for example 0.3 or 40.')).toBeTruthy();
     expect(api.state().records.find(record => record.kind === 'experiments')!.data.baselineRate).toBe(0.4);
     // 7 per cent is 0.07 exactly, never 0.07 times a rounding error.
     await user.clear(baseline()); await user.type(baseline(), '7');
     await user.clear(share()); await user.type(share(), '20');
-    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Edit experiment' })).toBeNull());
     const saved = api.state().records.find(record => record.kind === 'experiments')!;
     expect([saved.data.baselineRate, saved.data.holdoutShare]).toEqual([0.07, 0.2]);
@@ -333,6 +333,34 @@ describe("reports", () => {
     await user.click(within(dialog).getByRole('button', { name: 'Issue invoice' }));
     expect(await within(dialog).findByText(/Issue the invoice for January 2027 first: the month the signed terms took effect\.$/)).toBeTruthy();
     expect(api.state().records.some(record => record.kind === 'invoices')).toBe(false);
+  });
+
+  it('repeats each dialog\'s verb on its submit button and while its request runs', async () => {
+    api.setNow('2027-04-03T09:00:00.000Z');
+    api.mutate(state => { const terms = state.records.find(record => record.kind === 'commercial')!; terms.data.signed = true; terms.data.designPartner = false; terms.data.effectiveDate = '2027-01-01'; });
+    const user = userEvent.setup();
+    renderApp('/reports?view=billing');
+    await user.click(await screen.findByRole('button', { name: 'Issue invoice' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Issue the monthly invoice?' });
+    await user.type(within(dialog).getByLabelText('Reason *'), 'Month-end invoice');
+    const release = api.hold(/^\/v1\/actions$/);
+    await user.click(within(dialog).getByRole('button', { name: 'Issue invoice' }));
+    expect(await within(dialog).findByRole('button', { name: 'Issuing invoice…' })).toBeTruthy();
+    release();
+    await waitFor(() => expect(within(dialog).queryByRole('button', { name: 'Issuing invoice…' })).toBeNull());
+    // Closing a form with typed words asks first.
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    // A form that creates a record says so on its submit button, and an edit form says Save changes.
+    await user.click(screen.getByRole('button', { name: 'Pilot results' }));
+    await user.click(await screen.findByRole('button', { name: 'Create experiment' }));
+    const create = await screen.findByRole('dialog', { name: 'Create experiment' });
+    expect(within(create).getByRole('button', { name: 'Create experiment' })).toBeTruthy();
+    await user.click(within(create).getByRole('button', { name: 'Cancel' }));
+    const draft = (await screen.findByText('Recovery test plan')).closest('div.border')! as HTMLElement;
+    await user.click(within(draft).getByRole('button', { name: 'Edit' }));
+    expect(within(await screen.findByRole('dialog', { name: 'Edit experiment' })).getByRole('button', { name: 'Save changes' })).toBeTruthy();
   });
 
   it('keeps billing exports reachable when the browser blocks the new tab', async () => {

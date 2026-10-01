@@ -31,6 +31,19 @@ const actionLabels: Record<string, string> = {
   simulate_failure: 'Simulate failure', backtest_policy: 'Test policy',
   preregister_experiment: 'Register experiment plan', hand_back: 'Return collection', issue_invoice: 'Issue invoice', confirm_discount_terms: 'Confirm discount dates',
 };
+/** Each default submit button while its request runs, repeating its verb (docs/design/writing.md, Buttons and links). */
+const busyLabels: Record<string, string> = {
+  mandate_suspend: 'Suspending mandate…', mandate_cancel: 'Cancelling mandate…', mandate_reinstate: 'Resuming mandate…',
+  mandate_reissue: 'Reissuing mandate…', activation_reminder: 'Recording activation reminder…',
+  notify_policy_change: 'Recording policy change notice…', apply_policy_version: 'Applying policy version…',
+  submit_policy: 'Submitting for review…', approve_policy: 'Approving policy…', reject_policy: 'Rejecting policy…',
+  new_policy_version: 'Drafting next version…', submit_template: 'Submitting for review…', approve_template: 'Approving template…',
+  reject_template: 'Rejecting template…', new_template_version: 'Drafting next version…',
+  confirm_allocation: 'Confirming match…', reject_allocation: 'Rejecting match…', manual_allocate: 'Allocating payment…',
+  review_allocation: 'Saving review…', resolve_exception: 'Resolving exception…', record_refund: 'Recording external refund…', release_dispute: 'Releasing from dispute…',
+  simulate_failure: 'Simulating failure…', backtest_policy: 'Testing policy…',
+  preregister_experiment: 'Registering experiment plan…', hand_back: 'Returning collection…', issue_invoice: 'Issuing invoice…', confirm_discount_terms: 'Confirming discount dates…',
+};
 
 type FieldDef = {
   name: string;
@@ -69,7 +82,7 @@ type RecordDialogProps = {
   currencyField?: string;
   /** The submit button's words, the same verb and object as the button that opened the dialog and its title. */
   submitLabel?: string | ((values: Record<string, any>) => string);
-  /** The submit button's words while its request runs, repeating the verb ("Confirming match…"); without them, "Working…" or "Saving…". */
+  /** The submit button's words while its request runs, repeating the verb ("Confirming match…"); without them, the action's own busy words, or "Saving…" for Save. */
   busyLabel?: string | ((values: Record<string, any>) => string);
 };
 
@@ -380,7 +393,7 @@ export function RecordDialog({ kind, record, isOpen, onOpenChange, fields: sourc
             </fieldset>
             <div className="flex justify-end gap-2 mt-4 pt-4 border-t">
               <Button type="button" variant="outline" disabled={isPending} onClick={() => changeOpen(false)}>{hasUnconfirmedOutcome ? 'Close' : 'Cancel'}</Button>
-              <Button type="submit" disabled={!!blockedReason || hasUnconfirmedOutcome} busy={isPending} busyLabel={(typeof busyWords === 'function' ? busyWords(formData) : busyWords) ?? (actionMutation ? 'Working…' : 'Saving…')}>{(typeof submitLabel === 'function' ? submitLabel(formData) : submitLabel) ?? (actionMutation ? actionLabels[actionMutation] || 'Confirm action' : 'Save')}</Button>
+              <Button type="submit" disabled={!!blockedReason || hasUnconfirmedOutcome} busy={isPending} busyLabel={(typeof busyWords === 'function' ? busyWords(formData) : busyWords) ?? (actionMutation ? busyLabels[actionMutation] || 'Confirming action…' : 'Saving…')}>{(typeof submitLabel === 'function' ? submitLabel(formData) : submitLabel) ?? (actionMutation ? actionLabels[actionMutation] || 'Confirm action' : 'Save')}</Button>
             </div>
           </form>
 

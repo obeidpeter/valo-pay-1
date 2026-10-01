@@ -369,6 +369,8 @@ export default function EvidencePage() {
         }}
         answer={() => actionKind === 'commercial' ? termsAnswer.current : null}
         title={`${selectedRecord ? 'Edit' : 'Add'} ${actionKind === 'commercial' ? 'commercial terms' : 'evidence'}`}
+        submitLabel={selectedRecord ? 'Save changes' : `Add ${actionKind === 'commercial' ? 'commercial terms' : 'evidence'}`}
+        busyLabel={selectedRecord ? 'Saving changes…' : `Adding ${actionKind === 'commercial' ? 'commercial terms' : 'evidence'}…`}
         fields={
           actionKind === 'evidence' ? [
             { name: 'name', label: 'Evidence title', type: 'text', required: true },
