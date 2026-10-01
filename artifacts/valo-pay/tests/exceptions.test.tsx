@@ -34,7 +34,7 @@ describe("exceptions", () => {
     await screen.findByRole('tab', { name: 'All open (4)' });
     expect(screen.queryByRole('button', { name: 'Edit exception' })).toBeNull();
     expect(screen.getAllByRole('link', { name: 'Open case' })).toHaveLength(4);
-    expect(screen.getByText(/Only Admin, Operations and Finance team members can edit or resolve exceptions/)).toBeTruthy();
+    expect(screen.getByText('You can view exceptions and work on their cases. Only Admin, Operations or Finance can edit or resolve an exception.')).toBeTruthy();
     expect(permissionReason({ role: 'Compliance reviewer', actor: 'reviewer' }, { kind: 'exceptions' })).toBe('Only Admin, Operations or Finance can edit exceptions. Your role is Compliance reviewer. Change your demo role in Settings.');
     // A staff pilot's role is not a demo role, so the refusal does not send the reader to Settings.
     expect(permissionReason({ role: 'Compliance reviewer', actor: 'reviewer', accessMode: 'staff' }, { kind: 'exceptions' })).toBe('Only Admin, Operations or Finance can edit exceptions. Your role is Compliance reviewer.');

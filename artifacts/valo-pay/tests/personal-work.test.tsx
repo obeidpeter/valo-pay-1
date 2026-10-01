@@ -10,8 +10,8 @@ import { saveImportBatch, commitImportBatch } from '../../api-server/src/domain/
 import { previewImportCorrection, proposeImportCorrection } from '../../api-server/src/domain/import-corrections';
 import type { DomainState } from '../../api-server/src/domain/types';
 
-const context = vi.hoisted(() => ({ merchantId: 'work-ui', actor: 'Clerk:alice', role: 'Operations' }));
-vi.mock('@/lib/workspace-context', () => ({ useWorkspace: () => ({ merchantId: context.merchantId, workspace: { actor: context.actor, role: context.role } }) }));
+const context = vi.hoisted(() => ({ merchantId: 'work-ui', actor: 'Clerk:alice', role: 'Operations', accessMode: undefined as string | undefined }));
+vi.mock('@/lib/workspace-context', () => ({ useWorkspace: () => ({ merchantId: context.merchantId, workspace: { actor: context.actor, role: context.role, accessMode: context.accessMode } }) }));
 const people = [{ actor: 'Clerk:alice', name: 'Alice', role: 'Operations' }, { actor: 'Clerk:bob', name: 'Bob', role: 'Finance' }, { actor: 'Clerk:admin', name: 'Administrator', role: 'Admin' }];
 const now = '2026-09-25T10:00:00.000Z';
 let state: DomainState, originalFetch: typeof fetch;
@@ -26,7 +26,7 @@ function assigned(actor: string, name: string, handover = false) {
 }
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 beforeEach(() => {
-  context.merchantId = 'work-ui'; context.actor = 'Clerk:alice'; context.role = 'Operations';
+  context.merchantId = 'work-ui'; context.actor = 'Clerk:alice'; context.role = 'Operations'; context.accessMode = undefined;
   state = seedMerchant(context.merchantId, true); requests = []; receipts = new Map(); responseMode = 'normal';
   originalFetch = globalThis.fetch;
   globalThis.fetch = async (input, options) => {
@@ -190,6 +190,18 @@ it('shows administrators a scoped team workload without another person’s ackno
   expect(screen.getByRole('heading', { name: 'Bob case' })).toBeTruthy();
   expect(screen.queryByRole('button', { name: 'Acknowledge handover' })).toBeNull();
   expect(screen.queryByRole('button', { name: 'Mark as read' })).toBeNull();
+});
+
+it('says who can mark work as read or acknowledge a handover, in the refusal pattern, to someone who cannot', async () => {
+  const rule = 'Only Admin, Operations, Finance or Compliance reviewer can mark notifications as read or acknowledge handovers, and only with access to this lender.';
+  context.actor = 'Clerk:reader'; context.role = 'Read-only';
+  mount();
+  expect(await screen.findByText(`${rule} Your role is Read-only. Change your demo role in Settings.`)).toBeTruthy();
+  cleanup();
+  // A staff member in a work role who is not on this lender's list: their role is not a demo role, so an Admin checks their access.
+  context.actor = 'Clerk:carol'; context.role = 'Operations'; context.accessMode = 'staff';
+  mount();
+  expect(await screen.findByText(`${rule} Your role is Operations. Ask an Admin to check your access in Team and access.`)).toBeTruthy();
 });
 
 it('keeps keyboard focus off the page body while the next page of work loads, then moves it to the list', async () => {

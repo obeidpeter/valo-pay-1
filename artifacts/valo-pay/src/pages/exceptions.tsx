@@ -20,7 +20,7 @@ import { RecordPagination, usePageProblemFocus } from '@/components/record-pagin
 import { ExceptionContext, exceptionStatus, providerIdentityErrors, resolutionChoices, resolutionLabel, useHeldBatchIdentities } from '@/components/exception-context';
 import { useHashTarget } from '@/lib/use-hash-target';
 import { useFocusWhenLost } from '@/lib/focus';
-import { permissionReason } from '@/lib/permissions';
+import { onlyRoles, permissionReason } from '@/lib/permissions';
 
 const exceptionViews = ['open', 'high', 'overdue', 'due-today', 'resolved'] as const;
 
@@ -98,7 +98,7 @@ export default function ExceptionsPage() {
       </header>
 
       <QueueFreshness key={merchantId} queries={[exceptionsQuery]} />
-      {workspace?.role === 'Compliance reviewer' && <p className="text-sm text-muted-foreground">You can view exceptions and work on their cases. Only Admin, Operations and Finance team members can edit or resolve exceptions.</p>}
+      {workspace?.role === 'Compliance reviewer' && <p className="text-sm text-muted-foreground">You can view exceptions and work on their cases. {onlyRoles(['Admin', 'Operations', 'Finance'], 'edit or resolve an exception')}</p>}
 
       {resolved && <section ref={resolvedRef} role="status" aria-label="Resolution recorded" className="rounded-lg border border-success/30 bg-success/5 p-4 text-sm">
         <p className="font-semibold">{resolved.what} resolved</p>

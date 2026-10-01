@@ -152,17 +152,26 @@ it("read-only staff can inspect the journey but cannot save imports or claim cas
       })) as HTMLButtonElement
     ).disabled,
   ).toBe(true);
+  // Under a disabled button, only who can do it: the bar above the page shows the role.
+  expect(
+    screen.getByText(
+      "Only Admin, Operations or Finance can import batches. Only Admin or Operations can import mandates or collection attempts.",
+    ),
+  ).toBeTruthy();
   cleanup();
   renderApp(
     `/cases/${api.state().records.find((r) => r.kind === "exceptions")!.id}`,
   );
+  const claim = (await screen.findByRole("button", {
+    name: "Claim and save next step",
+  })) as HTMLButtonElement;
+  expect(claim.disabled).toBe(true);
   expect(
-    (
-      (await screen.findByRole("button", {
-        name: "Claim and save next step",
-      })) as HTMLButtonElement
-    ).disabled,
-  ).toBe(true);
+    document.getElementById(claim.getAttribute("aria-describedby")!)!
+      .textContent,
+  ).toBe(
+    "Only Admin, Operations, Finance or Compliance reviewer can change a case.",
+  );
 });
 
 it("identifies demo access honestly and does not offer working staff invitation controls", async () => {

@@ -191,6 +191,14 @@ it("prepares an exact close snapshot and prevents approving it by switching demo
   expect(JSON.stringify(api.state().records.find(record => record.id === review.id)!.data.snapshot)).toBe(snapshot);
 });
 
+it("says who can prepare a close under its disabled form, in the service's words", async () => {
+  twoCloses();
+  api.role = "Read-only";
+  renderApp("/close-review");
+  expect(await screen.findByText("Only Admin, Operations or Finance can prepare a close for review.")).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Submit for Finance review" }).closest("fieldset")?.disabled).toBe(true);
+});
+
 it("requires an independent reviewer acknowledgement and preserves the recorded snapshot", async () => {
   emptyClose(); const user = userEvent.setup(); renderApp("/close-review");
   await user.selectOptions(await screen.findByLabelText("Finance reviewer"), "Sandbox Finance");

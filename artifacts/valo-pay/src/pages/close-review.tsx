@@ -12,6 +12,7 @@ import { formatCount, formatDate, formatNumber } from "@/lib/formatters";
 import { ExportJobControl } from "@/components/export-job-control";
 import { SourceCompletenessPanel } from "@/components/source-manifest-editor";
 import { CloseStatement } from "@/components/close-statement";
+import { onlyRoles } from "@/lib/permissions";
 
 export default function CloseReviewPage() {
   const { merchantId } = useWorkspace(), [params, setParams] = useSearchParams();
@@ -73,11 +74,13 @@ function CloseWork({ item, data, refresh }: { item: any; data: any; refresh(): P
   </div>;
 }
 
+/** The roles the service lets prepare a close for review (prepareCloseReview). */
+const preparers = ["Admin", "Operations", "Finance"];
 function PrepareForm({ item, reviewers }: { item: any; reviewers: any[] }) {
   const { workspace } = useWorkspace(), [reviewer, setReviewer] = useState(""), [note, setNote] = useState(""), [acceptance, setAcceptance] = useState(""), [explanations, setExplanations] = useState<Record<string, string>>({});
   const mutation = usePilotMutation(() => { setReviewer(""); setNote(""); setAcceptance(""); setExplanations({}); });
   useUnsavedChanges(Boolean(reviewer || note || acceptance || Object.values(explanations).some(Boolean)));
-  const permitted = ["Admin", "Operations", "Finance"].includes(workspace?.role || ""), busy = mutation.isPending || mutation.hasUnconfirmedOutcome;
+  const permitted = preparers.includes(workspace?.role || ""), busy = mutation.isPending || mutation.hasUnconfirmedOutcome;
   return <PilotPanel title="Prepare for Finance review"><p className="text-sm text-muted-foreground">Explain each difference and choose who will review your work. Approval records that the reviewer accepts this evidence. It does not resolve exceptions or move money.</p>
     <form className="space-y-4" onSubmit={event => { event.preventDefault(); mutation.mutate({ path: "/pilot/close-reviews/prepare", data: { closeId: item.close.id, expectedUpdatedAt: item.close.updatedAt, reviewer, preparationNote: note, discrepancyResponses: item.issues.map((issue: any) => ({ issueId: issue.id, explanation: explanations[issue.id] || "" })), unresolvedAcceptance: acceptance } }); }}>
       <fieldset disabled={busy || !permitted} className="space-y-4">
@@ -88,7 +91,7 @@ function PrepareForm({ item, reviewers }: { item: any; reviewers: any[] }) {
         <Button type="submit" busy={mutation.isPending}><FileCheck2 aria-hidden="true" className="mr-2 h-4 w-4" />Submit for Finance review</Button>
       </fieldset>
     </form>
-    {!permitted && <p className="text-sm text-muted-foreground">Only Admin, Operations and Finance team members can prepare this close. Your role is {workspace?.role || "not known"}.{workspace?.accessMode !== "staff" ? " Change your demo role in Settings." : ""}</p>}<RecoveryNotice mutation={mutation} />
+    {!permitted && <p className="text-sm text-muted-foreground">{onlyRoles(preparers, "prepare a close for review", { brief: true })}</p>}<RecoveryNotice mutation={mutation} />
   </PilotPanel>;
 }
 function DecisionForm({ review }: { review: any }) {

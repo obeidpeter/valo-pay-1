@@ -19,6 +19,7 @@ import { exceptionStatus } from "@/components/exception-context";
 import { recordKindName } from "@/lib/record-kinds";
 import { LookedFor } from "@/components/notice";
 import { NotFoundNotice } from "@/pages/not-found";
+import { onlyRoles } from "@/lib/permissions";
 
 const watInput = (iso: string) =>
   new Date(Date.parse(iso) + 3600000).toISOString().slice(0, 16);
@@ -31,12 +32,11 @@ function caseLock(
   actor: string,
   record: any,
   assignees: Assignee[],
-  sandbox: boolean,
 ): string {
   const holder = record.data.case?.assignee as string | undefined;
   const holderName = record.data.case?.assigneeName || holder;
   if (!caseRoles.includes(role || ""))
-    return `Only Admin, Operations, Finance and Compliance reviewer team members can change a case. Your role is ${role || "not known yet"}.${sandbox ? " Change your demo role in Settings." : ""}`;
+    return onlyRoles(caseRoles, "change a case", { brief: true });
   if (["closed", "resolved"].includes(record.status))
     return `This exception is ${record.status === "closed" ? "closed" : "resolved"}. Its case keeps its history and cannot be handed over.`;
   if (!holder && !assignees.some((person) => person.actor === actor))
@@ -156,7 +156,7 @@ function CaseWork({ data, refresh }: { data: any; refresh(): Promise<any> }) {
   const holder = record.data.case?.assignee as string | undefined;
   const holderName = record.data.case?.assigneeName || holder;
   // The service refuses a change from anyone but the assignee or an Admin, and gives a case only to someone on the lender's list.
-  const locked = caseLock(workspace?.role, workspace?.actor || "", record, assignees, workspace?.accessMode !== "staff");
+  const locked = caseLock(workspace?.role, workspace?.actor || "", record, assignees);
   const denied = Boolean(locked);
   const formerHolder = Boolean(holder) && !assignees.some((person) => person.actor === holder);
   const mustHandOver = formerHolder && assignee === holder;

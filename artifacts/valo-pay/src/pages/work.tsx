@@ -7,6 +7,7 @@ import { useWorkspace } from '@/lib/workspace-context';
 import { submissionIdentity, useSafeMutation } from '@/lib/safe-mutations';
 import { useUnsavedChanges } from '@/lib/unsaved-changes';
 import { lenderPath, pilotRequest } from '@/lib/pilot';
+import { onlyRoles } from '@/lib/permissions';
 import { INCOMPLETE_CONFIRMATION } from '@/lib/answers';
 import { formatCount, formatDate, formatNumber } from '@/lib/formatters';
 import { useDialogFocusReturn, useFocusWhenLost } from '@/lib/focus';
@@ -16,6 +17,8 @@ import { PageButtons } from '@/components/record-pagination';
 import { keepRowsWhilePaging } from '@/lib/use-record-pagination';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
+/** The roles the service lets mark work as read or acknowledge a handover, with access to the lender (personal-work's eligible). */
+const workRoles = ['Admin', 'Operations', 'Finance', 'Compliance reviewer'];
 const filterLabels = { all: 'All work', overdue: 'Overdue follow-ups', handover: 'Handovers to acknowledge', review: 'Reviews waiting', unread: 'Unread notifications' } as const;
 type ReceiptVariables = { action: 'read' | 'acknowledge'; data: WorkReceiptInput };
 function receiptInput(item: PersonalWorkItem): WorkReceiptInput { return { sourceId: item.sourceId, eventId: item.eventId, expectedUpdatedAt: item.sourceVersion, expectedDigest: item.sourceDigest }; }
@@ -76,7 +79,7 @@ function WorkQueue() {
     <RecoveryNotice mutation={mutation} />
     {feedback && <p ref={feedbackRef} role="status" tabIndex={-1} className="rounded-lg border border-success-border bg-success/10 p-4 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">{feedback}</p>}
     {data && <>
-      {!data.canWork && <p role="status" className="rounded-lg border bg-secondary/20 p-4 text-sm">You cannot mark notifications as read or acknowledge handovers for this lender. Only Admin, Operations, Finance and Compliance reviewer team members with access to this lender can. {workspace?.accessMode === 'staff' ? 'Ask an Admin to check your access in Team and access.' : 'Change your demo role in Settings.'}</p>}
+      {!data.canWork && <p role="status" className="rounded-lg border bg-secondary/20 p-4 text-sm">{onlyRoles(workRoles, 'mark notifications as read or acknowledge handovers, and only with access to this lender', { role: workspace?.role, accessMode: workspace?.accessMode })}{workspace?.accessMode === 'staff' ? ' Ask an Admin to check your access in Team and access.' : ''}</p>}
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="space-y-2 text-sm font-medium">Work queue<select className={pilotField} value={scope} disabled={locked || !data.canViewTeam} onChange={event => { setScope(event.target.value as typeof scope); setOffset(0); }}><option value="mine">Assigned to me</option>{data.canViewTeam && <option value="team">Team workload for this lender</option>}</select></label>
         <label className="space-y-2 text-sm font-medium">Show<select className={pilotField} value={filter} disabled={locked} onChange={event => changeFilter(event.target.value as PersonalWorkQuery['filter'])}>{Object.entries(filterLabels).map(([value, label]) => <option key={value} value={value}>{label} ({formatNumber(data.counts[value as keyof typeof filterLabels])})</option>)}</select></label>

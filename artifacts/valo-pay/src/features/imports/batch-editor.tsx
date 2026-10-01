@@ -5,6 +5,7 @@ import { PilotError, PilotPanel, RecoveryNotice } from "@/components/pilot-ui";
 import { Button } from "@/components/ui/button";
 import { useDialogFocusReturn } from "@/lib/focus";
 import { formatDate } from "@/lib/formatters";
+import { onlyRoles } from "@/lib/permissions";
 import { consoleSourcesViewSchema, type SourceProfile } from "@/lib/source-models";
 import {
   lenderPath,
@@ -30,6 +31,9 @@ import {
   type ExpectedSourceFile,
   type ImportBatch,
 } from "./models";
+
+/** The roles the service lets save or import a batch (pilot-workflow's writer); mandates and collection attempts need Admin or Operations. */
+const importers = ["Admin", "Operations", "Finance"];
 
 export function BatchEditor({
   id,
@@ -208,9 +212,7 @@ export function BatchEditor({
       setLoadingLatest(false);
     }
   };
-  const denied = !["Admin", "Operations", "Finance"].includes(
-    workspace?.role || "",
-  );
+  const denied = !importers.includes(workspace?.role || "");
   const set = <K extends keyof BatchInput>(key: K, value: BatchInput[K]) =>
     setForm((current) => ({
       ...current,
@@ -477,11 +479,8 @@ export function BatchEditor({
         </div>
         {denied && (
           <p className="text-sm text-muted-foreground">
-            Only Admin, Operations or Finance can import batches. Mandates and
-            collection attempts need Admin or Operations. Your role is{" "}
-            {workspace?.role || "not set"}.
-            {workspace?.accessMode !== "staff" &&
-              " Change your demo role in Settings."}
+            {onlyRoles(importers, "import batches", { brief: true })}{" "}
+            {onlyRoles(["Admin", "Operations"], "import mandates or collection attempts", { brief: true })}
           </p>
         )}
       </form>
