@@ -201,7 +201,7 @@ const patch = (record: any, changes: any) => ({ ...record, ...changes, data: { .
   assert.equal(second.data.reviewer, undefined); assert.equal(second.data.rejectionReason, undefined);
   assert.deepEqual(template, approved);
   assert.throws(() => validateRecord(state, admin, 'templates', patch(template, { name: 'Overwrite approved' }), true), /This version is approved, so it cannot be edited/);
-  assert.throws(() => act('new_template_version', reviewer), /Only an Admin can draft a new version of a message template\./);
+  assert.throws(() => act('new_template_version', reviewer), /Only Admin can draft a new version of a message template\./);
   assert.throws(() => act('new_template_version', admin, second.id), /Draft a new version only from an approved message template\./);
   second.status = 'submitted'; second.data.text = originalText + ' {{injected}}';
   assert.throws(() => act('approve_template', reviewer, second.id), /Unknown placeholder \{\{injected\}\}\. Use only \{\{amount\}\}/);

@@ -21,7 +21,7 @@ const statuses: Record<string, readonly string[]> = recordStatuses;
 const UNKNOWN_ROLE = "Valo Pay does not recognise your role. Choose a demo role in Settings, or ask an Admin to check your access.";
 /**
  * The standard's role refusal: who can, the specific reason when there is one, your role, and in the sandbox where
- * to change it. "Only an Admin or Finance team member can record a refund. Your role is Operations. Change your demo role in Settings."
+ * to change it. "Only Admin or Finance can record a refund. Your role is Operations. Change your demo role in Settings."
  */
 export function roleRefusal(ctx: Context, allowed: readonly string[], action: string, because?: string): string {
   return `Only ${rolesText(allowed)} can ${action}${because ? `, because ${because}` : ""}. Your role is ${ctx.role}.${ctx.accessMode === "staff" ? "" : " Change your demo role in Settings."}`;

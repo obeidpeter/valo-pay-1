@@ -151,7 +151,7 @@ checks += 5;
   // The proposer cannot confirm, in another role or under another account of the same person; nor can a role without the right.
   assert.throws(() => confirm(staff('ada', 'Admin')), refusedWith(403, /A different person must confirm these discount dates/));
   assert.throws(() => confirm({ ...staff('ada-second-login', 'Admin'), principalId: 'principal-ada' }), refusedWith(403, /A different person must confirm/));
-  assert.throws(() => confirm(staff('olu', 'Operations')), /Only an Admin or Finance team member can confirm discount dates\./);
+  assert.throws(() => confirm(staff('olu', 'Operations')), /Only Admin or Finance can confirm discount dates\./);
   // The confirmer names what they checked: dates that are not the proposal's are refused, and nothing is recorded.
   assert.throws(() => confirm(staff('bola', 'Admin'), { ...dates, fullPriceStartDate: '2027-12-01' }), refusedWith(409, /The proposed discount dates changed after you opened them\./));
   assert.throws(() => confirm(staff('bola', 'Admin'), { discountStartDate: '2027-01-01' }), (error: unknown) => (error as { issues?: Array<{ path: unknown[] }> }).issues?.some((issue) => issue.path.join('.') === 'data.fullPriceStartDate') === true);
@@ -564,7 +564,7 @@ const firstHalf = ['2027-01', '2027-02', '2027-03', '2027-04', '2027-05', '2027-
   assert.throws(() => invoiceFor(state, "2027-05", wat("2027-07-02T09:00:00")), /Invoices are issued month by month\./);
   assert.throws(() => issueInvoice(state, finance(wat("2027-07-02T09:00:00")), { period: "2027-08" }), /You cannot issue an invoice for a future month\./);
   assert.throws(() => issueInvoice(state, finance(wat("2027-07-02T09:00:00")), { period: "June" }), /YYYY-MM/);
-  assert.throws(() => executeAction(state, ctxAt(wat("2027-07-02T09:00:00"), "Operations"), { action: "issue_invoice", reason: "x", data: { period: "2027-07" } }), /Only an Admin or Finance team member can issue an invoice\./);
+  assert.throws(() => executeAction(state, ctxAt(wat("2027-07-02T09:00:00"), "Operations"), { action: "issue_invoice", reason: "x", data: { period: "2027-07" } }), /Only Admin or Finance can issue an invoice\./);
   assert.throws(() => invoiceFor(state, "2027-07", wat("2027-07-31T23:30:00")), /once the month has ended/, "a month is invoiced only after it has ended");
   checks += 22;
 

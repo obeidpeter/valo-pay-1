@@ -24,8 +24,8 @@ assert.equal(job.status, 'queued'); assert.equal(objects.size, 0); checks += 2;
 // sensitive export (export_sensitive), which Read-only may not have at all, so it is refused in those words.
 const readOnly = { ...ctx, role: 'Read-only' };
 assert.throws(() => queueExport(state, readOnly, { kind: 'mandates', format: 'json' }, '/private/test'), (error: any) => error.status === 403 && /read-only/.test(error.message));
-assert.throws(() => queueExport(state, readOnly, { kind: 'customers', format: 'json' }, '/private/test'), (error: any) => error.status === 403 && /Only an Admin, Finance or Compliance reviewer/.test(error.message));
-assert.throws(() => retryExport(state, readOnly, job.id), (error: any) => error.status === 403 && /Only an Admin, Finance or Compliance reviewer/.test(error.message));
+assert.throws(() => queueExport(state, readOnly, { kind: 'customers', format: 'json' }, '/private/test'), (error: any) => error.status === 403 && /Only Admin, Finance or Compliance reviewer/.test(error.message));
+assert.throws(() => retryExport(state, readOnly, job.id), (error: any) => error.status === 403 && /Only Admin, Finance or Compliance reviewer/.test(error.message));
 assert.equal(state.records.filter(record => record.kind === 'exports').length, 1); checks += 4;
 {
   // Another lender's mandate export: Read-only may download it, and is refused its retry as read-only.

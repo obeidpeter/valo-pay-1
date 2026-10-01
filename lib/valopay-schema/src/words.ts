@@ -90,16 +90,14 @@ export function valueWords(value: unknown): string {
 }
 
 /**
- * Roles in a refusal, exactly as the role chip shows them: "an Admin", "an Admin or Finance team member",
- * "an Admin, Finance or Compliance reviewer". The refusal reads "Only {roles} can {action}."
+ * Roles in a refusal, exactly as the role chip names them and with no article: "Admin", "Admin or Finance",
+ * "Admin, Operations or Finance". The refusal reads "Only {roles} can {action}." A sentence about a person
+ * keeps its article instead ("Ask an Admin").
  */
 export function rolesText(roles: readonly string[]): string {
   const names = [...new Set(roles)];
   if (!names.length) return "no one";
-  const last = names.at(-1)!;
-  const listed = names.length === 1 ? last : `${names.slice(0, -1).join(", ")} or ${last}`;
-  const person = last === "Admin" || last === "Compliance reviewer" ? "" : " team member";
-  return `${/^(Admin|Operations)/.test(names[0]!) ? "an" : "a"} ${listed}${person}`;
+  return names.length === 1 ? names[0]! : `${names.slice(0, -1).join(", ")} or ${names.at(-1)}`;
 }
 
 /**

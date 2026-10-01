@@ -157,7 +157,7 @@ function ofKind(state: DomainState, kind: string) { return state.records.filter(
   const input = { expectedUpdatedAt: review.updatedAt, reviewer: replacement.actor, reason: "The original reviewer is unavailable during leave." };
   const roster = [...reviewers, replacement, { ...ops, role: "Finance" }, { actor: "Sandbox Finance", role: "Finance" }];
   const snapshot = JSON.stringify(review.data.snapshot), digest = review.data.snapshotDigest;
-  assert.throws(() => reassignCloseReview(state, finance, review.id, input, roster), /Only an Admin can reassign a close review/);
+  assert.throws(() => reassignCloseReview(state, finance, review.id, input, roster), /Only Admin can reassign a close review/);
   assert.throws(() => reassignCloseReview(state, admin, "other-lender-review", input, roster), /not found/);
   assert.throws(() => reassignCloseReview(state, admin, review.id, { ...input, expectedUpdatedAt: "2026-09-21T10:00:00.000Z" }, roster), /changed/);
   assert.throws(() => reassignCloseReview(state, admin, review.id, input, reviewers), /active Finance/);

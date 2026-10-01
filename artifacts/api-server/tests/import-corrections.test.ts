@@ -506,7 +506,7 @@ assert.equal(
   assert.match(unavailable.items[0]!.escalationReason!, /no longer available/);
   assert.ok(unavailable.items[0]!.href.includes(`batch=${batch.id}&correction=${proposal.id}`));
   assert.equal(derivePersonalWork(state, replacement, people).total, 0, 'new reviewer cannot see another person’s assignment in their own queue');
-  assert.throws(() => reassignImportCorrection(state, ctx, proposal.id, request, people), /Only an Admin can reassign an import correction\./);
+  assert.throws(() => reassignImportCorrection(state, ctx, proposal.id, request, people), /Only Admin can reassign an import correction\./);
   assert.throws(() => reassignImportCorrection(state, admin, proposal.id, { ...request, reviewer: ctx.actor }, [...people, { actor: ctx.actor, role: 'Finance' }]), /who did not propose it\./);
   assert.throws(() => reassignImportCorrection(state, admin, proposal.id, request, []), /active Finance/);
   assert.throws(() => reassignImportCorrection({ ...state, merchant: { ...state.merchant, id: 'other-lender' } }, admin, proposal.id, request, people), /Import correction not found\. It may have been deleted, or it belongs to another lender\./);

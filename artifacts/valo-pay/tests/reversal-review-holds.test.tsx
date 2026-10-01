@@ -48,7 +48,7 @@ describe('renewed reversal reviews', () => {
   it('offers Resolve to Finance and administrators only, and tells Operations why not', async () => {
     const review = holdFor([]);
     const resolve = (role: string) => serviceSays(role, (state, ctx) => executeAction(state, ctx, { action: 'resolve_exception', recordId: review.id, reason: 'Provider evidence checked for the renewed review.', data: { resolutionCode: 'provider_state_adopted' } }));
-    expect(resolve('Operations')).toBe('Only an Admin or Finance team member can resolve a reversal review. Your role is Operations. Change your demo role in Settings.');
+    expect(resolve('Operations')).toBe('Only Admin or Finance can resolve a reversal review. Your role is Operations. Change your demo role in Settings.');
     api.role = 'Operations';
     renderApp('/exceptions?view=open&type=provider_status_mismatch');
     const row = (await screen.findByText('Earlier decision recorded without a rule version.')).closest('tr')!;

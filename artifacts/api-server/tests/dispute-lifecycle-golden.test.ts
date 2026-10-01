@@ -147,7 +147,7 @@ section("resolving the dispute as not upheld", () => {
 section("Finance releases an instalment from dispute with a reason", () => {
   const { state, due, dispute } = reversedInstalment("finance-release");
   const at = wat("2027-07-04T09:00:00");
-  refused(act(state, operations(at), "release_dispute", due.id, "Operations tries to release it"), /Only an Admin or Finance team member can release an instalment from dispute\./, 403, "Operations cannot release an instalment from dispute");
+  refused(act(state, operations(at), "release_dispute", due.id, "Operations tries to release it"), /Only Admin or Finance can release an instalment from dispute\./, 403, "Operations cannot release an instalment from dispute");
   refused(act(state, finance(at), "release_dispute", due.id, "  "), /reason/, undefined, "a release needs a reason");
   // Before the release, pay-by-bank refuses the instalment.
   refused(connected(state, operations(at), "payment.create", undefined, { dueItemId: due.id, amountKobo: due.amountKobo }), /open instalment/, 400, "pay-by-bank refuses an instalment in dispute");

@@ -129,15 +129,15 @@ try {
   for (const [kind, extra] of [["dispute-pack", { customerId: customer.id }], ["customers", {}], ["audit", {}]] as const) refused(await call(`/v1/exports${lender}`, "idle", "POST", { kind, format: "json", ...extra }), 403, /Only an Admin, Finance or Compliance reviewer can export or download/);
   const pack = ok(await call(`/v1/exports${lender}`, "finance", "POST", { kind: "dispute-pack", format: "pdf", customerId: customer.id }));
   const gatePack = ok(await call(`/v1/exports${lender}`, "idle", "POST", { kind: "gate-pack", format: "pdf" }));
-  refused(await call(`/v1/exports/${pack.id}/download${lender}`, "idle", "GET"), 403, /Only an Admin, Finance or Compliance reviewer/);
-  refused(await call(`/v1/exports/${pack.id}/download${lender}`, "reader", "GET"), 403, /Only an Admin, Finance or Compliance reviewer/);
+  refused(await call(`/v1/exports/${pack.id}/download${lender}`, "idle", "GET"), 403, /Only Admin, Finance or Compliance reviewer/);
+  refused(await call(`/v1/exports/${pack.id}/download${lender}`, "reader", "GET"), 403, /Only Admin, Finance or Compliance reviewer/);
   // Finance passes the check and is told the file is not ready yet; a Read-only person may still download other exports.
   assert.equal((await call(`/v1/exports/${pack.id}/download${lender}`, "finance", "GET")).status, 409); checks += 1;
   assert.equal((await call(`/v1/exports/${gatePack.id}/download${lender}`, "reader", "GET")).status, 409); checks += 1;
   // Status reads stay open: the job's progress is not its contents.
   assert.equal(ok(await call(`/v1/exports/${pack.id}${lender}`, "idle", "GET")).id, pack.id); checks += 1;
   await pool.query("UPDATE valopay_records SET status='failed',data=data||'{\"lastError\":\"Synthetic failure.\"}'::jsonb WHERE id=$1 AND merchant_id=$2", [pack.id, first.id]);
-  refused(await call(`/v1/exports/${pack.id}/retry${lender}`, "idle", "POST", {}), 403, /Only an Admin, Finance or Compliance reviewer/);
+  refused(await call(`/v1/exports/${pack.id}/retry${lender}`, "idle", "POST", {}), 403, /Only Admin, Finance or Compliance reviewer/);
 
   // ---- 3. The emergency stop: on at once; off only with a second administrator ----
   ok(await call(`/v1/actions${lender}`, "adminA", "POST", { action: "kill_switch", reason: "Suspected duplicate debit instructions.", data: { enabled: true } }));
@@ -175,7 +175,7 @@ try {
   const before = Date.now();
   const review = ok(await call(`/v1/records/reviews${lender}`, "finance", "POST", { name: "Fortnightly review", data: { confirmedJobs: ["mandates", "retries", "reconciliation", "audit"], note: "Checked the four tasks." } }));
   assert.equal(review.data.reviewer, `Clerk:${people.finance}`); assert.ok(Math.abs(Date.parse(review.data.reviewedAt) - before) < 60_000); checks += 2;
-  refused(await call(`/v1/records/calendar${lender}`, "finance", "POST", { name: "Public holiday", status: "active", data: { date: "2027-12-24" } }), 403, /Only an Admin or Operations team member can add or edit calendar days\./);
+  refused(await call(`/v1/records/calendar${lender}`, "finance", "POST", { name: "Public holiday", status: "active", data: { date: "2027-12-24" } }), 403, /Only Admin or Operations can add or edit calendar days\./);
   assert.equal(ok(await call(`/v1/records/calendar${lender}`, "idle", "POST", { name: "Public holiday", status: "active", data: { date: "2027-12-24" } })).data.date, "2027-12-24"); checks += 1;
   console.log(`Staff governance API/PostgreSQL checks passed (${checks} checks): second-administrator approval of Admin, Finance and Compliance reviewer grants (invitations, role changes and reactivations, with the operator's second administrator), directory scoping, sensitive exports, the emergency stop, retention approval and minimums, reviewer-bound reviews and the calendar's roles.`);
 } finally {
