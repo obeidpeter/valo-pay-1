@@ -19,7 +19,7 @@ export const historyKind = {
   payments: "payments",
 } as const;
 export const positionNote =
-  "Calculated from instalments and payment records. Valo Pay does not hold these funds.";
+  "Calculated from instalments and payments. Valo Pay never holds money.";
 
 /** Reference for synthetic tests. Production applies the same page boundaries in SQL. */
 export function pageCustomerHistory(

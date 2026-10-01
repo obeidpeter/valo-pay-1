@@ -159,7 +159,7 @@ export default function CustomerTimelinePage() {
                   {otherCredit.map(({ code, money, counted }) => <li key={code}><span className="whitespace-nowrap font-mono font-semibold">{money}</span> <span className="ml-1 whitespace-nowrap text-muted-foreground">({counted})</span></li>)}
                 </ul>
               </div>}
-              <p className="text-[11px] text-muted-foreground">{String(position?.note || 'Calculated from instalments and recorded payments. Valo Pay never holds money.')}</p>
+              <p className="text-[11px] text-muted-foreground">{String(position?.note || 'Calculated from instalments and payments. Valo Pay never holds money.')}</p>
             </div>
           </div>
         </div>
