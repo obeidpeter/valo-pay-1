@@ -26,8 +26,8 @@ describe("workspace", () => {
     const alert = await screen.findByRole("alert");
     expect(within(alert).getByRole("heading", { level: 1, name: "Please wait before trying again" })).toBeTruthy();
     expect(within(alert).getByText("Too many new sandboxes from this address; please try again in an hour.")).toBeTruthy();
-    // It claims nothing about what changed: a change saved just before is checked in Operations.
-    expect(within(alert).getByText("If you had just saved a change, check Operations once your workspace opens, before you send it again.")).toBeTruthy();
+    // It claims nothing about what changed: a change saved just before is checked in Request history.
+    expect(within(alert).getByText("If you had just saved a change, check Request history once your workspace opens, before you send it again.")).toBeTruthy();
     expect(screen.queryByText(/No lender data has been changed/)).toBeNull();
     // The console is not shown without a workspace; the frame offers the start, twice, and the page says so in its title.
     expect(screen.queryByRole("link", { name: /Audit log/ })).toBeNull();
@@ -43,15 +43,15 @@ describe("workspace", () => {
   it("says when the service could not be reached at all", async () => {
     api.failNext(workspace, "offline");
     renderApp("/overview");
-    expect(await screen.findByRole("heading", { level: 1, name: "Could not connect to Valo Pay" })).toBeTruthy();
-    expect(screen.getByText("Check your connection and try again.")).toBeTruthy();
+    expect(await screen.findByRole("heading", { level: 1, name: "We could not load your workspace" })).toBeTruthy();
+    expect(screen.getByText("Valo Pay could not be reached. Check your connection and try again.")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy();
   });
 
   it("keeps a service error's internals to itself and gives the time for a report", async () => {
     api.failNext(workspace, { status: 500, error: "relation \"valopay_workspaces\" does not exist" });
     renderApp("/overview");
-    expect(await screen.findByRole("heading", { level: 1, name: "Your workspace is temporarily unavailable" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { level: 1, name: "We could not load your workspace" })).toBeTruthy();
     expect(screen.getByText(/When reporting the problem, include this time and support reference:/)).toBeTruthy();
     expect(screen.getByText(/^fake-[0-9a-f]{4}$/)).toBeTruthy();
     expect(screen.queryByText(/valopay_workspaces/)).toBeNull();
@@ -65,7 +65,7 @@ async function refreshWorkspace() {
 const refreshNotice = () => (screen.queryByText("Your workspace could not be refreshed.")?.closest('[role="status"]') ?? null) as HTMLElement | null;
 
 describe("a failed background refresh of the workspace", () => {
-  it("keeps the page and an open draft, says the workspace could not be refreshed and points to Operations", async () => {
+  it("keeps the page and an open draft, says the workspace could not be refreshed and points to Request history", async () => {
     const user = userEvent.setup();
     renderApp("/customers");
     await screen.findByText("Ada Okonkwo");
@@ -75,12 +75,12 @@ describe("a failed background refresh of the workspace", () => {
     api.failNext(workspace, "offline");
     await refreshWorkspace();
     const notice = await waitFor(() => { const found = refreshNotice(); expect(found).toBeTruthy(); return found!; });
-    expect(notice.textContent).toMatch(/The service could not be reached\. Showing the workspace loaded \d{1,2} \w{3,4} \d{4}, \d{2}:\d{2} WAT\./);
-    expect(within(notice).getByRole("link", { name: "Operations" }).getAttribute("href")).toBe("/operations");
+    expect(notice.textContent).toMatch(/Valo Pay could not be reached\. Showing the workspace loaded \d{1,2} \w{3,4} \d{4}, \d{2}:\d{2} WAT\./);
+    expect(within(notice).getByRole("link", { name: "Request history" }).getAttribute("href")).toBe("/operations");
     // The dialog and its draft are the same elements as before the refresh.
     expect(screen.getByRole("dialog")).toBe(dialog);
     expect((within(dialog).getByLabelText(/^Full name/) as HTMLInputElement).value).toBe("Draft customer");
-    expect(screen.queryByRole("heading", { name: "Could not connect to Valo Pay" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "We could not load your workspace" })).toBeNull();
     expect(screen.queryByText(/No lender data has been changed/)).toBeNull();
     // The dialog is modal, so the notice's Try again waits behind it; the next automatic refresh clears the notice.
     await refreshWorkspace();
@@ -100,14 +100,14 @@ describe("a failed background refresh of the workspace", () => {
     await user.type(within(dialog).getByLabelText(/^Consent source or reference/), "Synthetic signed form LOST-1");
     api.failNext(/^\/v1\/records\/customers$/, "offline", "POST");
     await user.click(within(dialog).getByRole("button", { name: "Add customer" }));
-    await within(dialog).findByText("Outcome not confirmed");
+    await within(dialog).findByText("Request not confirmed");
     api.failNext(workspace, { status: 502, error: "Bad gateway" });
     await refreshWorkspace();
     await waitFor(() => expect(refreshNotice()).toBeTruthy());
-    expect(refreshNotice()!.textContent).toMatch(/The service could not answer\. Support reference: fake-\w+\./);
+    expect(refreshNotice()!.textContent).toMatch(/Valo Pay could not answer\. Support reference: fake-\w+\./);
     expect(screen.getByRole("dialog")).toBe(dialog);
-    expect(within(dialog).getByText("Outcome not confirmed")).toBeTruthy();
-    expect(within(dialog).getByRole("button", { name: "Retry same request" })).toBeTruthy();
+    expect(within(dialog).getByText("Request not confirmed")).toBeTruthy();
+    expect(within(dialog).getByRole("button", { name: "Check original request" })).toBeTruthy();
   });
 
   it("passes on a 429's own words, says when the next automatic refresh is, and tries again on request", async () => {
@@ -118,7 +118,7 @@ describe("a failed background refresh of the workspace", () => {
     await refreshWorkspace();
     await waitFor(() => expect(refreshNotice()).toBeTruthy());
     expect(refreshNotice()!.textContent).toContain("Request limit reached. Please try again in one minute.");
-    expect(refreshNotice()!.textContent).toMatch(/As the service asked, the next automatic refresh is after \d{1,2} \w{3,4} \d{4}, \d{2}:\d{2} WAT\./);
+    expect(refreshNotice()!.textContent).toMatch(/The next automatic refresh is after \d{1,2} \w{3,4} \d{4}, \d{2}:\d{2} WAT\./);
     expect(screen.getByRole("heading", { name: "Overview" })).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Please wait before trying again" })).toBeNull();
     await user.click(within(refreshNotice()!).getByRole("button", { name: "Try again" }));

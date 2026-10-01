@@ -161,7 +161,7 @@ describe('external refunds', () => {
     // Reversed money went back, so it waits for no one and is not in Finance's queue, even with the status an earlier build left.
     expect(within(payments).queryByText('SBX-REVERSED')).toBeNull();
     const reversed = api.state().records.find(record => record.reference === 'SBX-REVERSED')!;
-    expect(permissionReason({ role: 'Finance', actor: 'Sandbox Finance' }, { action: 'record_refund', record: reversed })).toBe('The provider reversed this payment, so its money already went back.');
+    expect(permissionReason({ role: 'Finance', actor: 'Sandbox Finance' }, { action: 'record_refund', record: reversed })).toBe('The provider reversed this payment, so its money has already gone back. There is nothing to refund.');
     await user.click(refunded);
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(api.calls.some(call => call.method === 'POST')).toBe(false);
@@ -491,7 +491,7 @@ describe('settlement batch edits', () => {
     await user.type(within(dialog).getByLabelText(/^Fee/), '5');
     await user.type(within(dialog).getByLabelText(/^Amount after fees/), '995');
     await user.click(within(dialog).getByRole('button', { name: 'Add settlement batch' }));
-    expect(await within(dialog).findByText('Enter an ISO 4217 currency code with a minor unit, such as NGN or USD.')).toBeTruthy();
+    expect(await within(dialog).findByText('Enter a currency code Valo Pay knows, such as NGN or USD.')).toBeTruthy();
     // In yen the amounts are whole: the field names the currency and refuses a decimal.
     await user.clear(currency);
     await user.type(currency, 'jpy');

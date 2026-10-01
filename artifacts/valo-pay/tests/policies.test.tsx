@@ -12,13 +12,13 @@ describe('policy and template review', () => {
     api.failNext(/^\/v1\/records\/templates$/, { status: 503, error: 'Templates temporarily unavailable.' });
     const user = userEvent.setup();
     renderApp('/policies');
-    const policyAlert = (await screen.findByText('Unable to load retry policies')).closest('[role="alert"]')!;
-    const templateAlert = (await screen.findByText('Unable to load message templates')).closest('[role="alert"]')!;
+    const policyAlert = (await screen.findByText('We could not load retry policies')).closest('[role="alert"]')!;
+    const templateAlert = (await screen.findByText('We could not load message templates')).closest('[role="alert"]')!;
     expect(screen.queryByText('No retry policies yet')).toBeNull();
     expect(screen.queryByText('No message templates yet')).toBeNull();
     await user.click(within(policyAlert as HTMLElement).getByRole('button', { name: 'Try again' }));
     await screen.findByText('Standard lender retry policy · version 1');
-    expect(screen.getByText('Unable to load message templates')).toBeTruthy();
+    expect(screen.getByText('We could not load message templates')).toBeTruthy();
     await user.click(within(templateAlert as HTMLElement).getByRole('button', { name: 'Try again' }));
     await screen.findByText(/Example Lender: Your payment of ₦25,000.00/);
   });

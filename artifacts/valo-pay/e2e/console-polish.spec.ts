@@ -82,7 +82,7 @@ test("a decision on Team and access moves focus to what it did, and a staff admi
   });
   await page.goto("/team");
   // Administrator A's access ends within 14 days: the warning's code loads for a staff administrator.
-  await expect(page.getByRole("status", { name: "Administrator access" })).toContainText("Your administrator access ends on");
+  await expect(page.getByRole("status", { name: "Administrator access" })).toContainText("Your Admin access ends on");
   const panel = page.locator("section").filter({ has: page.getByRole("heading", { name: "Waiting for a second Admin" }) });
   for (const [name, said] of [["Approve invitation", /^Invitation approved/], ["Approve change", /^Change approved: Chidi Ops/], ["Reject change", /^Change request declined/]] as const) {
     const count = await panel.getByRole("button", { name }).count();
@@ -149,10 +149,10 @@ test("loading and error states keep an h1", async ({ page }) => {
   // A page whose first load failed, with nothing to show.
   for (const [route, api, problem] of [
     ["/overview", "**/api/v1/overview?*", "We could not load the overview"],
-    ["/pay-by-bank", "**/api/v1/connected?*", "Unable to load Pay by Bank"],
-    ["/credit-desk", "**/api/v1/connected?*", "Unable to load Credit Desk"],
-    ["/cash-desk", "**/api/v1/connected?*", "Unable to load Cash Desk"],
-    ["/connections", "**/api/v1/connected?*", "Unable to load Permissions and readiness"],
+    ["/pay-by-bank", "**/api/v1/connected?*", "We could not load Pay by Bank"],
+    ["/credit-desk", "**/api/v1/connected?*", "We could not load Credit Desk"],
+    ["/cash-desk", "**/api/v1/connected?*", "We could not load Cash Desk"],
+    ["/connections", "**/api/v1/connected?*", "We could not load Permissions and readiness"],
   ] as const) {
     await page.route(api, (request) => request.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ error: "Lender not found in this workspace.", requestId: "browser-missing" }) }));
     await page.goto(route);
@@ -201,7 +201,7 @@ test("the landing page and the anonymous sandbox carry no shared schemas, zod or
   const scripts = new Set<string>();
   page.on("request", (sent) => { if (sent.resourceType() === "script" || sent.url().endsWith(".js")) scripts.add(sent.url()); });
   // Text the minifier keeps: zod's type names, a message of the shared record schemas and the warning's heading.
-  const signatures = { zod: /ZodObject/, "shared schemas": /Use YYYY-MM-DD or a UTC timestamp/, "administrator warning": /Administrator access is ending/ };
+  const signatures = { zod: /ZodObject/, "shared schemas": /Use YYYY-MM-DD or a UTC timestamp/, "administrator warning": /Admin access is ending/ };
   const entryCarries = async (route: string) => {
     const entry = await page.locator('script[type="module"][src]').getAttribute("src");
     const code = await (await request.get(entry!)).text();
@@ -443,7 +443,7 @@ const badGateway = { status: 502, contentType: "text/html", body: "<html>Bad gat
 async function tryAgainKeepsFocus(page: Page, scope: Page | Locator, label: string, answer: { failing: boolean }) {
   await scope.getByRole("button", { name: `Next page of ${label}` }).focus();
   await page.keyboard.press("Enter");
-  const retry = scope.getByRole("alert").filter({ hasText: `Unable to load ${label}` }).getByRole("button", { name: "Try again" });
+  const retry = scope.getByRole("alert").filter({ hasText: `We could not load ${label}` }).getByRole("button", { name: "Try again" });
   await expect(retry).toBeFocused({ timeout: 15_000 });
   await page.keyboard.press("Enter");
   await expect(retry).toHaveCount(0);
@@ -509,7 +509,7 @@ for (const how of ["refused", "lost"] as const) test(`a ${how} Save lender acces
   // the disabled button is made to do the same, so every browser checks where it goes from there.
   await expect(save).toBeDisabled();
   await page.evaluate(() => { const active = document.activeElement as HTMLElement | null; if (active?.matches(":disabled")) active.blur(); });
-  const notice = card.getByRole("alert").filter({ hasText: how === "refused" ? "This membership changed after you opened it." : "Outcome not confirmed" }).first();
+  const notice = card.getByRole("alert").filter({ hasText: how === "refused" ? "This membership changed after you opened it." : "Request not confirmed" }).first();
   await expect(notice).toBeVisible();
   await expect(notice).toBeFocused();
 });

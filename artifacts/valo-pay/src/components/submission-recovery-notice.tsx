@@ -13,12 +13,13 @@ import { Button } from './ui/button';
 export function SubmissionRecoveryNotice() {
   const recovery = useSubmissionRecovery();
   if (!recovery?.entries.length) return null;
-  return <section aria-label="Interrupted requests" className="mb-6 space-y-3 rounded-xl border border-warning-border bg-warning/10 p-4 print:hidden">
-    <h2 className="font-semibold">Check your earlier request before making another change</h2>
-    <p className="text-sm">This page has an interrupted submission from your current account, role and lender. Its form fields were not kept in this browser. Check the server’s original request to avoid submitting it twice.</p>
-    {!recovery.durable && <p role="alert" className="text-sm">Browser storage is unavailable. Keep this page open until the request is settled, or find it in Operations.</p>}
+  // Named by its heading, the standard's title for a request whose answer was lost.
+  return <section aria-labelledby="submission-recovery-title" className="mb-6 space-y-3 rounded-xl border border-warning-border bg-warning/10 p-4 print:hidden">
+    <h2 id="submission-recovery-title" className="font-semibold">{recovery.entries.length === 1 ? 'Request not confirmed' : 'Requests not confirmed'}</h2>
+    <p className="text-sm">We do not know yet whether Valo Pay saved a request you sent from this page, with this account, role and lender. What you typed is not kept in this browser, so reloading the page loses it. Check the original request before you change anything, so you do not send it twice.</p>
+    {!recovery.durable && <p role="alert" className="text-sm">This browser cannot store the request. Keep this page open until you have checked it, or find it in Request history.</p>}
     {recovery.entries.map(entry => <RecoveryRow key={entry.key} entry={entry} />)}
-    <Link href="/operations" className="inline-block text-sm underline">Open your Operations history</Link>
+    <Link href="/operations" className="inline-block text-sm underline">Open Request history</Link>
   </section>;
 }
 
@@ -45,23 +46,23 @@ function RecoveryRow({ entry }: { entry: RememberedSubmission }) {
       await client.invalidateQueries();
     } catch (problem) {
       if (requestClosed(problem) || savedAnswerWithheld(problem)) { await finish(); return; }
-      setError(problem instanceof Error ? problem.message : 'The result could not be confirmed. Keep this request and check again.');
+      setError(problem instanceof Error ? problem.message : 'The result was not confirmed. Keep this request and check again.');
       await query.refetch();
     } finally { setBusy(false); }
   };
   const terminal = operation?.status === 'completed' || operation?.status === 'cancelled';
   const saved = operation?.status === 'completed' && operation.recordId ? recordPage(operation.recordKind, operation.recordId, recovery.merchantId) : null;
   return <article className="space-y-3 rounded-lg border bg-card p-3 text-sm">
-    <p className="font-medium">{operation?.summary?.action || operation?.label || 'Earlier submission'}</p>
-    <p role="status">{query.isLoading ? 'Checking the original request…' : operation ? operation.message : query.data ? 'The service has no received request with this identity yet. It may still arrive; do not submit it again.' : 'The original request could not be checked.'}</p>
-    {(query.error || error) && <p role="alert">{error || (query.error instanceof Error ? query.error.message : 'Check your connection and try again. No new submission has been sent.')}</p>}
+    <p className="font-medium">{operation?.summary?.action || operation?.label || 'Earlier request'}</p>
+    <p role="status">{query.isLoading ? 'Checking the original request…' : operation ? operation.message : query.data ? 'Valo Pay has not received this request yet. It may still arrive, so do not send it again.' : 'The original request could not be checked. Select Check status again.'}</p>
+    {(query.error || error) && <p role="alert">{error || (query.error instanceof Error ? query.error.message : 'Check your connection and try again. No new request has been sent.')}</p>}
     {saved && <Link href={saved} className="inline-block underline">Open saved result</Link>}
     <div className="flex flex-wrap gap-2">
       <Button size="sm" variant="outline" disabled={busy} busy={query.isFetching} busyLabel="Checking…" onClick={() => { void query.refetch(); }}>Check status again</Button>
       {operation?.status === 'pending' && <Button size="sm" disabled={query.isFetching} busy={busy} busyLabel="Checking original request…" onClick={() => { void run(false); }}>Check original request</Button>}
       {!terminal && query.data && <Button size="sm" variant="outline" disabled={busy || query.isFetching} onClick={() => { void run(true); }}>Cancel if unfinished</Button>}
-      {terminal && <Button size="sm" disabled={busy || query.isFetching} onClick={() => { void finish(); }}>I have reviewed the outcome</Button>}
+      {terminal && <Button size="sm" disabled={busy || query.isFetching} onClick={() => { void finish(); }}>Mark as checked</Button>}
     </div>
-    <p className="text-xs text-muted-foreground">Cancellation cannot reverse a saved record. A lost answer keeps this notice until the server confirms the outcome.</p>
+    <p className="text-xs text-muted-foreground">Cancelling cannot undo a record that was already saved. This notice stays until Valo Pay confirms what happened.</p>
   </article>;
 }

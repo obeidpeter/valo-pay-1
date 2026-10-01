@@ -13,8 +13,8 @@ export function LoadProblem({ what, error, retry, busy = false, pager }: { what:
   const again = usePageProblemFocus(notice, pager);
   return (
     <div ref={notice} role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-5 text-sm">
-      <p className="font-semibold">Unable to load {what}</p>
-      <p className="mt-2 text-muted-foreground">{saidBy(error, 'The service could not be reached. Check your connection and try again.')}</p>
+      <p className="font-semibold">We could not load {what}</p>
+      <p className="mt-2 text-muted-foreground">{saidBy(error, 'Valo Pay could not be reached. Check your connection and try again.')}</p>
       <Button variant="outline" size="sm" className="mt-3" onClick={() => { again(); retry(); }} busy={busy} busyLabel="Trying again…">Try again</Button>
     </div>
   );
@@ -36,7 +36,7 @@ export function RefreshProblem({ what, shown = 'figures', query }: { what: strin
   return (
     <div role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-warning-border bg-warning px-4 py-3 text-xs text-warning-foreground">
       <p><span className="font-semibold">{what} could not be refreshed.</span> {updated ? <>Showing {shown} last updated <time dateTime={updated}>{formatDate(updated)}</time>.</> : <>Showing the {shown} loaded earlier.</>}</p>
-      <Button variant="outline" size="sm" busy={Boolean(query.isFetching)} busyLabel="Refreshing…" onClick={() => { void query.refetch?.(); }}>Try again</Button>
+      <Button variant="outline" size="sm" busy={Boolean(query.isFetching)} busyLabel="Trying again…" onClick={() => { void query.refetch?.(); }}>Try again</Button>
     </div>
   );
 }

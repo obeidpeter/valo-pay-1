@@ -20,7 +20,7 @@ describe('permissions before a workflow starts', () => {
     expect(add.hasAttribute('disabled')).toBe(false);
     add.focus(); expect(document.activeElement).toBe(add);
     const reason = document.getElementById(add.getAttribute('aria-describedby')!);
-    expect(reason?.textContent).toBe('Requires Admin, Operations or Finance.');
+    expect(reason?.textContent).toBe('Only Admin, Operations or Finance can add or edit customers.');
     await user.click(add);
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(api.calls.some(call => call.method === 'POST')).toBe(false);
@@ -32,7 +32,7 @@ describe('permissions before a workflow starts', () => {
     api.role = 'Operations'; renderApp('/reconciliation');
     const confirm = await screen.findByRole('button', { name: 'Confirm match' });
     expect(confirm.getAttribute('aria-disabled')).toBe('true');
-    expect(document.getElementById(confirm.getAttribute('aria-describedby')!)?.textContent).toBe('Requires Admin or Finance.');
+    expect(document.getElementById(confirm.getAttribute('aria-describedby')!)?.textContent).toBe('Only Admin or Finance can confirm a match.');
     expect(screen.getByRole('button', { name: 'Run reconciliation' }).getAttribute('aria-disabled')).toBeNull();
     expect(screen.getByRole('button', { name: 'Add settlement batch' }).getAttribute('aria-disabled')).toBe('true');
   });
@@ -93,7 +93,7 @@ describe('customer consent and return context', () => {
     await user.click(await screen.findByRole('link', { name: 'Back to Customers' }));
     await waitFor(() => expect(document.activeElement?.id).toBe(rowId));
     expect((screen.getByRole('textbox', { name: 'Search customers' }) as HTMLInputElement).value).toBe('Search retained');
-    expect((screen.getByRole('combobox', { name: 'customers per page' }) as HTMLSelectElement).value).toBe('50');
+    expect((screen.getByRole('combobox', { name: 'Rows per page of customers' }) as HTMLSelectElement).value).toBe('50');
     expect(screen.getByRole('navigation', { name: 'Pages of customers' }).textContent).toContain('51–80 of 80 customers');
     expect(new URLSearchParams(window.location.search).get('page')).toBe('2');
   });

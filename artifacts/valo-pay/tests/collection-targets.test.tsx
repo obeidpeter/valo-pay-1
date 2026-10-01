@@ -49,7 +49,7 @@ describe('collection targets on customer history', () => {
     const { due, customer, back } = targetDue();
     api.failNext(/^\/v1\/customers\/[^/]+\/history$/, { status: 503, error: 'History temporarily unavailable.' });
     renderApp(recordDestination(`/customers/${customer.id}`, due.id, back, api.merchantIds[0]!));
-    const problem = (await screen.findByText('Unable to load customer history')).closest('[role="alert"]')!;
+    const problem = (await screen.findByText('We could not load customer history')).closest('[role="alert"]')!;
     expect(screen.queryByText('Record not found')).toBeNull();
     await user.click(within(problem as HTMLElement).getByRole('button', { name: 'Try again' }));
     const selected = await screen.findByRole('region', { name: 'Selected collection record' });
@@ -103,7 +103,7 @@ describe('collection targets in reconciliation', () => {
     api.failNext(/^\/v1\/reconciliation\/proposals$/, { status: 503, error: 'Instalments temporarily unavailable.' });
     renderApp(recordDestination('/reconciliation', due.id, back, api.merchantIds[0]!, 'dueItem'));
     const selected = await screen.findByRole('region', { name: 'Selected instalment' });
-    await within(selected).findByText('Unable to load the selected instalment');
+    await within(selected).findByText('We could not load the selected instalment');
     expect(within(selected).queryByText(/Instalment not found/)).toBeNull();
     await user.click(within(selected).getByRole('button', { name: 'Try again' }));
     await within(selected).findByText(due.reference);

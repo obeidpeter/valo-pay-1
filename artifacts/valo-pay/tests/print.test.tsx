@@ -8,19 +8,30 @@ let api: FakeApi;
 beforeEach(() => { api = installFakeApi(); });
 afterEach(() => { api.uninstall(); vi.useRealTimers(); });
 
+/** Serves the fake API's workspace as signed in. */
+function signedIn() {
+  const send = globalThis.fetch;
+  globalThis.fetch = async (input, options) => {
+    const response = await send(input, options);
+    const url = typeof input === "string" ? input : input instanceof Request ? input.url : input.toString();
+    if (new URL(url, "http://localhost").pathname !== "/api/v1/workspace") return response;
+    return new Response(JSON.stringify({ ...(await response.json()), authenticated: true }), { status: 200, headers: { "Content-Type": "application/json" } });
+  };
+}
+
 // jsdom applies no stylesheet, so what these tests pin is the markup the print rules act on: which
 // parts of the console are marked to leave the page, and the provenance the page gains on paper.
 describe("print", () => {
   it("marks the chrome to leave the page and carries the lender and the sandbox notice instead", async () => {
     renderApp("/overview");
     await screen.findByRole("heading", { name: "Overview" });
-    const banner = screen.getByText(/^Sandbox · Sample data\. We never hold money\./).parentElement!;
+    const banner = screen.getByText("Sample data only. Valo Pay never holds money. Live payments and bank connections are switched off.").parentElement!;
     expect(banner.className).toContain("print:hidden");
     expect(screen.getByRole("complementary").className).toContain("print:hidden");
-    expect(screen.getByRole("button", { name: "Menu" }).closest(".sticky")!.className).toContain("print:hidden");
-    const provenance = screen.getByText("Valo Pay · Sample data sandbox").closest("div.print\\:block")!;
+    expect(screen.getByRole("button", { name: "Open menu" }).closest(".sticky")!.className).toContain("print:hidden");
+    const provenance = screen.getByText("Valo Pay · Sandbox").closest("div.print\\:block")!;
     expect(provenance.textContent).toMatch(/Meridian Credit|Cedar Cooperative/);
-    expect(provenance.textContent).toContain("Sample data only. We never hold money. This is not a live payment record");
+    expect(provenance.textContent).toContain("Sample data only. Valo Pay never holds money. This is not a live payment record");
   });
 
   it("says when and from where the page was printed, taking the time again as printing starts", async () => {
@@ -35,6 +46,14 @@ describe("print", () => {
     window.dispatchEvent(new Event("beforeprint"));
     await vi.waitFor(() => expect(screen.getByText(/^Printed /).textContent).not.toBe(before));
     expect(screen.getByText(/^Printed /).textContent).toContain("19 Sept 2026");
+  });
+
+  it("names your workspace on paper once the reader is signed in", async () => {
+    signedIn();
+    renderApp("/overview");
+    await screen.findByRole("heading", { name: "Operations overview" });
+    expect(screen.getByText("Valo Pay · Your workspace")).toBeTruthy();
+    expect(screen.getByText(/^Printed /).textContent).toMatch(/ from your Valo Pay workspace · Overview · (Meridian Credit|Cedar Cooperative)\.$/);
   });
 
   it("keeps the settings page's appearance and keyboard help off the paper, and shows the exceptions filter as words", async () => {

@@ -314,7 +314,7 @@ it("a lost mandate create can be discarded deliberately, which unlocks the dialo
   await user.click(
     within(dialog).getByRole("button", { name: "Discard original request" }),
   );
-  expect(confirm).toHaveBeenCalledWith(expect.stringContaining("Check Operations"));
+  expect(confirm).toHaveBeenCalledWith(expect.stringContaining("check Request history"));
   await waitFor(() => expect(cancel.disabled).toBe(false));
   expect(screen.queryByText("Request not confirmed")).toBeNull();
   // The notice went with its button: focus is on the form's own button again, not on the page or the dialog's top.

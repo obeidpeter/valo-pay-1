@@ -151,7 +151,7 @@ it.each(['lost', 'malformed'] as const)('recovers %s handover responses with the
   expect((within(dialog).getByRole('button', { name: 'Acknowledge handover' }) as HTMLButtonElement).disabled).toBe(true);
   await user.click(within(dialog).getByRole('checkbox'));
   await user.click(within(dialog).getByRole('button', { name: 'Acknowledge handover' }));
-  await within(dialog).findByText('Outcome not confirmed');
+  await within(dialog).findByText('Request not confirmed');
   expect((within(dialog).getByRole('button', { name: 'Cancel' }) as HTMLButtonElement).disabled).toBe(true);
   expect((within(dialog).getByRole('checkbox') as HTMLInputElement).disabled).toBe(true);
   await user.keyboard('{Escape}');

@@ -25,10 +25,10 @@ export function administratorExpiryWarnings(directory: StaffDirectory, now: numb
   const last = active.reduce((latest, member) => (Date.parse(member.expiresAt) > Date.parse(latest.expiresAt) ? member : latest));
   const warnings: string[] = [];
   if (soon(last.expiresAt) && Date.parse(own.expiresAt) >= Date.parse(last.expiresAt)) {
-    return [`Your administrator access ends on ${formatDate(own.expiresAt)}, and no other administrator's lasts longer: after that nobody can invite, change or renew staff. Ask the operator to renew it, or to add another administrator, before then.`];
+    return [`Your Admin access ends on ${formatDate(own.expiresAt)}, and no other Admin’s access lasts longer. After that, nobody can invite, change or renew team members. Before then, ask the Valo Pay team to renew your access or add another Admin.`];
   }
-  if (soon(own.expiresAt)) warnings.push(`Your administrator access ends on ${formatDate(own.expiresAt)}. Ask the operator to renew it before then; it cannot be renewed from the console.`);
-  if (soon(last.expiresAt)) warnings.push(`Every administrator's access ends by ${formatDate(last.expiresAt)}: after that nobody can invite, change or renew staff. Ask the operator to renew an administrator, or to add another, before then.`);
+  if (soon(own.expiresAt)) warnings.push(`Your Admin access ends on ${formatDate(own.expiresAt)}. You cannot renew it yourself. Before then, ask the Valo Pay team to renew it.`);
+  if (soon(last.expiresAt)) warnings.push(`Every Admin’s access ends by ${formatDate(last.expiresAt)}. After that, nobody can invite, change or renew team members. Before then, ask the Valo Pay team to renew an Admin’s access or add another Admin.`);
   return warnings;
 }
 
@@ -50,7 +50,7 @@ export function AdministratorExpiry() {
   if (!warnings.length) return null;
   return (
     <section role="status" aria-label="Administrator access" className="mb-6 space-y-1 rounded-lg border border-warning-border bg-warning/10 p-4 text-sm print:hidden">
-      <h2 className="font-semibold">Administrator access is ending</h2>
+      <h2 className="font-semibold">Admin access is ending</h2>
       {warnings.map((warning) => <p key={warning}>{warning}</p>)}
     </section>
   );

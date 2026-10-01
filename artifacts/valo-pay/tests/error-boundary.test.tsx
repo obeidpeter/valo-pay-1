@@ -84,8 +84,8 @@ describe("error boundary", () => {
     expect(within(notice).getByRole("button", { name: "Try again" })).toBeTruthy();
     expect(within(notice).queryByRole("link", { name: "Back to home" })).toBeNull();
     expect(await screen.findByRole("link", { name: /Audit log/ })).toBeTruthy();
-    expect(screen.getByText("Environment: sandbox")).toBeTruthy();
-    expect(screen.getByText(/Sandbox · Sample data\. We never hold money\./)).toBeTruthy();
+    expect(screen.getByRole("complementary", { name: "Sidebar" }).textContent).toContain("Sandbox");
+    expect(screen.getByText("Sample data only. Valo Pay never holds money. Live payments and bank connections are switched off.")).toBeTruthy();
     await waitFor(() => expect(document.title).toBe("Page error · Valo Pay"));
   });
 });

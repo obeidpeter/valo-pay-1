@@ -28,10 +28,10 @@ describe("settings", () => {
     const user = userEvent.setup();
     api.failNext(/^\/v1\/settings$/, 'offline');
     renderApp('/settings');
-    const error = await screen.findByText('Unable to load collection settings');
+    const error = await screen.findByText('We could not load collection settings');
     await user.click(within(error.closest('[role="alert"]')!).getByRole('button', { name: 'Try again' }));
     expect(await screen.findByText('07:00 WAT')).toBeTruthy();
-    expect(screen.queryByText('Unable to load collection settings')).toBeNull();
+    expect(screen.queryByText('We could not load collection settings')).toBeNull();
   });
 
   it("edits the daily close time, and shows the server's rejection of an invalid one", async () => {
@@ -102,7 +102,7 @@ describe("settings", () => {
     await screen.findByText("07:00 WAT");
     const edit = screen.getByRole("button", { name: "Edit" });
     expect(edit.getAttribute("aria-disabled")).toBe("true");
-    expect(document.getElementById(edit.getAttribute("aria-describedby")!)?.textContent).toBe("Requires Admin.");
+    expect(document.getElementById(edit.getAttribute("aria-describedby")!)?.textContent).toBe("Only Admin can change collection settings.");
     await user.click(edit);
     expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
     expect(api.calls.some(call => call.path === '/v1/settings' && call.method === 'PATCH')).toBe(false);
@@ -135,11 +135,11 @@ describe("settings", () => {
     expect(api.calls.some((call) => call.method === "POST" && call.path === "/v1/actions")).toBe(false);
 
     // The service still requires a reason.
-    await user.click(within(dialog).getByRole("button", { name: "Return collection ownership" }));
-    expect(await within(dialog).findByText("Enter a reason for this action. It will be saved in the audit log.")).toBeTruthy();
+    await user.click(within(dialog).getByRole("button", { name: "Return collection" }));
+    expect(await within(dialog).findByText("Enter a reason. It is saved in the audit log.")).toBeTruthy();
     expect(api.calls.some((call) => call.method === "POST" && call.path === "/v1/actions")).toBe(false);
     await user.type(within(dialog).getByLabelText(/^Reason/), "Lender asked to take collection back");
-    await user.click(within(dialog).getByRole("button", { name: "Return collection ownership" }));
+    await user.click(within(dialog).getByRole("button", { name: "Return collection" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
 
     // The result is announced with the service's own message and counts (a notice is also announced through a short-lived copy).

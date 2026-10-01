@@ -176,7 +176,7 @@ describe('evidence register and operational reviews', () => {
     const table = await commitmentsTable();
     const confirm = await within(table).findByRole('button', { name: 'Confirm discount dates' });
     expect(confirm.getAttribute('aria-disabled')).toBe('true');
-    expect(document.getElementById(confirm.getAttribute('aria-describedby')!.split(' ').at(-1)!)!.textContent).toBe('A different person must confirm these discount dates. Every demo role here is you, so switching roles cannot confirm them. In a staff pilot, a second Admin or Finance user confirms them.');
+    expect(document.getElementById(confirm.getAttribute('aria-describedby')!.split(' ').at(-1)!)!.textContent).toBe('A different person must confirm these discount dates. Switching demo roles is not a second person. In a pilot, a second Admin or Finance team member confirms them.');
     await user.click(confirm);
     expect(screen.queryByRole('dialog', { name: 'Confirm discount dates' })).toBeNull();
     expect(api.state().records.find(record => record.kind === 'commercial')!.data.discountReview.confirmedBy).toBeUndefined();
@@ -223,7 +223,7 @@ describe('evidence register and operational reviews', () => {
     renderApp('/evidence');
     const confirm = await within(await commitmentsTable()).findByRole('button', { name: 'Confirm discount dates' });
     expect(confirm.getAttribute('aria-disabled')).toBe('true');
-    expect(document.getElementById(confirm.getAttribute('aria-describedby')!.split(' ').at(-1)!)!.textContent).toBe('You proposed these discount dates. A different Admin or Finance user must confirm them.');
+    expect(document.getElementById(confirm.getAttribute('aria-describedby')!.split(' ').at(-1)!)!.textContent).toBe('You proposed these discount dates. A different Admin or Finance team member must confirm them.');
   });
 
   it('preserves a refused partial or mid-month discount draft until the dates and agreement reference are corrected', async () => {
@@ -325,13 +325,13 @@ describe('evidence register and operational reviews', () => {
     api.failNext(/^\/v1\/records\/commercial$/, { status: 503, error: 'Service temporarily unavailable.' });
     api.failNext(/^\/v1\/records\/reviews$/, 'offline');
     renderApp('/evidence');
-    const commercial = await screen.findByText('Unable to load commercial terms');
-    const reviews = await screen.findByText('Unable to load reviews');
+    const commercial = await screen.findByText('We could not load commercial terms');
+    const reviews = await screen.findByText('We could not load reviews');
     expect(screen.queryByText('No commercial terms yet')).toBeNull();
     expect(screen.queryByText('No reviews yet')).toBeNull();
     await user.click(within(commercial.closest('[role="alert"]')!).getByRole('button', { name: 'Try again' }));
     await user.click(within(reviews.closest('[role="alert"]')!).getByRole('button', { name: 'Try again' }));
-    await waitFor(() => expect(screen.queryByText('Unable to load commercial terms')).toBeNull());
+    await waitFor(() => expect(screen.queryByText('We could not load commercial terms')).toBeNull());
     expect(await screen.findByText('No reviews yet')).toBeTruthy();
   });
 

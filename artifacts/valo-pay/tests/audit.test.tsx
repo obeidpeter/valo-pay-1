@@ -60,11 +60,11 @@ describe("audit", () => {
     api.failNext(/^\/v1\/records\/audit$/, { status: 503, error: 'Audit service temporarily unavailable.' });
     const user = userEvent.setup();
     renderApp('/audit');
-    const failure = (await screen.findByText('Unable to load the audit log')).closest('[role="alert"]')!;
+    const failure = (await screen.findByText('We could not load the audit log')).closest('[role="alert"]')!;
     expect(screen.queryByText('No entries yet')).toBeNull();
     await user.click(within(failure as HTMLElement).getByRole('button', { name: 'Try again' }));
     await screen.findByRole('table');
-    expect(screen.queryByText('Unable to load the audit log')).toBeNull();
+    expect(screen.queryByText('We could not load the audit log')).toBeNull();
   });
 
   it('requests bounded pages for a large audit log and resets pagination on search', async () => {

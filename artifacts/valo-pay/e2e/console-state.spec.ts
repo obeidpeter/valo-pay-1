@@ -10,7 +10,7 @@ test.beforeEach(async ({ request, page }) => {
 });
 
 async function navigate(page: Page, name: string) {
-  const menu = page.getByRole("button", { name: "Menu", exact: true });
+  const menu = page.getByRole("button", { name: "Open menu", exact: true });
   if (await menu.isVisible()) await menu.click();
   await page.getByRole("link", { name, exact: true }).click();
 }
@@ -103,7 +103,7 @@ test("a failed background refresh keeps the open draft and says the workspace co
   expect(outage.refused()).toBeGreaterThan(0);
   const problem = page.getByRole("status").filter({ hasText: "Your workspace could not be refreshed." });
   await expect(problem).toBeVisible();
-  await expect(problem).toContainText("Operations");
+  await expect(problem).toContainText("Request history");
   await expect(dialog).toBeVisible();
   await expect(dialog.getByLabel(/^Full name/)).toHaveValue("Draft customer typed before the outage");
   await expect(page.getByText("No lender data has been changed.")).toHaveCount(0);
@@ -144,15 +144,15 @@ test("a save whose answer was lost keeps its recovery through a failed refresh",
     await route.abort("connectionreset");
   });
   await dialog.getByRole("button", { name: "Add customer", exact: true }).click();
-  await expect(dialog.getByText("Outcome not confirmed", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("Request not confirmed", { exact: true })).toBeVisible();
 
   const outage = await breakWorkspace(page, 502);
   await passRefresh(page);
   const problem = page.getByRole("status").filter({ hasText: "Your workspace could not be refreshed." });
   await expect(problem).toBeVisible();
-  await expect(problem.getByRole("link", { name: "Operations" })).toHaveAttribute("href", "/operations");
-  await expect(dialog.getByText("Outcome not confirmed", { exact: true })).toBeVisible();
-  await expect(dialog.getByRole("button", { name: "Retry same request" })).toBeVisible();
+  await expect(problem.getByRole("link", { name: "Request history" })).toHaveAttribute("href", "/operations");
+  await expect(dialog.getByText("Request not confirmed", { exact: true })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Check original request" })).toBeVisible();
   await expect(page.getByText("No lender data has been changed.")).toHaveCount(0);
   await outage.restore();
 });

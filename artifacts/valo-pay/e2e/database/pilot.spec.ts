@@ -38,7 +38,7 @@ test("onboards an empty lender, persists imports and discovers a lost acknowledg
   });
   await page.getByRole("button", { name: "Import checked batch" }).click();
   await expect(
-    page.getByText("Outcome not confirmed", { exact: true }),
+    page.getByText("Request not confirmed", { exact: true }),
   ).toBeVisible();
   page.once("dialog", (dialog) => dialog.accept());
   await page.goto("/operations");

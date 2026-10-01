@@ -16,9 +16,6 @@ export function PilotHeading({
 }) {
   return (
     <header className="space-y-2">
-      <p className="text-xs font-semibold uppercase tracking-wider text-primary">
-        Pilot workspace
-      </p>
       <h1 className="text-3xl font-semibold tracking-tight">{title}</h1>
       <p className="max-w-3xl text-sm text-muted-foreground">{children}</p>
     </header>
@@ -41,12 +38,15 @@ export function PilotPanel({
 /** Said when a page's information could not be read and the service gave no words of its own: nothing was asked of it but to read. */
 export const READ_PROBLEM =
   "This information could not be loaded. Check your connection and try again.";
-/** Said when a change the operations journal records got no answer: if it reached the service, Operations has it with its outcome. */
+/**
+ * Said when a change the operations journal records got no answer: it may have been saved, so it is never called a
+ * failure, and if it reached Valo Pay, Request history (the Operations page) has it with what happened.
+ */
 export const JOURNALED_WRITE_PROBLEM =
-  "The request could not be completed. If it reached the service, Operations lists it with its outcome.";
-/** Said when a change Operations does not record (team, access and new lender changes) got no answer: the page itself shows whether it was saved. */
+  "The request was not confirmed. If Valo Pay received it, Request history shows what happened.";
+/** Said when a change Request history does not record (team, access and new lender changes) got no answer: the page itself shows whether it was saved. */
 export const UNJOURNALED_WRITE_PROBLEM =
-  "The request could not be completed. Refresh this page to see whether it was saved before you try again.";
+  "The request was not confirmed. Refresh this page to see whether it was saved before you try again.";
 
 /**
  * A request's problem in the service's words, or in the fallback's when it
@@ -99,26 +99,35 @@ export function PilotError({
     </div>
   ) : null;
 }
-/** Said on a notice about a change Operations records whose outcome is unconfirmed: a request the service received
- * outlives the form, so after closing or reloading it is found in Operations. */
+/** Said on a notice about a change Request history records whose outcome is unconfirmed: a request Valo Pay received
+ * outlives the form, so after closing or reloading it is found in Request history. */
 export const KEPT_IN_OPERATIONS =
-  "If the service received the request, it stays in Operations after you close this form or reload the page, where you can check it.";
-/** The way from such a notice to Operations. */
+  "If Valo Pay received the request, you can check it in Request history, even after you close this form or reload the page.";
+/** The way from such a notice to Request history (the Operations page, /operations). */
 export function OpenOperations() {
   return (
     <Link
       href="/operations"
       className="inline-flex min-h-11 items-center text-primary underline"
     >
-      Open Operations
+      Open Request history
     </Link>
   );
 }
 /**
- * A change whose answer was lost: Check original request, Operations for a
- * change it records, and Discard original request, which moves focus to `next`,
- * the control that sent the request where the page names it, and otherwise to
- * the page's own nearest control.
+ * Whether a lost change's error says more than the notice itself: Valo Pay's own
+ * words, or a support reference to quote. Without either, the notice's body
+ * already says everything, so the fallback line would only repeat it.
+ */
+function saysMore(error: unknown): boolean {
+  return saidBy(error, "") !== "";
+}
+/**
+ * A change whose answer was lost, in the standard's words for it (Request not
+ * confirmed): Check original request, Open Request history for a change it
+ * records, and Discard original request, which moves focus to `next`, the
+ * control that sent the request where the page names it, and otherwise to the
+ * page's own nearest control.
  */
 export function RecoveryNotice({
   mutation,
@@ -144,17 +153,18 @@ export function RecoveryNotice({
       role="alert"
       className="space-y-3 rounded-lg border border-warning-border bg-warning/20 p-4 text-sm"
     >
-      <p className="font-semibold">Outcome not confirmed</p>
+      <p className="font-semibold">Request not confirmed</p>
       <p>
         {persistent
-          ? "Check the original request before making a different change. Requests received by the server remain in Operations after you leave or reload. If it cannot be recovered, check Operations, then discard it to start again."
-          : "Check the original request before making another change. This page cannot check it again once you leave or reload, so it asks before you go. If it cannot be recovered, discard it, then refresh this page to see whether it was saved."}
+          ? "We do not know yet whether Valo Pay saved this. Check the original request before you change anything. If Valo Pay received it, you can find it in Request history, even after you leave or reload."
+          : "We do not know yet whether Valo Pay saved this. Check the original request before you change anything. This page cannot check it once you leave or reload, so it asks before you go. If the check does not work, discard the original request, then refresh this page to see whether it was saved."}
       </p>
-      <PilotError error={mutation.error} fallback={persistent ? JOURNALED_WRITE_PROBLEM : UNJOURNALED_WRITE_PROBLEM} />
+      {saysMore(mutation.error) && <PilotError error={mutation.error} fallback={persistent ? JOURNALED_WRITE_PROBLEM : UNJOURNALED_WRITE_PROBLEM} />}
       <div className="flex flex-wrap gap-3">
         <Button
           variant="outline"
           busy={mutation.isPending}
+          busyLabel="Checking original request…"
           onClick={() => {
             void mutation.retryUnconfirmed().catch(() => {});
           }}

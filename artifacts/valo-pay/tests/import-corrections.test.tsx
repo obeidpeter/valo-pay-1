@@ -310,7 +310,7 @@ it.each(["lost", "malformed"] as const)(
       return base(input, init);
     }) as typeof fetch;
     const user = await propose(batchId, targetId, false);
-    await screen.findByText("Outcome not confirmed");
+    await screen.findByText("Request not confirmed");
     expect(
       api.state().records.filter((r) => r.kind === "import-corrections"),
     ).toHaveLength(1);

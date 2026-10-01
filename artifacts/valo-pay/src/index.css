@@ -254,7 +254,8 @@
   ::selection { background: hsl(var(--primary) / .18); }
 }
 .environment-strip { background: hsl(var(--accent)); color: hsl(var(--accent-foreground)); border-color: hsl(var(--primary) / .12); }
-.nav-group-label { padding: .375rem .75rem .25rem; font-size: 9px; font-weight: 700; letter-spacing: .13em; text-transform: uppercase; color: hsl(var(--muted-foreground)); }
+/* The group names in sentence case, as written: no CSS capitals (docs/design/writing.md). */
+.nav-group-label { padding: .375rem .75rem .25rem; font-size: 11px; font-weight: 600; color: hsl(var(--muted-foreground)); }
 .console-nav-link { min-height: 34px; }
 .console-nav-link.is-active { background: hsl(var(--accent)); color: hsl(var(--accent-foreground)); font-weight: 700; box-shadow: inset 3px 0 hsl(var(--primary)); }
 .console-nav-link.is-active:hover { background: hsl(var(--primary) / .12); }

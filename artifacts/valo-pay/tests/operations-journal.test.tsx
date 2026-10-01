@@ -1,6 +1,6 @@
 // Backlog item UX-B02-X3 and decision 3: Operations says enough to match an entry to the form that was lost, opens the
-// saved result of every record kind that has a page, and the console shows the count of unconfirmed requests on the
-// Operations link, where a person who reloads sees it.
+// saved result of every record kind that has a page, and the console shows the count of requests not confirmed on the
+// Request history link (the Operations page), where a person who reloads sees it.
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { installFakeApi, type FakeApi } from "./fake-api";
 import { renderApp, screen, userEvent, waitFor, within } from "./harness";
@@ -98,23 +98,23 @@ it("says when a request can be cancelled and that cancelling never undoes a save
   expect(await screen.findByText("You can cancel a request only while it has not finished. Cancelling stops it from running later. If the request is being processed, cancelling waits for that to end first. Cancelling does not undo a saved financial record. Your permissions are checked again each time you check or cancel a request.")).toBeTruthy();
 });
 
-it("shows the count of unconfirmed requests on the Operations link", async () => {
+it("shows the count of requests not confirmed on the Request history link", async () => {
   journal([entry("one", "pending"), entry("two", "pending")]);
   renderApp("/overview");
-  const links = await screen.findAllByRole("link", { name: "Operations, 2 unconfirmed requests" });
+  const links = await screen.findAllByRole("link", { name: "Request history, 2 requests not confirmed" });
   expect(links[0]!.getAttribute("href")).toBe("/operations");
 });
 
 it("shows no count when nothing waits", async () => {
   renderApp("/overview");
   await waitFor(() => expect(api.calls.some((call) => call.path === "/v1/operations/pending")).toBe(true));
-  expect(screen.getAllByRole("link", { name: "Operations" }).length).toBeGreaterThan(0);
-  expect(screen.queryAllByRole("link", { name: /unconfirmed/ })).toEqual([]);
+  expect(screen.getAllByRole("link", { name: "Request history" }).length).toBeGreaterThan(0);
+  expect(screen.queryAllByRole("link", { name: /^Request history, \d+ requests? not confirmed$/ })).toEqual([]);
 });
 
 // Fix review: a check or cancel from Operations that the service refuses can settle the request for good: a check
 // refused for good cancels it, and a cancel is refused once the request completed. The list and the count on the
-// Operations link are read again at once, not on the list's next refresh or when the window next takes focus.
+// Request history link are read again at once, not on the list's next refresh or when the window next takes focus.
 const refusals = [
   { button: "Check original request", path: "retry", settled: "cancelled", error: "A reference already exists." },
   { button: "Cancel if unfinished", path: "cancel", settled: "completed", error: "This request already completed. Refresh Operations to see its saved result." },
@@ -134,11 +134,11 @@ for (const refusal of refusals) it(`reads the list and the count again once ${re
     return send(input, options);
   };
   renderApp("/operations");
-  await screen.findAllByRole("link", { name: "Operations, 1 unconfirmed request" });
+  await screen.findAllByRole("link", { name: "Request history, 1 request not confirmed" });
   const [listed, counted] = [listReads, countReads];
   await user.click(await screen.findByRole("button", { name: refusal.button }));
   await screen.findByText(refusal.error);
-  await waitFor(() => expect(screen.queryAllByRole("link", { name: /unconfirmed/ })).toEqual([]), { timeout: 2000 });
+  await waitFor(() => expect(screen.queryAllByRole("link", { name: /^Request history, \d+ requests? not confirmed$/ })).toEqual([]), { timeout: 2000 });
   // The settled status is shown in words, through the shared labels.
   await screen.findByText(refusal.settled === "cancelled" ? "Cancelled" : "Completed");
   expect([listReads > listed, countReads > counted]).toEqual([true, true]);

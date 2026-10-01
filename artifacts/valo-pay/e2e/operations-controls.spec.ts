@@ -85,7 +85,7 @@ for (const [how, said] of [
   await expect(outcome).toBeVisible();
   // Stop went with the run: reading continues from what happened, never from the page body.
   await expect(outcome).toBeFocused();
-  await expect(page.getByText('Outcome not confirmed', { exact: true })).toBeVisible();
+  await expect(page.getByText('Request not confirmed', { exact: true })).toBeVisible();
   await audit(page);
 });
 

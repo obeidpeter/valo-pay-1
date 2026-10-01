@@ -13,7 +13,7 @@ describe("keyboard", () => {
     await screen.findByRole("heading", { name: "Overview" });
     await user.tab();
     const skip = document.activeElement as HTMLElement;
-    expect(skip.textContent).toBe("Skip to page content");
+    expect(skip.textContent).toBe("Skip to main content");
     await user.click(skip);
     expect(document.activeElement?.id).toBe("main");
     expect(screen.getByRole("link", { name: /Overview/ }).getAttribute("aria-current")).toBe("page");
@@ -101,6 +101,8 @@ describe("keyboard", () => {
   it("lists the shortcuts on the settings page", async () => {
     renderApp("/settings");
     expect(await screen.findByRole("heading", { name: "Keyboard" })).toBeTruthy();
-    expect(screen.getByText("Put the caret in the search box on a page that has one (Customers, Audit log).")).toBeTruthy();
+    expect(screen.getByText("Move to the search box, on pages that have one, such as Customers and Audit log.")).toBeTruthy();
+    // F8 jumps to the notices, and the region's name says so.
+    expect(screen.getByRole("region", { name: "Notices (F8)" })).toBeTruthy();
   });
 });

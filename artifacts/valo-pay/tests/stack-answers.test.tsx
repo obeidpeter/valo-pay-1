@@ -39,15 +39,15 @@ async function runAssessment() {
 it("shows a problem instead of a team directory when the answer is incomplete", async () => {
   answerWith("GET", /\/v1\/team$/, () => ({ mode: "staff", actor: "Clerk:user_1", members: [{ id: "member-1", name: "Ada Obi" }], invitations: [], events: [], message: "Verified staff access." }));
   renderApp("/team");
-  await screen.findByText(/The service's answer was incomplete/);
+  await screen.findByText(/Valo Pay’s answer was incomplete/);
   expect(screen.queryByText("Ada Obi")).toBeNull();
 });
 
 it("shows a problem instead of the Credit Desk when the connected answer is incomplete", async () => {
   answerWith("GET", /\/v1\/connected$/, (original) => ({ ...original, credit: { mode: "synthetic", customers: "none" } }));
   renderApp("/credit-desk");
-  await screen.findByText("Unable to load Credit Desk");
-  screen.getByText(/The service's answer was incomplete/);
+  await screen.findByText("We could not load Credit Desk");
+  screen.getByText(/Valo Pay’s answer was incomplete/);
 });
 
 it("holds a lender set-up whose confirmation is not a lender as unconfirmed", async () => {
@@ -56,7 +56,7 @@ it("holds a lender set-up whose confirmation is not a lender as unconfirmed", as
   renderApp("/pilot");
   await user.type(await screen.findByLabelText("Lender name"), "Answer check lender");
   await user.click(screen.getByRole("button", { name: /Create lender/ }));
-  await screen.findByText("Outcome not confirmed");
+  await screen.findByText("Request not confirmed");
 });
 
 it("holds a connected action whose record is malformed as unconfirmed", async () => {
@@ -101,5 +101,5 @@ it("reads an answer that carries a field a newer service added", async () => {
   answerWith("GET", /\/v1\/pilot\/progress$/, (original) => ({ ...original, addedByANewerService: true, steps: original.steps.map((step: object) => ({ ...step, addedLater: "ignored" })) }));
   renderApp("/pilot");
   await screen.findByRole("heading", { name: "Onboard a lender" });
-  expect(screen.queryByText(/The service's answer was incomplete/)).toBeNull();
+  expect(screen.queryByText(/Valo Pay’s answer was incomplete/)).toBeNull();
 });

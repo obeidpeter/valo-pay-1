@@ -38,7 +38,7 @@ describe("failed background refresh", () => {
     await act(async () => { await queryClient.refetchQueries({ type: "active" }); });
     const status = (await screen.findByText(notice)).closest('[role="status"]') as HTMLElement;
     expect(status.textContent).toMatch(lastUpdated);
-    expect(screen.queryByText(/^Unable to load/)).toBeNull();
+    expect(screen.queryByText(/^(We could not load|Unable to load)/)).toBeNull();
     expect(screen.queryByRole("alert")).toBeNull();
     // Only the notice was added: the cached figures are the ones shown before.
     expect(figures()?.replace(status.textContent!, "")).toBe(before);
@@ -56,7 +56,7 @@ describe("failed background refresh", () => {
     await act(async () => { await queryClient.refetchQueries({ type: "active" }); });
     await screen.findByText("Collection settings could not be refreshed.");
     expect(screen.getByDisplayValue(/until Friday$/)).toBeTruthy();
-    expect(screen.queryByText("Unable to load collection settings")).toBeNull();
+    expect(screen.queryByText("We could not load collection settings")).toBeNull();
   });
 
   it("still shows the full problem when the first load fails", async () => {

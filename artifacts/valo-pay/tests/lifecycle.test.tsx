@@ -95,7 +95,7 @@ it('recovers an execution whose committed response was lost using the identical 
     return response;
   };
   await user.click(screen.getByRole('button', { name: 'Start deletion' }));
-  await screen.findByText('Outcome not confirmed');
+  await screen.findByText('Request not confirmed');
   expect((screen.getByRole('button', { name: 'Start deletion' }) as HTMLButtonElement).disabled).toBe(true);
   await user.click(screen.getByRole('button', { name: 'Check original request' }));
   await screen.findByRole('heading', { name: 'Deletion records' });
@@ -203,23 +203,23 @@ for (const [how, said, removed] of [
   // Stop went with the run: focus is on what happened, never on the page body.
   await waitFor(() => expect(document.activeElement).toBe(outcome));
   expect(csvLeft(ids)).toBe(3 - removed);
-  if (how === 'refused') expect(screen.queryByText('Outcome not confirmed')).toBeNull();
+  if (how === 'refused') expect(screen.queryByText('Request not confirmed')).toBeNull();
   else {
-    expect(screen.getByText('Outcome not confirmed')).toBeTruthy();
+    expect(screen.getByText('Request not confirmed')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Check original request' }));
-    await waitFor(() => expect(screen.queryByText('Outcome not confirmed')).toBeNull());
+    await waitFor(() => expect(screen.queryByText('Request not confirmed')).toBeNull());
   }
 });
 
 // Third review of the audit fixes, finding 6: Discard original request moved focus to the nearest control above its
-// notice, the Sandbox guide at the top of the page, rather than to the run it had been carrying on.
-it('moves focus from a discarded run request back to the run, never to the Sandbox guide above the page', async () => {
+// notice, the tips (then the Sandbox guide) at the top of the page, rather than to the run it had been carrying on.
+it('moves focus from a discarded run request back to the run, never to the tips above the page', async () => {
   moreBatches(); enable(); const user = userEvent.setup(); renderApp('/lifecycle');
   await prepare(user); await approve(user);
   secondExecute('lost');
   await runByKeyboard(user);
   await screen.findByText(/^Deletion stopped because its last request was not confirmed/);
-  expect(screen.getByRole('button', { name: /^Sandbox guide/ })).toBeTruthy();
+  expect(screen.getByRole('button', { name: /^Tips/ })).toBeTruthy();
   vi.spyOn(window, 'confirm').mockReturnValue(true);
   screen.getByRole('button', { name: 'Discard original request' }).focus();
   await user.keyboard('{Enter}');

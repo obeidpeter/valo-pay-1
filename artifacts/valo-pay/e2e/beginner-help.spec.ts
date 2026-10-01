@@ -18,7 +18,7 @@ test('public task help supports search, keyboard, history and reflow without ope
   await guide.focus();
   await guide.press('Enter');
   await expect(page.getByRole('heading', { name: 'Understand payment status without paying twice', exact: true })).toBeFocused();
-  await expect(page.getByText(/Pending means/)).toBeVisible();
+  await expect(page.getByText(/Awaiting authorisation, Authorised, Pending and Outcome unknown all mean the payment is not confirmed/)).toBeVisible();
   await page.goBack();
   await expect(page.getByRole('heading', { name: 'Search results', exact: true })).toBeFocused();
   await expect(search).toHaveValue('pending');
@@ -53,7 +53,7 @@ test('overview metrics fit their cards beside the sidebar, and a wider amount sc
   const unreachable = () => page.evaluate(async () => (await (window as any).axe.run(document.querySelector('[aria-labelledby="overview-metrics-title"]'), { runOnly: { type: 'rule', values: ['scrollable-region-focusable'] } })).violations.length);
   for (const width of [768, 800, 820, 1024, 1280, 1536]) {
     await page.setViewportSize({ width, height: 1000 });
-    await expect(page.getByRole('complementary', { name: 'Console sidebar' })).toBeVisible();
+    await expect(page.getByRole('complementary', { name: 'Sidebar' })).toBeVisible();
     // Each value's frame is its parent, which scrolls when the value is wider than the card.
     const values = await metrics.locator('.tabular-nums').evaluateAll(nodes => nodes.map(node => {
       const frame = node.parentElement!, range = document.createRange();

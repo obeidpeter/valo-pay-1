@@ -50,7 +50,7 @@ export function ScopedSubmissionRecoveryProvider({ scope, merchantId, children }
       else sessionStorage.removeItem(prefix + scope);
     } catch {
       setDurable(false);
-      if (required) throw new Error('This browser cannot keep the request identity needed for safe recovery. Allow session storage or use another browser, then try again. Nothing was submitted.');
+      if (required) throw new Error('This browser is blocking the storage Valo Pay uses to stop a request being sent twice. Allow site data for Valo Pay, or use another browser, then try again. Nothing was sent.');
     }
     if (current.current.scope === scope) { current.current.entries = next; redraw(version => version + 1); }
   };
@@ -58,12 +58,12 @@ export function ScopedSubmissionRecoveryProvider({ scope, merchantId, children }
   const own = () => current.current.scope === scope ? current.current.entries : read(scope);
   return <Context.Provider value={scope ? { scope, merchantId, entries: entries.filter(entry => entry.page === page && entry.recovered), durable,
     assertAvailable: key => {
-      if (own().some(entry => entry.recovered && entry.page === page && entry.key !== key)) throw new Error('An earlier request on this page still needs checking. Use the interrupted-request notice before submitting another change.');
+      if (own().some(entry => entry.recovered && entry.page === page && entry.key !== key)) throw new Error('An earlier request on this page is not confirmed. Check it in the notice at the top of this page before you send another change.');
     },
     remember: (key, identity) => {
-      if (identity.merchantId !== merchantId) throw new Error('The lender changed. Reopen the form for the selected lender.');
+      if (identity.merchantId !== merchantId) throw new Error('The lender changed. Open the form again for the lender you chose.');
       if (own().some(entry => entry.key === key)) return;
-      if (own().length >= 100) throw new Error('Check your interrupted requests in Operations before submitting more changes.');
+      if (own().length >= 100) throw new Error('Too many of your requests are not confirmed. Check them in Request history before you send more changes.');
       save([...own(), { key, method: identity.method, path: identity.path, page, recovered: false }], true);
     },
     forget: key => save(own().filter(entry => entry.key !== key)),
