@@ -37,6 +37,7 @@ export default function PilotPage() {
       </PilotHeading>
       <PilotError
         error={journey.error}
+        what="the pilot journey"
         retry={() => {
           void journey.refetch();
         }}

@@ -29,7 +29,8 @@ it('retries an unavailable exact export lookup without claiming it was not found
   };
   renderApp(`/exports?job=${id}`);
   const selection=(await screen.findByRole('heading',{name:'Selected export'})).closest('section')!;
-  await within(selection).findByText('We could not load this export. Check your connection and try again.');
+  const notice=(await within(selection).findByText('We could not load this export')).closest('[role="alert"]')!;
+  expect(notice.textContent).toMatch(/Valo Pay could not be reached\. Check your connection and try again\./);
   expect(screen.queryByText(/Export not found/)).toBeNull();
   expect(screen.getByRole('link',{name:/Customers \(JSON\)/})).toBeTruthy();
   expect(api.calls.filter(call=>call.path===`/v1/exports/${id}`)).toHaveLength(0);
@@ -54,7 +55,8 @@ it('distinguishes export history loading and failure from a confirmed empty resu
   expect(screen.queryByText(/No exports (yet|match)/)).toBeNull();
   expect(screen.queryByText(/Select a saved export to see/)).toBeNull();
   release();
-  await screen.findByText('We could not load the export history. Check your connection and try again.');
+  const history=(await screen.findByText('We could not load the export history')).closest('[role="alert"]')!;
+  expect(history.textContent).toMatch(/Valo Pay could not be reached\. Check your connection and try again\./);
   expect(screen.queryByText(/No exports (yet|match)/)).toBeNull();
   expect(screen.queryByText(/Export not found/)).toBeNull();
   await user.click(screen.getByRole('button',{name:'Try again'}));

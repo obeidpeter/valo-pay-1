@@ -90,6 +90,7 @@ export default function CasePage({ params }: { params: { id: string } }) {
       </header>
       <PilotError
         error={query.error}
+        what="this case"
         retry={() => {
           void query.refetch();
         }}

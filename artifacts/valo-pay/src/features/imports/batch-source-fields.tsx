@@ -69,7 +69,7 @@ export function BatchSourceFields({
                 open Data sources.
               </p>
             )}
-          <PilotError error={sourcesError} />
+          <PilotError error={sourcesError} what="data sources" />
         </div>
       )}
       <fieldset

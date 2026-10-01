@@ -68,6 +68,7 @@ export default function TeamPage() {
       </PilotHeading>
       <PilotError
         error={query.error}
+        what="the team"
         retry={() => {
           void query.refetch();
         }}

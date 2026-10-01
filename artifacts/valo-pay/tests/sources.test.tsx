@@ -21,7 +21,7 @@ it("keeps loading and failed source reads distinct from empty profiles, batches 
   expect(screen.queryByRole("button",{name:"Simulate a Paystack payment"})).toBeNull();
   release();
   await screen.findByText("We could not load source profiles. Select Try again above.");
-  expect(screen.getByRole("alert").textContent).toMatch(/could not be loaded.*try again/i);
+  expect(screen.getByRole("alert").textContent).toMatch(/^We could not load data sourcesValo Pay could not be reached\. Check your connection and try again\./);
   expect(screen.getByText("We could not load saved batches. Select Try again above.")).toBeTruthy();
   expect(screen.getByText("Connection status not loaded")).toBeTruthy();
   expect(screen.queryByText(/No source profiles yet/)).toBeNull();

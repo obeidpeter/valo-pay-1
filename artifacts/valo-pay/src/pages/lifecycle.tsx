@@ -125,8 +125,8 @@ function LifecycleControls() {
   return <div className="space-y-6">
     <PilotHeading title="Data retention">Choose how long sample import files, saved request details and export files are kept. Deleting them needs a preview and an Admin’s approval. Financial records and the audit log are kept.</PilotHeading>
     {workspace?.role !== 'Admin' ? <p role="status" className="rounded-xl border bg-card p-5">Only Admin can view or change data retention. Your role is {workspace?.role || 'not set'}.{workspace?.accessMode !== 'staff' ? ' Change your demo role in Settings.' : ' Ask an Admin about holds and deletion runs.'}</p> : <>
-      <PilotError error={query.error} pager="kept items" retry={() => { void query.refetch(); }} />
-      <PilotError error={linked.error} retry={() => { void linked.refetch(); }} />
+      <PilotError error={query.error} what="data retention" pager="kept items" retry={() => { void query.refetch(); }} />
+      <PilotError error={linked.error} what="this deletion run" retry={() => { void linked.refetch(); }} />
       {query.isLoading && <p role="status">Loading data retention…</p>}
       <RecoveryNotice mutation={mutation} next={() => runSent.current ? executeButton.current : sentFrom.current} />
       {message && <p ref={messageRef} role="status" className="rounded-lg border bg-secondary/20 p-4 text-sm">{message}</p>}

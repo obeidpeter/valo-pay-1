@@ -35,9 +35,9 @@ export function PilotPanel({
     </section>
   );
 }
-/** Said when a page's information could not be read and the service gave no words of its own: nothing was asked of it but to read. */
+/** Said when a page's information could not be read and the service gave no words of its own, under "We could not load {what}" (as LoadProblem says): nothing was asked of it but to read. */
 export const READ_PROBLEM =
-  "This information could not be loaded. Check your connection and try again.";
+  "Valo Pay could not be reached. Check your connection and try again.";
 /**
  * Said when a change the operations journal records got no answer: it may have been saved, so it is never called a
  * failure, and if it reached Valo Pay, Request history (the Operations page) has it with what happened.
@@ -53,20 +53,25 @@ export const UNJOURNALED_WRITE_PROBLEM =
  * gave none (no answer, or a proxy's error page). A read and a change need
  * different fallbacks: a failed read changed nothing and is simply tried
  * again, while a change may have been saved and is checked where it is
- * recorded (`READ_PROBLEM` by default). A read's problem that took the place
- * of its list's page buttons after a page press takes their focus, where
- * `pager` names them (usePageProblemFocus).
+ * recorded (`READ_PROBLEM` by default). A read names what it could not load
+ * (`what`), so its notice is headed "We could not load {what}", as every other
+ * failed load is. A read's problem that took the place of its list's page
+ * buttons after a page press takes their focus, where `pager` names them
+ * (usePageProblemFocus).
  */
 export function PilotError({
   error,
   retry,
   fallback = READ_PROBLEM,
+  what,
   noticeRef,
   pager,
 }: {
   error: unknown;
   retry?: () => void;
   fallback?: string;
+  /** For a read: what could not be loaded, as the heading names it ("your work"). */
+  what?: string;
   /** The notice, for a page that moves focus to it. */
   noticeRef?: RefObject<HTMLDivElement | null>;
   /** The label of the list's page buttons that this notice takes the place of when a page fails. */
@@ -83,7 +88,8 @@ export function PilotError({
       role="alert"
       className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm"
     >
-      <p>{saidBy(error, fallback)}</p>
+      {what && <p className="font-semibold">We could not load {what}</p>}
+      <p className={what ? "mt-2 text-muted-foreground" : undefined}>{saidBy(error, fallback)}</p>
       {retry && (
         <Button
           className="mt-3"

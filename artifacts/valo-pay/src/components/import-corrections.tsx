@@ -622,6 +622,7 @@ export function ImportCorrections({ batchId }: { batchId: string }) {
       </div>
       <PilotError
         error={query.error}
+        what="imported records and corrections"
         retry={() => {
           void query.refetch();
         }}

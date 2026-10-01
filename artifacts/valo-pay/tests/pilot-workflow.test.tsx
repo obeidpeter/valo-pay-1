@@ -427,7 +427,7 @@ it("keeps the draft and the conflict when the latest version cannot be loaded", 
   api.failNext(/^\/v1\/pilot\/batches\/[^/]+$/, "offline", "GET");
   await user.click(screen.getByRole("button", { name: "Load latest version" }));
   await screen.findByText(
-    "The latest version could not be loaded. Your draft is still here. Try again.",
+    "We could not load the latest version. Your draft is still here. Try again.",
   );
   expect(csvValue()).toContain("MYDRAFT");
   expect(screen.getByText(/This batch changed after you opened it/)).toBeTruthy();
@@ -441,7 +441,7 @@ it("keeps the draft and the conflict when the latest version cannot be loaded", 
   await user.click(screen.getByRole("button", { name: "Load latest version" }));
   await screen.findByRole("heading", { name: "Colleague version" });
   expect(csvValue()).toBe(colleagueCsv);
-  expect(screen.queryByText(/could not be loaded/)).toBeNull();
+  expect(screen.queryByText(/could not load the latest version/)).toBeNull();
 });
 
 it("offers a newer version that a refresh shows, before any save is refused", async () => {
@@ -522,12 +522,15 @@ it("says a failed read on a pilot page changed nothing, and sends a lost change 
   // A read that got no answer asked the service only to read: no request is waiting anywhere.
   api.failNext(/^\/v1\/lifecycle$/, "offline");
   renderApp("/lifecycle");
-  const problem = await screen.findByText("This information could not be loaded. Check your connection and try again.");
-  expect(problem.closest('[role="alert"]')!.textContent).not.toMatch(/Operations/);
+  // Headed as every failed load is, with what could not be loaded.
+  const problem = await screen.findByText("Valo Pay could not be reached. Check your connection and try again.");
+  expect(problem.closest('[role="alert"]')!.textContent).toMatch(/^We could not load data retention/);
+  expect(problem.closest('[role="alert"]')!.textContent).not.toMatch(/Operations|Request history/);
   cleanup();
   api.failNext(/^\/v1\/pilot\/close-reviews$/, { status: 502, error: "" });
   renderApp("/close-review");
-  expect(await screen.findByText(/^This information could not be loaded\. Check your connection and try again\. Support reference: fake-\w+\.$/)).toBeTruthy();
+  const reviews = await screen.findByText(/^Valo Pay could not be reached\. Check your connection and try again\. Support reference: fake-\w+\.$/);
+  expect(reviews.closest('[role="alert"]')!.textContent).toMatch(/^We could not load close reviews/);
   cleanup();
   // A batch save is recorded in Request history, so a save whose answer was lost is checked there.
   renderApp("/imports");

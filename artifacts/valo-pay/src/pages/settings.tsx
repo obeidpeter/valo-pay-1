@@ -196,7 +196,7 @@ export default function SettingsPage() {
     try {
       const response = await refetch({ throwOnError: true });
       if (isCurrentVisit() && submittedSession === execSession.current && response.data) { execSession.current += 1; focusAfterEdit.current = 'edit'; setIsEditingExec(false); setExecErrors({}); setExecAlert(''); setExecConflict(false); }
-    } catch (error) { if (isCurrentVisit() && submittedSession === execSession.current) setExecAlert('Latest settings could not be loaded. Your draft is still here. Try refreshing again.'); }
+    } catch (error) { if (isCurrentVisit() && submittedSession === execSession.current) setExecAlert('We could not load the latest settings. Your draft is still here. Try refreshing again.'); }
     finally { if (isCurrentVisit()) setRefreshingLatest(false); }
   };
   const startEditExec = () => {

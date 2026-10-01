@@ -202,7 +202,7 @@ export function BatchEditor({
       mutation.reset();
     } catch {
       setLatestProblem(
-        "The latest version could not be loaded. Your draft is still here. Try again.",
+        "We could not load the latest version. Your draft is still here. Try again.",
       );
     } finally {
       setLoadingLatest(false);
@@ -316,6 +316,7 @@ export function BatchEditor({
       <PilotPanel title="Saved batch">
         <PilotError
           error={detail.error}
+          what="the saved batch"
           retry={() => {
             void detail.refetch();
           }}

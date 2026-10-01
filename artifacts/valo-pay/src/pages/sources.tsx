@@ -52,7 +52,7 @@ function Sources() {
   const canReplay = ["Admin", "Finance"].includes(workspace?.role || "");
   return <div className="space-y-6">
     <PilotHeading title="Data sources">See which files arrived, which are missing, and whether every source row is accounted for. Sample data only.</PilotHeading>
-    <PilotError error={query.error} noticeRef={problem} retry={() => { void query.refetch().then(result => { if (!result.error && result.data) setRecovery({ key: recoveryKey }); }); }} />
+    <PilotError error={query.error} what="data sources" noticeRef={problem} retry={() => { void query.refetch().then(result => { if (!result.error && result.data) setRecovery({ key: recoveryKey }); }); }} />
     {currentRecovery && !query.error && <p ref={recovered} role="status" className="text-sm">Source information reloaded.</p>}
     {query.error && query.data && <p role="status" className="text-sm text-muted-foreground">Showing the last loaded source information. Try again to check for updates.</p>}
     {query.isLoading && <p role="status">Loading data sources…</p>}
