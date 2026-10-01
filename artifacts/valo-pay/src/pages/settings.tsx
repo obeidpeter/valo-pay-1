@@ -362,7 +362,7 @@ export default function SettingsPage() {
                 <div>
                   <label className="text-sm font-medium block mb-1">Automatic daily close</label>
                   {isEditingExec ? (
-                    <div className="space-y-2"><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={execSettings.scheduledCloseEnabled !== false} onChange={(e) => setExecSettings({...execSettings, scheduledCloseEnabled: e.target.checked})} /> Request an automatic close at this time every day.</label><p className="text-xs text-muted-foreground">This preference takes effect while the automatic close service is running. Saving it does not start the service. Missed closes run after the service recovers.</p><DailyCloseStatus value={settings.closeSchedule} /></div>
+                    <div className="space-y-2"><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={execSettings.scheduledCloseEnabled !== false} onChange={(e) => setExecSettings({...execSettings, scheduledCloseEnabled: e.target.checked})} /> Request an automatic close at this time every day.</label><p className="text-xs text-muted-foreground">When this is on, Valo Pay runs the daily close at this time each day. Saving this does not run a close now. A missed close runs as soon as Valo Pay can.</p><DailyCloseStatus value={settings.closeSchedule} /></div>
                   ) : (
                     <div className="p-3 bg-secondary/50 rounded border"><DailyCloseStatus value={settings.closeSchedule} showHistory /></div>
                   )}
