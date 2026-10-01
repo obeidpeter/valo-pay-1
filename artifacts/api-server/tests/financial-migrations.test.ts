@@ -619,7 +619,7 @@ function duplicateBatches(merchantId: string) {
   for (const [batch, other] of [[built, "entered by hand"], [typed, "built from the provider’s lines"]] as const) {
     const open = holdOf(batch)!;
     assert.ok(open && ![builtHold.id, typedHold.id].includes(open.id), "the batch has a new open exception for its hold");
-    assert.match(String(open.data.notes), new RegExp(`Update on [^:]*: the confirmation recorded on exception .*, of settlement batch R-1 as the payout of connection-a, was not applied: settlement batch R-1, ${other} also records or claims the payout of connection-a`));
+    assert.match(String(open.data.notes), new RegExp(`Update on [^:]*: the confirmation recorded on exception .*, of settlement batch R-1 as the payout of connection-a, was not carried out: settlement batch R-1, ${other} also records or claims the payout of connection-a`));
   }
   assert.deepEqual([builtHold.status, typedHold.status, builtHold.data.resolutionCode], ["resolved", "resolved", "provider_identity_confirmed"], "the decisions are kept as they were recorded");
   const saved = kinds(state);

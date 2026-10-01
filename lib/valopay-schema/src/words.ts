@@ -40,7 +40,7 @@ export const recordTypeLabels: Readonly<Record<string, { readonly one: string; r
   "import-correction-events": { one: "import correction event", many: "import correction events" },
   "source-profiles": { one: "source profile", many: "source profiles" },
   "source-manifests": { one: "list of expected files", many: "lists of expected files" },
-  "provider-events": { one: "provider receipt", many: "provider receipts" },
+  "provider-events": { one: "provider message", many: "provider messages" },
   "close-reviews": { one: "close review", many: "close reviews" },
   "close-review-events": { one: "close review event", many: "close review events" },
   "case-events": { one: "case event", many: "case events" },
@@ -106,11 +106,11 @@ export function rolesText(roles: readonly string[]): string {
  */
 export const REVIEW_SUPERSESSION = "Precision audit marked this allocation wrong";
 
-/** Why a match is no longer applied, as people read it: a review's stored reason in today's words, and an earlier "Superseded:" as "No longer applied:". */
+/** Why a match is no longer in use, as people read it: a review's stored reason in today's words, and an earlier "Superseded:" as "No longer in use:". */
 export function supersededReasonText(reason: unknown): string {
   const text = String(reason ?? "");
   if (text.startsWith(REVIEW_SUPERSESSION)) return `An accuracy review marked this allocation wrong${text.slice(REVIEW_SUPERSESSION.length)}`;
-  return text.replace(/^Superseded: /, "No longer applied: ");
+  return text.replace(/^Superseded: /, "No longer in use: ");
 }
 
 /** A choice as the console's lists name it, quoted inside a sentence: ‘Confirmed failed’. */

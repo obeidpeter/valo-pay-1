@@ -11,7 +11,7 @@ import { reversalHoldScope } from "./reversal-review";
 import { isDeepStrictEqual } from "node:util";
 
 /** What a renewed reversal review's hold does, as the review's notes say (an earlier build's open review gains it as a dated line). */
-export const REVERSAL_HOLD_RULE = "While this review is open, related payments cannot be allocated. Instalments still being collected are paused in dispute; paid instalments, and those unpaid after their final attempt, keep their status. When the review is resolved, the next reconciliation returns each paused instalment to its earlier status, unless a dispute was recorded for it meanwhile.";
+export const REVERSAL_HOLD_RULE = "While this review is open, related payments cannot be allocated. Instalments still being collected are held in dispute; paid instalments, and those unpaid after their final attempt, keep their status. When the review is resolved, the next reconciliation returns each held instalment to its earlier status, unless a dispute was recorded for it meanwhile.";
 
 /** The instalment statuses a renewed reversal review's hold pauses: those still being collected. */
 const pausedStatuses: readonly string[] = ["scheduled", "in_collection", "partially_paid"];
@@ -161,5 +161,5 @@ export function restoredStatusesNote(restored: readonly HoldRestored[]): string 
   if (!restored.length) return undefined;
   const named = restored.slice(0, 3).map(({ due, status }) => `${due.reference} (${dueStatusText(status)})`);
   const more = restored.length > 3 ? `; and ${counted(restored.length - 3, "more", "more")}` : "";
-  return `Returned ${counted(restored.length, "instalment")} to the status ${restored.length === 1 ? "it" : "they"} had before a reversal review paused ${restored.length === 1 ? "it" : "them"}: ${named.join("; ")}${more}.`;
+  return `Returned ${counted(restored.length, "instalment")} to the status ${restored.length === 1 ? "it" : "they"} had before a reversal review held ${restored.length === 1 ? "it" : "them"}: ${named.join("; ")}${more}.`;
 }

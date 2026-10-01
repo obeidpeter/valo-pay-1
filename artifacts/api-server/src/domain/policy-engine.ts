@@ -176,13 +176,13 @@ export function evaluateRetry(state: DomainState, ctx: Context, due: TypedRecord
     ...(noticeRequired ? { noticeRequired } : {}),
   });
   const finalNotice: NoticeRequirement = { purpose: "final_attempt", leadHours: 0, requiredBy: null, noticeId: null, acceptedAt: null, evidenced: false };
-  if (dueNeedsReversalReview(state, due)) return explain("blocked", "reversal_review", "Collection is paused while Finance reviews an earlier reversal decision again. Resolve that review and run reconciliation before a retry is planned.");
+  if (dueNeedsReversalReview(state, due)) return explain("blocked", "reversal_review", "Collection is on hold while Finance reviews an earlier reversal decision again. Resolve that review and run reconciliation before a retry is planned.");
   if(recordsWhere(state,'connected-intents','data.dueItemId',due.id).some(r=>['authorised','pending','unknown'].includes(r.status))) return explain('blocked','in_flight','A pay-by-bank payment is pending or has an unknown outcome. Reconcile it before scheduling another collection.');
 
   // Row 1: settled by any channel, or the obligation is frozen or closed.
   const outstanding = Number.isInteger(due.data.outstandingKobo) ? Number(due.data.outstandingKobo) : due.amountKobo;
   if (["paid", "cancelled", "closed"].includes(due.status) || outstanding === 0) return explain("stop", "settled", "This instalment is paid or closed. Any planned retry is cancelled.");
-  if (due.status === "in_dispute") return explain("stop", "disputed", "Collection is paused while the customer dispute is open.");
+  if (due.status === "in_dispute") return explain("stop", "disputed", "Collection is on hold while the customer dispute is open.");
   if (due.status === "unpaid_final") return explain("stop", "final", "No attempts remain. Follow up through the exception and the loan management system.");
   // Row 2: kill switches.  No exception for the switch itself; the item waits for release.
   if (state.merchant.killSwitch) return explain("blocked", "kill_switch", "The lender’s emergency stop is on. No collection instruction is planned.");
@@ -198,7 +198,7 @@ export function evaluateRetry(state: DomainState, ctx: Context, due: TypedRecord
   // A disputed debit is never retried; once its dispute was not upheld or Finance released the instalment, it no longer freezes it.
   if (retry === "never") return due.data.disputeRelease?.attemptId === last.id
     ? explain("stop", "dispute_released", "The customer’s dispute of this debit was not upheld, or Finance released the instalment from dispute. A disputed debit is never retried automatically: collect the instalment through another channel.")
-    : explain("stop", "customer_disputed", "The customer disputed the debit. Collection is paused and a dispute exception is raised with a one-business-day deadline.");
+    : explain("stop", "customer_disputed", "The customer disputed the debit. Collection stops while the dispute is open, and a dispute exception is raised with a one-business-day deadline.");
   if (retry === "unresolved") return explain("blocked", "timeout_unknown", "The outcome is unknown. Check with the provider using the payment reference. An exception is raised after 24 hours without a confirmed outcome.");
   // Row 3: non-retryable code.
   if (retry === "no") return explain("give_up", "non_retryable", `${optionText(code)} cannot be retried. Follow-up needs a final notice, an exception and an update to the loan management system.`, null, finalNotice);

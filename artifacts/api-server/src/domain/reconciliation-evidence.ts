@@ -45,14 +45,14 @@ function holdForReview(state: DomainState, ctx: Context, observation: TypedRecor
   const through = connectionOf(state, observation), otherThrough = connectionOf(state, other);
   const what = `${reversal ? "Reversal evidence" : "Payment evidence"} ${ref} (${moneyText(gross, currencyOf(observation))}, from ${evidenceSourceText(source)})`;
   // A reversal never becomes a payment of its own, which would only be reversed at once.
-  const kept = reversal ? "It was not applied to that payment. It reports a reversal, so no payment is made from it." : `It was not added to that payment${candidates.length ? "" : ", and no payment was made from it"}.`;
+  const kept = reversal ? "It was not recorded against that payment. It reports a reversal, so no payment is made from it." : `It was not added to that payment${candidates.length ? "" : ", and no payment was made from it"}.`;
   const lead = candidates.length
     ? `${what} shares its provider reference with payment ${other.reference}, but ${conflict}. ${kept}`
     : `${what} came through ${through}. No payment there has its reference, but payment ${other.reference} came through ${otherThrough}${conflict ? `, and ${conflict}` : ""}. ${kept}`;
   // The note in three parts: what happened, each choice on its own line, then what happens next.
   const choices = reversal
     ? [
-      ...(connectionOnly ? [`${optionText(heldEvidenceCodes.samePayment)}: it reverses payment ${other.reference}. It is applied to that payment, which is reversed, and later evidence through ${through} finds that payment too.`] : []),
+      ...(connectionOnly ? [`${optionText(heldEvidenceCodes.samePayment)}: it reverses payment ${other.reference}. It is recorded against that payment, which is reversed, and later evidence through ${through} finds that payment too.`] : []),
       `${connectionOnly ? "Any other resolution" : "Any resolution, once you have checked it"}: it is set aside and reverses nothing, even if its payment appears later.`,
     ]
     : [
@@ -123,7 +123,7 @@ function awaitReversedPayment(state: DomainState, ctx: Context, observation: Typ
     linkedRecordId: observation.id, customerId: observation.customerId, amountKobo: gross, owner: "Finance", linkedKind: "observations", condition: unseenReversalCondition(observation.id),
     notes: [
       `The provider reported a reversal of payment ${observation.reference} (${moneyText(gross, currencyOf(observation))}, from ${evidenceSourceText(observation.data.source)}) through ${connectionOf(state, observation)} on ${instantText(since)}. No payment with that reference has come through any connection, so there is nothing to reverse yet, and no payment is made from it. The reconciliation that records the payment reverses it through the same connection, or holds it for you if the payment came through another.`,
-      "Ask the provider which collection it reverses, and leave this exception open while you check. If the payment arrives meanwhile, the reversal is applied and this exception closes.",
+      "Ask the provider which collection it reverses, and leave this exception open while you check. If the payment arrives meanwhile, the reversal is recorded against it and this exception closes.",
       "Resolve this exception as one of these:",
       `${optionText(unseenReversalCodes.setAside)}: the provider says it reverses nothing of this lender’s. It is set aside and reverses nothing, even if its payment arrives later.`,
       `${optionText(unseenReversalCodes.adopted)}: the provider confirms the reversal. It keeps waiting for its payment, with no new exception, and reverses the payment when it arrives, whichever way its connection is spelled.`,
@@ -205,11 +205,11 @@ export function reviewEarlierReversalDecisions(state: DomainState, ctx: Context)
     let review = recordsWhere(state, "exceptions", "data.linkedRecordId", observation.id).find((item) => item.data.condition === condition);
     if (review) continue;
     const notes = [
-      `An earlier decision on reversal ${observation.reference} (exception ${decision.exception.reference || decision.exception.id}) was recorded as ${optionText(decision.exception.data.resolutionCode)} without a rule version. Earlier releases gave that choice different meanings, so Valo Pay cannot tell whether to apply the reversal or set it aside. The earlier decision, and what happened to the evidence, stay on record.`,
+      `An earlier decision on reversal ${observation.reference} (exception ${decision.exception.reference || decision.exception.id}) was recorded as ${optionText(decision.exception.data.resolutionCode)} without a rule version. Earlier releases gave that choice different meanings, so Valo Pay cannot tell whether to record the reversal against its payment or set it aside. The earlier decision, and what happened to the evidence, stay on record.`,
       "Check the provider’s evidence, then resolve this review as one of these:",
-      `${optionText(unseenReversalCodes.adopted)}: the reversal is applied to its payment.`,
-      `${optionText(unseenReversalCodes.setAside)}: reversal evidence not yet applied is set aside.`,
-      `Allocations and reversals already applied do not change until you decide. ${REVERSAL_HOLD_RULE} After that reconciliation, check any earlier effects.`,
+      `${optionText(unseenReversalCodes.adopted)}: the reversal is recorded against its payment.`,
+      `${optionText(unseenReversalCodes.setAside)}: reversal evidence not yet recorded against a payment is set aside.`,
+      `Allocations and reversals already recorded do not change until you decide. ${REVERSAL_HOLD_RULE} After that reconciliation, check any earlier effects.`,
     ].join("\n");
     // Do not let an old resolution without a condition suppress this new review.
     review = recordsWhere(state, "exceptions", "data.linkedRecordId", observation.id).find((item) => isOpenException(item.status) && resolveExceptionType(item.data.type) === "provider_status_mismatch")

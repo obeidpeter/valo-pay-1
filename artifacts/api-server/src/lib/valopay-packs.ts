@@ -78,9 +78,9 @@ const when = (value: unknown): string => typeof value === "string" && Number.isF
 /** A message channel in words: "SMS". */
 const channelText = (channel: unknown): string => String(channel) === "sms" ? "SMS" : valueLabel(channel);
 /** Why a match was taken out of use, in today's words. */
-const noLongerApplied = (reason: unknown): string => {
+const noLongerInUse = (reason: unknown): string => {
   const why = supersededReasonText(reason);
-  return /^(No longer applied|An accuracy review)/.test(why) ? why : `No longer applied: ${why}`;
+  return /^(No longer in use|An accuracy review)/.test(why) ? why : `No longer in use: ${why}`;
 };
 const yesNo = (value: unknown): string => value ? "yes" : "no";
 /** How a mandate is activated, after "Activation method:". */
@@ -144,7 +144,7 @@ function describe(record: ValopayRecord): { event: string; detail: string } {
     case "attempts": return { event: `Collection attempt${d.number ? ` ${text(d.number)}` : ""}: ${status}`, detail: `${d.source === "external" ? "Recorded from another collection system" : `Source: ${valueWords(d.source)}`}${d.failureCode ? `; failure: ${valueLabel(d.failureCode)} (${d.failureCode})` : ""}${d.rawFailureCode && d.rawFailureCode !== d.failureCode ? `; code as received: ${d.rawFailureCode}` : ""}${d.providerReference ? `; provider reference ${d.providerReference}` : ""}${d.cancellationReason ? `; ${d.cancellationReason}` : ""}.` };
     case "observations": return { event: `Payment evidence from ${evidenceSourceText(d.source)}`, detail: `${valueLabel(record.status)}${d.resolutionKey ? `, matched by ${valueWords(d.resolutionKey)}` : ""}${d.paymentId ? `; linked to payment record ${d.paymentId}` : ""}${d.resolvedTo ? `; resolved to ${text(d.resolvedTo)}` : ""}${d.batchReference ? `; settlement batch ${d.batchReference}` : ""}.` };
     case "payments": return { event: `Payment ${record.reference}: ${status}`, detail: `Channel: ${valueWords(d.channel)}; collection: ${valueWords(d.collectionStatus)}; settlement: ${valueWords(d.settlementStatus)}; reversal: ${valueWords(d.reversalStatus)}; refund: ${valueWords(d.refundStatus)}; allocated ${moneyText(Number(d.allocatedKobo || 0), currencyOf(record))}${d.explanation ? `; ${text(d.explanation).replace(/\.$/, "")}` : ""}.` };
-    case "allocations": return { event: `Allocation: ${status}`, detail: `${valueLabel(d.confidence)} match${d.automatic ? ", made automatically" : ""} (rule ${text(d.rule) || "not recorded"}). ${text(d.explanation)}${d.supersededReason ? ` ${noLongerApplied(d.supersededReason)}` : ""}${typeof d.reviewed === "boolean" ? ` Reviewed as ${d.reviewed ? "correct" : "wrong"} by ${text(d.reviewedBy)}.` : ""}` };
+    case "allocations": return { event: `Allocation: ${status}`, detail: `${valueLabel(d.confidence)} match${d.automatic ? ", made automatically" : ""} (rule ${text(d.rule) || "not recorded"}). ${text(d.explanation)}${d.supersededReason ? ` ${noLongerInUse(d.supersededReason)}` : ""}${typeof d.reviewed === "boolean" ? ` Reviewed as ${d.reviewed ? "correct" : "wrong"} by ${text(d.reviewedBy)}.` : ""}` };
     case "exceptions": return { event: `Exception: ${valueLabel(d.type)} (${status})`, detail: `Owner: ${text(d.owner) || "not set"}; severity: ${valueWords(d.severity)}; deadline ${d.dueBy ? when(d.dueBy) : "not set"}${d.resolutionCode ? `; resolved as ${optionText(d.resolutionCode)} by ${text(d.resolvedBy)}` : ""}. ${text(d.notes)}` };
     case "notifications": return { event: `Customer message: ${valueWords(d.purpose)} (${status})`, detail: `${channelText(d.channel)}; ${valueWords(d.class)} message; ${d.acceptedAt ? `accepted by the provider ${when(d.acceptedAt)}` : "not yet accepted by the provider"}; ${d.deliveredAt ? `delivered ${when(d.deliveredAt)}` : "not delivered"}. Text: ${text(d.renderedText)}` };
     case "retry-decisions": return {
@@ -292,7 +292,7 @@ export async function renderDisputePackPdf(pack: DisputePack, options: PdfOption
     line("Instalments", `${s.dueItems.count} (${s.dueItems.paid} paid, ${s.dueItems.inCollection} in collection, ${s.dueItems.unpaidFinal} unpaid after final attempt, ${s.dueItems.inDispute} in dispute)`);
     line("Collection attempts", `${s.attempts.count} (${s.attempts.succeeded} succeeded, ${s.attempts.failed} failed, ${s.attempts.cancelled} cancelled)`);
     line("Payments", `${s.payments.count} totalling ${kobo(s.payments.kobo)}${beside(s.payments.otherCurrencies)} (${s.payments.reversed} reversed)`);
-    line("Allocations", `${s.allocations.confirmed} confirmed, ${s.allocations.superseded} no longer applied`);
+    line("Allocations", `${s.allocations.confirmed} confirmed, ${s.allocations.superseded} no longer in use`);
     line("Exceptions", `${s.exceptions.open} open, ${s.exceptions.resolved} resolved`);
     line("Customer messages", `${s.notifications.count} (${s.notifications.accepted} accepted by the provider, ${s.notifications.delivered} delivered)`);
     line("Retry decisions", `${s.retryDecisions}`);
@@ -347,7 +347,7 @@ export async function renderDisputePackPdf(pack: DisputePack, options: PdfOption
     // ---- Governing documents ----
     document.addPage();
     document.font("Sans-Bold").fontSize(12).fillColor("#102E2A").text("Documents in effect at the time", margin, margin, { width }).fillColor("#222222").moveDown(0.4);
-    if (!pack.documents.length) document.font("Sans").fontSize(9).text("No approved retry policy version, message template or collection transfer applied to this customer’s events.", margin, document.y, { width });
+    if (!pack.documents.length) document.font("Sans").fontSize(9).text("No approved retry policy version, message template or collection transfer was in effect for this customer’s events.", margin, document.y, { width });
     for (const item of pack.documents) {
       check();
       const title = `${item.kind === "policies" ? "Retry policy" : item.kind === "templates" ? "Message template" : "Collection transfer"} ${item.version ? `version ${item.version} ` : ""}· ${item.name} (${valueWords(item.status)}); in effect from ${when(item.appliesFrom)}${item.appliesUntil ? ` until ${when(item.appliesUntil)}` : " onwards"}`;

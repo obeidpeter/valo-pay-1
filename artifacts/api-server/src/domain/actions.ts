@@ -472,7 +472,7 @@ function runAction(state: DomainState, ctx: Context, input: ActionInput, audit?:
       if (allocation.status === "confirmed") {
         supersedeAllocation(state, ctx, allocation, `${REVIEW_SUPERSESSION}: ${why}`);
         allocation.data.supersededByReview = true;
-        message = "Allocation marked incorrect and no longer applied. The payment and instalment are open for review again, and automatic matching will not pair them again.";
+        message = "Allocation marked incorrect, so it is no longer in use. The payment and instalment are open for review again, and automatic matching will not pair them again.";
       } else {
         touch(payment, now);
         message = "Allocation marked incorrect. It was already out of use, and automatic matching will not pair this payment and instalment again.";
@@ -543,7 +543,7 @@ function runAction(state: DomainState, ctx: Context, input: ActionInput, audit?:
     if (!type) item.data.legacyType = true;
     touch(item, now);
     if (heldBatch) return result(`Exception resolution recorded. The next reconciliation releases settlement batch ${heldBatch.reference} as the payout of ${providerIdentityParts(identity)?.connection ?? identity}. Evidence from that connection, and evidence that names no connection, stays with the batch. Settlement lines from other connections move to their own batches, and their statement credits are left to link to theirs. The expected fee leaves out the lines that move. So do the amounts before fees, fee and after fees, unless they were typed by hand. No money moves.`, item, { settlementBatchId: heldBatch.id, providerIdentity: identity });
-    if (item.data.legacyResolutionReview) return result("Reversal review recorded. The earlier decision and its history are unchanged. Run reconciliation to apply this decision. It returns each instalment the review paused to its status before the hold, unless a dispute was recorded for it meanwhile. A paid instalment, or one unpaid after its final attempt, kept its status throughout. Allocations and reversals already applied change only through the usual reversal or correction steps.", item);
+    if (item.data.legacyResolutionReview) return result("Reversal review recorded. The earlier decision and its history are unchanged. Run reconciliation to carry out this decision. It returns each instalment the review held to its status before the hold, unless a dispute was recorded for it meanwhile. A paid instalment, or one unpaid after its final attempt, kept its status throughout. Allocations and reversals already recorded change only through the usual reversal or correction steps.", item);
     if (checkout) {
       const settled = resolveUnknownCheckout(state, ctx, item, checkout, { reason: reason(input), evidenceReference });
       const receipt = settled === "confirmed" ? recordsOf(state, "payments").find((record) => record.id === checkout.data.paymentId) : undefined;
@@ -563,7 +563,7 @@ function runAction(state: DomainState, ctx: Context, input: ActionInput, audit?:
       releaseDispute(state, ctx, disputed, { via: "not_upheld", reason: reason(input), exceptionId: item.id });
       return releasedAnswer(item, disputed, "not_upheld");
     }
-    if (disputed) return result(`Exception resolution recorded. Instalment ${disputed.reference} stays in dispute, so collection and allocation stay paused until Finance releases it from dispute with a reason.`, item, { dueStatus: disputed.status });
+    if (disputed) return result(`Exception resolution recorded. Instalment ${disputed.reference} stays in dispute, so collection and allocation stay on hold until Finance releases it from dispute with a reason.`, item, { dueStatus: disputed.status });
     // An unknown outcome's resolution is what the provider confirmed, so the attempt takes that outcome.
     const outcome = type === "unknown_outcome" ? confirmAttemptOutcome(state, ctx, item) : undefined;
     if (outcome) return result(`Exception resolution recorded. The collection attempt is now recorded as ${valueWords(outcome)}.`, item, { attemptStatus: outcome });
@@ -579,7 +579,7 @@ function runAction(state: DomainState, ctx: Context, input: ActionInput, audit?:
       : "Exception resolution recorded. This reversal evidence is set aside at the next reconciliation: it reverses nothing, even if its payment arrives later.", item);
     const joinedTo = evidence && data.resolutionCode === heldEvidenceCodes.samePayment ? recordsOf(state, "payments").find((record) => record.id === heldEvidenceOf(item.data.condition)?.paymentId) : undefined;
     if (evidence && joinedTo) return result(`${reportsReversal(evidence)
-      ? `Exception resolution recorded. The next reconciliation applies this reversal evidence to payment ${joinedTo.reference}, which is reversed.`
+      ? `Exception resolution recorded. The next reconciliation records this reversal evidence against payment ${joinedTo.reference}, which is reversed.`
       : `Exception resolution recorded. The next reconciliation joins this payment evidence to payment ${joinedTo.reference} as more evidence of it: no second payment is made.`} If payment ${joinedTo.reference} changes before then so that the evidence no longer agrees with it, the evidence is held for you again instead.`, item);
     if (evidence && reportsReversal(evidence)) return result("Exception resolution recorded. This reversal evidence is set aside at the next reconciliation: no payment is made from it only to be reversed, and it reverses nothing, even if its payment is found later.", item);
     if (evidence && data.resolutionCode === heldEvidenceCodes.notMoney) return result("Exception resolution recorded. This payment evidence is set aside at the next reconciliation: no payment is made from it, and it is merged into none.", item);
@@ -596,7 +596,7 @@ function runAction(state: DomainState, ctx: Context, input: ActionInput, audit?:
     if (paymentReversed(payment) || paymentRefunded(payment)) throw Object.assign(new Error(paymentReversed(payment) ? `Payment ${payment.reference} was reversed by the provider, so its money already went back. There is nothing to refund.` : `A refund is already recorded for payment ${payment.reference}. Reload the page to see it.`), { status: 409 });
     if (paymentUnappliedKobo(payment) <= 0) throw Object.assign(new Error(`Payment ${payment.reference} has all of its money allocated to instalments, so there is nothing unallocated to refund. A refund recorded here returns only money the payment has not allocated.`), { status: 409 });
     payment.data.refundReference = String(data.reference); payment.data.refundRecordedAt = now; payment.data.refundRecordedExternally = true;
-    const refundedKobo = recordPaymentRefund(state, ctx, payment, "No longer applied: the payment was refunded outside Valo Pay.");
+    const refundedKobo = recordPaymentRefund(state, ctx, payment, "No longer in use: the payment was refunded outside Valo Pay.");
     return result(`External refund of ${moneyText(refundedKobo, currencyOf(payment))} recorded: the money this payment had not allocated. No money moved.`, payment, { refundedKobo });
   }
   if (input.action === "simulate_failure") {

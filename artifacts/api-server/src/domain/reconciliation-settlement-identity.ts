@@ -204,7 +204,7 @@ export function keepHoldException(state: DomainState, ctx: Context, batch: Typed
     const applicable = identities.includes(identity) && (!batch.data.providerIdentityKey || batch.data.providerIdentityKey === identity);
     if (applicable && !claimed.length) return undefined;
     const why = claimed.length ? collisionText(identity, claimed) : `that connection is not one the batch was held for. Resolve this exception as ${optionText(providerIdentityConfirmedCode)} and choose one of those connections.`;
-    noteUpdate(raiseHoldException(state, ctx, batch), ctx, `the confirmation recorded on exception ${latest!.reference || latest!.id}, of settlement batch ${batch.reference} as the payout of ${providerIdentityParts(identity)?.connection ?? identity}, was not applied: ${why}`);
+    noteUpdate(raiseHoldException(state, ctx, batch), ctx, `the confirmation recorded on exception ${latest!.reference || latest!.id}, of settlement batch ${batch.reference} as the payout of ${providerIdentityParts(identity)?.connection ?? identity}, was not carried out: ${why}`);
     return undefined;
   }
   // An earlier build's other code, which a renewed review follows.
