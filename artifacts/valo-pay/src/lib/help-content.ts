@@ -76,14 +76,14 @@ export const helpGuides: HelpGuide[] = [
   {
     id: "access",
     category: "Getting started",
-    title: "Sign in or accept an invitation",
+    title: "Sign in, create an account or accept an invitation",
     summary:
-      "Sign in with the right account, and what to do when an invitation link does not work.",
+      "Sign in or create an account with the right email address, and what to do when an invitation link does not work.",
     destination: "Sign in, then your invitation link",
     needs:
       "Use the email address the invitation was sent to. For team access you also need the right organisation, two-step verification and an active membership.",
     steps: [
-      "Sign in at the web address your Admin gave you. If sign-in is not available on this site, go back to that address.",
+      "Sign in at the web address your Admin gave you. If you have no account yet, select Create an account and use the email address the invitation was sent to. If sign-in is not available on this site, go back to that address.",
       "After you sign in, open the full invitation link again. Choose the organisation that invited you and complete two-step verification.",
       "Select Accept invitation once. When the page confirms that you have joined, open Overview and check that you see the right lender and role.",
     ],

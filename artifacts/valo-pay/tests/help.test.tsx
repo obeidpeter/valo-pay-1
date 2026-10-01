@@ -285,11 +285,11 @@ describe("contextual help links", () => {
     renderApp("/sign-up");
     await user.click(
       await screen.findByRole("link", {
-        name: "Help: Sign in or accept an invitation",
+        name: "Help: Sign in, create an account or accept an invitation",
       }),
     );
     await screen.findByRole("heading", {
-      name: "Sign in or accept an invitation",
+      name: "Sign in, create an account or accept an invitation",
       level: 2,
     });
     const back = screen.getByRole("link", { name: "Back to your page" });

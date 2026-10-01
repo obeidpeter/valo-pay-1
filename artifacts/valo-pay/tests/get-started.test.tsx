@@ -107,7 +107,7 @@ describe('role-aware starting point', () => {
     for (const link of links) expect(link.getAttribute('href')).toBe('/help?topic=access&returnTo=%2Foverview');
     const access = links[1]!;
     await user.click(access);
-    expect(await screen.findByRole('heading', { name: 'Sign in or accept an invitation', level: 2 })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Sign in, create an account or accept an invitation', level: 2 })).toBeTruthy();
     expect(api.calls.filter(call => call.method === 'POST')).toEqual([]);
   });
 
