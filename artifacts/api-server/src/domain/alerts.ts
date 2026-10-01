@@ -84,7 +84,7 @@ export function buildAlerts(state: DomainState, now: string, audit?: AuditVerifi
   const costCeiling = setting(state, "notificationCostAlertKobo", alertRules.notificationCostPerCollectionKobo);
   if (collections > 0 && cost / collections > costCeiling) alerts.push({ key: "notification_cost", severity: "medium", title: "Message cost exceeds the alert limit", detail: `Message costs average ${nairaText(Math.round(cost / collections))} per successful collection this month, above the alert limit of ${nairaText(Math.round(costCeiling))}. Review message costs in Settings.`, count: collections });
   const lastClose = recordsOf(state, "closes").map((item) => String(item.data.closedAt || item.createdAt)).sort().at(-1);
-  if (!lastClose) alerts.push({ key: "close_overdue", severity: "medium", title: "No daily close yet", detail: "A daily close reconciles payment records and saves a dated summary. Run one to check whether the books are complete." });
+  if (!lastClose) alerts.push({ key: "close_overdue", severity: "medium", title: "No daily closes yet", detail: "A daily close reconciles payment records and saves a dated summary. Run one to check whether the books are complete." });
   else if (nowMs - Date.parse(lastClose) > alertRules.closeOverdueHours * HOUR_MS) alerts.push({ key: "close_overdue", severity: "medium", title: "Daily close overdue", detail: `The last close was ${durationText((nowMs - Date.parse(lastClose)) / 60_000)} ago. A close is due every day at the time set for this lender. Review the schedule, or run a daily close.`, since: lastClose });
   // A scheduled close that has not run well past its time is the close analogue of a missed execution window (NFR-OBS-02).
   const schedule = closeSchedule(state, now);

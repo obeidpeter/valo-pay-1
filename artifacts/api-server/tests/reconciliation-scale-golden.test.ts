@@ -128,7 +128,7 @@ for (const record of beforeProviderIdentity) if (record.kind === "settlement-bat
   assert.equal(record.data.providerIdentityKey, JSON.stringify([String(record.data.providerConnection).trim().toLowerCase(), record.reference]));
   delete record.data.providerIdentityKey;
 }
-assert.equal(digest([state.merchant, state.settings, beforeProviderIdentity.sort(byId)]), "3b2a5ce06bcfc755419c9ce1b7d2034324c45dd9d4b99a0571a480cacc4e4f29", "only the new provider identity changes the earlier golden records (reworded as the language pass below says)");
+assert.equal(digest([state.merchant, state.settings, beforeProviderIdentity.sort(byId)]), "a92fc77b085163a2e5b3bbf18bace1d8f37b4c0600fbb45b1cb2333453f44e23", "only the new provider identity changes the earlier golden records (reworded as the language pass below says)");
 if (process.env.VALOPAY_GOLDEN_PRINT === "1") console.log(JSON.stringify({ outcome, records, visits: [first.visits, second.visits] }, null, 2));
 /**
  * Computed for this scenario by the code before its lookups were indexed: first at c22c229, then again by the dispute
@@ -146,10 +146,12 @@ if (process.env.VALOPAY_GOLDEN_PRINT === "1") console.log(JSON.stringify({ outco
  * lender's segment and customer contact details ("Tier-2 lender · sample data", "the Meridian Credit collections team"), and
  * that a disputed instalment's collection is "on hold" ("Collection stops while the dispute is open"), and that matching
  * rule R5's window is "within five days of the payment", checked field by field
- * against the records the earlier code wrote; the close answers' data are unchanged.
+ * against the records the earlier code wrote; the close answers' data are unchanged. Last, the alert the first close
+ * records, that no close has run yet, is titled "No daily closes yet": with its old title put back in the records
+ * ("No daily close yet", its one occurrence), both record digests are the earlier ones exactly.
  */
 const golden = {
-  records: "8e66f07054a057142c0ead164482db8be993ffac17b27699213d2e9cc665691d",
+  records: "88732e6804931d81d4be279254217124667510815298fa7b566584f2f40360cd",
   monthEnd: "dff97eb6d50336fb650cf48652975f842fd2b85f14df835eb535a7dbb4a35a7d",
   nextDay: "1a88e829ce6bd3940c6a5248e5bbdfddc0a7786480202fc138aca0a834c4a798",
 };
