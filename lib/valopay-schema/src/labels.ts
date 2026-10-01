@@ -17,7 +17,7 @@ export const valueLabels: Readonly<Record<string, string>> = {
   info: "Information", awaiting_review: "Waiting for review", fortnightly: "Every two weeks",
   in_collection: "Collection in progress", in_flight: "Awaiting an outcome",
   not_proven: "Not yet proven", not_eligible: "Not eligible for a retry",
-  would_schedule: "Would schedule a retry", observation_only: "Watch only",
+  would_schedule: "Would schedule a retry", observation_only: "Recorded only, no instruction sent",
   give_up: "No further retries", defer: "Retry postponed", holdout: "Comparison group",
   engine: "Automated retry group", preregistered: "Plan registered",
   handed_back: "Collection returned",
@@ -61,6 +61,8 @@ export const valueLabels: Readonly<Record<string, string>> = {
   "staff.change_approved": "Access change approved", "staff.change_declined": "Access change rejected or withdrawn",
   "staff.lender_access_changed": "Lender access changed", "staff.provisioned": "First Admin set up by the Valo Pay team",
   "staff.administrator_added": "Admin added by the Valo Pay team", "staff.renewed": "Access renewed",
+  // Service outcomes. The exception types the service writes are named above, as the exception catalogue names them.
+  stop: "Collection stopped", csv_only: "CSV only",
 };
 
 /** A stored value in words: its label, or the value spelled out ("pending_review" as "Pending review"). */

@@ -114,7 +114,7 @@ it('imports the exact sample pack through batch validation, matches it automatic
   const allocations = state.records.filter(r => r.kind === 'allocations' && r.data.dueItemId === due.id);
   expect(allocations).toHaveLength(1);
   expect(allocations[0]).toMatchObject({ status: 'confirmed', amountKobo: 1_800_050, data: { rule: 'R1', confidence: 'certain', automatic: true } });
-  expect(String(allocations[0]!.data.explanation)).toContain('resolved to instalment PRES-D001');
+  expect(String(allocations[0]!.data.explanation)).toContain('matches instalment PRES-D001');
   const payment = state.records.find(r => r.kind === 'payments' && r.id === allocations[0]!.data.paymentId)!;
   expect(payment).toMatchObject({ status: 'allocated', amountKobo: 1_800_050, data: { allocatedKobo: 1_800_050 } });
   expect(due).toMatchObject({ status: 'paid', data: { outstandingKobo: 0 } });
@@ -128,10 +128,10 @@ it('imports the exact sample pack through batch validation, matches it automatic
 // that name. It names the option each record type offers (amountUnitName).
 it('names the amount unit of each sample file as Import batches offers it', async () => {
   const brief = presenterBrief('2026-09-22');
-  expect(brief).toContain("In Import batches, choose the record type that matches each file. Under Amounts in the source file, choose Naira (₦). For Payment evidence, choose Major units (₦, or the row's currency).");
+  expect(brief).toContain("In Import batches, choose the record type that matches each file. Under Amounts in the source file, choose Naira (₦). For Payment evidence, choose Main unit (₦, or the row’s own currency).");
   expect(brief).not.toMatch(/choose Naira,/);
   renderApp('/presentation');
-  expect((await screen.findByText(/^In Import batches, choose the record type/)).textContent).toMatch(/^In Import batches, choose the record type that matches each file\. Under Amounts in the source file, choose Naira \(₦\)\. For Payment evidence, choose Major units \(₦, or the row's currency\)\. Use the source name/);
+  expect((await screen.findByText(/^In Import batches, choose the record type/)).textContent).toMatch(/^In Import batches, choose the record type that matches each file\. Under Amounts in the source file, choose Naira \(₦\)\. For Payment evidence, choose Main unit \(₦, or the row’s own currency\)\. Use the source name/);
 });
 
 // The brief's answer to an investor's direct question claims only what exists: code, tested with local sample scenarios.
@@ -180,7 +180,7 @@ it('opens the sample customer at step three, where the automatic R1 match and it
   await screen.findByRole('heading', { level: 1, name: 'Presentation customer' });
   const history = screen.getByRole('heading', { name: 'Customer history' }).closest('div.bg-card') as HTMLElement;
   const match = within(history).getByText(/^Matched automatically by rule R1\. Confidence: Certain\./);
-  expect(match.textContent).toContain('Provider reference PRES-O001 resolved to instalment PRES-D001');
+  expect(match.textContent).toContain('Provider reference PRES-O001 matches instalment PRES-D001');
   expect(within(match.parentElement!).getByText('₦18,000.50')).toBeTruthy();
   expect(api.calls.filter(c => c.method !== 'GET')).toEqual([]);
 });

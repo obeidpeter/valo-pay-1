@@ -11,6 +11,9 @@ let api: FakeApi;
 beforeEach(() => { api = installFakeApi(); });
 afterEach(() => api.uninstall());
 
+/** An exception's notes as the list shows them in one paragraph: its lines, each choice included, joined by spaces. */
+const inOneLine = (notes: unknown) => String(notes).replace(/\s+/g, ' ').trim();
+
 describe("exceptions", () => {
   it('keeps Compliance review available without offering a generic exception edit or create', async () => {
     api.role = 'Compliance reviewer';
@@ -121,7 +124,7 @@ describe("exceptions", () => {
     renderApp('/exceptions?view=open&type=suspected_duplicate');
     const codesFor = async (evidence: { id: string }) => {
       const exception = api.state().records.find(record => record.kind === 'exceptions' && record.data.linkedRecordId === evidence.id)!;
-      const row = (await screen.findByText(String(exception.data.notes))).closest('tr')!;
+      const row = (await screen.findByText(inOneLine(exception.data.notes))).closest('tr')!;
       await user.click(within(row).getByRole('button', { name: 'Resolve exception' }));
       const dialog = await screen.findByRole('dialog', { name: 'Resolve exception' });
       const labels = within(within(dialog).getByLabelText(/^Outcome/)).getAllByRole('option').map(option => option.textContent);
@@ -150,7 +153,7 @@ describe("exceptions", () => {
     });
     const exception = api.state().records.find(record => record.kind === 'exceptions' && record.data.linkedRecordId === line.id)!;
     renderApp('/exceptions?view=open&type=suspected_duplicate');
-    const row = (await screen.findByText(String(exception.data.notes))).closest('tr')!;
+    const row = (await screen.findByText(inOneLine(exception.data.notes))).closest('tr')!;
     await user.click(within(row).getByRole('button', { name: 'Resolve exception' }));
     const dialog = await screen.findByRole('dialog', { name: 'Resolve exception' });
     const code = within(dialog).getByLabelText(/^Outcome/);
@@ -172,9 +175,9 @@ describe("exceptions", () => {
     await user.click(within(dialog).getByRole('button', { name: 'Resolve exception' }));
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Resolve exception' })).toBeNull());
     const answer = await screen.findByRole('status', { name: 'Resolution recorded' });
-    expect(answer.textContent).toContain('Exception resolution recorded. The next reconciliation joins this payment evidence to payment PSK-SET-1 as more evidence of it: no second payment is made.');
+    expect(answer.textContent).toContain('Exception resolution recorded. The next reconciliation adds this payment evidence to payment PSK-SET-1. No second payment is created.');
     // The resolved exception leaves the open queue with its Resolve button, so reading continues from the answer.
-    await waitFor(() => expect(screen.queryByText(String(exception.data.notes))).toBeNull());
+    await waitFor(() => expect(screen.queryByText(inOneLine(exception.data.notes))).toBeNull());
     await waitFor(() => expect(document.activeElement).toBe(answer));
   });
 

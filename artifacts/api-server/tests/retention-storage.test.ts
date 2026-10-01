@@ -45,9 +45,9 @@ const snapshot=structuredClone(state),candidate=preview.candidates[0];
 eraseLifecycleRawCsv(state,ctx,preview.id,candidate);recordLifecycleReceipt(state,ctx,preview.id,candidate,'deleted','Synthetic raw CSV removed.');
 assert.doesNotThrow(()=>assertFinalState(snapshot,state,state.merchant.id,ctx.now));
 const forged=structuredClone(snapshot);delete forged.records.find(r=>r.id===batch.id)!.data.csv;
-assert.throws(()=>assertFinalState(snapshot,forged,state.merchant.id,ctx.now),/immutable/);
+assert.throws(()=>assertFinalState(snapshot,forged,state.merchant.id,ctx.now),/An imported batch cannot be changed\. Propose an import correction instead\./);
 state.records.find(r=>r.id===batch.id)!.name='Unrelated hidden change';
-assert.throws(()=>assertFinalState(snapshot,state,state.merchant.id,ctx.now),/immutable/);
+assert.throws(()=>assertFinalState(snapshot,state,state.merchant.id,ctx.now),/An imported batch cannot be changed\. Propose an import correction instead\./);
 // Without the durable queue, the post-commit request fails safe: no deletion starts from transient memory alone.
 // Retry budgets, leases, process loss and storage failures are exercised with the real queue in export-expiry.integration.
 {

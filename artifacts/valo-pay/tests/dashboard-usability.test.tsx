@@ -14,7 +14,7 @@ describe('dashboard usability', () => {
     expect(activation.getAttribute('href')).toBe('/mandates?view=awaiting-activation');
     expect(screen.getByRole('link', { name: /Matches to review/ }).getAttribute('href')).toBe('/reconciliation?view=review');
     expect(screen.getByRole('link', { name: /Possible duplicates/ }).getAttribute('href')).toBe('/reconciliation?view=duplicates');
-    expect(screen.getByRole('link', { name: /Failed collections/ }).getAttribute('href')).toBe('/collections?view=failed');
+    expect(screen.getByRole('link', { name: /Failed collection attempts/ }).getAttribute('href')).toBe('/collections?view=failed');
     expect(screen.getByRole('link', { name: /Overdue exceptions/ }).getAttribute('href')).toBe('/exceptions?view=overdue');
     expect(within(screen.getByRole('region', { name: 'Alerts' })).getByRole('link', { name: 'Open Reports' }).getAttribute('href')).toBe('/reports');
     await user.click(activation);
@@ -36,7 +36,7 @@ describe('dashboard usability', () => {
     expect(details.open).toBe(true);
     expect(within(details).getByText('0.3%')).toBeTruthy();
     expect(within(details).getByText('7.5%')).toBeTruthy();
-    expect(within(details).getByText(/A collection can be billed when the direct debit succeeded/)).toBeTruthy();
+    expect(within(details).getByText(/A collection is billed once four things are true/)).toBeTruthy();
   });
 
   it('includes collapsed evidence when printing and restores the chosen disclosures afterwards', async () => {

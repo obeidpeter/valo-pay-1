@@ -25,7 +25,7 @@ const decision=(review:any)=>({action:"approve" as const,expectedUpdatedAt:revie
 assert.equal(watBusinessDate("2026-09-21T23:30:00.000Z"),date);
 {
   const state=fresh();assert.equal(sourceCompleteness(state,date).status,"incomplete");
-  assert.throws(()=>saveSourceManifest(state,ctx,{...declaration,businessDate:"2026-02-30"}),/valid business date/);
+  assert.throws(()=>saveSourceManifest(state,ctx,{...declaration,businessDate:"2026-02-30"}),/Enter a real business date/);
   assert.throws(()=>saveSourceManifest(state,{...ctx,role:"Read-only"},declaration),/role/);
   assert.throws(()=>saveSourceManifest(state,ctx,{...declaration,files:[file,file]}),/once/);
   const original=saveSourceManifest(state,ctx,declaration), snapshot=JSON.stringify(original);
@@ -48,8 +48,8 @@ assert.equal(watBusinessDate("2026-09-21T23:30:00.000Z"),date);
   assert.equal(sourceCompleteness(state,date).status,"incomplete","An undated legacy batch cannot acquire a business date from arrival time.");
   assert.match(sourceCompleteness(state,date).files[0].problems.join(" "),/older batch/);
   const {review}=prepared(state), approve=decision(review);
-  assert.throws(()=>decideCloseReview(state,finance,review.id,{...approve,sourceExceptions:[]}),/explicitly accept/);
-  assert.throws(()=>decideCloseReview(state,finance,review.id,{...approve,sourceExceptions:[...approve.sourceExceptions,...approve.sourceExceptions]}),/explicitly accept/);
+  assert.throws(()=>decideCloseReview(state,finance,review.id,{...approve,sourceExceptions:[]}),/Accept each missing or incomplete source file/);
+  assert.throws(()=>decideCloseReview(state,finance,review.id,{...approve,sourceExceptions:[...approve.sourceExceptions,...approve.sourceExceptions]}),/Accept each missing or incomplete source file/);
   assert.throws(()=>decideCloseReview(state,finance,review.id,{...approve,sourceExceptions:[{...approve.sourceExceptions[0],evidence:""}]}));
   assert.throws(()=>decideCloseReview(state,{...finance,principalId:ctx.principalId},review.id,approve),/different person/);
   decideCloseReview(state,finance,review.id,approve);
@@ -58,11 +58,11 @@ assert.equal(watBusinessDate("2026-09-21T23:30:00.000Z"),date);
   assert.equal(batch.data.businessDate,undefined);
   makeRecord(state,"import-corrections",{id:"pending-money",data:{preview:{financial:true}}});
   assert.equal(reviewIsCurrent(state,review),false,"A new pending financial correction prevents claiming old approval is current.");
-  assert.match(closeReviewCurrentProblem(state,review.data.snapshot!)!,/corrections await/);
+  assert.match(closeReviewCurrentProblem(state,review.data.snapshot!)!,/Import corrections to instalments are waiting for a decision/);
 }
 {
   const state=fresh();saveSourceManifest(state,ctx,declaration);
-  assert.throws(()=>saveImportBatch(state,ctx,{name:"Wrong date",source:file.source,sourceBatchId:file.sourceBatchId,kind:"customers",businessDate:"2026-09-23",csv:"id,name\n1,Name",mapping:{},identityColumn:"id",amountUnit:"naira",syntheticOnly:true}),/different business date/);
+  assert.throws(()=>saveImportBatch(state,ctx,{name:"Wrong date",source:file.source,sourceBatchId:file.sourceBatchId,kind:"customers",businessDate:"2026-09-23",csv:"id,name\n1,Name",mapping:{},identityColumn:"id",amountUnit:"naira",syntheticOnly:true}),/declared for another business date/);
   const fake=makeRecord(state,"import-batches",{status:"committed",data:{source:file.source,sourceBatchId:file.sourceBatchId,kind:file.kind,businessDate:date,sourceExpectationId:sourceFileId(date,file),sourceQuality:{profileId:null,profileVersion:null,sourceRows:2,sourceAmountKobo:100,importedRows:2,importedAmountKobo:100,duplicateRows:0,conflictRows:0,invalidRows:0,status:"checked",issues:[]}}});
   assert.match(sourceCompleteness(state,date).files[0].problems.join(" "),/Declared 1 rows/);
   assert.match(sourceCompleteness(state,date).files[0].problems.join(" "),/Declared 0 kobo/);

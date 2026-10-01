@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { WAT_OFFSET_MS } from "./policy";
 import { isRealDate, isoDay } from "./records";
+import { dayText } from "./text";
 
 /**
  * BIL-02: whether design-partner terms can price a new invoice, shared by the
@@ -12,8 +13,8 @@ import { isRealDate, isoDay } from "./records";
 type Terms = Record<string, unknown>;
 const contractFields = ["discountStartDate", "fullPriceStartDate", "discountTermsReference"] as const;
 const fieldNames: Record<(typeof contractFields)[number], string> = { discountStartDate: "discount start date", fullPriceStartDate: "full-price start date", discountTermsReference: "signed agreement reference" };
-const LEAD = "These design-partner terms cannot price a new invoice yet.";
-const UNREADABLE = "The recorded proposal or confirmation of these discount dates cannot be read: save the commercial terms again to propose the dates afresh. If that save is refused, add replacement terms from the signed agreement with Add terms; the original record stays as it is.";
+const LEAD = "These design-partner terms cannot be used on a new invoice yet.";
+const UNREADABLE = "Valo Pay cannot read the saved proposal or confirmation of these discount dates. Save the commercial terms again to propose the dates again. If that is refused, use Add terms to enter replacement terms from the signed agreement. The original record stays as it is.";
 const listed = (items: string[]) => items.length < 2 ? items.join("") : `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`;
 const filled = (value: unknown): value is string => typeof value === "string" && value.trim() !== "";
 const objectOf = (value: unknown): Terms | undefined => value && typeof value === "object" && !Array.isArray(value) ? value as Terms : undefined;
@@ -24,7 +25,7 @@ export function discountDateProblem(data: Terms): string | undefined {
   if (!contractFields.every(key => filled(data[key]))) return "Enter both discount dates and the signed agreement reference.";
   for (const key of ["discountStartDate", "fullPriceStartDate"] as const) {
     const date = data[key] as string;
-    if (!isRealDate(date) || !/^\d{4}-\d{2}-01$/.test(date)) return "Discount dates must be the first day of a real billing month. Monthly invoices do not prorate a mid-month price change.";
+    if (!isRealDate(date) || !/^\d{4}-\d{2}-01$/.test(date)) return "Each discount date must be the first day of a month, because a monthly invoice uses one price for the whole month.";
   }
   if ((data.fullPriceStartDate as string) <= (data.discountStartDate as string)) return "Full-price billing must start after the discount starts.";
   return undefined;
@@ -90,21 +91,21 @@ export function discountTermsStatus(data: unknown): DiscountTermsStatus {
   const terms = objectOf(data) ?? {};
   if (terms.designPartner !== true) return { state: "full_price", ready: true, explanation: "Full public price." };
   const blocked = (state: DiscountTermsState, ...sentences: string[]): DiscountTermsStatus => ({ state, ready: false, explanation: [LEAD, ...sentences].join(" ") });
-  if (terms.signed !== true) return blocked("unsigned", "They are not signed, so they bill nothing: tick “Signed” once the agreement is signed.");
+  if (terms.signed !== true) return blocked("unsigned", "They are not signed, so they bill nothing. Tick “Signed” once the agreement is signed.");
   const causes: Array<[DiscountTermsState, string]> = [];
-  if (terms.signedFullPriceTerms !== true) causes.push(["full_price_terms_unsigned", "The full-price terms are not recorded as signed: tick “Full-price terms are signed” once they are, so that the discount dates can be proposed."]);
+  if (terms.signedFullPriceTerms !== true) causes.push(["full_price_terms_unsigned", "The full-price terms are not recorded as signed. Tick “Full-price terms are signed” once they are, so the discount dates can be proposed."]);
   const unreadable = contractFields.filter(key => terms[key] !== undefined && terms[key] !== null && typeof terms[key] !== "string");
   const missing = contractFields.filter(key => !unreadable.includes(key) && !filled(terms[key]));
   if (missing.length) {
     const names = listed(missing.map(key => `the ${fieldNames[key]}`));
-    causes.push(["dates_missing", `${names.charAt(0).toUpperCase()}${names.slice(1)} ${missing.length === 1 ? "is missing: enter it" : "are missing: enter them"} from the signed agreement.`]);
+    causes.push(["dates_missing", `${names.charAt(0).toUpperCase()}${names.slice(1)} ${missing.length === 1 ? "is missing. Enter it" : "are missing. Enter them"} from the signed agreement.`]);
   }
-  if (unreadable.length) causes.push(["dates_unreadable", `The saved ${listed(unreadable.map(key => fieldNames[key]))} cannot be read: enter ${unreadable.length === 1 ? "it" : "them"} again from the signed agreement.`]);
+  if (unreadable.length) causes.push(["dates_unreadable", `Valo Pay cannot read the saved ${listed(unreadable.map(key => fieldNames[key]))}. Enter ${unreadable.length === 1 ? "it" : "them"} again from the signed agreement.`]);
   const problem = missing.length || unreadable.length ? undefined : discountDateProblem(terms);
   if (problem) causes.push(["dates_invalid", `The saved discount dates need correcting. ${problem}`]);
   if (causes.length) return blocked(causes[0]![0], ...causes.map(([, sentence]) => sentence));
   const review = terms.discountReview;
-  if (review === undefined || review === null) return blocked("not_proposed", "No proposal is recorded for these discount dates: save the commercial terms again to propose them for confirmation.");
+  if (review === undefined || review === null) return blocked("not_proposed", "These discount dates have not been proposed. Save the commercial terms again to propose them for confirmation.");
   const proposal = objectOf(review);
   if (!proposal || !filled(proposal.reviewedBy) || typeof proposal.reviewedAt !== "string" || !isRealDate(proposal.reviewedAt)
     || ![proposal.discountStartDate, proposal.fullPriceStartDate, proposal.termsReference].every(value => typeof value === "string")
@@ -115,12 +116,12 @@ export function discountTermsStatus(data: unknown): DiscountTermsStatus {
   const start = terms.discountStartDate as string, end = terms.fullPriceStartDate as string;
   if (proposal.discountStartDate !== start || proposal.fullPriceStartDate !== end || proposal.termsReference !== (terms.discountTermsReference as string).trim()) {
     return confirmed
-      ? blocked("changed_since_confirmed", "The discount dates or agreement reference changed after they were confirmed: save the commercial terms again to propose the current dates for a new confirmation.")
-      : blocked("changed_since_proposed", "The discount dates or agreement reference changed after they were proposed: save the commercial terms again to propose the current dates.");
+      ? blocked("changed_since_confirmed", "The discount dates or agreement reference changed after they were confirmed. Save the commercial terms again to propose the current dates for a new confirmation.")
+      : blocked("changed_since_proposed", "The discount dates or agreement reference changed after they were proposed. Save the commercial terms again to propose the current dates.");
   }
   const proposed = { by: proposal.reviewedBy, at: proposal.reviewedAt };
-  if (!confirmed) return { ...blocked("awaiting_confirmation", "The discount dates await confirmation: a different Admin or Finance user from the person who proposed them must confirm them against the signed agreement in Go-live evidence."), proposal: proposed };
-  return { state: "confirmed", ready: true, explanation: `Confirmed agreement: discount from ${start}; full price from ${end}.`, proposal: proposed, confirmation: { by: proposal.confirmedBy as string, at: proposal.confirmedAt as string } };
+  if (!confirmed) return { ...blocked("awaiting_confirmation", "The discount dates are waiting for confirmation. An Admin or Finance team member who did not propose them must check them against the signed agreement and confirm them in Go-live evidence."), proposal: proposed };
+  return { state: "confirmed", ready: true, explanation: `Confirmed agreement: discount from ${dayText(start)}; full price from ${dayText(end)}.`, proposal: proposed, confirmation: { by: proposal.confirmedBy as string, at: proposal.confirmedAt as string } };
 }
 
 /**
@@ -132,7 +133,7 @@ export function discountTermsStatus(data: unknown): DiscountTermsStatus {
 export const discountConfirmationDataSchema = z.object({
   discountStartDate: isoDay.describe("The proposed discount start date, as it was read."),
   fullPriceStartDate: isoDay.describe("The proposed full-price start date, as it was read."),
-  discountTermsReference: z.string().trim().min(1, "Send the signed agreement reference you checked.").max(500).describe("The proposed signed agreement reference, as it was read."),
+  discountTermsReference: z.string().trim().min(1, "Enter the signed agreement reference you checked.").max(500).describe("The proposed signed agreement reference, as it was read."),
 });
 /** The data of a discount confirmation. */
 export type DiscountConfirmationData = z.infer<typeof discountConfirmationDataSchema>;

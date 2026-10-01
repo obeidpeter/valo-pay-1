@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 
 // The store and export modules reach the database module, which insists on an address before anything here runs; nothing in this file touches a database.
 process.env["DATABASE_URL"] ??= "postgres://postgres@127.0.0.1:1/valopay-unused";
-const { counted, nairaText } = await import("@workspace/valopay-schema");
+const { counted, dayText, instantText, monthText, nairaText } = await import("@workspace/valopay-schema");
 const { foldForSearch, pageRecords } = await import("../src/lib/valopay-list.js");
 const { seedMerchant } = await import("../src/lib/valopay-seed.js");
 const { buildDisputePack, packFonts, renderDisputePackPdf } = await import("../src/lib/valopay-packs.js");
@@ -41,15 +41,40 @@ assert.equal(counted(2, "observation"), "2 observations");
 assert.equal(counted(1234, "record"), "1,234 records");
 checks += 4;
 
-// ---- Money in messages is exact to the kobo, however large ----
-assert.equal(nairaText(2_500_000), "NGN 25,000.00");
-assert.equal(nairaText(0), "NGN 0.00");
-assert.equal(nairaText(-150), "NGN -1.50");
-assert.equal(nairaText(-5), "NGN -0.05", "a credit under a naira keeps its sign");
-assert.equal(nairaText(8_496_439_859_216_957), "NGN 84,964,398,592,169.57", "dividing by 100 as a float printed .56");
-assert.equal(nairaText(Number.MAX_SAFE_INTEGER), "NGN 90,071,992,547,409.91");
-assert.equal(nairaText(-Number.MAX_SAFE_INTEGER), "NGN -90,071,992,547,409.91");
+// ---- Money in messages is exact to the kobo, however large, and written as the console writes it ----
+assert.equal(nairaText(2_500_000), "₦25,000.00");
+assert.equal(nairaText(0), "₦0.00");
+assert.equal(nairaText(-150), "-₦1.50");
+assert.equal(nairaText(-5), "-₦0.05", "a credit under a naira keeps its sign");
+assert.equal(nairaText(8_496_439_859_216_957), "₦84,964,398,592,169.57", "dividing by 100 as a float printed .56");
+assert.equal(nairaText(Number.MAX_SAFE_INTEGER), "₦90,071,992,547,409.91");
+assert.equal(nairaText(-Number.MAX_SAFE_INTEGER), "-₦90,071,992,547,409.91");
 checks += 7;
+
+// ---- Dates in messages read as the console writes them, in West Africa Time ----
+assert.equal(dayText("2026-09-29"), "29 Sept 2026", "a day is shown as it is");
+assert.equal(dayText("2026-06-29T23:30:00.000Z"), "30 Jun 2026", "an instant is the WAT day it falls on");
+assert.equal(instantText("2026-09-29T13:05:00.000Z"), "29 Sept 2026, 14:05 WAT");
+assert.equal(instantText("2026-09-29T07:00:00.000Z"), "29 Sept 2026, 08:00 WAT", "hours have two digits");
+assert.equal(instantText("2026-09-29"), "29 Sept 2026", "a day has no invented time");
+assert.equal(monthText("2026-09"), "September 2026");
+assert.equal(dayText("2026-02-30"), "2026-02-30", "a day that does not exist is left as given");
+assert.equal(instantText("not a date"), "not a date");
+checks += 8;
+
+// ---- A rule without words of its own is refused in Valo Pay's words, never zod's ----
+{
+  const { z } = await import("zod");
+  const said = (schema: { safeParse: (value: unknown) => { success: boolean; error?: { issues: Array<{ message: string }> } } }, value: unknown) => schema.safeParse(value).error?.issues.map((issue) => issue.message);
+  assert.deepEqual(said(z.object({ note: z.string().min(10) }), { note: "short" }), ["Enter at least 10 characters."]);
+  assert.deepEqual(said(z.object({ note: z.string() }), {}), ["Enter a value."], "a missing value");
+  assert.deepEqual(said(z.number().max(31), 40), ["Enter 31 or less."]);
+  assert.deepEqual(said(z.number().int(), 1.5), ["Enter a whole number."]);
+  assert.deepEqual(said(z.enum(["approve", "return"]), "maybe"), ["Choose Approve or Return."], "the choices by their labels");
+  assert.deepEqual(said(z.object({ note: z.string() }).strict(), { note: "x", extra: 1 }), ["This request has details Valo Pay does not use. Reload the page and try again."]);
+  assert.deepEqual(said(z.string().min(3, "Enter the next step (at least 3 characters)."), "x"), ["Enter the next step (at least 3 characters)."], "a rule's own words win");
+  checks += 7;
+}
 
 // ---- The PDF spells the names: its own typeface, not a WinAnsi standard font ----
 const fonts = packFonts();
@@ -74,4 +99,4 @@ const preview = importCsv(state, ctx, { kind: "customers", syntheticOnly: true, 
 assert.equal((preview as { valid: number }).valid, 1, "a file saved by a spreadsheet program, mark and all, is read");
 checks += 4;
 
-console.log(`Internationalisation tests passed (${checks} checks): accent-insensitive search, counts with nouns, money in messages exact to the kobo, the pack's own typeface spelling Yoruba and Igbo names, CSV byte order mark in and out.`);
+console.log(`Internationalisation tests passed (${checks} checks): accent-insensitive search, counts with nouns, money in messages exact to the kobo and dates in words, Valo Pay's words for rules without their own, the pack's own typeface spelling Yoruba and Igbo names, CSV byte order mark in and out.`);

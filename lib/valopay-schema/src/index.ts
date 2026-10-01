@@ -25,3 +25,5 @@ export * from './team';
 export * from './connected';
 export * from './provider-identity';
 export * from './discount-terms';
+export * from './words';
+export * from './zod-words';

@@ -60,8 +60,8 @@ const settingsOf = async (lender: string) => (await pool.query<{ settings: Recor
 const chainOf = async (lender: string) => (await settingsOf(lender)).auditChain as Record<string, any>;
 const closesOf = async (lender: string) => (await pool.query<{ data: Record<string, any> }>("SELECT data FROM valopay_records WHERE merchant_id=$1 AND kind='closes' ORDER BY created_at,id", [lender])).rows;
 const chainAlert = (alerts: Array<{ key: string; severity: string; detail: string }>) => alerts.find((alert) => alert.key === "audit_chain_broken");
-const namedEntry = (alert?: { detail: string }) => Number(/stopped at entry (\d+)/.exec(alert?.detail ?? "")?.[1]);
-const kept = (alert?: { detail: string }) => /The lender has recorded this break/.test(alert?.detail ?? "");
+const namedEntry = (alert?: { detail: string }) => Number(/Entry (\d+) of the audit log/.exec(alert?.detail ?? "")?.[1]);
+const kept = (alert?: { detail: string }) => /This alert stays until a full check finds every entry intact: select Check audit log/.test(alert?.detail ?? "");
 const customer = (name: string) => ({ name, reference: `AUDIT-CHECK-${randomUUID()}`, data: { consentProvenance: "Synthetic fixture" } });
 const databaseNow = async () => Date.parse((await pool.query<{ now: Date }>("SELECT now() AS now")).rows[0]!.now.toISOString());
 const setCursor = (lender: string, at: string) => pool.query("UPDATE valopay_merchants SET settings = settings || jsonb_build_object('nextCloseAt', $2::text) WHERE id=$1", [lender, at]);

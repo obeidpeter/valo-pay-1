@@ -73,7 +73,7 @@ it("declares dated source files with control totals and keeps a missing delivery
   await user.type(screen.getByLabelText("Evidence reference"),"Source control report CONTROL-22.");
   await user.click(screen.getByRole("button",{name:"Save expected files"}));
   await screen.findByRole("heading",{name:"Change the expected files"});
-  expect(screen.getByText("Source file incomplete · customers-2026-09-22")).toBeTruthy();
+  expect(screen.getByText("File incomplete · customers-2026-09-22")).toBeTruthy();
   expect(screen.getByText(/0 of 1 expected files complete/)).toBeTruthy();
   const manifest=api.state().records.find(record=>record.kind==='source-manifests')!;
   expect(manifest.data.businessDate).toBe("2026-09-22");expect(manifest.data.files[0].expectedRows).toBe(2);

@@ -1,4 +1,5 @@
-import { retentionPolicySchema, retentionPolicyInputSchema, retentionHoldInputSchema, lifecycleCandidateSchema, lifecyclePreviewInputSchema, lifecycleApproveInputSchema, lifecycleRunViewSchema, lifecycleViewSchema, lifecycleReceiptStatusSchema, retentionMinimumDays, type LifecycleCandidate, type LifecycleEvidence, type LifecycleExternalCandidate, type RetentionMinimum, type RetentionPolicy, canonicalJson, sameJson, legacyCollatedCompare, storedInstant } from '@workspace/valopay-schema';
+import { retentionPolicySchema, retentionPolicyInputSchema, retentionHoldInputSchema, lifecycleCandidateSchema, lifecyclePreviewInputSchema, lifecycleApproveInputSchema, lifecycleRunViewSchema, lifecycleViewSchema, lifecycleReceiptStatusSchema, retentionMinimumDays, type LifecycleCandidate, type LifecycleEvidence, type LifecycleExternalCandidate, type RetentionMinimum, type RetentionPolicy, canonicalJson, sameJson, legacyCollatedCompare, storedInstant, changedText, notFoundText } from '@workspace/valopay-schema';
+import { roleRefusal } from './validation';
 import type { Context, DomainState, ValopayRecord } from './types';
 import { makeRecord, touch, assertSourceOpened } from './records';
 import { canonicalDigest } from '../lib/digests';
@@ -14,7 +15,7 @@ const defaults: RetentionPolicy = { rawCsvDays: null, journalPayloadDays: null, 
 // Policy and hold revisions and candidate and preview digests are stored in runs and compared again: their first form.
 const hash = (value: unknown) => canonicalDigest(value, 'legacy-en-us-replacer');
 function refuse(message: string, status = 409): never { throw Object.assign(new Error(message), { status }); }
-function admin(ctx: Context) { if (ctx.role !== 'Admin') refuse('A currently authorised administrator is required for retention controls.', 403); }
+function admin(ctx: Context) { if (ctx.role !== 'Admin') refuse(roleRefusal(ctx, ['Admin'], 'manage data retention'), 403); }
 /** The shortest retention the caller's workspace allows (retentionMinimumDays): a staff pilot's, or the sandbox's. */
 const minimumOf = (ctx: Context): RetentionMinimum => retentionMinimumDays[ctx.accessMode === 'staff' ? 'staff' : 'sandbox'];
 const daysText = (days: number) => `${days.toLocaleString('en-GB')} days${days === 2192 ? ' (six years)' : ''}`;
@@ -77,7 +78,7 @@ function validateExternal(state: DomainState, candidates: LifecycleExternalCandi
     if (!['journal_payload', 'export_file'].includes(candidate.kind)) continue;
     result.push(candidate);
   }
-  if (new Set(result.map(candidateKey)).size !== result.length) refuse('The retention inventory contains duplicate source identities. Refresh before preparing a run.');
+  if (new Set(result.map(candidateKey)).size !== result.length) refuse('Some files appear twice in the retention list. Reload the page before you prepare a deletion run.');
   return result;
 }
 export function lifecycleCandidates(state: DomainState, external: LifecycleExternalCandidate[] = []) {
@@ -121,7 +122,7 @@ function unlistedJournal(listed: LifecycleCandidate[], rules: Rules, journal: Jo
   const payloads = listed.filter(candidate => candidate.kind === 'journal_payload');
   return { total: journal.total - payloads.length, eligible: journal.eligible - payloads.filter(candidate => eligible(rules, candidate)).length };
 }
-function runOf(state: DomainState, id: string) { return rows(state, 'retention-runs').find(record => record.id === id) || refuse('Retention run not found in this lender.', 404); }
+function runOf(state: DomainState, id: string) { return rows(state, 'retention-runs').find(record => record.id === id) || refuse(notFoundText('deletion run'), 404); }
 /** The latest receipt for each source of each run, from one pass over the lender's receipts. */
 function receiptsByRun(state: DomainState) {
   const result = new Map<string, Map<string, ValopayRecord>>();
@@ -142,7 +143,7 @@ function runView(state: DomainState, run: ValopayRecord, latest: Map<string, Val
 export function lifecycleRunView(state: DomainState, run: ValopayRecord) { return runView(state, run, latestReceipts(state, run.id)); }
 export function lifecycleView(state: DomainState, ctx: Context, external: LifecycleExternalCandidate[] = [], targetOffset = 0, journal?: JournalWindow) {
   admin(ctx);
-  if (!Number.isInteger(targetOffset) || targetOffset < 0 || targetOffset > 100000) refuse('Choose a valid retention inventory page.', 400);
+  if (!Number.isInteger(targetOffset) || targetOffset < 0 || targetOffset > 100000) refuse('This page of the retention list does not exist. Go back to the first page.', 400);
   const { policy, revision } = lifecyclePolicy(state), holds = lifecycleHolds(state), candidates = lifecycleCandidates(state, external), rules = rulesOf(state, ctx, policy, holds), receipts = receiptsByRun(state);
   // With a window of the journal, the payloads it leaves out are counted, and the page starts that many in.
   const unlisted = journal ? unlistedJournal(candidates, rules, journal) : { total: 0, eligible: 0 }, start = targetOffset - (journal?.skipped ?? 0);
@@ -151,28 +152,28 @@ export function lifecycleView(state: DomainState, ctx: Context, external: Lifecy
 }
 export function saveLifecyclePolicy(state: DomainState, ctx: Context, raw: unknown) {
   admin(ctx); const input = retentionPolicyInputSchema.parse(raw), minimum = minimumOf(ctx);
-  if (input.expectedRevision !== lifecyclePolicy(state).revision) refuse('The retention policy changed. Refresh and review the current policy.');
+  if (input.expectedRevision !== lifecyclePolicy(state).revision) refuse(changedText('retention policy'));
   const keys = Object.keys(minimum) as Array<keyof RetentionMinimum>;
   if (keys.some(key => input.policy[key] !== null && input.policy[key]! < minimum[key])) refuse(`${ctx.accessMode === 'staff'
-    ? `Keep original source files and export files for at least ${daysText(minimum.rawCsvDays)}, and recovery payloads for at least ${daysText(minimum.journalPayloadDays)}: source files and exports are evidence, kept for the six years the pilot documents name, and recovery payloads for one annual audit cycle.`
-    : `Keep each category for at least ${daysText(minimum.rawCsvDays)}, the time an inactive sandbox is kept.`} Raise the shorter periods, or leave a category off.`, 400);
+    ? `Keep original import files and export files for at least ${daysText(minimum.rawCsvDays)}, and saved request details for at least ${daysText(minimum.journalPayloadDays)}. Import files and exports are evidence the pilot documents require for six years; saved request details are kept for one yearly audit.`
+    : `Keep each category for at least ${daysText(minimum.rawCsvDays)}, the time an inactive sandbox is kept.`} Raise the shorter periods, or switch a category off.`, 400);
   makeRecord(state, 'retention-policies', { name: 'Retention policy saved', status: 'recorded', createdAt: ctx.now, updatedAt: ctx.now, data: { policy: input.policy, actor: ctx.actor, reason: input.reason, sequence: nextSequence(state, 'retention-policies'), synthetic: true } });
   return lifecyclePolicy(state);
 }
 export function setLifecycleHold(state: DomainState, ctx: Context, raw: unknown, external: LifecycleExternalCandidate[] = []) {
   admin(ctx); const input = retentionHoldInputSchema.parse(raw), holds = lifecycleHolds(state);
-  if (holds.revision !== input.expectedHoldRevision) refuse('Retention holds changed. Refresh before changing this hold.');
+  if (holds.revision !== input.expectedHoldRevision) refuse('The retention holds changed after you opened them. Reload the page and try again.');
   const existing = holds.active.find(record => record.data.kind === input.kind && record.data.sourceId === input.sourceId);
-  if (!lifecycleCandidates(state, external).some(candidate => candidate.kind === input.kind && candidate.sourceId === input.sourceId) && !existing) refuse('This retained source was not found in the selected lender.', 404);
+  if (!lifecycleCandidates(state, external).some(candidate => candidate.kind === input.kind && candidate.sourceId === input.sourceId) && !existing) refuse(notFoundText('file'), 404);
   if (Boolean(existing) === input.held) return holds;
   makeRecord(state, 'retention-holds', { name: input.held ? 'Retention hold placed' : 'Retention hold released', status: 'recorded', createdAt: ctx.now, updatedAt: ctx.now, data: { ...input, actor: ctx.actor, sequence: nextSequence(state, 'retention-holds'), synthetic: true } });
   return lifecycleHolds(state);
 }
 export function lifecyclePreview(state: DomainState, ctx: Context, raw: unknown, external: LifecycleExternalCandidate[] = [], journal?: JournalWindow) {
   admin(ctx); const input = lifecyclePreviewInputSchema.parse(raw), policy = lifecyclePolicy(state);
-  if (input.expectedPolicyRevision !== policy.revision) refuse('The retention policy changed. Refresh before preparing a deletion preview.');
+  if (input.expectedPolicyRevision !== policy.revision) refuse(changedText('retention policy'));
   const rules = rulesOf(state, ctx, policy.policy), listed = lifecycleCandidates(state, external), all = listed.filter(candidate => eligible(rules, candidate));
-  if (!all.length) refuse('No retained sources currently meet the enabled policy and hold rules.', 400);
+  if (!all.length) refuse('Nothing is due for deletion under the current retention policy and holds.', 400);
   const candidates = all.slice(0, 100), previewDigest = hash({ merchantId: state.merchant.id, policyRevision: policy.revision, candidates });
   const moreEligible = all.length + (journal ? unlistedJournal(listed, rules, journal).eligible : 0) - candidates.length;
   const run = makeRecord(state, 'retention-runs', { name: 'Retention deletion preview', status: 'preview', createdAt: ctx.now, updatedAt: ctx.now, data: { candidates, previewDigest, policyRevision: policy.revision, moreEligible, expiresAt: new Date(Date.parse(ctx.now) + 15 * 60 * 1000).toISOString(), preparedBy: ctx.actor, synthetic: true } });
@@ -180,17 +181,17 @@ export function lifecyclePreview(state: DomainState, ctx: Context, raw: unknown,
 }
 export function approveLifecycleRun(state: DomainState, ctx: Context, id: string, raw: unknown, external: LifecycleExternalCandidate[] = []) {
   admin(ctx); const input = lifecycleApproveInputSchema.parse(raw), run = runOf(state, id);
-  if (run.status !== 'preview' || input.expectedUpdatedAt !== run.updatedAt || input.previewDigest !== run.data.previewDigest) refuse('This preview changed or has already been approved. Refresh its saved status.');
+  if (run.status !== 'preview' || input.expectedUpdatedAt !== run.updatedAt || input.previewDigest !== run.data.previewDigest) refuse('This deletion preview changed or has already been approved. Reload the page to see its status.');
   // A staff pilot needs a second person: its actor is the verified Clerk user the principal is derived from, so a different actor is a
   // different person. The anonymous sandbox has one person playing every role, so there the console explains the rule instead.
-  if (ctx.accessMode === 'staff' && run.data.preparedBy === ctx.actor) refuse('A different administrator must approve this deletion run: the administrator who prepared the preview cannot approve it. A pilot with one administrator asks the operator to add a second with the provisioning command\'s --add-administrator mode.', 403);
-  if (Date.parse(ctx.now) >= Date.parse(run.data.expiresAt)) refuse('This preview expired. Prepare a new preview and review its current sources.');
+  if (ctx.accessMode === 'staff' && run.data.preparedBy === ctx.actor) refuse('A different Admin must approve this deletion run. If your pilot has only one Admin, ask the Valo Pay team to add a second.', 403);
+  if (Date.parse(ctx.now) >= Date.parse(run.data.expiresAt)) refuse('This deletion preview has expired. Prepare a new preview and review its files.');
   const policy = lifecyclePolicy(state);
-  if (policy.revision !== run.data.policyRevision) refuse('The retention policy changed. Prepare a new preview.');
+  if (policy.revision !== run.data.policyRevision) refuse('The retention policy changed. Prepare a new deletion preview.');
   const current = new Map(lifecycleCandidates(state, external).map(item => [candidateKey(item), item])), rules = rulesOf(state, ctx, policy.policy);
   for (const candidate of run.data.candidates as LifecycleCandidate[]) {
     const found = current.get(candidateKey(candidate));
-    if (!found || !sameJson(found, candidate) || !eligible(rules, found)) refuse('A previewed source changed, is held or is no longer eligible. Prepare a new preview.');
+    if (!found || !sameJson(found, candidate) || !eligible(rules, found)) refuse('A file in this preview has changed, is on hold or can no longer be deleted. Prepare a new preview.');
   }
   run.status = 'approved'; Object.assign(run.data, { approvedBy: ctx.actor, approvedAt: ctx.now, approvalReason: input.reason }); advanceRun(run, ctx.now);
   return lifecycleRunView(state, run);
@@ -210,15 +211,15 @@ export function lifecycleCandidateCheck(state: DomainState, ctx: Context, runId:
   admin(ctx); const run = runOf(state, runId), latest = latestReceipts(state, runId), manifest = new Set((run.data.candidates as LifecycleCandidate[]).map(saved => canonicalJson(saved)));
   let revision: string | undefined, current: Map<string, LifecycleCandidate> | undefined, rules: Rules | undefined;
   return (candidate: LifecycleCandidate): boolean => {
-    if (!['approved', 'running', 'attention', 'completed'].includes(run.status) || !run.data.approvedBy) refuse('Approve the exact retention preview before executing it.');
-    if (!manifest.has(canonicalJson(candidate))) refuse('This source was not part of the approved preview.');
+    if (!['approved', 'running', 'attention', 'completed'].includes(run.status) || !run.data.approvedBy) refuse('Approve this deletion preview before you run it.');
+    if (!manifest.has(canonicalJson(candidate))) refuse('This file was not part of the approved preview.');
     if (settled(latest.get(candidateKey(candidate)))) return false;
     revision ??= lifecyclePolicy(state).revision;
-    if (revision !== run.data.policyRevision) refuse('Retention policy changed after approval. Prepare a new preview before deleting anything else.');
+    if (revision !== run.data.policyRevision) refuse('The retention policy changed after approval. Prepare a new preview before deleting anything else.');
     current ??= new Map(lifecycleCandidates(state, external).map(item => [candidateKey(item), item]));
     rules ??= rulesOf(state, ctx);
     const found = current.get(candidateKey(candidate));
-    if (!found || !sameJson(found, candidate) || !eligible(rules, found)) refuse('This source changed, is held or is no longer eligible. Nothing was deleted by this check.');
+    if (!found || !sameJson(found, candidate) || !eligible(rules, found)) refuse('This file has changed, is on hold or can no longer be deleted. Nothing was deleted.');
     return true;
   };
 }
@@ -232,7 +233,7 @@ export function assertLifecycleCandidate(state: DomainState, ctx: Context, runId
  * whole lender again.
  */
 export function eraseLifecycleRawCsv(state: DomainState, ctx: Context, runId: string, candidate: LifecycleCandidate, check?: (candidate: LifecycleCandidate) => boolean) {
-  if (candidate.kind !== 'raw_csv') refuse('External artifacts must be deleted by the storage service.', 400);
+  if (candidate.kind !== 'raw_csv') refuse('This file is deleted by the storage service, not here.', 400);
   if (!(check ?? lifecycleCandidateCheck(state, ctx, runId))(candidate)) return;
   const batch = rows(state, 'import-batches').find(record => record.id === candidate.sourceId)!;
   delete batch.data.csv;
@@ -244,11 +245,11 @@ export function eraseLifecycleRawCsv(state: DomainState, ctx: Context, runId: st
 /** Only a verified executor outcome may be recorded; the UI cannot submit deletion receipts. */
 export function recordLifecycleReceipt(state: DomainState, ctx: Context, runId: string, candidate: LifecycleCandidate, result: 'deleted' | 'already_absent' | 'blocked' | 'failed', detail: string) {
   admin(ctx); contractAnswer(lifecycleReceiptStatusSchema, result); const run = runOf(state, runId);
-  if (!run.data.approvedBy || !['approved', 'running', 'attention', 'completed'].includes(run.status)) refuse('This deletion run is not approved.');
-  if (!run.data.candidates.some((saved: LifecycleCandidate) => sameJson(saved, candidate))) refuse('The receipt does not match the approved source identity.');
+  if (!run.data.approvedBy || !['approved', 'running', 'attention', 'completed'].includes(run.status)) refuse('Approve this deletion run first.');
+  if (!run.data.candidates.some((saved: LifecycleCandidate) => sameJson(saved, candidate))) refuse('This deletion record does not match a file in the approved run.');
   const prior = latestReceipts(state, runId).get(candidateKey(candidate));
   if (prior && ['deleted', 'already_absent'].includes(prior.data.result)) return lifecycleRunView(state, run);
-  makeRecord(state, 'retention-receipts', { name: 'Retention execution receipt', status: 'recorded', createdAt: ctx.now, updatedAt: ctx.now, data: { runId, kind: candidate.kind, sourceId: candidate.sourceId, sourceDigest: candidate.digest, version: candidate.version, result, detail: detail.slice(0, 500), actor: ctx.actor, sequence: nextSequence(state, 'retention-receipts'), synthetic: true } });
+  makeRecord(state, 'retention-receipts', { name: 'Deletion record', status: 'recorded', createdAt: ctx.now, updatedAt: ctx.now, data: { runId, kind: candidate.kind, sourceId: candidate.sourceId, sourceDigest: candidate.digest, version: candidate.version, result, detail: detail.slice(0, 500), actor: ctx.actor, sequence: nextSequence(state, 'retention-receipts'), synthetic: true } });
   const receipts = [...latestReceipts(state, runId).values()];
   run.status = receipts.filter(record => ['deleted', 'already_absent'].includes(record.data.result)).length === run.data.candidates.length ? 'completed' : receipts.some(record => ['blocked', 'failed'].includes(record.data.result)) ? 'attention' : 'running';
   advanceRun(run, ctx.now); return lifecycleRunView(state, run);

@@ -65,7 +65,7 @@ try {
   assert.equal(mediaRequests, readsBeforeDenial, "Denied exports must not touch object storage.");
   const corruptMetadata = structuredClone(fixture.state);
   corruptMetadata.records.find((record) => record.id === fixture.id)!.data.checksum = "incorrect";
-  await assert.rejects(() => downloadExport(corruptMetadata, fixture.id), /checksum verification failed/);
+  await assert.rejects(() => downloadExport(corruptMetadata, fixture.id), /has changed since it was made, so it was not sent/);
   assert.deepEqual(fixture.state.records.find((record) => record.id === fixture.id), originalMetadata);
   await inWorkspace(req, res, async (context) => {
     const persisted = await loadState(context, fixture.state.merchant.id);

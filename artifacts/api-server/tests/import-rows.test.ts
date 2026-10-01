@@ -22,7 +22,7 @@ const quick = (state: ReturnType<typeof seedMerchant>, kind: string, csv: string
   // Decision 1: every quick-import row carries a source row ID, and a file or mapping without one is refused.
   const state = seedMerchant("quick-row-ids");
   const before = state.records.length;
-  refused(() => quick(state, "customers", "name,consentProvenance\nNo row ID,Synthetic consent", { identityColumn: "" }), /^Map a row ID column\. Choose the column that holds each row's source row ID/, "no row ID column is refused");
+  refused(() => quick(state, "customers", "name,consentProvenance\nNo row ID,Synthetic consent", { identityColumn: "" }), /^Map a row ID column\. Choose the column that holds each row’s source row ID/, "no row ID column is refused");
   refused(() => quick(state, "customers", "name,consentProvenance\nNo row ID,Synthetic consent"), /^Map a row ID column\. The file has no column named “row_id”\./, "a row ID column the file lacks is refused, naming it");
   refused(() => quick(state, "customers", "row_id,name,consentProvenance\nr1,First,Synthetic consent\n,Second,Synthetic consent"), /different, non-empty value on every row/, "a blank row ID is refused");
   refused(() => quick(state, "customers", "row_id,name,consentProvenance\nr1,First,Synthetic consent\nr1,Second,Synthetic consent"), /different, non-empty value on every row/, "a repeated row ID is refused");
@@ -54,7 +54,7 @@ const quick = (state: ReturnType<typeof seedMerchant>, kind: string, csv: string
   assert.doesNotThrow(() => assertNoDirectImportedCorrection(quickRecord, { ...quickRecord, name: "Edited after a quick import", data: { ...quickRecord.data } })); checks += 1;
   check(!fromImportBatch(quickRecord) && fromImportBatch({ data: { importIdentity: { source: "loan-system", rowId: "r1", batchId: "batch-1" } } }), "the console's edit lock is a batch's alone");
   // Its history names the quick import and the row, and no batch.
-  check(buildDisputePack(state, admin, quickRecord.id).timeline[0]!.detail.endsWith("Imported from Quick import; source row r1."), "the customer's history names the source row");
+  check(buildDisputePack(state, admin, quickRecord.id).timeline[0]!.detail.endsWith("Imported from Quick import; source row ID r1."), "the customer's history names the source row");
 
   // Payment evidence keeps its own event rules as well: the same event under a new row ID is refused.
   const evidence = quick(state, "observations", "row_id,reference,customerId,amountKobo,source,eventId\no1,QUICK-EVIDENCE-1,DEMO-C1001,2500000,webhook,evt-1");
@@ -71,19 +71,19 @@ const quick = (state: ReturnType<typeof seedMerchant>, kind: string, csv: string
   const [row] = customers.rows;
   assert.equal(row!.message, "Consent captured at (column consentCapturedAt): Use YYYY-MM-DD or a UTC timestamp such as 2026-09-18T07:00:00Z, and a real date. Consent source or reference (column consent): Enter a value; it is blank on this row. Pay day (column pay_day): Enter a number of at most 31."); checks += 1;
   check(!/consentProvenance|payDay|String must contain|Number must be/.test(row!.message), "no raw field path or zod default text");
-  check(/consentProvenance: String must contain at least 1 character\(s\)/.test(String(row!.detail)) && /consentCapturedAt must use YYYY-MM-DD/.test(String(row!.detail)), `the raw detail is kept (${row!.detail})`);
+  check(/Consent source or reference: Enter a value\./.test(String(row!.detail)) && /Consent captured at: Enter a real date as YYYY-MM-DD/.test(String(row!.detail)) && !/String must contain|consentProvenance|consentCapturedAt/.test(String(row!.detail)), `the detail keeps every problem in the service's own words, with field labels (${row!.detail})`);
 
   const noConsent = quick(state, "customers", "row_id,name\nr1,No consent column", { commit: false });
   assert.equal(noConsent.rows[0]!.message, "No column is mapped to Consent source or reference. Map the column that holds it."); checks += 1;
 
   const mandates = quick(state, "mandates", "row_id,name,customer,amount,workflow,consentEvidence,consentGiven\nr1,Paper mandate,NOPE-1,5000000,paper,SYNTHETIC-CONSENT,yes", { commit: false, mapping: { customer: "customerId" } });
-  assert.equal(mandates.rows[0]!.message, "Consent given (column consentGiven): Use true or false. Activation workflow (column workflow): “paper” is not one of the choices. Use Activate with a bank transfer (transfer_to_activate) or Consent through the provider (hosted_consent). Customer reference or ID (column customer): No customer has the reference or ID “NOPE-1” in this lender."); checks += 1;
+  assert.equal(mandates.rows[0]!.message, "Consent given (column consentGiven): Use true or false. Activation method (column workflow): “paper” is not one of the choices. Use Activate with a bank transfer (transfer_to_activate) or Consent through the provider (hosted_consent). Customer reference or ID (column customer): No customer has the reference or ID “NOPE-1” in this lender."); checks += 1;
 
   const dueFile = "row_id,name,customerId,amount,dueDate,owner,status\nr1,Zero instalment,DEMO-C1001,0,2028-12-01,lms,scheduled";
   assert.equal(quick(state, "due-items", dueFile, { commit: false, amountUnit: "naira" }).rows[0]!.message, "Amount: Enter an amount above ₦0 in naira, for example 1,000.50."); checks += 1;
   assert.equal(quick(state, "due-items", dueFile, { commit: false }).rows[0]!.message, "Amount: Enter a whole number of kobo above 0, for example 100000 for ₦1,000."); checks += 1;
   const undated = quick(state, "due-items", "row_id,name,customerId,amount,owner,status,mandate\nr1,Undated,DEMO-C1001,1000000,someone,paid,NOPE-M", { commit: false, mapping: { mandate: "mandateId" } });
-  assert.equal(undated.rows[0]!.message, "Status: Paid (paid) is set by a domain action, so a new instalment cannot start with it. Leave the column blank or use Scheduled (scheduled). No column is mapped to Due date. Map the column that holds it. Collection owner (column owner): “someone” is not one of the choices. Use Valo Pay (valopay), Loan management system (lms), Lender team (merchant_manual) or Provider automatic collection (provider_auto). Mandate reference or ID (column mandate): No mandate has the reference or ID “NOPE-M” in this lender."); checks += 1;
+  assert.equal(undated.rows[0]!.message, "Status: Paid (paid) is set by Valo Pay later, so a new instalment cannot start with it. Leave the column blank or use Scheduled (scheduled). No column is mapped to Due date. Map the column that holds it. Collection owner (column owner): “someone” is not one of the choices. Use Valo Pay (valopay), Loan management system (lms), Lender team (merchant_manual) or Provider automatic collection (provider_auto). Mandate reference or ID (column mandate): No mandate has the reference or ID “NOPE-M” in this lender."); checks += 1;
 
   const status = quick(state, "customers", "row_id,name,consentProvenance,status\nr1,Archived,Synthetic consent,archived", { commit: false });
   assert.equal(status.rows[0]!.message, "Status: “archived” is not one of the choices. Use Active (active) or Inactive (inactive)."); checks += 1;
@@ -97,8 +97,8 @@ const quick = (state: ReturnType<typeof seedMerchant>, kind: string, csv: string
   // amount that is not a whole number names the kind's own option (amountUnitName) and the row's smallest unit.
   const minor = quick(state, "observations", "row_id,name,reference,customerId,amount,source,currency\nr1,Naira decimals,QUICK-MINOR-1,DEMO-C1001,10.50,card,\nr2,Dollar decimals,QUICK-MINOR-2,DEMO-C1001,10.50,card,usd", { commit: false, amountUnit: "kobo" });
   assert.deepEqual(minor.rows.map((row) => row.message), [
-    "Amount: Enter kobo as a whole number without commas or decimals, for example 100000. Choose Major units (₦, or the row's currency) if the source uses naira.",
-    "Amount: Enter the smallest unit of USD as a whole number without commas or decimals, for example 100000. Choose Major units (₦, or the row's currency) if the source gives amounts in USD rather than its smallest unit.",
+    "Amount: Enter kobo as a whole number without commas or decimals, for example 100000. Choose Main unit (₦, or the row’s own currency) if the source uses naira.",
+    "Amount: Enter the smallest unit of USD as a whole number without commas or decimals, for example 100000. Choose Main unit (₦, or the row’s own currency) if the source gives amounts in USD rather than its smallest unit.",
   ]); checks += 1;
 }
 
@@ -120,8 +120,8 @@ const quick = (state: ReturnType<typeof seedMerchant>, kind: string, csv: string
 {
   // Record create and edit keep their single first message: the import path alone collects every problem.
   const state = seedMerchant("single-message");
-  assert.throws(() => validateRecord(state, admin, "customers", { name: "Two problems", data: { consentCapturedAt: "2026-02-30", consentProvenance: "" } }), (error: Error) => error.message === "consentCapturedAt must use YYYY-MM-DD or a UTC timestamp such as 2026-09-18T07:00:00Z, and name a real date."); checks += 1;
-  assert.throws(() => validateRecord(state, admin, "customers", { name: "Blank consent", data: { consentProvenance: "", payDay: 40 } }), (error: Error) => error.message === "Invalid customers data: consentProvenance: String must contain at least 1 character(s); payDay: Number must be less than or equal to 31"); checks += 1;
+  assert.throws(() => validateRecord(state, admin, "customers", { name: "Two problems", data: { consentCapturedAt: "2026-02-30", consentProvenance: "" } }), (error: Error) => error.message === "Consent captured at: Enter a real date as YYYY-MM-DD, or a UTC timestamp such as 2026-09-18T07:00:00Z."); checks += 1;
+  assert.throws(() => validateRecord(state, admin, "customers", { name: "Blank consent", data: { consentProvenance: "", payDay: 40 } }), (error: Error) => error.message === "Consent source or reference: Enter a value. Pay day: Enter 31 or less."); checks += 1;
 }
 
 {
@@ -145,9 +145,9 @@ const quick = (state: ReturnType<typeof seedMerchant>, kind: string, csv: string
   const state = seedMerchant("row-id-screen");
   const before = state.records.length;
   const raw = "account_number,name,consentProvenance\n0123456789,Raw account row,Synthetic consent";
-  refused(() => quick(state, "customers", raw, { identityColumn: "account_number" }), /^Raw bank account details are not permitted; store a masked identifier only\.$/, "a raw account number as the row ID is refused");
-  refused(() => quick(state, "customers", raw, { identityColumn: "account_number", commit: false }), /^Raw bank account details are not permitted/, "and refused by a check");
-  refused(() => quick(state, "customers", "Account ID,name,consentProvenance\n0123-4567-89,Account digits,Synthetic consent", { identityColumn: "Account ID" }), /^Raw financial identifiers are not permitted/, "digits under a financial header are refused");
+  refused(() => quick(state, "customers", raw, { identityColumn: "account_number" }), /^Do not enter a full bank account number\. Enter a masked number, for example •••• 1234\.$/, "a raw account number as the row ID is refused");
+  refused(() => quick(state, "customers", raw, { identityColumn: "account_number", commit: false }), /^Do not enter a full bank account number/, "and refused by a check");
+  refused(() => quick(state, "customers", "Account ID,name,consentProvenance\n0123-4567-89,Account digits,Synthetic consent", { identityColumn: "Account ID" }), /^Do not enter full account, card or BVN numbers/, "digits under a financial header are refused");
   check(state.records.length === before, "nothing is saved from a refused row ID");
   const masked = quick(state, "customers", "account_ref,name,consentProvenance\nACC-0001,Account reference row,Synthetic consent", { identityColumn: "account_ref" });
   check(masked.imported === 1 && state.records.find((record) => record.name === "Account reference row")?.data.importIdentity.rowId === "ACC-0001", "a row ID that is no account number is kept");
@@ -179,7 +179,7 @@ const quick = (state: ReturnType<typeof seedMerchant>, kind: string, csv: string
   const state = seedMerchant("platform-fields");
   const history = quick(state, "mandates", "row_id,name,customerId,amount,workflow,consentEvidence,history\nr1,History,DEMO-C1001,5000000,hosted_consent,SYNTHETIC-CONSENT,v1", { commit: false, mapping: { history: "policyVersionHistory" } });
   assert.equal(history.rows[0]!.message, "Policy version history (column history): A CSV column cannot fill this field. Choose Skip column for it."); checks += 1;
-  check(/policyVersionHistory: Expected array, received string/.test(String(history.rows[0]!.detail)), "the detail keeps zod's words");
+  check(/^Policy version history: Check this value\. It is not in the form this field takes\.$/.test(String(history.rows[0]!.detail)), `the detail says so in plain words, with the field's label (${history.rows[0]!.detail})`);
   // Every import field of every kind, given values it cannot take, is worded without a raw path or a zod default.
   const base: Record<string, Record<string, string>> = {
     customers: { name: "N", consentProvenance: "Synthetic" },
@@ -206,10 +206,10 @@ const quick = (state: ReturnType<typeof seedMerchant>, kind: string, csv: string
   // Decision 4 for the import's own conflicts: a row reports its reference and row ID conflicts beside every other rule.
   const state = seedMerchant("conflicts");
   const conflict = quick(state, "customers", "row_id,name,reference,consentProvenance,status\nr1,Conflict,DEMO-C1001,,archived", { commit: false });
-  assert.equal(conflict.rows[0]!.message, "Loan software reference (column reference): This reference belongs to another saved record. Check its source row identity before importing; a conflicting row will not be silently skipped. Status: “archived” is not one of the choices. Use Active (active) or Inactive (inactive). Consent source or reference (column consentProvenance): Enter a value; it is blank on this row."); checks += 1;
+  assert.equal(conflict.rows[0]!.message, "Loan software reference (column reference): This reference belongs to another saved record. Check the row’s source row ID before you import. A conflicting row is refused, never skipped. Status: “archived” is not one of the choices. Use Active (active) or Inactive (inactive). Consent source or reference (column consentProvenance): Enter a value; it is blank on this row."); checks += 1;
   // A cell that cannot be read does not hide the reference conflict.
   const unreadable = quick(state, "due-items", "row_id,name,reference,customerId,amount,dueDate,owner\nr1,Unreadable,DEMO-LOAN-1001,DEMO-C1001,12.5,2028-12-01,lms", { commit: false });
-  assert.equal(unreadable.rows[0]!.message, "Amount: Enter kobo as a whole number without commas or decimals, for example 100000. Choose Naira (₦) if the source uses naira. Reference: This reference belongs to another saved record. Check its source row identity before importing; a conflicting row will not be silently skipped."); checks += 1;
+  assert.equal(unreadable.rows[0]!.message, "Amount: Enter kobo as a whole number without commas or decimals, for example 100000. Choose Naira (₦) if the source uses naira. Reference: This reference belongs to another saved record. Check the row’s source row ID before you import. A conflicting row is refused, never skipped."); checks += 1;
   // A row ID imported before with different data reports the other rules too, and its own record's reference is no conflict.
   check(quick(state, "customers", "row_id,name,reference,consentProvenance\nk1,Keyed once,QUICK-KEYED-1,Synthetic consent").imported === 1, "a keyed row is imported");
   const changed = quick(state, "customers", "row_id,name,reference,consentProvenance,status\nk1,Keyed renamed,QUICK-KEYED-1,Synthetic consent,archived", { commit: false });

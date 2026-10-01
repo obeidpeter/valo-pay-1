@@ -29,7 +29,7 @@ export function statedGross(observation: TypedRecord<"observations">): { kobo: n
 export function evidenceConflict(payment: TypedRecord<"payments">, observation: TypedRecord<"observations">, tiedPayers: (payment: TypedRecord<"payments">) => readonly string[]): string | undefined {
   const payer = observation.customerId;
   if (payer && payment.customerId && payer !== payment.customerId) return "it names another payer";
-  if (payer && !payment.customerId && tiedPayers(payment).some((customerId) => customerId !== payer)) return "it names another payer than the instalment the payment is tied to";
+  if (payer && !payment.customerId && tiedPayers(payment).some((customerId) => customerId !== payer)) return "it names a different payer from the instalment the payment is tied to";
   if (currencyOf(observation) !== currencyOf(payment)) return `it is in ${currencyOf(observation)} and the payment is in ${currencyOf(payment)}`;
   const { kobo, atLeast } = statedGross(observation);
   const returned = normaliseRefundStatus(payment.data.refundStatus) === "refunded" || normaliseReversalStatus(payment.data.reversalStatus) === "reversed";

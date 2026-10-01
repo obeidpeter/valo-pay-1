@@ -41,7 +41,7 @@ describe('Import batches check results', () => {
     await user.click(within(results).getByRole('button', { name: 'Download errors CSV' }));
     expect((await downloads[0]!.text()).replace(/^\uFEFF/, '').split('\r\n')).toEqual([
       '"Row","Status","What to fix","Technical detail"',
-      '"3","invalid","Consent source or reference (column consentProvenance): Enter a value; it is blank on this row.","consentProvenance: String must contain at least 1 character(s)"',
+      '"3","invalid","Consent source or reference (column consentProvenance): Enter a value; it is blank on this row.","Consent source or reference: Enter a value."',
     ]);
     await user.click(within(results).getByRole('button', { name: 'Edit CSV' }));
     expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'CSV content' }));

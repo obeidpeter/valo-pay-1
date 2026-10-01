@@ -639,7 +639,7 @@ test("numeric UUIDs keep synthetic account identities distinct and pass the unch
   assert.equal(input.requiredAccountIds[0], syntheticCreditAccountId(applicantId));
   assert.notEqual(syntheticCreditAccountId(applicantId), syntheticCreditAccountId(applicantId.replace(/2$/, "3")));
   assert.notEqual(syntheticCreditAccountId("customer-1"), syntheticCreditAccountId("customer-b"));
-  assert.throws(() => assertNoRealBankDetails({ accountId: "1234567890" }), /Raw financial identifiers/);
+  assert.throws(() => assertNoRealBankDetails({ accountId: "1234567890" }), /Do not enter full account, card or BVN numbers/);
   for (const withPermission of [true, false]) {
     const { state, operator, finance } = serviceFixture(applicantId);
     if (!withPermission)
@@ -700,7 +700,7 @@ test("service binds customer to tenant and rejects unexpected request fields", (
         ...assessAction,
         data: { ...assessAction.data, score: 100 },
       }),
-    /Unrecognized/,
+    /This request has details Valo Pay does not use/,
   );
 });
 test("service requires actual consent records and preserves missing state", () => {

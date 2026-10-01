@@ -5,7 +5,7 @@ import { renderApp, screen, userEvent, waitFor, within } from './harness';
 // Audit item 11: a CSV whose name is in full_name passed as valid, the mapping showed Skip column, and commit saved the
 // customer named after its reference. The console now suggests the field and the check says when a value falls back.
 const csv = 'source_row_id,full_name,reference,consentProvenance\nrow-1,Named in an unmapped column,UNMAPPED-C1,Synthetic consent';
-const warning = "No column is mapped to Name, so each record's name is taken from its reference (or its row number without one). Not mapped to a field: full_name, which looks like the name. Map the column that holds the name, or commit knowing the fallback is saved.";
+const warning = "No column is mapped to Name, so each record’s name is taken from its reference (or its row number without one). Not mapped to a field: full_name, which looks like the name. Map the column that holds the name, or import anyway to save the fallback.";
 let api: FakeApi;
 beforeEach(() => { api = installFakeApi(); });
 afterEach(() => api.uninstall());

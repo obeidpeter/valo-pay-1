@@ -128,7 +128,7 @@ for (const record of beforeProviderIdentity) if (record.kind === "settlement-bat
   assert.equal(record.data.providerIdentityKey, JSON.stringify([String(record.data.providerConnection).trim().toLowerCase(), record.reference]));
   delete record.data.providerIdentityKey;
 }
-assert.equal(digest([state.merchant, state.settings, beforeProviderIdentity.sort(byId)]), "0a0bb4ff0a8ff3c087b3c8ecd87c949b195f6813adfd4dd02b95da51fcc71092", "only the new provider identity changes the earlier golden records");
+assert.equal(digest([state.merchant, state.settings, beforeProviderIdentity.sort(byId)]), "3b2a5ce06bcfc755419c9ce1b7d2034324c45dd9d4b99a0571a480cacc4e4f29", "only the new provider identity changes the earlier golden records (reworded as the language pass below says)");
 if (process.env.VALOPAY_GOLDEN_PRINT === "1") console.log(JSON.stringify({ outcome, records, visits: [first.visits, second.visits] }, null, 2));
 /**
  * Computed for this scenario by the code before its lookups were indexed: first at c22c229, then again by the dispute
@@ -136,10 +136,20 @@ if (process.env.VALOPAY_GOLDEN_PRINT === "1") console.log(JSON.stringify({ outco
  * switched off once counted text ("1 obligation", "2 obligations") changed the records' wording, and again with the
  * index switched off once a pass read reversal evidence after other evidence (the fixed ids land on other records) and
  * settlement lines recorded the gross they add to their batch, and once a settlement batch recorded its currency, the
- * records' only change, checked by leaving that field out (VALOPAY_GOLDEN_PRINT=1 prints the current values).
+ * records' only change, checked by leaving that field out (VALOPAY_GOLDEN_PRINT=1 prints the current values). The
+ * language pass then changed only words: exception names from the catalogue ("Possible duplicate", "Outcome unknown"),
+ * the owner of a failure code to classify ("Valo Pay team"), money in notes ("₦10,000.00"), a daily close's name and
+ * summary ("Daily close 1 Jul 2027", "payment evidence records received", "older than 24 hours"), and the names,
+ * explanations, notes, reasons and cancellation reasons reconciliation and the retry rules write ("Payment PSK-1",
+ * "Allocation of PSK-1 to DEMO-1", "Retry decision · retry postponed (notice not confirmed)"), and the details of the
+ * measurements a close records ("1,016 of 1,089 payments are allocated in full or in part", "Amount still owed on instalments"), the sample
+ * lender's segment and customer contact details ("Tier-2 lender · sample data", "the Meridian Credit collections team"), and
+ * that a disputed instalment's collection is "on hold" ("Collection stops while the dispute is open"), and that matching
+ * rule R5's window is "within five days of the payment", checked field by field
+ * against the records the earlier code wrote; the close answers' data are unchanged.
  */
 const golden = {
-  records: "e8e1bf3974b0ca6df6a0540604813450c2aee373e374900f1fadc33fa50e36c7",
+  records: "8e66f07054a057142c0ead164482db8be993ffac17b27699213d2e9cc665691d",
   monthEnd: "dff97eb6d50336fb650cf48652975f842fd2b85f14df835eb535a7dbb4a35a7d",
   nextDay: "1a88e829ce6bd3940c6a5248e5bbdfddc0a7786480202fc138aca0a834c4a798",
 };

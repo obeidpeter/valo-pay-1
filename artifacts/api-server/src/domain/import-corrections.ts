@@ -12,10 +12,14 @@ import {
   fromImportBatch,
   legacyCollatedCompare,
   sameJson,
+  changedText,
+  demoRolesNote,
+  importFieldLabel,
+  notFoundText,
 } from "@workspace/valopay-schema";
 import type { Context, DomainState, ValopayRecord } from "./types";
 import { makeRecord, assertNoRealBankDetails } from "./records";
-import { validateRecord } from "./validation";
+import { roleRefusal, validateRecord } from "./validation";
 import { canonicalDigest } from "../lib/digests";
 import { contractAnswer } from "../lib/contract";
 
@@ -35,7 +39,7 @@ function refuse(message: string, status = 409): never {
 }
 function writer(ctx: Context) {
   if (!["Admin", "Operations", "Finance"].includes(ctx.role))
-    refuse("Your role cannot propose import corrections.", 403);
+    refuse(roleRefusal(ctx, ["Admin", "Operations", "Finance"], "propose an import correction"), 403);
 }
 const financialKinds = new Set([
   "payments",
@@ -56,7 +60,7 @@ function ownedBatch(state: DomainState, id: string) {
       r.merchantId === state.merchant.id,
   );
   if (!batch || batch.status !== "committed")
-    refuse("Choose a committed import batch in this lender.", 404);
+    refuse(batch ? "This batch is not imported yet, so it has no import corrections. Correct its rows in Import batches before you import it." : notFoundText("import batch"), 404);
   return batch;
 }
 function ownedTarget(state: DomainState, batch: ValopayRecord, id: string) {
@@ -71,7 +75,7 @@ function ownedTarget(state: DomainState, batch: ValopayRecord, id: string) {
     target.data.importIdentity.source !== batch.data.source ||
     target.kind !== batch.data.kind
   )
-    refuse("This imported record does not belong to the selected batch.", 404);
+    refuse("This record was not imported in this batch. Choose one of its records.", 404);
   return target;
 }
 /** A record as the comparison lists it among the affected records. */
@@ -134,7 +138,7 @@ function calculate(
     target = ownedTarget(state, batch, input.targetId);
   if (target.updatedAt !== input.expectedUpdatedAt)
     refuse(
-      "This imported record changed. Refresh it and prepare another comparison.",
+      changedText("record"),
     );
   assertNoRealBankDetails(input.changes);
   const after = structuredClone(target),
@@ -152,11 +156,11 @@ function calculate(
         : [];
   if (!supported.length)
     blockers.push(
-      "This record type cannot be amended here. Keep the original source evidence and use its existing investigation, reversal or adjustment workflow.",
+      "Import corrections can change only customers and unpaid instalments. For other records, use their own actions, such as Resolve exception.",
     );
   for (const [field, value] of Object.entries(input.changes)) {
     if (!supported.includes(field)) {
-      blockers.push(`Changing ${field} is not supported for this record type.`);
+      blockers.push(`${importFieldLabel(target.kind, field)} cannot be changed through an import correction.`);
       continue;
     }
     const before =
@@ -173,7 +177,7 @@ function calculate(
   }
   if (!differences.length)
     blockers.push(
-      "Choose a value that differs from the current imported record.",
+      "Enter a value different from the one imported.",
     );
   const financial = target.kind === "due-items",
     affected = affectedRecords(state, target, asOf);
@@ -183,15 +187,15 @@ function calculate(
       target.data.outstandingKobo !== target.amountKobo
     )
       blockers.push(
-        "Only an unpaid scheduled instalment with its full amount outstanding can be amended.",
+        "Only an unpaid scheduled instalment with its full amount outstanding can be corrected.",
       );
     if (affected.some((r) => financialKinds.has(r.kind)))
       blockers.push(
-        "This amendment workflow cannot change an instalment with payment or collection history. Review its evidence in Reconciliation or Exceptions.",
+        "An import correction cannot change an instalment once its customer has any payment or collection history, including customer messages. You can see that history in Customer history.",
       );
     if (target.data.experimentId || target.data.firstFailureAt)
       blockers.push(
-        "An instalment enrolled in a recovery experiment cannot be amended here.",
+        "An instalment in a retry experiment cannot be corrected here.",
       );
     after.data.outstandingKobo = after.amountKobo;
   }
@@ -203,7 +207,7 @@ function calculate(
       blockers.push(
         error instanceof Error
           ? error.message
-          : "The amended record is not valid.",
+          : "The corrected record is not valid.",
       );
     }
   }
@@ -230,7 +234,7 @@ function calculate(
     affected: affectedView,
     blockers,
     consequence:
-      "Approval changes the current record only. The committed file, original source identity and before/after evidence remain unchanged. Close approvals recorded before this comparison must be refreshed; a close recorded afterwards does not change the comparison.",
+      "Approving changes only the current record. The imported file, its source row IDs and the before-and-after evidence stay as they are. A close approved before this comparison must be prepared again; a close recorded after it does not change the comparison.",
   });
   return { input, batch, target, after, impactDigest, preview };
 }
@@ -249,7 +253,7 @@ function proposalOf(state: DomainState, id: string) {
         r.id === id &&
         r.kind === "import-corrections" &&
         r.merchantId === state.merchant.id,
-    ) || refuse("Import correction not found in this lender.", 404)
+    ) || refuse(notFoundText("import correction"), 404)
   );
 }
 function decisionOf(state: DomainState, id: string) {
@@ -275,7 +279,7 @@ export function importCorrectionComparison(
   );
 }
 export const inconsistentAssignment =
-  "This correction has inconsistent assignment history. Ask an administrator to investigate the recorded events.";
+  "This correction’s assignment history is inconsistent. Ask an Admin to investigate.";
 /** Reassignment never rewrites the proposal. Follow its versioned event chain
  * as far as it is unambiguous: `consistent` is false where it forks, breaks or
  * leaves events off the chain, which only bad data does. A read shows that one
@@ -462,18 +466,18 @@ export function reassignImportCorrection(
   state: DomainState, ctx: Context, id: string, raw: ImportCorrectionRecoveryInput,
   reviewers: Array<{ actor: string; role: string }>,
 ) {
-  if (ctx.role !== "Admin") refuse("Only an administrator can reassign an import correction.", 403);
+  if (ctx.role !== "Admin") refuse(roleRefusal(ctx, ["Admin"], "reassign an import correction"), 403);
   const input = importCorrectionRecoveryInputSchema.parse(raw), proposal = proposalOf(state, id);
-  if (decisionOf(state, id)) refuse("This correction already has a decision. Its history is preserved.");
+  if (decisionOf(state, id)) refuse("This correction already has a decision. Its history is kept.");
   const assignment = importCorrectionAssignment(state, proposal);
   if (input.proposalDigest !== proposal.data.proposalDigest || input.expectedAssignmentEventId !== assignment.eventId)
-    refuse("This correction or its assignment changed. Refresh it before reassigning the reviewer.");
+    refuse("This correction or its reviewer changed after you opened it. Reload the page and try again.");
   if (input.reviewer === assignment.reviewer) refuse("Choose a different active Finance reviewer.");
   // The proposer's principal is a digest of their identity, never an actor: the decision compares it.
   if (input.reviewer === proposal.data.proposedBy || !reviewers.some(r => r.actor === input.reviewer && r.role === "Finance"))
-    refuse("Choose another active Finance reviewer with access to this lender, independent of the proposer.", 403);
+    refuse("Choose another active Finance reviewer with access to this lender, who did not propose it.", 403);
   // A demo persona is the same browser person as the proposer, so it could never decide, as for a close review.
-  if (input.reviewer.startsWith("Sandbox ")) refuse("Choose a staff Finance reviewer. Demo roles cannot provide independent review.", 403);
+  if (input.reviewer.startsWith("Sandbox ")) refuse("Choose a staff Finance reviewer. Switching demo roles is not a second person.", 403);
   makeRecord(state, "import-correction-events", {
     name: "Import correction reviewer reassigned", status: "recorded", createdAt: ctx.now, updatedAt: ctx.now,
     data: { proposalId: id, targetId: proposal.data.targetId, batchId: proposal.data.batchId, proposalDigest: proposal.data.proposalDigest,
@@ -493,17 +497,17 @@ export function decideImportCorrection(
     proposal = proposalOf(state, id);
   if (input.proposalDigest !== proposal.data.proposalDigest)
     refuse(
-      "The correction evidence does not match this decision. Refresh the proposal.",
+      changedText("correction"),
     );
   if (decisionOf(state, id))
-    refuse("This correction already has a decision. Its history is preserved.");
+    refuse("This correction already has a decision. Its history is kept.");
   const assignment = importCorrectionAssignment(state, proposal);
   if ((input.assignmentEventId ?? null) !== assignment.eventId)
-    refuse("This correction was reassigned. Refresh its current reviewer before recording a decision.");
+    refuse("This correction was reassigned. Reload the page to see its current reviewer.");
   if (input.action === "withdraw") {
     writer(ctx);
     if (principal(ctx) !== proposal.data.proposedPrincipal)
-      refuse("Only the proposer may withdraw this correction.", 403);
+      refuse("Only the person who proposed this correction can withdraw it.", 403);
   } else {
     if (
       ctx.role !== "Finance" ||
@@ -511,7 +515,7 @@ export function decideImportCorrection(
       !reviewers.some((r) => r.actor === ctx.actor && r.role === "Finance")
     )
       refuse(
-        "Only the named active Finance reviewer may decide this correction.",
+        "Only the named Finance reviewer can decide this correction.",
         403,
       );
     if (
@@ -519,7 +523,7 @@ export function decideImportCorrection(
       ctx.actor === proposal.data.proposedBy
     )
       refuse(
-        "A different person must review this correction. Changing demo roles does not provide independent approval.",
+        `A different person must review this correction.${demoRolesNote(ctx.accessMode)}`,
         403,
       );
   }
@@ -530,7 +534,7 @@ export function decideImportCorrection(
       checked.preview.previewDigest !== proposal.data.preview.previewDigest
     )
       refuse(
-        "The record or affected evidence changed. Reject this proposal and prepare a fresh comparison.",
+        "The record, or the evidence it affects, changed. Reject this proposal and propose the correction again.",
       );
     Object.assign(checked.target, structuredClone(proposal.data.after), {
       updatedAt: ctx.now,
@@ -539,7 +543,7 @@ export function decideImportCorrection(
   makeRecord(state, "import-correction-events", {
     name:
       input.action === "approve"
-        ? "Import correction approved and applied"
+        ? "Import correction approved"
         : input.action === "withdraw"
           ? "Import correction withdrawn"
           : "Import correction rejected",
@@ -602,11 +606,11 @@ export function assertImportedCorrectionChange(
     !sameJson({ ...proposal.data.after, updatedAt: after.updatedAt }, after)
   )
     refuse(
-      "Imported fields can change only through an independently approved import correction.",
+      "Imported details change only through an import correction that a different person approves.",
     );
   const { proposalDigest, ...evidence } = proposal.data;
   if (digest(evidence) !== proposalDigest)
-    refuse("The correction proposal evidence failed its integrity check.");
+    refuse("This correction’s saved evidence has changed, so it cannot be used. Reject it and propose the correction again.");
   const checked = importCorrectionComparison(
     snapshot,
     {
@@ -626,7 +630,7 @@ export function assertImportedCorrectionChange(
       impactVersion(proposal),
     ) !== proposal.data.impactDigest
   )
-    refuse("Correction dependencies changed; prepare a fresh proposal.");
+    refuse("Records this correction depends on have changed. Propose the correction again.");
 }
 /** Generic record editing cannot bypass the source amendment review of a batch-imported record (fromImportBatch). */
 export function assertNoDirectImportedCorrection(
@@ -642,6 +646,6 @@ export function assertNoDirectImportedCorrection(
   };
   if (!sameJson(before, normalised))
     refuse(
-      "Imported source records cannot be edited directly. Open the committed import batch for a supported correction and independent Finance review. For other changes, use the dedicated mandate, Collections, Reconciliation or Exceptions action; the original source remains preserved.",
+      "Imported records cannot be edited directly. To correct a customer or an unpaid instalment, open its import batch and propose a correction. A different Finance team member must review it. For other changes, use the record’s own actions. The original import stays as it was.",
     );
 }

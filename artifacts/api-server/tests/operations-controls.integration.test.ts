@@ -190,7 +190,7 @@ try{
   const blocked=ok(await post(`/v1/lifecycle/runs/${run.id}/execute?merchantId=${lender}`,{previewDigest:run.previewDigest}));
   assert.equal(blocked.status,"attention");assert.equal(blocked.receipts[0].status,"blocked");
   assert.equal(blocked.receipts.length,1,"a blocked source stops the run with its reason; nothing after it is attempted");
-  assert.match(blocked.receipts[0].detail,/is held/);
+  assert.match(blocked.receipts[0].detail,/is on hold/);
   lifecycle=ok(await post(`/v1/lifecycle/holds?merchantId=${lender}`,{kind:"journal_payload",sourceId:firstCandidate.sourceId,held:false,expectedHoldRevision:lifecycle.holdRevision,reason:"Release hold for checked synthetic cleanup"}));
   const stale=ok(await post(`/v1/lifecycle/runs?merchantId=${lender}`,{expectedPolicyRevision:lifecycle.policyRevision}));
   await pool.query("UPDATE valopay_operations SET updated_at=$3::timestamptz WHERE merchant_id=$1 AND id=$2",[lender,completed.id,at(31)]);

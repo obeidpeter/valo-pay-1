@@ -110,11 +110,11 @@ const refusedWith = (fn: () => unknown, status: number, message: RegExp) => { as
   const named = review({ reviewer: 'Clerk:user_finance' });
   validateRecord(state, finance, 'reviews', named);
   assert.equal(named.data.reviewer, 'Clerk:user_finance', 'naming oneself is accepted'); checks++;
-  refusedWith(() => validateRecord(state, finance, 'reviews', review({ reviewer: 'Someone else' })), 400, /reviewer is the person recording the review/);
-  refusedWith(() => validateRecord(state, finance, 'reviews', review({ reviewedAt: '2026-09-01' })), 400, /review time is recorded by the service/);
+  refusedWith(() => validateRecord(state, finance, 'reviews', review({ reviewer: 'Someone else' })), 400, /Valo Pay records you as the reviewer\. Leave the reviewer blank\./);
+  refusedWith(() => validateRecord(state, finance, 'reviews', review({ reviewedAt: '2026-09-01' })), 400, /Valo Pay records the review time when you save\. Leave the review date blank\./);
   // The business calendar (SCH-04) decides when collections run: only Admin and Operations maintain it.
   const holiday = () => ({ name: 'Public holiday', status: 'active', data: { date: '2027-12-24' } });
-  for (const role of ['Finance', 'Compliance reviewer', 'Read-only']) refusedWith(() => validateRecord(state, staffAt(role, 'user_other'), 'calendar', holiday()), 403, /not permitted|read-only/);
+  for (const role of ['Finance', 'Compliance reviewer', 'Read-only']) refusedWith(() => validateRecord(state, staffAt(role, 'user_other'), 'calendar', holiday()), 403, /Only Admin or Operations can add or edit calendar days\.|Your role is Read-only, so you can view records but not change them\./);
   for (const role of ['Admin', 'Operations']) { assert.doesNotThrow(() => validateRecord(state, staffAt(role, 'user_calendar'), 'calendar', holiday()), role); checks++; }
 }
 
@@ -128,7 +128,7 @@ const refusedWith = (fn: () => unknown, status: number, message: RegExp) => { as
   // Each queued job is marked finished at once, so the lender's queue limit of ten never refuses one here.
   const queue = (ctx: Context, kind: string) => { const job = queueExport(state, ctx, request(kind), '/private-bucket/valopay'); state.records.find(record => record.id === job.id)!.status = 'ready'; return job; };
   for (const kind of ['dispute-pack', 'customer-pack', 'customers', 'audit']) {
-    for (const role of ['Operations', 'Read-only']) refusedWith(() => queue(staffAt(role, `user_${role}`), kind), 403, /Only an Admin, Finance or Compliance reviewer can export or download/);
+    for (const role of ['Operations', 'Read-only']) refusedWith(() => queue(staffAt(role, `user_${role}`), kind), 403, /Only Admin, Finance or Compliance reviewer can export or download/);
     for (const role of sensitiveRoles) { assert.doesNotThrow(() => queue(staffAt(role, `user_${role.replace(' ', '_')}`), kind), `${role} ${kind}`); checks++; }
     assert.equal(exportPermitted('Read-only', kind), false); checks++;
   }
@@ -137,7 +137,7 @@ const refusedWith = (fn: () => unknown, status: number, message: RegExp) => { as
   // A retry regenerates the file, so it is refused the same way; the pack's own record is not touched.
   const pack = recordsOf(state, 'exports').find(record => record.data.kind === 'dispute-pack')!;
   pack.status = 'failed'; pack.data.lastError = 'Synthetic failure.';
-  for (const role of ['Operations', 'Read-only']) refusedWith(() => retryExport(state, staffAt(role, `user_${role}`), pack.id), 403, /Only an Admin, Finance or Compliance reviewer/);
+  for (const role of ['Operations', 'Read-only']) refusedWith(() => retryExport(state, staffAt(role, `user_${role}`), pack.id), 403, /Only Admin, Finance or Compliance reviewer/);
   assert.equal(pack.status, 'failed'); checks++;
   assert.equal(retryExport(state, staffAt('Finance', 'user_finance'), pack.id).status, 'queued'); checks++;
 }
@@ -150,11 +150,11 @@ const refusedWith = (fn: () => unknown, status: number, message: RegExp) => { as
   assert.equal(state.merchant.killSwitch, true); checks++;
   const requested = executeAction(state, first, { action: 'kill_switch', reason: 'The duplicate instructions were explained.', data: { enabled: false } });
   assert.equal(state.merchant.killSwitch, true, 'turning the stop off waits for a second administrator'); checks++;
-  assert.match(requested.message, /stays on until a second administrator approves/); assert.equal(requested.data.releaseRequested, true); checks += 2;
+  assert.match(requested.message, /stays on until a different Admin approves turning it off\./); assert.equal(requested.data.releaseRequested, true); checks += 2;
   assert.deepEqual(state.settings.emergencyStopReleases?.lender && { by: state.settings.emergencyStopReleases.lender.requestedBy, reason: state.settings.emergencyStopReleases.lender.reason }, { by: 'Clerk:user_first', reason: 'The duplicate instructions were explained.' }); checks++;
-  refusedWith(() => executeAction(state, first, { action: 'approve_kill_switch_off', reason: 'Approving my own request.', data: {} }), 403, /A different administrator must approve/);
-  refusedWith(() => executeAction(state, { ...first, principalId: 'principal:another-session' }, { action: 'approve_kill_switch_off', reason: 'The same person again.', data: {} }), 403, /A different administrator must approve/);
-  refusedWith(() => executeAction(state, staffAt('Operations', 'user_operations'), { action: 'approve_kill_switch_off', reason: 'Not an administrator.', data: {} }), 403, /not permitted/);
+  refusedWith(() => executeAction(state, first, { action: 'approve_kill_switch_off', reason: 'Approving my own request.', data: {} }), 403, /A different Admin must approve turning off the emergency stop\./);
+  refusedWith(() => executeAction(state, { ...first, principalId: 'principal:another-session' }, { action: 'approve_kill_switch_off', reason: 'The same person again.', data: {} }), 403, /A different Admin must approve turning off the emergency stop\./);
+  refusedWith(() => executeAction(state, staffAt('Operations', 'user_operations'), { action: 'approve_kill_switch_off', reason: 'Not an administrator.', data: {} }), 403, /Only Admin can approve turning off the emergency stop\./);
   const approved = executeAction(state, second, { action: 'approve_kill_switch_off', reason: 'Checked the incident notes with Operations.', data: {} });
   assert.equal(state.merchant.killSwitch, false, 'a second administrator lifts it'); checks++;
   assert.deepEqual([approved.data.requestedBy, approved.data.enabled, state.settings.emergencyStopReleases?.lender], ['Clerk:user_first', false, undefined]); checks++;

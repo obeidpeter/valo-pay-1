@@ -253,10 +253,10 @@ try {
     assert.equal(ok(await call(inOther("/v1/operations/pending"))).pending, 0, "nothing waits for confirmation or counts towards the pending limit");
     const listed = ok(await call(inOther("/v1/operations"))).items.find((item: { id: string }) => item.id === id);
     assert.equal(listed?.status, "cancelled");
-    assert.match(listed.message, /^Valo Pay refused this request: This calculation cannot be completed within the supported amount or rate limits\./);
+    assert.match(listed.message, /^Valo Pay refused this request: Valo Pay cannot complete this calculation because an amount or rate is outside the supported limits\./);
     const again = await call(inOther("/v1/actions"), "POST", body, key);
     assert.deepEqual([again.status, again.data.operation], [409, "cancelled"], "the same key cannot run again");
-    assert.match(again.data.error, /^Valo Pay refused this request and saved nothing: This calculation cannot be completed/);
+    assert.match(again.data.error, /^Valo Pay refused this request and saved nothing: Valo Pay cannot complete this calculation/);
     assert.equal(await closes(), before, "and nothing was saved");
     checks += 9;
   }

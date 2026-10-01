@@ -125,7 +125,7 @@ it('takes an empty lender from corrected sample imports to a reviewed payment an
   const evidence = within(dialog).getByRole('region', { name: 'Match evidence' });
   expect(evidence.textContent).toContain('PILOT-O001');
   expect(evidence.textContent).toContain('PILOT-D001');
-  expect(evidence.textContent).toContain('Amount and payer match one instalment within five days of its due date; Finance confirmation required.');
+  expect(evidence.textContent).toContain('The amount and payer match one instalment whose due date is within five days of the payment. Finance must confirm the match.');
   expect(evidence.textContent).toContain('Rule: R5');
   expect(evidence.textContent).toContain('Settlement:');
   await user.click(within(dialog).getByRole('button', { name: 'Confirm match' }));
@@ -150,7 +150,7 @@ it('takes an empty lender from corrected sample imports to a reviewed payment an
   const caseLink = await screen.findByRole('link', { name: 'Open case' });
   const caseRow = caseLink.closest('tr')!;
   expect(within(caseRow).getByText('Unallocated payment')).toBeTruthy();
-  expect(within(caseRow).getByText('No certain or confirmed allocation after 24 hours.')).toBeTruthy();
+  expect(within(caseRow).getByText('This payment has not been allocated to an instalment after 24 hours.')).toBeTruthy();
   await user.click(caseLink);
   await screen.findByRole('heading', { name: 'Case: Unallocated payment', level: 1 });
   expect(screen.getByText(/Recording a handover does not allocate a payment or resolve the exception/)).toBeTruthy();

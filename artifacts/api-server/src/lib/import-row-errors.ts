@@ -1,5 +1,5 @@
 import type { ZodIssue } from "zod";
-import { defaultStatus, importFieldLabel, valueLabel } from "@workspace/valopay-schema";
+import { defaultStatus, importFieldLabel, recordTypeLabel, valueLabel } from "@workspace/valopay-schema";
 import type { ProblemRule, ValidationProblem } from "../domain/validation";
 
 /*
@@ -10,10 +10,6 @@ import type { ProblemRule, ValidationProblem } from "../domain/validation";
  * The record API's own words for every problem are kept as the row's detail.
  */
 
-/** The record an unresolved link names, in the words of a row error. */
-const linkedNouns: Record<string, string> = { customers: "customer", mandates: "mandate", "due-items": "instalment", policies: "policy" };
-/** What a new record of each import kind is called. */
-const recordNouns: Record<string, string> = { customers: "customer", mandates: "mandate", "due-items": "instalment", attempts: "collection attempt", observations: "payment evidence record" };
 const MISSING = Symbol("missing");
 const dated = /(At|Date|Deadline)$/;
 const blank = (value: unknown) => value === undefined || value === null || String(value).trim() === "";
@@ -70,10 +66,10 @@ function ruleWords(rule: ProblemRule | undefined, field: string, kind: string, u
       if (!column) return MISSING;
       return unit === "naira" ? "Enter an amount above ₦0 in naira, for example 1,000.50." : "Enter a whole number of kobo above 0, for example 100000 for ₦1,000.";
     case "link":
-      return `No ${linkedNouns[rule.kind] ?? "record"} has the ${rule.kind === "policies" ? "ID" : "reference or ID"} “${rule.value}” in this lender.`;
+      return `No ${recordTypeLabel(rule.kind)} has the ${rule.kind === "policies" ? "ID" : "reference or ID"} “${rule.value}” in this lender.`;
     case "starting-status": {
       const start = defaultStatus[kind as keyof typeof defaultStatus];
-      return `${valueLabel(rule.value)} (${rule.value}) is set by a domain action, so a new ${recordNouns[kind] ?? "record"} cannot start with it. Leave the column blank${start ? ` or use ${choices([start])}` : ""}.`;
+      return `${valueLabel(rule.value)} (${rule.value}) is set by Valo Pay later, so a new ${recordTypeLabel(kind)} cannot start with it. Leave the column blank${start ? ` or use ${choices([start])}` : ""}.`;
     }
     case "issue": return issueWords(rule.issue, field);
     default: return undefined;

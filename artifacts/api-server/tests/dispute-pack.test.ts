@@ -36,21 +36,25 @@ for (const kind of ["customers", "mandates", "due-items", "attempts", "notificat
 assert.deepEqual(pack.timeline.map((event) => event.at), [...pack.timeline.map((event) => event.at)].sort(), "timeline is oldest first");
 const decisionEvents = pack.timeline.filter((event) => event.kind === "retry-decisions");
 assert.ok(decisionEvents.length >= 2, "both decisions are on the timeline");
-assert.match(decisionEvents[0]!.detail, /Next attempt 2027-06-30 06:16:00 WAT/, "the planned time is spelled out");
-assert.match(decisionEvents.at(-1)!.event, /give up/, "the give-up after ACCOUNT_CLOSED is on the timeline");
-assert.match(decisionEvents.at(-1)!.detail, /INVALID_ACCOUNT does not allow a retry/, "the raw code was normalised to the catalogue");
+assert.match(decisionEvents[0]!.detail, /Next attempt 30 Jun 2027, 06:16 WAT/, "the planned time is spelled out");
+assert.match(decisionEvents.at(-1)!.event, /no further retries/, "the give-up after ACCOUNT_CLOSED is on the timeline");
+assert.match(decisionEvents.at(-1)!.detail, /‘Invalid or closed account’ cannot be retried/, "the raw code was normalised to the catalogue");
 assert.equal(pack.summary.dueItems && (pack.summary as any).dueItems.unpaidFinal, 1);
 assert.equal((pack.summary as any).exceptions.open, 1, "the unpaid-after-final-attempt exception is counted");
 assert.equal((pack.summary as any).retryDecisions, decisionEvents.length);
 assert.equal(pack.position.outstandingKobo, due.amountKobo);
 assert.equal(pack.auditVerification.valid, true);
 checks += 16;
+// The pack leaves the lender: its rows name records by reference, never by internal ID, and never show internal words.
+const internalId = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i;
+const plainRows = (events: typeof pack.timeline) => events.every((event) => !/canonical/i.test(`${event.event} ${event.detail}`) && !internalId.test(`${event.event} ${event.detail}`));
+assert.ok(plainRows(pack.timeline), "no timeline row shows an internal ID or the word canonical"); checks += 1;
 
 // ---- AUD-06: versions as they applied at each event, not the current ones ----
 const policyDocument = pack.documents.find((document) => document.kind === "policies")!;
 assert.equal(policyDocument.version, 1);
 assert.equal(policyDocument.appliesFrom, policy.data.approvedAt);
-assert.match(policyDocument.text, /Up to 3 attempts/);
+assert.match(policyDocument.text, /up to 3 attempts in total across all collection systems/);
 const templateDocument = pack.documents.find((document) => document.kind === "templates")!;
 assert.equal(templateDocument.version, 2);
 assert.match(templateDocument.text, /\{\{amount\}\}/);
@@ -68,8 +72,10 @@ const decoded = decodePdfText(pdf);
 assert.equal(pdf.subarray(0, 5).toString(), "%PDF-");
 const pages = Number(body.match(/\/Count (\d+)/)?.[1]);
 assert.ok(pages >= 3, `summary, timeline and documents pages: ${pages}`);
-for (const needle of ["Dispute pack", `Timeline: ${pack.timeline.length} events`, "Documents in effect at the time", `Page 1 of ${pages}`, `Page ${pages} of ${pages}`, "NGN 25,000.00", customer.name, "Retry policy v1", "Notice template v2"]) assert.ok(decoded.includes(needle), `PDF text contains "${needle}"`);
-assert.ok(!decoded.includes("₦"), "the naira sign is spelled NGN, as in the CSV");
+for (const needle of ["Valo Pay dispute pack", `Timeline: ${pack.timeline.length} events`, "Documents in effect at the time", `Page 1 of ${pages}`, `Page ${pages} of ${pages}`, "₦25,000.00", customer.name, "Retry policy version 1", "Message template version 2"]) assert.ok(decoded.includes(needle), `PDF text contains "${needle}"`);
+assert.ok(!/NGN [0-9]/.test(decoded), "naira amounts are printed with the naira sign, as the console shows them");
+// The lender's mode is printed by the name Settings gives it, never as its code ("observation mode").
+assert.ok(decoded.includes(`mode: ${pack.merchant.mode === "observation" ? "Records payments only" : "Instructions after go-live"}`) && !decoded.includes(`${pack.merchant.mode} mode`), "the PDF names the lender's mode"); checks += 1;
 assert.match(body, /\/BaseFont \/[A-Z]{6}\+ValoPackSans-Regular/, "the pack embeds its own typeface rather than a WinAnsi standard font");
 assert.match(body, /\/Lang \(en-GB\)/, "the document declares its language");
 checks += 12;
@@ -101,6 +107,8 @@ checks += 11;
   addObservation(usd, { reference: "CARD-NGN-1", amountKobo: 700_000, source: "card", customerId: payer.id, eventId: "c2", occurredAt: wat("2027-07-01T07:00:00") });
   executeAction(usd, ctxAt(wat("2027-07-02T07:30:00"), "Finance"), { action: "daily_close" });
   const held = buildDisputePack(usd, ctxAt(wat("2027-07-02T09:00:00"), "Finance"), payer.id);
+  const evidenceRows = held.timeline.filter((event) => event.kind === "observations");
+  assert.ok(evidenceRows.length && plainRows(held.timeline) && evidenceRows.every((event) => /^Resolved: recorded as a new payment; payment CARD-(USD|NGN)-1\.$/.test(event.detail)), `resolved evidence names its payment by reference (${evidenceRows.map((event) => event.detail).join(" | ")})`); checks += 1;
   const payments = recordsOf(usd, "payments").filter((item) => item.customerId === payer.id);
   const nairaKobo = payments.filter((item) => String(item.data.currency || "NGN") === "NGN").reduce((sum, item) => sum + item.amountKobo, 0);
   assert.deepEqual(held.summary.payments, { count: payments.length, kobo: nairaKobo, otherCurrencies: { USD: { count: 1, amount: 100_000 } }, reversed: 0 }, "the payments total counts every payment, sums naira only and lists the USD payment beside it");
@@ -112,11 +120,12 @@ checks += 11;
   const text = decodePdfText(await renderDisputePackPdf(held, { compress: false }));
   const printed = text.split("\n");
   const after = (label: string) => printed.slice(printed.indexOf(label), printed.indexOf(label) + 2).join(" | ");
-  assert.match(after("Payments"), new RegExp(`^Payments \\|\\s+${payments.length} totalling NGN [0-9,.]+ and USD 1,000\\.00 \\(0 reversed\\)$`), `the PDF sums naira and lists the dollars beside it (${after("Payments")})`);
-  assert.match(after("Unallocated payments"), /^Unallocated payments \|\s+NGN [0-9,.]+ and USD 1,000\.00 in another currency, held for Finance$/, `and so does the unallocated line (${after("Unallocated payments")})`);
-  const usdRow = printed.indexOf("Payment CARD-USD-1 unallocated");
-  assert.ok(usdRow > 0 && printed.slice(usdRow, usdRow + 15).includes("USD 1,000.00") && !text.includes("NGN 1,000.00"), "the USD payment's timeline row prints its amount in USD, never as naira");
-  const csvRow = disputePackCsv(held).split("\r\n").find((line) => line.includes('"payments","Payment CARD-USD-1 unallocated"'));
+  assert.match(after("Payments"), new RegExp(`^Payments \\|\\s+${payments.length} totalling ₦[0-9,.]+ and USD 1,000\\.00 \\(0 reversed\\)$`), `the PDF sums naira and lists the dollars beside it (${after("Payments")})`);
+  assert.match(after("Unallocated payments"), /^Unallocated payments \|\s+₦[0-9,.]+ and USD 1,000\.00 in another currency, held for Finance$/, `and so does the unallocated line (${after("Unallocated payments")})`);
+  // The event cell wraps after the payment's reference ("Payment CARD-USD-1:" then "unallocated").
+  const usdRow = printed.findIndex((line) => line.startsWith("Payment CARD-USD-1:"));
+  assert.ok(usdRow > 0 && printed.slice(usdRow, usdRow + 15).includes("USD 1,000.00") && !text.includes("₦1,000.00"), "the USD payment's timeline row prints its amount in USD, never as naira");
+  const csvRow = disputePackCsv(held).split("\r\n").find((line) => line.includes('"payments","Payment CARD-USD-1: unallocated"'));
   assert.match(String(csvRow), /"100000","USD",/, "and the CSV gives its currency beside the amount");
   checks += 9;
 }

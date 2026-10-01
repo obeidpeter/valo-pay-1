@@ -68,9 +68,9 @@ function answer(error: unknown): Answer {
   assert.equal(answer(storageFailure(404)).status, 502, "a missing export object is the service's failure");
   assert.equal(answer(storageFailure(403)).status, 502);
   assert.equal(answer(Object.assign(new Error("Export object could not be downloaded."), { statusCode: 500 })).status, 502, "an upstream status alone is never the request's fault");
-  const integrity = answer(Object.assign(new Error("Export checksum verification failed. The file was not sent: generate the export again, and quote this reference if it happens again."), { status: 500, expose: true }));
+  const integrity = answer(Object.assign(new Error("This export file has changed since it was made, so it was not sent. Create the export again, and quote this reference if it happens again."), { status: 500, expose: true }));
   assert.equal(integrity.status, 500);
-  assert.match((integrity.body as { error: string }).error, /checksum verification failed/, "an integrity failure explains itself");
+  assert.match((integrity.body as { error: string }).error, /has changed since it was made, so it was not sent/, "an integrity failure explains itself");
   const zod = answer(new ZodError([{ code: "custom", path: ["data", "amountKobo"], message: "Expected number" }]));
   assert.equal(zod.status, 400);
   assert.deepEqual((zod.body as { details: unknown[] }).details, [{ field: "data.amountKobo", message: "Expected number" }], "validation failures name their fields");
@@ -250,7 +250,7 @@ function answer(error: unknown): Answer {
   // A record's data cannot smuggle a key that names an object's own machinery.
   for (const key of ["__proto__", "constructor", "prototype"]) {
     const data = JSON.parse(`{"${key}": {"polluted": true}, "note": "x"}`) as Record<string, unknown>;
-    assert.throws(() => validateRecord({} as never, { role: "Admin" } as never, "customers", { data }), new RegExp(`data\\.${key} is not an allowed field`), `${key} is refused before anything else looks at the data`);
+    assert.throws(() => validateRecord({} as never, { role: "Admin" } as never, "customers", { data }), /^Error: This request has a field Valo Pay does not accept\. Reload the page and try again\.$/, `${key} is refused before anything else looks at the data`);
   }
   checks += 3;
 }

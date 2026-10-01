@@ -65,11 +65,11 @@ it('includes pending import corrections in Finance reviews with age and an exact
   const proposal = proposeImportCorrection(state, proposer, { ...input, previewDigest: preview.previewDigest, reviewer: 'Clerk:bob', reason: 'Correct the name in the source file.', evidence: 'SOURCE-CORRECTION-QUEUE' }, people);
   context.actor = 'Clerk:bob'; context.role = 'Finance';
   const user = userEvent.setup(); mount();
-  await screen.findByRole('heading', { name: 'Import correction awaiting review' });
+  await screen.findByRole('heading', { name: 'Import correction waiting for review' });
   expect(screen.getByRole('link', { name: 'Review import correction' }).getAttribute('href')).toBe(`/imports?batch=${batch.id}&correction=${proposal.id}`);
   expect(screen.getByText(/Awaiting decision since/)).toBeTruthy();
   await user.selectOptions(screen.getByRole('combobox', { name: 'Show' }), 'review');
-  expect(await screen.findByRole('heading', { name: 'Import correction awaiting review' })).toBeTruthy();
+  expect(await screen.findByRole('heading', { name: 'Import correction waiting for review' })).toBeTruthy();
   await user.click(screen.getByRole('button', { name: 'Mark as read' }));
   await screen.findByText(/Notification marked as read/);
   expect(state.records.filter(record => record.kind === 'import-correction-events')).toHaveLength(0);

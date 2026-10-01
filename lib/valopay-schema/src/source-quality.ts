@@ -6,7 +6,7 @@ const safeCount = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 /** Source money in currencies other than naira, by code: how many rows and their amount in that currency's minor unit, never added to a naira total. */
 const otherCurrencies = z.record(z.object({ count: safeCount, amount: safeCount }));
 /** A real calendar date, interpreted as the lender's WAT business date. */
-export const businessDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(value => { const date = new Date(`${value}T00:00:00.000Z`); return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value; }, "Use a valid business date.");
+export const businessDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(value => { const date = new Date(`${value}T00:00:00.000Z`); return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value; }, "Enter a real business date as YYYY-MM-DD, for example 2026-09-18.");
 /** An expected original source file, independently declared for one business date. */
 export const expectedSourceFileSchema = z.object({ source: z.string().trim().min(1).max(100), sourceBatchId: z.string().trim().min(1).max(120), kind: z.enum(importKinds), expectedRows: safeCount.max(500), expectedAmountKobo: safeCount }).strict();
 /** Each revision preserves its predecessor; missing expectations never mean complete. */

@@ -144,7 +144,7 @@ describe("settings", () => {
 
     // The result is announced with the service's own message and counts (a notice is also announced through a short-lived copy).
     expect(await screen.findAllByText("Collection returned")).toBeTruthy();
-    const [announced] = screen.getAllByText(/^Collection ownership returned to the configured fallback owner\./);
+    const [announced] = screen.getAllByText(/^Collection returned to the lender team\. Scheduled collection attempts were cancelled, and no future instructions are queued\./);
     expect(announced!.textContent).toContain("2 instalments returned to the lender team, and 1 scheduled attempt cancelled.");
     expect(announced!.textContent).toContain("The emergency stop is now on for this lender.");
     // The page shows the stop on, and the service agrees.

@@ -174,7 +174,7 @@ try {
   const changed = await earlierPreview(async () => "f".repeat(64));
   let refusedRun = await call(`/v1/lifecycle/runs/${changed.id}/approve?merchantId=${lender}`, "POST", { expectedUpdatedAt: changed.updatedAt, previewDigest: changed.previewDigest, reason: "A changed source must not be approved" }, randomUUID());
   assert.deepEqual([refusedRun.status, refusedRun.bodyReads], [409, 1], "the source is read once and refused");
-  assert.match(refusedRun.data.error, /A previewed source changed/);
+  assert.match(refusedRun.data.error, /A file in this preview has changed/);
   refusedRun = await call(`/v1/lifecycle/runs/${changed.id}/approve?merchantId=${lender}`, "POST", { expectedUpdatedAt: changed.updatedAt, previewDigest: changed.previewDigest, reason: "A changed source must not be approved" }, randomUUID());
   assert.deepEqual([refusedRun.status, refusedRun.bodyReads], [409, 0], "and not read again while it is unchanged");
   checks += 3;

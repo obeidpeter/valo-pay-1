@@ -23,8 +23,8 @@ const commitmentsTable = async () => within((await screen.findByRole('heading', 
 
 describe('evidence register and operational reviews', () => {
   it.each([
-    ['wrong shape', [], /The recorded proposal or confirmation of these discount dates cannot be read/],
-    ['missing reviewer', { reviewedBy: '', reviewedAt: '2026-09-29T09:00:00Z', discountStartDate: '2027-02-01', fullPriceStartDate: '2028-02-01', termsReference: 'SYNTHETIC-TERMS' }, /The recorded proposal or confirmation of these discount dates cannot be read/],
+    ['wrong shape', [], /Valo Pay cannot read the saved proposal or confirmation of these discount dates/],
+    ['missing reviewer', { reviewedBy: '', reviewedAt: '2026-09-29T09:00:00Z', discountStartDate: '2027-02-01', fullPriceStartDate: '2028-02-01', termsReference: 'SYNTHETIC-TERMS' }, /Valo Pay cannot read the saved proposal or confirmation of these discount dates/],
     ['stale dates', { reviewedBy: 'Sandbox Admin', reviewedAt: '2026-09-29T09:00:00Z', discountStartDate: '2027-01-01', fullPriceStartDate: '2028-02-01', termsReference: 'SYNTHETIC-TERMS' }, /The discount dates or agreement reference changed after they were proposed/],
   ])('does not describe an unverified legacy discount review as ready, and says why (%s)', async (_label, discountReview, cause) => {
     api.mutate(state => {
@@ -46,7 +46,7 @@ describe('evidence register and operational reviews', () => {
     });
     renderApp('/evidence');
     const section = (await screen.findByRole('heading', { name: 'Commercial terms' })).closest('section')!;
-    const missing = /The discount start date, the full-price start date and the signed agreement reference are missing: enter them from the signed agreement\./;
+    const missing = /The discount start date, the full-price start date and the signed agreement reference are missing\. Enter them from the signed agreement\./;
     expect(await within(section).findByText(missing)).toBeTruthy();
     await user.click(within(section).getByRole('button', { name: 'Edit' }));
     const dialog = await screen.findByRole('dialog', { name: 'Edit commercial terms' });
@@ -88,8 +88,8 @@ describe('evidence register and operational reviews', () => {
     expect((submitted.body as { data: Record<string, unknown> }).data).not.toHaveProperty('discountReview');
     expect(api.state().records.find(record => record.kind === 'commercial')!.data.discountReview).toEqual({ reviewedBy: 'Sandbox Admin', reviewedAt: api.now, proposedPrincipal: 'synthetic-console-person-1', discountStartDate: '2027-02-01', fullPriceStartDate: '2028-02-01', termsReference: 'SYNTHETIC-AGREEMENT-2027' });
     // Saved, the dates are a proposal: the form's answer and the row say they await a second person, and who proposed them.
-    const awaiting = /The discount dates await confirmation: a different Admin or Finance user from the person who proposed them must confirm them/;
-    expect(within(section).getByRole('status').textContent).toMatch(/^Terms saved\. These design-partner terms cannot price a new invoice yet\. The discount dates await confirmation/);
+    const awaiting = /The discount dates are waiting for confirmation\. An Admin or Finance team member who did not propose them must check them against the signed agreement/;
+    expect(within(section).getByRole('status').textContent).toMatch(/^Terms saved\. These design-partner terms cannot be used on a new invoice yet\. The discount dates are waiting for confirmation/);
     const table = within(section).getByRole('table');
     expect(within(table).getByText(awaiting)).toBeTruthy();
     expect(within(table).getByText(`Proposed by Sandbox Admin · ${formatDate(api.now)}`)).toBeTruthy();
@@ -112,7 +112,7 @@ describe('evidence register and operational reviews', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(api.state().records.find(record => record.kind === 'commercial')!.data.discountReview).toBeUndefined();
-    const flag = 'These design-partner terms cannot price a new invoice yet. The full-price terms are not recorded as signed: tick “Full-price terms are signed” once they are, so that the discount dates can be proposed.';
+    const flag = 'These design-partner terms cannot be used on a new invoice yet. The full-price terms are not recorded as signed. Tick “Full-price terms are signed” once they are, so the discount dates can be proposed.';
     expect(within(section).getByRole('status').textContent).toBe(`Terms saved. ${flag}`);
     expect(within(within(section).getByRole('table')).getByText(flag)).toBeTruthy();
   });
@@ -122,7 +122,7 @@ describe('evidence register and operational reviews', () => {
     renderApp('/evidence');
     const table = await commitmentsTable();
     expect(await within(table).findByText('Not signed')).toBeTruthy();
-    expect(within(table).queryByText(/need review|cannot price a new invoice|await confirmation/)).toBeNull();
+    expect(within(table).queryByText(/need review|cannot be used on a new invoice|waiting for confirmation/)).toBeNull();
     expect(within(table).queryByRole('button', { name: 'Confirm discount dates' })).toBeNull();
     // Saved unchanged, the prospect is still unsigned: nothing is said about pricing an invoice.
     const section = (await screen.findByRole('heading', { name: 'Commercial terms' })).closest('section')!;
@@ -131,7 +131,7 @@ describe('evidence register and operational reviews', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(api.calls.some(call => call.method === 'PATCH' && call.path.includes('/records/commercial/') && call.status === 200)).toBe(true);
     expect(within(section).getByRole('status').textContent).toBe('');
-    expect(within(table).queryByText(/cannot price a new invoice/)).toBeNull();
+    expect(within(table).queryByText(/cannot be used on a new invoice/)).toBeNull();
   });
 
   it('does not flag terms that later terms from the same date replaced, which bill no month', async () => {
@@ -150,7 +150,7 @@ describe('evidence register and operational reviews', () => {
     expect(row('Replacement terms').textContent).toContain('Confirmed by Clerk:user_second');
     const replaced = row(api.state().merchant.name);
     expect(replaced.textContent).toContain('Signed');
-    expect(replaced.textContent).not.toMatch(/cannot price a new invoice|missing/);
+    expect(replaced.textContent).not.toMatch(/cannot be used on a new invoice|missing/);
   });
 
   it('shows who proposed and who confirmed the discount dates, and when, beside the confirmed dates', async () => {
@@ -207,7 +207,7 @@ describe('evidence register and operational reviews', () => {
     expect(sent.body).toMatchObject({ action: 'confirm_discount_terms', data: agreement, reason: 'Checked against the signed agreement' });
     expect(api.state().records.find(record => record.kind === 'commercial')!.data.discountReview).toMatchObject({ confirmedBy: 'Sandbox Finance', confirmedPrincipal: 'synthetic-console-person-2', confirmedAt: api.now });
     const section = (await screen.findByRole('heading', { name: 'Commercial terms' })).closest('section')!;
-    expect(within(section).getByRole('status').textContent).toMatch(/^Discount dates confirmed: 50% discount from 2027-02-01, full price from 2028-02-01 \(agreement SYNTHETIC-AGREEMENT-2027\), proposed by Sandbox Admin\./);
+    expect(within(section).getByRole('status').textContent).toMatch(/^Discount dates confirmed: 50% discount from 1 Feb 2027, full price from 1 Feb 2028 \(agreement SYNTHETIC-AGREEMENT-2027\), proposed by Sandbox Admin\./);
     expect(await within(table).findByText(`Confirmed by Sandbox Finance · ${formatDate(api.now)}`)).toBeTruthy();
     expect(within(table).queryByRole('button', { name: 'Confirm discount dates' })).toBeNull();
   });
@@ -247,7 +247,7 @@ describe('evidence register and operational reviews', () => {
     fireEvent.change(fullPrice, { target: { value: '2028-02-01' } });
     await user.type(reference, 'SYNTHETIC-CORRECTED-AGREEMENT');
     await user.click(within(dialog).getByRole('button', { name: 'Save' }));
-    expect(await within(dialog).findByText(/Discount dates must be the first day of a real billing month/)).toBeTruthy();
+    expect(await within(dialog).findByText(/Each discount date must be the first day of a month, because a monthly invoice uses one price for the whole month/)).toBeTruthy();
     expect([start.value, fullPrice.value, reference.value]).toEqual(['2027-02-15', '2028-02-01', 'SYNTHETIC-CORRECTED-AGREEMENT']);
     expect(api.state().records.find(record => record.kind === 'commercial')!.data.discountReview).toBeUndefined();
     fireEvent.change(start, { target: { value: '2027-02-01' } });
