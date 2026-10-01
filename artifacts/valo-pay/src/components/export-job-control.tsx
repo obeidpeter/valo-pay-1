@@ -48,9 +48,11 @@ export function ExportJobControl({ kind, customerId, closeReviewId, savedJobId, 
   // Which request failed: a new export (start) or a retry or restart of a saved one, so a refusal names the right action.
   const [problem, setProblem] = useState<{ scope: string; action: 'start' | 'restart'; message: string } | null>(null);
   const title = exportKindTitle(kind);
-  // A pack is opened by its name, and one named after its page keeps the page's capital: "Open billing statement",
-  // "Open Go-live evidence pack". Any other export holds records whose name is also a page's, so it is the saved export.
-  const openLabel = !PACKS.includes(kind) ? 'Open saved export' : `Open ${kind === 'gate-pack' ? title : title.charAt(0).toLowerCase() + title.slice(1)}`;
+  // What the link and the ready notice open, named once: a pack by its name, and one named after its page keeps the
+  // page's capital ("billing statement", "Go-live evidence pack"). Any other export holds records whose name is also
+  // a page's, so it is the saved export.
+  const opened = !PACKS.includes(kind) ? 'saved export' : kind === 'gate-pack' ? title : title.charAt(0).toLowerCase() + title.slice(1);
+  const openLabel = `Open ${opened}`;
   // Search the saved review identity before paging, then enforce the exact match.
   const params = { merchantId: merchantId!, customerId, search: closeReviewId || kind, limit: 5 };
   const recent = useListRecords('exports', params, { query: { enabled: !!merchantId && !savedJobId, queryKey: getListRecordsQueryKey('exports', params), refetchInterval: savedJobId ? false : 5000 } });
@@ -69,8 +71,8 @@ export function ExportJobControl({ kind, customerId, closeReviewId, savedJobId, 
   const retry = useSafeRetryExportJob(undefined, scope);
   const announce = (result: ExportResult, immediate = false) => {
     if (!canOpen || result.expiredAt || (result.status || 'ready') !== 'ready' || !result.checksum) return;
-    const opened = immediate ? window.open(result.downloadUrl, '_blank') : undefined;
-    notifyDone(`${title} ready`, `${immediate ? (opened ? 'The file opened in a new tab.' : 'Your browser blocked the new tab. Select Open to view the file.') : 'Select Open to view the file.'} Sample data only.`, { label: 'Open', altText: `Open the ${title.toLowerCase()} in a new tab`, onClick: () => { window.open(result.downloadUrl, '_blank'); } });
+    const tab = immediate ? window.open(result.downloadUrl, '_blank') : undefined;
+    notifyDone(`${opened.charAt(0).toUpperCase()}${opened.slice(1)} ready`, `${immediate ? (tab ? 'The file opened in a new tab.' : 'Your browser blocked the new tab. Select Open to view the file.') : 'Select Open to view the file.'} Sample data only.`, { label: 'Open', altText: `Open the ${opened} in a new tab`, onClick: () => { window.open(result.downloadUrl, '_blank'); } });
   };
   const announced = useRef(new Set<string>());
   useEffect(() => {
