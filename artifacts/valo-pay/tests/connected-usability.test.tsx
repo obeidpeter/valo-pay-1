@@ -79,7 +79,7 @@ it("allows Compliance to review revocation while keeping permission grants unava
   await user.click(trigger);
   expect(
     screen.getByRole("region", { name: "Permission to withdraw" }).textContent,
-  ).toContain("Sample business (separate from the lender)");
+  ).toContain("Sample business");
   await user.type(
     screen.getByLabelText("Reason for withdrawing permission"),
     "Do not reuse this as a grant reason",

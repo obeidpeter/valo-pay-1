@@ -22,8 +22,8 @@ import { useWorkspace } from "@/lib/workspace-context";
 const TITLE = "Permissions and readiness",
   DESCRIPTION =
     "A permission covers one customer, or the sample business, until it expires or is withdrawn.";
-/** Cash Desk's made-up business, which the business permissions cover. */
-const SAMPLE_BUSINESS = "Sample business (separate from the lender)";
+/** Cash Desk's made-up business, which the business permissions cover. Its one name; the form says in a sentence that it is separate from the lender. */
+const SAMPLE_BUSINESS = "Sample business";
 export default function ConnectionsPage() {
   const api = useConnected(),
     { merchantId } = useWorkspace();
@@ -233,9 +233,10 @@ function ConnectionsContent({ api }: { api: ReturnType<typeof useConnected> }) {
                     }}
                     aria-invalid={fieldErrors["permission-subject"] ? true : undefined}
                     aria-describedby={
-                      fieldErrors["permission-subject"]
-                        ? fieldMessageId("permission-subject")
-                        : undefined
+                      [
+                        sme ? "permission-subject-help" : "",
+                        fieldErrors["permission-subject"] ? fieldMessageId("permission-subject") : "",
+                      ].filter(Boolean).join(" ") || undefined
                     }
                     required
                   >
@@ -250,6 +251,11 @@ function ConnectionsContent({ api }: { api: ReturnType<typeof useConnected> }) {
                       ))
                     )}
                   </select>
+                  {sme && (
+                    <p id="permission-subject-help" className="text-xs text-muted-foreground">
+                      The sample business is Cash Desk’s made-up business. It is separate from the lender and its customers.
+                    </p>
+                  )}
                   <FieldError
                     id="permission-subject"
                     message={fieldErrors["permission-subject"]}
@@ -350,7 +356,7 @@ function ConnectionsContent({ api }: { api: ReturnType<typeof useConnected> }) {
               .map((c) => {
                 const who =
                   c.data.subjectId === "sme"
-                    ? "Sample business"
+                    ? SAMPLE_BUSINESS
                     : data.customers.find((x) => x.id === c.data.subjectId)
                         ?.name || "Unknown customer";
                 return (

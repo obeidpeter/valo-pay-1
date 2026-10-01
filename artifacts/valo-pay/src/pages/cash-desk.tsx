@@ -238,7 +238,7 @@ export default function CashDeskPage() {
           {cash.name}
         </p>
         <p className="text-xs text-muted-foreground">
-          Sample business, separate from the lender · Amounts in naira
+          Amounts in naira
         </p>
       </div>
       {!cash.initialised ? (

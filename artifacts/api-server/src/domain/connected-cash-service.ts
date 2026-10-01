@@ -600,7 +600,7 @@ export function cashView(state: DomainState, ctx: Context) {
   return {
     initialised: !!stored(state),
     scope: data.scope,
-    name: "Sample business · Trading company",
+    name: "Sample business",
     accounts: read || !stored(state) ? accounts : [],
     positions,
     commitments: read || !stored(state) ? data.commitments : [],

@@ -43,7 +43,7 @@ The sample rulecard is deliberately identified as unvalidated. It does not claim
 
 ### Cash Desk
 
-1. Grant **Read business accounts** for **Sample business (separate from the lender)**. Open **Cash Desk** and choose **Set up Cash Desk**. Before setup, the view is a read-only preview and does not seed records merely by being opened.
+1. Grant **Read business accounts** for **Sample business**, Cash Desk’s made-up business, which is separate from the lender. Open **Cash Desk** and choose **Set up Cash Desk**. Before setup, the view is a read-only preview and does not seed records merely by being opened.
 2. In **Cash and forecast**, review booked, available and pending balances separately. Source timestamps and coverage qualify the totals; stale or missing balances cannot appear as an unqualified available amount.
 3. Change the cautious case’s receipt percentage, delay and planning buffer. Save with a reason to create a new forecast version. The desk shows the latest version while the permission it was saved under is current and the opening balance and commitments it was made from are unchanged; otherwise it withholds that version's figures and asks for a new one. Committed outflows remain due: an approved outflow past its due date is still owed and counts as due now, in every week of both scenarios, while a receipt past its due date is left out until it arrives. Reserves are planning assumptions and do not alter bank balances.
 4. Grant **Prepare accounting drafts and VAT schedules**. Operations/Admin prepares the sample receipt draft; a different Finance reviewer approves it and prepares the export. The draft reconciles gross receipt, evidenced fee, partial invoice payment, credit note and remaining invoice balance.
