@@ -618,6 +618,13 @@ export type HelpTerm = { id: string; term: string; meaning: string; also: readon
 /** In the order of their headwords, as a reader scans a list of terms. */
 export const helpTerms: readonly HelpTerm[] = [
   {
+    id: "account-mapping",
+    term: "Account mapping",
+    meaning:
+      "The accounts, company and tax code an accounting draft uses in your accounting software. Each draft names the mapping version it used.",
+    also: ["chart of accounts", "ledger mapping", "mapping", "account codes"],
+  },
+  {
     id: "accounting-draft",
     term: "Accounting draft",
     meaning:
@@ -630,6 +637,13 @@ export const helpTerms: readonly HelpTerm[] = [
     meaning:
       "The lender whose records you are working on, chosen in the sidebar or, on a phone, at the top of the page. Choosing another lender never gives you a wider role.",
     also: ["lender", "lender selector", "workspace lender selector", "workspace selector", "merchant"],
+  },
+  {
+    id: "affordability-check",
+    term: "Affordability check",
+    meaning:
+      "How much the applicant could repay each month under the sample policy. It cuts regular income to allow for a bad month, then takes away essential costs, existing repayments and a safety margin. It is not a loan offer.",
+    also: ["repayment capacity", "debt-service ratio", "stressed income", "Largest new monthly repayment the applicant can afford", "Loan amount this schedule supports"],
   },
   {
     id: "allocation",
@@ -665,6 +679,13 @@ export const helpTerms: readonly HelpTerm[] = [
     meaning:
       "An estimate of cash from dated balances, expected receipts, commitments and your assumptions. It is not a bank balance, and it keeps no money aside.",
     also: ["Cash plan", "Cash and forecast"],
+  },
+  {
+    id: "cautious-case",
+    term: "Cautious case",
+    meaning:
+      "Cash Desk’s forecast if less money comes in, and later, while payments out stay due. A forecast is a planning estimate, not money held or set aside.",
+    also: ["downside scenario", "downside", "stress case", "worst case"],
   },
   {
     id: "payment-request",
@@ -728,6 +749,13 @@ export const helpTerms: readonly HelpTerm[] = [
     also: ["persona", "demo persona", "workspace role selector", "Switch role"],
   },
   {
+    id: "difference-from-your-ledger",
+    term: "Difference from your ledger",
+    meaning:
+      "The VAT account in your ledger minus the balance Cash Desk expects from the period’s invoices, adjustments and VAT payments. A difference means the VAT schedule needs review.",
+    also: ["ledger control variance", "VAT variance", "variance", "ledger difference"],
+  },
+  {
     id: "emergency-stop",
     term: "Emergency stop",
     meaning:
@@ -747,6 +775,13 @@ export const helpTerms: readonly HelpTerm[] = [
     meaning:
       "Something that needs a person to review and resolve it, such as a difference, a missing record or an outcome that is unknown.",
     also: ["Issue needing review", "issue", "item", "discrepancy"],
+  },
+  {
+    id: "expected-case",
+    term: "Expected case",
+    meaning:
+      "Cash Desk’s forecast using the approved amounts. Compare it with the cautious case. A forecast is a planning estimate, not money held or set aside.",
+    also: ["base scenario", "base case"],
   },
   {
     id: "export",
@@ -769,6 +804,13 @@ export const helpTerms: readonly HelpTerm[] = [
     also: ["Committed import", "Commit", "committed", "Import checked batch", "Last imported"],
   },
   {
+    id: "input-vat",
+    term: "Input VAT",
+    meaning:
+      "VAT on purchases. Only VAT with an approved decision to reclaim it counts as input VAT you can reclaim. The rest waits for review.",
+    also: ["recoverable input tax", "input tax", "Input VAT you can reclaim", "Input VAT needing review"],
+  },
+  {
     id: "instalment",
     term: "Instalment",
     meaning:
@@ -788,6 +830,13 @@ export const helpTerms: readonly HelpTerm[] = [
     meaning:
       "A hundredth of a naira: ₦1.00 is 100 kobo. Check which unit your file uses: 2,500 kobo is ₦25.00, but 2,500 naira is ₦2,500.00.",
     also: ["NGN minor unit", "minor unit"],
+  },
+  {
+    id: "loan-amount",
+    term: "Loan amount",
+    meaning:
+      "The amount the applicant asks to borrow. The affordability check shows how much of it the repayment schedule supports. It is not a loan offer.",
+    also: ["principal", "requested amount", "loan principal"],
   },
   {
     id: "mandate",
@@ -830,6 +879,13 @@ export const helpTerms: readonly HelpTerm[] = [
     meaning:
       "A bank or provider has not said what happened to a payment. Wait for evidence, and do not create a new payment to replace it.",
     also: ["unknown outcome", "timeout"],
+  },
+  {
+    id: "output-vat",
+    term: "Output VAT",
+    meaning:
+      "VAT on approved sales invoices. Valo Pay files no VAT return and pays no tax.",
+    also: ["output tax", "VAT on sales", "Output VAT (on sales)"],
   },
   {
     id: "outstanding",
@@ -880,6 +936,13 @@ export const helpTerms: readonly HelpTerm[] = [
     also: ["business-account read permission"],
   },
   {
+    id: "received-before-fees",
+    term: "Received before fees",
+    meaning:
+      "The amount paid against an invoice. Received after fees is that amount less the fee.",
+    also: ["gross receipt", "net receipt", "gross", "net", "Received after fees"],
+  },
+  {
     id: "reconciliation",
     term: "Reconciliation",
     meaning:
@@ -892,6 +955,13 @@ export const helpTerms: readonly HelpTerm[] = [
     meaning:
       "A lender mode in which Valo Pay records and matches payments but never sends a collection instruction to a bank or provider. Your team can still import, match and resolve records.",
     also: ["Watch only", "observation mode", "Observation only", "Mode"],
+  },
+  {
+    id: "regular-income",
+    term: "Regular income",
+    meaning:
+      "The applicant’s salary or business income per 30 days, from their bank evidence. Transfers between their own accounts, loan money, refunds and sales of assets do not count.",
+    also: ["sustainable income", "eligible income", "Regular income per 30 days"],
   },
   {
     id: "request-history",
@@ -929,10 +999,24 @@ export const helpTerms: readonly HelpTerm[] = [
     also: ["Your allowed actions", "Role and current authority", "authority"],
   },
   {
+    id: "sample-business",
+    term: "Sample business",
+    meaning:
+      "Cash Desk’s made-up business. It is separate from the lender and its customers.",
+    also: ["SME", "Sample SME", "SME legal entity", "Trading company"],
+  },
+  {
     id: "sample-data",
     term: "Sample data",
     meaning: "Sample data is made up. It is not real customers or money.",
     also: ["synthetic", "fixture", "illustrative", "sample records"],
+  },
+  {
+    id: "sample-rule-score",
+    term: "Sample rule score",
+    meaning:
+      "A score from sample rules that have not been validated for real lending. It does not predict whether the applicant will repay, and it is not a lending decision.",
+    also: ["rulecard score", "rulecard", "credit score", "probability of default", "Sample rule score (not validated)"],
   },
   {
     id: "sandbox",
@@ -956,10 +1040,24 @@ export const helpTerms: readonly HelpTerm[] = [
     also: ["row identity", "Row ID", "source identity"],
   },
   {
+    id: "still-owed",
+    term: "Still owed",
+    meaning:
+      "What is left to pay on an invoice after this payment and any credit note.",
+    also: ["invoice residual", "residual", "Amount still owed", "balance due"],
+  },
+  {
     id: "team-member",
     term: "Team member",
     meaning: "A person who uses Valo Pay for a lender. Each team member has one role.",
     also: ["user", "staff member", "colleague", "member"],
+  },
+  {
+    id: "typical-account-balance",
+    term: "Typical account balance",
+    meaning:
+      "The middle value of the applicant’s daily closing balances: half the days closed higher and half lower.",
+    also: ["median observed liquidity", "liquidity buffer", "median balance"],
   },
   {
     id: "vat-schedule",

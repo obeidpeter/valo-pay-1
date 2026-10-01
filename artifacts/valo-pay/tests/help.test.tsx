@@ -203,6 +203,25 @@ describe("public task help", () => {
     expect(api.calls).toEqual([]);
   });
 
+  // The connected pages renamed formal terms; Terms explained finds each screen word by its formal name.
+  it.each([
+    ["principal", "Loan amount"],
+    ["debt-service ratio", "Affordability check"],
+    ["rulecard score", "Sample rule score"],
+    ["median observed liquidity", "Typical account balance"],
+    ["downside scenario", "Cautious case"],
+    ["recoverable input tax", "Input VAT"],
+    ["ledger control variance", "Difference from your ledger"],
+    ["invoice residual", "Still owed"],
+    ["Sample SME", "Sample business"],
+  ])("finds the connected pages' word for %s", async (formal, term) => {
+    renderApp(`/help?view=glossary&q=${encodeURIComponent(formal)}`);
+    await screen.findByRole("heading", { name: "Terms explained", level: 2 });
+    expect(screen.getByText(term)).toBeTruthy();
+    expect(screen.queryByText(formal)).toBeNull();
+    expect(api.calls).toEqual([]);
+  });
+
   it("finds the page once called Operations by its old name", async () => {
     renderApp("/help?view=glossary&q=Operations");
     await screen.findByRole("heading", { name: "Terms explained", level: 2 });
