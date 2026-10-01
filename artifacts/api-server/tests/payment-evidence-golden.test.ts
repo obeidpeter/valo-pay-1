@@ -683,7 +683,7 @@ section("evidence held for its connection alone", () => {
   check(joined.held.status === "open" && joined.held.data.condition === `suspected_duplicate:${joined.line.id}:connection:${joined.debit.id}`, "the line is held for its connection alone");
   const notes = String(joined.held.data.notes);
   check(/‘Same payment; evidence joined to it’: it is more evidence of payment PSK-SET-1, with its connection spelled another way\. It is added to that payment, and later evidence through Sandbox Rail Settlements finds that payment too\./.test(notes)
-    && /‘Not money; evidence set aside’: it records no money\. It is set aside, and no payment is made from it\./.test(notes) && /‘Distinct payments’: it is money of its own/.test(notes) && /‘Duplicate confirmed; refund required’: the payer was charged twice\./.test(notes), `its exception says what each resolution does (${notes})`);
+    && /‘Not money; evidence set aside’: it records no money\. It is set aside, and no payment is made from it\./.test(notes) && /‘Separate payments’: it is money of its own/.test(notes) && /‘Duplicate confirmed; refund required’: the payer was charged twice\./.test(notes), `its exception says what each resolution does (${notes})`);
   const answer = accepted(request(joined.state, () => executeAction(joined.state, finance(wat("2027-07-01T10:00:00")), { action: "resolve_exception", recordId: joined.held.id, reason: "The settlement file spells the connection its own way.", data: { resolutionCode: "same_payment" } })), "Finance's resolution as the same payment");
   check(/adds this payment evidence to payment PSK-SET-1\. No second payment is created\./.test(answer.message), `the answer says so (${answer.message})`);
   const report = close(joined.state, "2027-07-02T07:30:00").data.report;
@@ -728,7 +728,7 @@ section("the same payment is offered only where it applies", () => {
     // Tried on a copy: a refused request puts back a copy of the records it started from.
     const copy = structuredClone(state);
     const refused = request(copy, () => executeAction(copy, finance(wat("2027-07-01T10:00:00")), { action: "resolve_exception", recordId: held!.id, reason: "Same payment?", data: { resolutionCode: "same_payment" } }));
-    check(!refused.ok && /^This resolution is not available for this exception now\. Choose one of these: ‘Duplicate confirmed; refund required’, ‘Distinct payments’, ‘Applied to the next instalment’ or ‘Not money; evidence set aside’\.$/.test(refused.message), `joining it is refused (${!refused.ok && refused.message})`);
+    check(!refused.ok && /^This resolution is not available for this exception now\. Choose one of these: ‘Duplicate confirmed; refund required’, ‘Separate payments’, ‘Allocated to the next instalment’ or ‘Not money; evidence set aside’\.$/.test(refused.message), `joining it is refused (${!refused.ok && refused.message})`);
   }
   check(/and it names another payer\. It was not added to that payment, and no payment was made from it\./.test(String(exceptionsFor(state, elsewhere.id)[0]?.data.notes)), "the other connection's hold names its conflict too");
   // A payment held by the ladder, not evidence, offers neither.
@@ -863,12 +863,12 @@ section("a waiting reversal Finance resolved before its payment arrived", () => 
   equal([adoptedElsewhere.reversal, adoptedElsewhere.debit, adoptedElsewhere.raised], [["resolved", "adopted_after_review", true], ["Sandbox Rail Settlements", "returned", "reversed"], []], "and reverses it through another spelling of the connection too, with no new exception");
   // Escalated to the provider is not offered: the exception stays open while it is checked, and the payment then applies it.
   const escalated = run("escalated", "escalated_to_provider", true);
-  check(!escalated.answer.ok && /^This resolution is not available for this exception now\. Choose one of these: ‘Provider state adopted’ or ‘Platform state confirmed’\.$/.test(escalated.answer.message), `escalated_to_provider is refused (${!escalated.answer.ok && escalated.answer.message})`);
+  check(!escalated.answer.ok && /^This resolution is not available for this exception now\. Choose one of these: ‘Provider status accepted’ or ‘Valo Pay status kept’\.$/.test(escalated.answer.message), `escalated_to_provider is refused (${!escalated.answer.ok && escalated.answer.message})`);
   equal([escalated.unseen.status, escalated.unseen.data.resolutionCode, escalated.reversal, escalated.debit], ["closed", "condition_cleared", ["resolved", "canonical_provider_reference", true], reversed.debit], "the open exception closes when the payment arrives, which the reversal reverses");
   equal(resolutionCodesForException(adopted.unseen), ["provider_state_adopted", "platform_state_confirmed"], "the waiting reversal's exception offers only the two codes that decide it");
   // A resolution replaces the notes with its reason: the text the exception was raised with is read on the one left open.
   const notes = String(escalated.unseen.data.notes);
-  check(/‘Platform state confirmed’: the provider says it reverses nothing of this lender’s\. It is set aside and reverses nothing, even if its payment arrives later\./.test(notes) && /‘Provider state adopted’: the provider confirms the reversal\. It keeps waiting for its payment, with no new exception, and reverses the payment when it arrives/.test(notes) && /leave this exception open while you check/.test(notes), `the exception says what each resolution does (${notes})`);
+  check(/‘Valo Pay status kept’: the provider says it reverses nothing of this lender’s\. It is set aside and reverses nothing, even if its payment arrives later\./.test(notes) && /‘Provider status accepted’: the provider confirms the reversal\. It keeps waiting for its payment, with no new exception, and reverses the payment when it arrives/.test(notes) && /leave this exception open while you check/.test(notes), `the exception says what each resolution does (${notes})`);
 });
 
 // ---------- FIN-02: several releases omitted rule versions while assigning different meanings ----------
@@ -969,7 +969,7 @@ section("the same payment offered as the hold stands now", () => {
   const conflictCodes = ["confirmed_duplicate_refund", "distinct_payments", "applied_to_next", "not_money"];
   const copy = structuredClone(state);
   const refused = request(copy, () => executeAction(copy, finance(wat("2027-07-01T10:00:00")), { action: "resolve_exception", recordId: held!.id, reason: "Same payment?", data: { resolutionCode: "same_payment" } }));
-  check(!refused.ok && refused.message === "This resolution is not available for this exception now. Choose one of these: ‘Duplicate confirmed; refund required’, ‘Distinct payments’, ‘Applied to the next instalment’ or ‘Not money; evidence set aside’.", `resolving it reads the hold as it stands now and refuses the join (${!refused.ok && refused.message})`);
+  check(!refused.ok && refused.message === "This resolution is not available for this exception now. Choose one of these: ‘Duplicate confirmed; refund required’, ‘Separate payments’, ‘Allocated to the next instalment’ or ‘Not money; evidence set aside’.", `resolving it reads the hold as it stands now and refuses the join (${!refused.ok && refused.message})`);
   accepted(request(state, () => reconcile(state, finance(wat("2027-07-01T11:00:00")))), "the next reconciliation");
   const stood = live(state, held!);
   equal([stood.status, stood.data.condition, resolutionCodesForException(stood)], ["open", `suspected_duplicate:${clash.id}:${debit!.id}`, conflictCodes], "the reconciliation re-derives the stored condition, so the join is no longer offered");

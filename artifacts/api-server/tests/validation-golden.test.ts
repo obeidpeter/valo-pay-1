@@ -143,7 +143,7 @@ const patch = (record: any, changes: any) => ({ ...record, ...changes, data: { .
   const batch: any = { name: "b", status: "pending", reference: "B-1", data: { provider: "Sandbox Rail", grossKobo: 100, feeKobo: 10, netKobo: 90 } };
   validateRecord(state, finance, "settlement-batches", batch);
   assert.equal(batch.data.batchReference, "B-1", "the top-level reference is the batch reference");
-  assert.throws(() => validateRecord(state, finance, "settlement-batches", { ...batch, status: "settled" }), /Choose a status from the list: Pending, Reconciled or Variance\./);
+  assert.throws(() => validateRecord(state, finance, "settlement-batches", { ...batch, status: "settled" }), /Choose a status from the list: Pending, Reconciled or Difference found\./);
   assert.throws(() => validateRecord(state, finance, "settlement-batches", { ...batch, status: "reconciled" }), /A new settlement batch cannot start as reconciled\. Valo Pay sets that status later\.|A new settlement batch must start as Pending/);
   assert.throws(() => validateRecord(state, finance, "settlement-batches", { ...batch, data: { ...batch.data, netKobo: 80 } }), /amount before fees minus the fee/);
   const customer: any = { name: "c", status: "inactive", data: { consentProvenance: "Imported" } };

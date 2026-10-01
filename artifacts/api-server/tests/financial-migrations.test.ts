@@ -415,7 +415,7 @@ function refusal(state: DomainState, exception: TypedRecord<"exceptions">, role:
   try { confirm(structuredClone(state), structuredClone(exception), role, data, at); } catch (error) { return [(error as { status?: number }).status ?? 400, (error as Error).message]; }
   return [200, ""];
 }
-const onlyConfirmation = /^Choose ‘Provider identity confirmed’: this settlement batch stays held until Finance or an Admin confirms whose payout it is\. If the providers cannot say which connection it belongs to, leave this exception open until the data owner corrects the evidence\./;
+const onlyConfirmation = /^Choose ‘Connection confirmed’: this settlement batch stays held until Finance or an Admin confirms whose payout it is\. If the providers cannot say which connection it belongs to, leave this exception open until the data owner corrects the evidence\./;
 {
   // Decision: the hold's exception offers and accepts only provider_identity_confirmed, the one code that decides it. The
   // settlement codes would close it while the batch stays held with its evidence uncounted, with no way out.
