@@ -125,7 +125,7 @@ it('takes an empty lender from corrected sample imports to a reviewed payment an
   const evidence = within(dialog).getByRole('region', { name: 'Match evidence' });
   expect(evidence.textContent).toContain('PILOT-O001');
   expect(evidence.textContent).toContain('PILOT-D001');
-  expect(evidence.textContent).toContain('The amount and payer match one instalment due within five days. Finance must confirm the match.');
+  expect(evidence.textContent).toContain('The amount and payer match one instalment whose due date is within five days of the payment. Finance must confirm the match.');
   expect(evidence.textContent).toContain('Rule R5');
   expect(evidence.textContent).toContain('Settlement:');
   await user.click(within(dialog).getByRole('button', { name: 'Confirm allocation' }));

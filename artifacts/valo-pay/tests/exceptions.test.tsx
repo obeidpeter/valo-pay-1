@@ -148,7 +148,7 @@ describe("exceptions", () => {
     await user.click(within(dialog).getByRole('button', { name: 'Resolve exception' }));
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Resolve exception' })).toBeNull());
     const answer = await screen.findByRole('status', { name: 'Resolution recorded' });
-    expect(answer.textContent).toContain('Exception resolution recorded. The next reconciliation joins this payment evidence to payment PSK-SET-1 as more evidence of it: no second payment is made.');
+    expect(answer.textContent).toContain('Exception resolution recorded. The next reconciliation adds this payment evidence to payment PSK-SET-1. No second payment is created.');
     // The resolved exception leaves the open queue with its Resolve button, so reading continues from the answer.
     await waitFor(() => expect(screen.queryByText(inOneLine(exception.data.notes))).toBeNull());
     await waitFor(() => expect(document.activeElement).toBe(answer));

@@ -177,7 +177,7 @@ export function evaluateRetry(state: DomainState, ctx: Context, due: TypedRecord
   });
   const finalNotice: NoticeRequirement = { purpose: "final_attempt", leadHours: 0, requiredBy: null, noticeId: null, acceptedAt: null, evidenced: false };
   if (dueNeedsReversalReview(state, due)) return explain("blocked", "reversal_review", "Collection is on hold while Finance reviews an earlier reversal decision again. Resolve that review and run reconciliation before a retry is planned.");
-  if(recordsWhere(state,'connected-intents','data.dueItemId',due.id).some(r=>['authorised','pending','unknown'].includes(r.status))) return explain('blocked','in_flight','A pay-by-bank payment is pending or has an unknown outcome. Reconcile it before scheduling another collection.');
+  if(recordsWhere(state,'connected-intents','data.dueItemId',due.id).some(r=>['authorised','pending','unknown'].includes(r.status))) return explain('blocked','in_flight','A Pay by Bank checkout for this instalment is pending, or its outcome is unknown. Valo Pay plans no other collection until its outcome is recorded.');
 
   // Row 1: settled by any channel, or the obligation is frozen or closed.
   const outstanding = Number.isInteger(due.data.outstandingKobo) ? Number(due.data.outstandingKobo) : due.amountKobo;
@@ -203,7 +203,7 @@ export function evaluateRetry(state: DomainState, ctx: Context, due: TypedRecord
   // Row 3: non-retryable code.
   if (retry === "no") return explain("give_up", "non_retryable", `${optionText(code)} cannot be retried. Follow-up needs a final notice, an exception and an update to the loan management system.`, null, finalNotice);
   // Row 4: attempt ceiling across every source.
-  if (counted.length >= policyCeiling(policy)) return explain("give_up", "ceiling", `The limit of ${countedText(policyCeiling(policy), "attempt")} has been reached across all collection systems. Follow-up requires a final notice, an exception and an update to the loan management system.`, null, finalNotice);
+  if (counted.length >= policyCeiling(policy)) return explain("give_up", "ceiling", `The limit of ${countedText(policyCeiling(policy), "attempt")} has been reached across all collection systems. Follow-up needs a final notice, an exception and an update to the loan management system.`, null, finalNotice);
   // Row 5: ACCOUNT_RESTRICTED is retried once only.
   if (retry === "once" && counted.filter((attempt) => attempt.status === "failed" && normaliseFailureCode(attempt.data.failureCode) === code).length >= 2) {
     return explain("give_up", "restricted_once", `${optionText(code)} allows one retry, and it has been used. Follow-up needs a final notice, an exception and an update to the loan management system.`, null, finalNotice);

@@ -172,7 +172,7 @@ export function runDailyClose(state: DomainState, ctx: Context, trigger: CloseTr
       sourceBusinessDate: businessDate, schedule: { trigger, scheduledFor, delayMinutes, late, nextAt: state.settings.nextCloseAt }, synthetic: true,
     },
   });
-  const lateness = late ? ` ${durationText(delayMinutes)} after its ${schedule.time} WAT time` : "";
+  const lateness = late ? ` ${durationText(delayMinutes)} after its scheduled time of ${schedule.time} WAT` : "";
   const stillOwed = owed ? ` ${counted(owed, "missed business date is", "missed business dates are")} still to close.` : "";
   const message = trigger === "scheduled"
     ? `Scheduled daily close of ${dayText(businessDate)} completed${lateness}.${stillOwed} No data was fetched from the provider or sent to the loan management system.`
@@ -580,9 +580,9 @@ function runAction(state: DomainState, ctx: Context, input: ActionInput, audit?:
     const joinedTo = evidence && data.resolutionCode === heldEvidenceCodes.samePayment ? recordsOf(state, "payments").find((record) => record.id === heldEvidenceOf(item.data.condition)?.paymentId) : undefined;
     if (evidence && joinedTo) return result(`${reportsReversal(evidence)
       ? `Exception resolution recorded. The next reconciliation records this reversal evidence against payment ${joinedTo.reference}, which is reversed.`
-      : `Exception resolution recorded. The next reconciliation joins this payment evidence to payment ${joinedTo.reference} as more evidence of it: no second payment is made.`} If payment ${joinedTo.reference} changes before then so that the evidence no longer agrees with it, the evidence is held for you again instead.`, item);
+      : `Exception resolution recorded. The next reconciliation adds this payment evidence to payment ${joinedTo.reference}. No second payment is created.`} If payment ${joinedTo.reference} changes before then so that the evidence no longer agrees with it, the evidence is held for you again instead.`, item);
     if (evidence && reportsReversal(evidence)) return result("Exception resolution recorded. This reversal evidence is set aside at the next reconciliation: no payment is made from it only to be reversed, and it reverses nothing, even if its payment is found later.", item);
-    if (evidence && data.resolutionCode === heldEvidenceCodes.notMoney) return result("Exception resolution recorded. This payment evidence is set aside at the next reconciliation: no payment is made from it, and it is merged into none.", item);
+    if (evidence && data.resolutionCode === heldEvidenceCodes.notMoney) return result("Exception resolution recorded. This payment evidence is set aside at the next reconciliation. It does not create a payment and is not added to one.", item);
     if (evidence && type === "suspected_duplicate") return result(`Exception resolution recorded. The next reconciliation records this payment evidence as a payment of its own${data.resolutionCode === "confirmed_duplicate_refund" ? ", held until its refund is recorded" : ""}.`, item);
     return result("Exception resolution recorded.", item);
   }

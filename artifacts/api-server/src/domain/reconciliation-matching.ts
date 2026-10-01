@@ -116,5 +116,5 @@ export function matchPayment(state: DomainState, ctx: Context, payment: TypedRec
   }
   // R5: amount, payer and a five-day window around the due date.
   const near = dues.filter((due) => due.amountKobo === payment.amountKobo && outstanding(due) >= payment.amountKobo && Math.abs(Date.parse(String(due.data.dueDate)) - paymentObservedAt(payment)) <= 5 * DAY_MS);
-  if (near.length === 1) allocatePayment(state, ctx, payment, near[0]!, payment.amountKobo, "R5", "probable", false, "The amount and payer match one instalment due within five days. Finance must confirm the match.");
+  if (near.length === 1) allocatePayment(state, ctx, payment, near[0]!, payment.amountKobo, "R5", "probable", false, "The amount and payer match one instalment whose due date is within five days of the payment. Finance must confirm the match.");
 }

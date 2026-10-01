@@ -205,7 +205,7 @@ assert.doesNotThrow(() =>
 );
 assert.throws(
   () => assertNoDirectImportedCorrection(originalTarget, target),
-  /propose a correction for a Finance team member to review/,
+  /propose a correction\. A different Finance team member must review it\./,
 );
 for (const patch of [
   { reference: "CHANGED-SOURCE" },
@@ -351,7 +351,7 @@ const blocked = previewImportCorrection(financial, ctx, {
   changes: { amountKobo: 3500000 },
 });
 assert.ok(
-  blocked.blockers.some((b) => /has payments or collection attempts/.test(b)),
+  blocked.blockers.some((b) => /once its customer has any payment or collection history/.test(b)),
 );
 assert.ok(blocked.affected.some((r) => r.kind === "payments"));
 

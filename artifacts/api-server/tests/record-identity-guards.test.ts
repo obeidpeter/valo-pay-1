@@ -21,7 +21,7 @@ const refused = (run: () => unknown, pattern: RegExp) => { assert.throws(run, pa
  // Legitimate operational editing of an open case remains available.
  const open = { ...exception, data: { ...exception.data, notes: 'Contact the provider for supporting evidence.' } };
  assert.doesNotThrow(() => validateRecord(state, operations, 'exceptions', open, true)); checks++;
- refused(() => validateRecord(state, compliance, 'exceptions', open, true), /^Error: Only Admin, Finance or Operations can add or edit exceptions\. Your role is Compliance reviewer\./);
+ refused(() => validateRecord(state, compliance, 'exceptions', open, true), /^Error: Only Admin, Operations or Finance can add or edit exceptions\. Your role is Compliance reviewer\./);
  for (const field of ['resolutionCode', 'resolvedBy', 'resolvedAt', 'resolutionRuleVersion', 'conditionCleared', 'confirmedFailureCode', 'confirmedProviderIdentity', 'legacyResolutionReview', 'legacyIdentityReview']) {
    const values: Record<string, unknown> = { resolvedAt: now, resolutionRuleVersion: 1, conditionCleared: { at: now, by: operations.actor, reason: 'Recorded' }, legacyResolutionReview: { priorExceptionId: 'prior' } };
    const candidate = { ...exception, data: { ...exception.data, [field]: values[field] ?? 'recorded' } };

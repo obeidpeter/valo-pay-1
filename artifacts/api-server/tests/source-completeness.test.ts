@@ -58,7 +58,7 @@ assert.equal(watBusinessDate("2026-09-21T23:30:00.000Z"),date);
   assert.equal(batch.data.businessDate,undefined);
   makeRecord(state,"import-corrections",{id:"pending-money",data:{preview:{financial:true}}});
   assert.equal(reviewIsCurrent(state,review),false,"A new pending financial correction prevents claiming old approval is current.");
-  assert.match(closeReviewCurrentProblem(state,review.data.snapshot!)!,/Import corrections that change money are waiting for a decision/);
+  assert.match(closeReviewCurrentProblem(state,review.data.snapshot!)!,/Import corrections to instalments are waiting for a decision/);
 }
 {
   const state=fresh();saveSourceManifest(state,ctx,declaration);

@@ -54,7 +54,7 @@ export function buildAlerts(state: DomainState, now: string, audit?: AuditVerifi
     const clears = audit.kept
       ? "This alert stays until a full check finds every entry intact: select Check audit log on the Audit log page, or wait for the daily check after the daily close."
       : "The next change, Check audit log or the daily check after the daily close will record this break. After that, the alert stays until a full check finds every entry intact. Until then, it clears if the log is repaired.";
-    alerts.push({ key: "audit_chain_broken", severity: "critical", title: "Audit log verification failed", detail: `Entry ${audit.verifiedSequence + 1} of the audit log is missing, out of order or changed. Ask an Admin to investigate. ${clears}`, count: audit.count });
+    alerts.push({ key: "audit_chain_broken", severity: "critical", title: "Audit log verification failed", detail: `Entry ${audit.verifiedSequence + 1} of the audit log is missing, out of order or changed. Contact the Valo Pay team. ${clears}`, count: audit.count });
   }
   // An instruction dispatched in observation mode must never happen (NFR-OBS-02, DEB-10).
   if (state.merchant.mode !== "instruction") {
@@ -92,7 +92,7 @@ export function buildAlerts(state: DomainState, now: string, audit?: AuditVerifi
     // Each missed business date gets its own catch-up close, oldest first; the alert names the dates still owed.
     const owed = owedCloseDates(state, now, 5), days = owed.dates.map((date) => dayText(date));
     const dates = new Intl.ListFormat("en-GB").format(owed.total > owed.dates.length ? [...days, `${owed.total - owed.dates.length} more`] : days);
-    alerts.push({ key: "close_missed", severity: "high", title: "Scheduled daily close missed", detail: `The scheduled close due at ${schedule.time} WAT is ${durationText(schedule.overdueMinutes)} late. ${owed.total === 1 ? "Business date" : "Business dates"} still to close: ${dates}. Scheduled closes may have stopped, or the close failed. Check the schedule, and run a daily close if needed.`, count: owed.total, since: schedule.nextAt });
+    alerts.push({ key: "close_missed", severity: "high", title: "Scheduled daily close missed", detail: `The scheduled close due at ${schedule.time} WAT is ${durationText(schedule.overdueMinutes)} late. ${owed.total === 1 ? "Business date" : "Business dates"} still to close: ${dates}. Scheduled closes may have stopped, or a close may have failed. Check the schedule, and run a daily close if needed.`, count: owed.total, since: schedule.nextAt });
   }
   const switches = Object.entries((state.settings.policyKillSwitches || {}) as Record<string, unknown>).filter(([, on]) => on === true).map(([id]) => id);
   if (state.merchant.killSwitch || switches.length) alerts.push({ key: "kill_switch_active", severity: "info", title: state.merchant.killSwitch ? "Lender emergency stop is on" : "A retry policy emergency stop is on", detail: state.merchant.killSwitch ? "No collection instructions will be planned until an Admin turns off the emergency stop." : `The emergency stop is on for ${counted(switches.length, "retry policy version")}. No collection instructions will be planned under those versions until an Admin turns it off.`, count: switches.length || undefined });

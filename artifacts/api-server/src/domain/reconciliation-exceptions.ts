@@ -194,7 +194,7 @@ function clearedCondition(exception: TypedRecord<"exceptions">, byId: ReadonlyMa
   }
   if (linked.kind === "observations" && type === "provider_status_mismatch" && exception.data.condition === unseenReversalCondition(linked.id)) {
     const payment = byId.get(String(linked.data.paymentId ?? ""));
-    if (linked.status === "resolved") return `reversal evidence ${linked.reference} is now ${payment ? `applied to payment ${payment.reference}` : "dealt with"}`;
+    if (linked.status === "resolved") return `reversal evidence ${linked.reference} is now ${payment ? `recorded against payment ${payment.reference}` : "dealt with"}`;
     return recorded(linked.reference) ? `a payment with reference ${linked.reference} is now recorded` : undefined;
   }
   if (linked.kind === "settlement-batches" && type === "settlement_variance") {

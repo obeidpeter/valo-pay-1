@@ -197,7 +197,7 @@ export function validateRecord(
     if (!isDeepStrictEqual(data[field], existing?.data[field])) throw new Error('Reconciliation sets the review holds on these records. You cannot change them here.');
   }
   if (kind === "exceptions") {
-    requireRole(ctx, ["Admin", "Finance", "Operations"], editing);
+    requireRole(ctx, ["Admin", "Operations", "Finance"], editing);
     if (existing && exceptionReviewSubjectChanged(existing, input, state.records.find(record => record.id === existing.data.linkedRecordId))) {
       throw new Error('The customer, amount, type and linked record of this review cannot be changed. Keep them as they are.');
     }

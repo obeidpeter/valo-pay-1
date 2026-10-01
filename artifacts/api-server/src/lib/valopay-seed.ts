@@ -22,7 +22,7 @@ export function seedMerchant(id: string, smaller = false): DomainState {
     if(i<3){
       // The engine's own words for these rules (reconciliation-matching), so sample and live records read the same.
       const certain=`Provider reference SBX-PAY-${1001+i} matches instalment DEMO-LOAN-${1001+i} through its collection attempt’s provider reference. The currency and the amount before fees also match.`;
-      const probable="The amount and payer match one instalment due within five days. Finance must confirm the match.";
+      const probable="The amount and payer match one instalment whose due date is within five days of the payment. Finance must confirm the match.";
       const payment=add("payments",`${name} · received`,i===2?"proposed":"allocated",{channel:i===1?"transfer":"direct_debit",collectionStatus:"succeeded",settlementStatus:"settled",reversalStatus:"none",refundStatus:"none",dueItemId:due.id,allocatedKobo:i===2?0:amount,rule:i===2?"R5":"R1",confidence:i===2?"probable":"certain",explanation:i===2?probable:certain,synthetic:true},amount,c.id,`SBX-PAY-${1001+i}`);
       add("observations",`${name} · payment evidence`,"resolved",{source:i===1?"transfer":"webhook",paymentId:payment.id,provider:"Sandbox Rail",dueItemId:due.id,resolutionKey:"provider_reference",eventId:`seed-${i}`,synthetic:true},amount,c.id,payment.reference);
       if(i!==2){

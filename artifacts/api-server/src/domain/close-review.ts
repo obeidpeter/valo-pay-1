@@ -94,7 +94,7 @@ export function reviewIsCurrent(state: DomainState, review: ValopayRecord, basis
 export function closeReviewCurrentProblem(state: DomainState, close: ValopayRecord, basis = closeReviewBasisOnce(state)): string | null {
   if (!close.data.reviewBasis?.inputDigest) return "This close was recorded before close reviews were available. Run a new daily close, then prepare the review.";
   if (latestCloseOf(state, closeBusinessDate(close))?.id !== close.id) return "A newer close exists for this business date. Review the latest close; this evidence remains available for the historical record.";
-  if (pendingFinancialCorrections(state).length) return "Import corrections that change money are waiting for a decision. Resolve them before you prepare, approve or export the current close.";
+  if (pendingFinancialCorrections(state).length) return "Import corrections to instalments are waiting for a decision. Resolve them before you prepare, approve or export the current close.";
   if (close.data.reviewBasis.inputDigest !== basis()) return "Records changed after this close. Run a new daily close and prepare a new review. The earlier close stays as it was.";
   const sources = close.data.reviewBasis.sourceCompleteness;
   if (!sources?.basisDigest) return "This close does not show whether the day’s source files were complete. Declare the expected files, then run a new daily close.";
@@ -132,7 +132,7 @@ export function decideCloseReview(state: DomainState, ctx: Context, id: string, 
   if (principal(ctx) === review.data.preparedPrincipal || ctx.actor === review.data.preparedBy) refuse(`A different person must review this close.${demoRolesNote(ctx.accessMode)}`, 403);
   if (input.action === "approve" && !reviewIsCurrent(state, review)) refuse("This close is no longer current. Run a new daily close and prepare a new review. The earlier close stays as it was.", 409);
   if (input.action === "approve") {
-    if (pendingFinancialCorrections(state).length) refuse("Resolve the import corrections that change money before you approve this close. Return the review for changes if needed.", 409);
+    if (pendingFinancialCorrections(state).length) refuse("Resolve the import corrections to instalments before you approve this close. Return the review for changes if needed.", 409);
     const sourceIssues = review.data.snapshot.data.reviewBasis.sourceCompleteness.issues || [];
     const accepted = new Set(input.sourceExceptions.map(item => item.issueId));
     if (accepted.size !== input.sourceExceptions.length || accepted.size !== sourceIssues.length || sourceIssues.some((issue:any) => !accepted.has(issue.id))) refuse("Accept each missing or incomplete source file with its own reason and evidence, or return the close for changes.");

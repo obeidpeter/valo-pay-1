@@ -60,7 +60,7 @@ function ownedBatch(state: DomainState, id: string) {
       r.merchantId === state.merchant.id,
   );
   if (!batch || batch.status !== "committed")
-    refuse(notFoundText("import batch"), 404);
+    refuse(batch ? "This batch is not imported yet, so it has no import corrections. Correct its rows in Import batches before you import it." : notFoundText("import batch"), 404);
   return batch;
 }
 function ownedTarget(state: DomainState, batch: ValopayRecord, id: string) {
@@ -191,7 +191,7 @@ function calculate(
       );
     if (affected.some((r) => financialKinds.has(r.kind)))
       blockers.push(
-        "An import correction cannot change an instalment that has payments or collection attempts. Review its history in Reconciliation or Exceptions.",
+        "An import correction cannot change an instalment once its customer has any payment or collection history, including customer messages. You can see that history in Customer history.",
       );
     if (target.data.experimentId || target.data.firstFailureAt)
       blockers.push(
@@ -646,6 +646,6 @@ export function assertNoDirectImportedCorrection(
   };
   if (!sameJson(before, normalised))
     refuse(
-      "Imported records cannot be edited directly. To correct a customer or an unpaid instalment, open its import batch and propose a correction for a Finance team member to review. For other changes, use the record’s own actions. The original import stays as it was.",
+      "Imported records cannot be edited directly. To correct a customer or an unpaid instalment, open its import batch and propose a correction. A different Finance team member must review it. For other changes, use the record’s own actions. The original import stays as it was.",
     );
 }
