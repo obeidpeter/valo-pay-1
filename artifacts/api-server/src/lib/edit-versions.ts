@@ -22,11 +22,11 @@ export function mergeData(stored: Record<string, unknown>, edit: Record<string, 
 function stale(message: string): never { throw Object.assign(new Error(message), { status: 409 }); }
 export function assertRecordVersion(record: ValopayRecord, expectedUpdatedAt: string | undefined): void {
   if (expectedUpdatedAt === undefined) return;
-  if (!Number.isFinite(Date.parse(expectedUpdatedAt))) throw Object.assign(new Error("expectedUpdatedAt must be an ISO timestamp."), { status: 400 });
-  if (Date.parse(record.updatedAt) !== Date.parse(expectedUpdatedAt)) stale("This record changed after you opened it. Your changes have not been saved. Refresh the record, review the latest version, and try again.");
+  if (!Number.isFinite(Date.parse(expectedUpdatedAt))) throw Object.assign(new Error("This form is out of date. Reload the page and try again."), { status: 400 });
+  if (Date.parse(record.updatedAt) !== Date.parse(expectedUpdatedAt)) stale("This record changed after you opened it, so your changes were not saved. Reload the page and try again.");
 }
 export function assertSettingsVersion(settings: Record<string, any>, expectedRevision: string | undefined): void {
-  if (expectedRevision !== undefined && expectedRevision !== settingsRevision(settings)) stale("These settings changed after you opened them. Your changes have not been saved. Refresh the settings, review the latest version, and try again.");
+  if (expectedRevision !== undefined && expectedRevision !== settingsRevision(settings)) stale("These settings changed after you opened them, so your changes were not saved. Reload the page and try again.");
 }
 
 /**

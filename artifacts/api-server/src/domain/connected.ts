@@ -9,6 +9,7 @@ import { reject, payable, intentOpen, externalScheduled } from "./connected-cont
 import { consentPurposes, purposeLabels, consentActive, addConsent, revokeConsent } from "./connected-consents";
 import { connectedRevision } from "./connected-revision";
 import { paymentAction } from "./connected-checkout";
+import { onlyRoles } from "../lib/refusal-words";
 
 // Preserve the connected-workspace public contract while its workflows have separate ownership.
 export const connectedActionSchema = connectedActionInputSchema;
@@ -21,49 +22,49 @@ const gates = [
   [
     "G0",
     "Provider and legal readiness",
-    "Contracts, permitted role and approved routes",
+    "Signed contracts, an agreed legal role and approved ways to connect",
   ],
   [
     "G-DATA",
     "Real data",
-    "Privacy assessment, retention and tenant security evidence",
+    "A privacy assessment, rules for keeping data, and proof that each lender’s data is kept apart and secure",
   ],
   [
     "G-OB",
     "Connected accounts",
-    "Bank and account coverage, consent and data provenance",
+    "Which banks and accounts are covered, the customer’s permission, and proof of where the data comes from",
   ],
   [
     "G-A2A",
-    "Pay-by-bank",
-    "Bank authorisation, verified receipts and duplicate collection controls",
+    "Pay by Bank",
+    "Customer authorisation at the bank, confirmed payments and checks that stop an instalment being collected twice",
   ],
   [
     "G-CREDIT",
     "Credit assessments",
-    "Validated rules, lender ownership and independent review",
+    "Validated scoring rules owned by the lender, and review by a different person",
   ],
   [
     "G-MODEL",
     "Predictive credit models",
-    "Calibration, performance and model governance",
+    "Proof that the model predicts accurately, and rules for managing it",
   ],
   [
     "G-AUTO",
     "Automated credit decisions",
-    "Separate legal and consequential decision approval",
+    "Separate legal approval for decisions made without a person",
   ],
   [
     "G-ERP",
-    "Accounting writes",
-    "Finance approval, scoped access and closed-period controls",
+    "Posting to accounting software",
+    "Finance approval, limited access and no changes to closed periods",
   ],
   [
     "G-PAYOUT",
-    "Own-account payouts",
-    "Corporate bank authority, signatories and item-level verification",
+    "Payments from the business’s own account",
+    "Approval from the business’s bank and its signatories, and a check of every payment",
   ],
-  ["G-TAX", "Tax submission", "Tax review and filing authority"],
+  ["G-TAX", "Tax filing", "A tax review and the right to file for the business"],
 ] as const;
 export function runConnectedAction(
   state: DomainState,
@@ -95,14 +96,14 @@ function connectedAction(
 ) {
   if (state.settings.environment !== "sandbox")
     reject(
-      "Connected modules currently support synthetic workspaces only.",
+      "Connected banking works only with sample data for now.",
       403,
     );
   if (ctx.role === "Read-only")
-    reject("Read-only role cannot change the workspace.", 403);
+    reject(onlyRoles(["Admin", "Operations", "Finance", "Compliance reviewer"], "make changes in connected banking", ctx.accessMode), 403);
   if (input.expectedRevision !== connectedRevision(state))
     reject(
-      "The workspace changed. Refresh and review before trying again.",
+      "Connected banking changed after you opened it. Reload the page and try again.",
       409,
     );
   const startsNewWork = [
@@ -120,7 +121,7 @@ function connectedAction(
     state.records.filter((r) => r.kind.startsWith("connected-")).length >= 1500
   )
     reject(
-      "This sample workspace reached its connected-record limit for new work. Existing permissions can still be revoked and in-flight outcomes reconciled.",
+      "This lender has reached its limit for connected banking records, so you cannot start new work. You can still withdraw permissions and record outcomes for payments in progress.",
       409,
     );
   if (input.action === "consent.grant")
@@ -131,7 +132,7 @@ function connectedAction(
   if (input.action.startsWith("credit."))
     return runCreditAction(state, ctx, input);
   if (input.action.startsWith("cash.")) return runCashAction(state, ctx, input);
-  reject("Unknown connected-workspace action.");
+  reject("This connected banking action is not available.");
 }
 export function connectedView(state: DomainState, ctx: Context) {
   const customers = recordsOf(state, "customers").map((r) => ({
@@ -175,7 +176,7 @@ export function connectedView(state: DomainState, ctx: Context) {
     role: ctx.role,
     entity: {
       id: `${state.merchant.id}:sme`,
-      name: "Sample SME · separate legal entity",
+      name: "Sample business",
       workspaceOwner: state.merchant.name,
     },
     customers,

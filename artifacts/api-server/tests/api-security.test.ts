@@ -38,7 +38,7 @@ function answer(error: unknown): Answer {
   assert.equal(answer(new Error("Unsupported domain action: open_gate.")).status, 400, "words from the request never choose the status");
   const typeError = answer(new TypeError("Cannot read properties of undefined (reading 'merchant')"));
   assert.equal(typeError.status, 500, "a programming error is a 500");
-  assert.equal((typeError.body as { error: string }).error, "We could not confirm this action. Check Operations or retry the same request before submitting a new one.", "a programming error's message stays out of the response and does not claim an unconfirmed write was rolled back");
+  assert.equal((typeError.body as { error: string }).error, "We do not know yet whether Valo Pay saved this. Check the original request in Request history before you change anything.", "a programming error's message stays out of the response and does not claim an unconfirmed write was rolled back");
   assert.equal(answer(new ReferenceError("x is not defined")).status, 500);
   const moneyRefusal = answer(new MoneyArithmeticError("MONEY_OUT_OF_RANGE", "private calculation context must not escape"));
   assert.equal(moneyRefusal.status, 422);
@@ -77,7 +77,7 @@ function answer(error: unknown): Answer {
   // A database limit (a busy lender, a lock or statement past its limit, a lost connection) is a 503 that says when to retry.
   assert.deepEqual(answer(markRolledBack(new DatabaseLimitError("lock_timeout", { write: true }))), { status: 503, headers: { "Retry-After": "2" }, body: { error: "This lender is busy with another change. Nothing was saved. Try again in a moment.", committed: false, requestId: "test-request" } }, "a lock wait past its limit is a 503 with Retry-After, and nothing was saved");
   assert.equal(answer(markRolledBack(new DatabaseLimitError("statement_timeout"))).headers?.["Retry-After"], "5", "a stopped statement waits longer before a retry");
-  assert.deepEqual(answer(new DatabaseLimitError("pool_timeout", { write: false })), { status: 503, headers: { "Retry-After": "2" }, body: { error: "The service is busy. Try again in a moment.", requestId: "test-request" } }, "committed: false only when the store says nothing was saved");
+  assert.deepEqual(answer(new DatabaseLimitError("pool_timeout", { write: false })), { status: 503, headers: { "Retry-After": "2" }, body: { error: "Valo Pay is busy. Try again in a moment.", requestId: "test-request" } }, "committed: false only when the store says nothing was saved");
   assert.equal(answer(Object.assign(new Error("canceling statement due to lock timeout"), { code: "55P03" })).status, 500, "a raw PostgreSQL code is translated by the store, never guessed here");
   assert.equal((unconfigured as Answer).headers, undefined, "an application 503 sets no Retry-After");
   checks += 34;
@@ -120,10 +120,10 @@ function answer(error: unknown): Answer {
   const write = answerTo(markRolledBack(new ResponseContractError(mismatch())), "POST");
   assert.deepEqual([write.status, write.body], [500, { error: "This action failed and nothing was saved. Try again, and quote this reference if it happens again.", committed: false, requestId: "test-request" }], "a write's invalid answer, checked before COMMIT, saved nothing");
   const read = answerTo(markRolledBack(new ResponseContractError(mismatch())), "GET");
-  assert.deepEqual([read.status, read.body], [500, { error: "The service could not prepare this answer. Try again, and quote this reference if it happens again.", requestId: "test-request" }], "a read's invalid answer is a read's failure: no action, nothing to save");
-  assert.deepEqual(answerTo(markRolledBack(new TypeError("x is undefined")), "GET").body, { error: "The service could not prepare this answer. Try again, and quote this reference if it happens again.", requestId: "test-request" }, "so is a read's programming error");
+  assert.deepEqual([read.status, read.body], [500, { error: "Valo Pay could not load this. Try again, and quote this reference if it happens again.", requestId: "test-request" }], "a read's invalid answer is a read's failure: no action, nothing to save");
+  assert.deepEqual(answerTo(markRolledBack(new TypeError("x is undefined")), "GET").body, { error: "Valo Pay could not load this. Try again, and quote this reference if it happens again.", requestId: "test-request" }, "so is a read's programming error");
   const replay = answerTo(markRolledBack(new ResponseContractError(mismatch(), { saved: true })), "POST");
-  assert.deepEqual([replay.status, replay.body], [500, { error: "We could not confirm this action. Check Operations or retry the same request before submitting a new one.", requestId: "test-request" }], "a saved request's stored answer that cannot be given never says nothing was saved, though the repeat's transaction rolled back");
+  assert.deepEqual([replay.status, replay.body], [500, { error: "We do not know yet whether Valo Pay saved this. Check the original request in Request history before you change anything.", requestId: "test-request" }], "a saved request's stored answer that cannot be given never says nothing was saved, though the repeat's transaction rolled back");
   assert.deepEqual(replay.logged.map((line) => [line.level, line.fields["event"], line.fields["replayed"]]), [["error", "response.invalid", true]], "and the log says which answer failed");
   // A 429 says when to try again: the refusal's own wait, or a minute.
   const queue = answerTo(Object.assign(new Error("Ten exports are already waiting or running for this lender."), { status: 429, retryAfterSeconds: 30 }), "POST");
@@ -165,7 +165,7 @@ function answer(error: unknown): Answer {
   const levels = (answered: { logged: Logged }) => answered.logged.map((line) => [line.level, line.fields["event"]]);
   // The router's decodeParam marks a path parameter it cannot decode 400, as a URIError.
   const undecodable = handled(Object.assign(new URIError("Failed to decode param '%E0%A4%A'"), { status: 400 }), "GET");
-  assert.deepEqual([undecodable.status, undecodable.body], [400, { error: "The address is not valid: it holds a malformed percent-encoded character. Check the link and try again.", requestId: "test-request" }], "a path the router cannot decode is a 400, not a programming error's 500");
+  assert.deepEqual([undecodable.status, undecodable.body], [400, { error: "This address is not valid. Check the link and try again.", requestId: "test-request" }], "a path the router cannot decode is a 400, not a programming error's 500");
   assert.deepEqual(levels(undecodable), [["info", "request.rejected"]], "logged as a refusal at info");
   assert.equal(handled(new URIError("URI malformed")).status, 500, "a URIError the application raised without a status is still a programming error");
   // body-parser answers a body zlib cannot inflate with zlib's own error, marked 400 and safe to expose, without a type.
@@ -187,7 +187,7 @@ function answer(error: unknown): Answer {
 
   // A service the request depends on that could not be reached is an outage: 503 with Retry-After, never a general 500.
   const unreachable = handled(Object.assign(new Error("request to http://127.0.0.1:1106/credential failed, reason: connect ECONNREFUSED 127.0.0.1:1106"), { name: "GaxiosError", code: "ECONNREFUSED" }), "GET");
-  assert.deepEqual([unreachable.status, unreachable.headers, unreachable.body], [503, { "Retry-After": "10" }, { error: "A service this request depends on could not be reached. Try again shortly.", requestId: "test-request" }], "object storage out of reach is a 503 that says when to try again");
+  assert.deepEqual([unreachable.status, unreachable.headers, unreachable.body], [503, { "Retry-After": "10" }, { error: "Valo Pay could not reach a system this request needs. Try again shortly.", requestId: "test-request" }], "object storage out of reach is a 503 that says when to try again");
   assert.deepEqual(levels(unreachable), [["error", "request.unavailable"]], "and an error line: the outage needs attention");
   const fetchFailed = handled(new TypeError("fetch failed", { cause: Object.assign(new Error("connect ECONNREFUSED 127.0.0.1:443"), { code: "ECONNREFUSED" }) }));
   assert.deepEqual([fetchFailed.status, fetchFailed.headers?.["Retry-After"]], [503, "10"], "so is a fetch that failed on the network, though it is a TypeError");
@@ -205,7 +205,7 @@ function answer(error: unknown): Answer {
   try { parsePublishableKey("", { fatal: true }); } catch (error) { missingKey = error; }
   assert.ok(missingKey instanceof Error && !("status" in missingKey) && !("code" in missingKey), "a real dependency error: a plain Error without a status or code");
   const dependency = handled(missingKey, "GET");
-  assert.deepEqual([dependency.status, (dependency.body as { error: string }).error], [500, "The service could not prepare this answer. Try again, and quote this reference if it happens again."], "it is the service's 500 in general words, never a 400 that blames the request");
+  assert.deepEqual([dependency.status, (dependency.body as { error: string }).error], [500, "Valo Pay could not load this. Try again, and quote this reference if it happens again."], "it is the service's 500 in general words, never a 400 that blames the request");
   assert.deepEqual(levels(dependency), [["error", "request.failed"]], "logged at error level with its stack, not as a rejection at info");
   const rule = handled(new Error("A reason is required for this business or destructive action."));
   assert.deepEqual([rule.status, levels(rule)], [400, [["info", "request.rejected"]]], "while the application's own rule without a status stays a 400");
@@ -231,17 +231,17 @@ function answer(error: unknown): Answer {
   const running = await keyedAnswer(busy(), { closer: async () => "running" });
   assert.deepEqual([running.body, running.status], [{ error: "This lender is busy with another change. This request is still running. Try again in a moment.", operation: "running", requestId: "test-request" }, 503], "nor while another attempt is still running it");
   const pending = await keyedAnswer(busy(), { closer: async () => "pending" });
-  assert.deepEqual(pending.body, { error: "This lender is busy with another change. Its outcome is not confirmed yet. Try again in a moment.", operation: "pending", requestId: "test-request" }, "nor while its entry waits for confirmation");
-  assert.deepEqual((await keyedAnswer(busy())).body, { error: "This lender is busy with another change. Its outcome is not confirmed yet. Try again in a moment.", requestId: "test-request" }, "nor when what the key holds is unknown (it failed before its journal entry was read)");
+  assert.deepEqual(pending.body, { error: "This lender is busy with another change. We do not know yet whether it was saved. Try again in a moment.", operation: "pending", requestId: "test-request" }, "nor while its entry waits for confirmation");
+  assert.deepEqual((await keyedAnswer(busy())).body, { error: "This lender is busy with another change. We do not know yet whether it was saved. Try again in a moment.", requestId: "test-request" }, "nor when what the key holds is unknown (it failed before its journal entry was read)");
   assert.deepEqual((await keyedAnswer(busy(), { unused: true })).body, { error: "This lender is busy with another change. Nothing was saved. Try again in a moment.", committed: false, requestId: "test-request" }, "a key this attempt found unused saved nothing");
   assert.deepEqual((await keyedAnswer(busy(), { closer: async () => "cancelled" })).body, { error: "This lender is busy with another change. Nothing was saved. Try again in a moment.", committed: false, operation: "cancelled", requestId: "test-request" }, "and so did a key whose entry is cancelled");
   const unopened = await keyedAnswer(markRolledBack(Object.assign(new Error("Protected data cannot be opened. Ask the administrator to check the configured encryption key."), { status: 503 })), { closer: async () => "completed" });
   assert.deepEqual([unopened.status, unopened.body], [503, { error: "Protected data cannot be opened. Ask the administrator to check the configured encryption key. This request was saved.", operation: "completed", requestId: "test-request" }], "a saved request whose stored answer cannot be opened says it was saved");
   const failed = await keyedAnswer(markRolledBack(new TypeError("x is undefined")), { closer: async () => "completed" });
-  assert.deepEqual([failed.status, failed.body], [500, { error: "This request was saved, but the service could not give its answer. Retry the same request, or check Operations, to see its saved result.", operation: "completed", requestId: "test-request" }], "so does a general failure of a repeat of a saved request");
+  assert.deepEqual([failed.status, failed.body], [500, { error: "Valo Pay saved this request but could not send its answer. Check the original request in Request history to see the saved result.", operation: "completed", requestId: "test-request" }], "so does a general failure of a repeat of a saved request");
   // A repeat turned away because its request is still running leaves the entry to the attempt running it.
   const stillRunning = await keyedAnswer(markRolledBack(new DatabaseLimitError("operation_running")), { closer: async () => "cancelled" });
-  assert.deepEqual([stillRunning.status, stillRunning.headers, stillRunning.body, stillRunning.closed], [503, { "Retry-After": "2" }, { error: "This request is still running. Wait a moment, then retry the same request to see its result.", operation: "running", requestId: "test-request" }, 0], "a duplicate of a running request is a non-definitive 503 with Retry-After that never touches the entry");
+  assert.deepEqual([stillRunning.status, stillRunning.headers, stillRunning.body, stillRunning.closed], [503, { "Retry-After": "2" }, { error: "This request is still running. Wait a moment, then check the original request to see its result.", operation: "running", requestId: "test-request" }, 0], "a duplicate of a running request is a non-definitive 503 with Retry-After that never touches the entry");
   assert.equal(new DatabaseLimitError("operation_running", { write: true }).message.includes("Nothing was saved"), false, "and never says nothing was saved");
   checks += 12;
 }
@@ -311,7 +311,7 @@ try {
   });
   const post = (body: string, headers: Record<string, string> = {}) => fetch(`${base}/api/v1/webhooks/test`, { method: "POST", headers: { "Content-Type": "application/json", ...headers }, body });
   const undecodable = await fetch(`${base}/api/v1/customers/%E0%A4%A/history?merchantId=offline-lender`);
-  assert.deepEqual([undecodable.status, await errorOf(undecodable)], [400, "The address is not valid: it holds a malformed percent-encoded character. Check the link and try again."], "a path that cannot be decoded is a 400");
+  assert.deepEqual([undecodable.status, await errorOf(undecodable)], [400, "This address is not valid. Check the link and try again."], "a path that cannot be decoded is a 400");
   const keyedUndecodable = await fetch(`${base}/api/v1/records/customers/%25%?merchantId=offline-lender`, { method: "PATCH", headers: { "Content-Type": "application/json", "Idempotency-Key": "edge-inputs-0001" }, body: JSON.stringify({ name: "x", expectedUpdatedAt: "2026-09-19T12:00:00.000Z" }) });
   assert.equal(keyedUndecodable.status, 400, "a keyed write to such a path is refused before its journal entry is made");
   // A compressed body is refused before it is read, 415 with Accept-Encoding: identity (RFC 9110): the parser never
@@ -459,7 +459,7 @@ try {
     for (const origin of [undefined, "https://pilot.example"]) {
       const refused = await fetch(`${base}/api/v1/webhooks/test`, { method: "POST", headers: { "Content-Type": "application/json", ...(origin ? { Origin: origin } : {}) }, body: "{}" });
       assert.equal(refused.status, 403);
-      assert.equal(await errorOf(refused), "Use the configured pilot origin for staff changes.", `refused from ${origin ?? "no origin"}`);
+      assert.equal(await errorOf(refused), "Open Valo Pay from your pilot’s usual address to make changes.", `refused from ${origin ?? "no origin"}`);
     }
     const configured = await fetch(`${base}/api/v1/webhooks/test`, { method: "POST", headers: { "Content-Type": "application/json", Origin: base }, body: "{}" });
     assert.match(await errorOf(configured), /ingress is disabled/, "a change from the configured origin reaches its route");

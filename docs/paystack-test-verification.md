@@ -34,11 +34,11 @@ The command prints one JSON report, on standard output when the event is verifie
 | `pending` | 2 | Paystack reports the payment as still pending. The event awaits verification. |
 | `reference_not_found` | 2 | Paystack has not returned the reference. The event awaits verification, or stays quarantined if an earlier build quarantined it. |
 | `provider_unavailable` | 2 | Paystack timed out, could not be reached, limited the rate or failed. The event awaits verification, or stays quarantined if an earlier build quarantined it. |
-| `invalid_response` | 2 | Paystack's answer could not be read as a test transaction. The event awaits verification, or stays quarantined if an earlier build quarantined it; investigate if this repeats. |
+| `invalid_response` | 2 | Paystack’s answer could not be read as a test payment. The event awaits verification, or stays quarantined if an earlier build quarantined it; investigate if this repeats. |
 | `lender_unavailable` | 2 | The mapped lender was busy with another change. Nothing was recorded. |
 | `database_unavailable` | 2 | The database could not be reached, timed out or was busy. Nothing was recorded. |
 | `credentials_refused` | 1 | Paystack refused the test key. The event awaits verification, or stays quarantined if an earlier build quarantined it: correct the key, then check again. |
-| `live_mode` | 1 | Paystack answered with live-mode data, which is never accepted and says nothing about this test payment. The event awaits verification, or stays quarantined if an earlier build quarantined it: check the configured test key, and report it to Paystack if it repeats. |
+| `live_mode` | 1 | Paystack answered with live data, which is never accepted and says nothing about this test payment. The event awaits verification, or stays quarantined if an earlier build quarantined it: check the configured test key, and report it to Paystack if it repeats. |
 | `mismatch` | 1 | Paystack's answer disagrees with the signed event. The event is quarantined with both results retained; no observation was created. |
 | `evidence_changed` | 1 | The saved expectation or signed event changed during the check. Nothing was recorded; review it before checking again. |
 | `configuration_changed` | 1 | The connection mapping or key changed during the check. Nothing was recorded. |

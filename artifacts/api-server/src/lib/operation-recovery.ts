@@ -90,7 +90,7 @@ export const recoveryMiddleware: RequestHandler = async (req, res, next) => {
         if (typeof req.body?.csv === "string") {
           if (req.body.syntheticOnly !== true)
             throw Object.assign(
-              new Error("Only synthetic source rows may be saved."),
+              new Error("Only sample source rows can be saved."),
               { status: 403 },
             );
           try {

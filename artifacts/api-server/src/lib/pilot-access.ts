@@ -4,6 +4,7 @@
  * Signature, issuer and authorised-party verification still belong to that middleware.
  */
 import { sensitiveExportRoles, type PilotAccessFailureCode } from '@workspace/valopay-schema';
+import { onlyRoles } from './refusal-words';
 export interface VerifiedClerkSession {
   userId?: string | null;
   sessionId?: string | null;
@@ -69,6 +70,11 @@ const rolesForAction: Record<PilotAction, readonly PilotRole[]> = {
   // Dispute packs, the customer register and the audit trail (sensitiveExportKinds): lib/export-jobs.ts checks it when one is queued, retried or downloaded.
   export_sensitive: sensitiveExportRoles,
 };
+/** Each action as a role refusal names it: "Only Admin can change lender settings." */
+const actionWords: Record<PilotAction, string> = {
+  read: 'use this lender', record_operations: 'record collection work', confirm_match: 'confirm matches',
+  approve_policy: 'approve retry policies', manage_settings: 'change lender settings', export_sensitive: 'export sensitive records',
+};
 /** Whether a provisioned role may perform an action, by the table authorizePilotAccess checks. For a rule the per-request check does not name, such as export_sensitive, which depends on what is exported. */
 export function rolePermits(role: string, action: PilotAction): boolean {
   const allowed = Object.prototype.hasOwnProperty.call(rolesForAction, action) ? rolesForAction[action] : undefined;
@@ -90,22 +96,22 @@ function instant(value: string): number {
 
 /** Authorises only the requested staging action against a current, matching membership and both MFA factors. */
 export function authorizePilotAccess(auth: VerifiedClerkSession | null | undefined, membership: ProvisionedMembership | null | undefined, request: { tenantId: string; action: PilotAction }, policy: PilotAccessPolicy, nowMs = Date.now()): PilotAccessGrant {
-  if (policy?.enabled !== true || policy.environment !== 'staging') refuse('pilot_disabled', 'Staging access is not enabled.');
-  if (!Number.isFinite(nowMs) || !httpsOrigin(policy.issuer) || !Array.isArray(policy.authorisedParties) || policy.authorisedParties.length === 0 || !policy.authorisedParties.every(httpsOrigin) || !minutes(policy.maxFactorAgeMinutes, 1440) || !minutes(policy.maxSensitiveFactorAgeMinutes, 10) || policy.maxSensitiveFactorAgeMinutes > policy.maxFactorAgeMinutes) refuse('configuration_invalid', 'Staging access configuration is incomplete.');
-  if (!auth || !nonempty(auth.userId) || !nonempty(auth.sessionId) || auth.tokenType !== 'session_token') refuse('authentication_required', 'Sign in with a verified user session.');
+  if (policy?.enabled !== true || policy.environment !== 'staging') refuse('pilot_disabled', 'Team member sign-in is not switched on at this address. Contact the Valo Pay team if you need it.');
+  if (!Number.isFinite(nowMs) || !httpsOrigin(policy.issuer) || !Array.isArray(policy.authorisedParties) || policy.authorisedParties.length === 0 || !policy.authorisedParties.every(httpsOrigin) || !minutes(policy.maxFactorAgeMinutes, 1440) || !minutes(policy.maxSensitiveFactorAgeMinutes, 10) || policy.maxSensitiveFactorAgeMinutes > policy.maxFactorAgeMinutes) refuse('configuration_invalid', 'Team member sign-in is not set up correctly. Contact the Valo Pay team.');
+  if (!auth || !nonempty(auth.userId) || !nonempty(auth.sessionId) || auth.tokenType !== 'session_token') refuse('authentication_required', 'Sign in, then try again.');
   const claims = auth.sessionClaims;
-  if (!claims || auth.sessionStatus !== 'active' || auth.actor || claims.act || claims.sub !== auth.userId || claims.sid !== auth.sessionId || claims.iss !== policy.issuer || typeof claims.azp !== 'string' || !policy.authorisedParties.includes(claims.azp)) refuse('session_invalid', 'The session is not valid for this application.');
+  if (!claims || auth.sessionStatus !== 'active' || auth.actor || claims.act || claims.sub !== auth.userId || claims.sid !== auth.sessionId || claims.iss !== policy.issuer || typeof claims.azp !== 'string' || !policy.authorisedParties.includes(claims.azp)) refuse('session_invalid', 'Your sign-in is not valid at this address. Sign out, sign in again here and try again.');
   const nowSeconds = nowMs / 1000;
-  if (!seconds(claims.iat) || !seconds(claims.exp) || claims.iat > nowSeconds || claims.exp <= nowSeconds || claims.exp <= claims.iat || (claims.nbf !== undefined && (!seconds(claims.nbf) || claims.nbf > nowSeconds))) refuse('session_invalid', 'The session has expired or is not yet valid.');
-  if (!membership || !nonempty(membership.id) || !nonempty(request?.tenantId) || !nonempty(auth.orgId) || membership.userId !== auth.userId || membership.organizationId !== auth.orgId || membership.tenantId !== request.tenantId) refuse('membership_required', 'A provisioned membership for this lender is required.');
+  if (!seconds(claims.iat) || !seconds(claims.exp) || claims.iat > nowSeconds || claims.exp <= nowSeconds || claims.exp <= claims.iat || (claims.nbf !== undefined && (!seconds(claims.nbf) || claims.nbf > nowSeconds))) refuse('session_invalid', 'Your sign-in has expired. Sign in again, then try again.');
+  if (!membership || !nonempty(membership.id) || !nonempty(request?.tenantId) || !nonempty(auth.orgId) || membership.userId !== auth.userId || membership.organizationId !== auth.orgId || membership.tenantId !== request.tenantId) refuse('membership_required', 'You do not have access to this lender. Ask an Admin to give you access.');
   const validFrom = instant(membership.validFrom), expiresAt = instant(membership.expiresAt);
-  if (membership.status !== 'active' || !Number.isFinite(validFrom) || !Number.isFinite(expiresAt) || validFrom > nowMs || expiresAt <= nowMs || expiresAt <= validFrom) refuse('membership_inactive', 'This membership is inactive or has expired.');
+  if (membership.status !== 'active' || !Number.isFinite(validFrom) || !Number.isFinite(expiresAt) || validFrom > nowMs || expiresAt <= nowMs || expiresAt <= validFrom) refuse('membership_inactive', 'Your access has ended or is paused. Ask an Admin to renew it.');
   const allowed = Object.prototype.hasOwnProperty.call(rolesForAction, request.action) ? rolesForAction[request.action] : undefined;
-  if (!allowed || !pilotRoles.includes(membership.role as PilotRole) || !allowed.includes(membership.role as PilotRole)) refuse('role_not_permitted', 'Your provisioned role cannot perform this action.');
+  if (!allowed || !pilotRoles.includes(membership.role as PilotRole) || !allowed.includes(membership.role as PilotRole)) refuse('role_not_permitted', allowed ? onlyRoles(allowed, actionWords[request.action], 'staff') : 'Your role does not allow this. Ask an Admin to check your role in Team and access.');
   const ages = auth.factorVerificationAge;
-  if (!Array.isArray(ages) || ages.length !== 2 || ages.some(age => !Number.isSafeInteger(age) || age < 0)) refuse('mfa_required', 'Verify both your first and second authentication factors.');
+  if (!Array.isArray(ages) || ages.length !== 2 || ages.some(age => !Number.isSafeInteger(age) || age < 0)) refuse('mfa_required', 'Complete two-step verification, then try again.');
   const maxAge = request.action === 'read' ? policy.maxFactorAgeMinutes : policy.maxSensitiveFactorAgeMinutes;
   const tokenAgeMinutes = (nowSeconds - claims.iat) / 60;
-  if (ages.some(age => age + tokenAgeMinutes >= maxAge)) refuse('reverification_required', 'Verify both authentication factors again before continuing.');
+  if (ages.some(age => age + tokenAgeMinutes >= maxAge)) refuse('reverification_required', 'Confirm your identity again with two-step verification, then try again.');
   return Object.freeze({ userId: auth.userId, sessionId: auth.sessionId, organizationId: auth.orgId, tenantId: membership.tenantId, membershipId: membership.id, role: membership.role as PilotRole, action: request.action, liveOperationsAllowed: false });
 }

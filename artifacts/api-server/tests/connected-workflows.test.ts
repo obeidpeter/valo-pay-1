@@ -75,7 +75,7 @@ check(() => {
 check(() => {
   const s = fresh();
   s.settings.environment = "production";
-  assert.throws(() => checkout(s), /synthetic/);
+  assert.throws(() => checkout(s), /works only with sample data/);
 });
 check(() => {
   const s = fresh();
@@ -88,7 +88,7 @@ check(() => {
         undefined,
         { ...ctx, role: "Read-only" },
       ),
-    /Read-only/,
+    /Only Admin, Operations, Finance or Compliance reviewer can make changes in connected banking\. Change your demo role in Settings\.$/,
   );
 });
 check(() => {
@@ -175,7 +175,7 @@ check(() => {
     createdAt: ctx.now,
     data: { dueItemId: due.id },
   });
-  assert.throws(() => run(s, "payment.authorise", {}, i.id), /flight/);
+  assert.throws(() => run(s, "payment.authorise", {}, i.id), /scheduled or in progress/);
 });
 check(() => {
   const s = fresh(),
@@ -200,7 +200,7 @@ check(() => {
   run(s, "payment.authorise", {}, i.id);
   run(s, "payment.outcome", { outcome: "unknown" }, i.id);
   assert.throws(() => checkout(s), /pending|unknown/);
-  assert.throws(() => run(s, "payment.cancel", {}, i.id), /in-flight/);
+  assert.throws(() => run(s, "payment.cancel", {}, i.id), /only before it is authorised/);
   const due = openDue(s);
   const decision = evaluateRetry(
     s,
@@ -270,7 +270,7 @@ check(() => {
   run(s, "payment.outcome", { outcome: "confirmed" }, i.id);
   assert.throws(
     () => run(s, "payment.refund_confirm", {}, i.id, finance),
-    /maker/,
+    /Someone other than you must request the refund/,
   );
   run(s, "payment.refund_request", {}, i.id);
   assert.throws(() => run(s, "payment.refund_confirm", {}, i.id), /Finance/);
@@ -340,7 +340,7 @@ check(() => {
         purpose: "account_read",
         subjectId: "foreign",
       }),
-    /subject/,
+    /Choose a customer of this lender, or the sample business/,
   );
   assert.throws(
     () =>
@@ -348,7 +348,7 @@ check(() => {
         purpose: "payroll_prepare",
         subjectId: openDue(s).customerId,
       }),
-    /subject/,
+    /Choose a customer of this lender, or the sample business/,
   );
 });
 check(() => {
@@ -409,9 +409,9 @@ check(() => {
     });
   assert.throws(
     () => run(s, "credit.assess", { customerId: i.customerId }),
-    /record limit/,
+    /limit for connected banking records/,
   );
-  assert.throws(() => run(s, "cash.vat.export"), /record limit/);
+  assert.throws(() => run(s, "cash.vat.export"), /limit for connected banking records/);
   assert.doesNotThrow(() =>
     run(s, "consent.revoke", {}, String(i.data.consentId)),
   );

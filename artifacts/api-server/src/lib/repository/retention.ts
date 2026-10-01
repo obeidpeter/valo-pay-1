@@ -1,5 +1,6 @@
 /** Internal repository retention. Import through valopay-store; external access is rejected by the boundary check. */
 import { canonicalDigest } from "../digests";
+import { onlyRoles } from "../refusal-words";
 import type { PoolClient } from "@workspace/db";
 import type { DomainState } from "../../domain/types";
 import type {
@@ -124,7 +125,7 @@ export function createRetentionRepository(dependencies: Dependencies) {
       !merchantId ||
       state.merchant.id !== merchantId
     )
-      fail("An administrator in this lender is required.", 403);
+      fail(onlyRoles(["Admin"], "manage data retention", context.accessMode), 403);
     const files = state.records
       .filter(
         (r) =>
@@ -264,11 +265,11 @@ export function createRetentionRepository(dependencies: Dependencies) {
       session.access !== "write" ||
       state.merchant.id !== merchantId
     )
-      fail("An administrator in this lender is required.", 403);
+      fail(onlyRoles(["Admin"], "carry out a deletion run", context.accessMode), 403);
     const run = state.records.find(
       (r) => r.id === id && r.kind === "retention-runs",
     );
-    if (!run) fail("Retention run not found.", 404);
+    if (!run) fail("Deletion run not found. It may belong to another lender.", 404);
     if (run.status === "completed") return lifecycleRunView(state, run);
     const { external } = await lifecycleInventory(context, state, { run: id });
     // A completed request's payload is purged in this transaction; an export file is deleted from private storage.
@@ -285,7 +286,7 @@ export function createRetentionRepository(dependencies: Dependencies) {
           )
         ).rows[0];
         if (!row || !["completed", "cancelled"].includes(row.status))
-          fail("The terminal request is no longer eligible.", 409);
+          fail("A request in this deletion run changed after the preview. Prepare a new deletion preview.", 409);
         const tombstone = { purged: true, at: context.now, retentionRunId: id };
         await session.client.query(
           "UPDATE valopay_operations SET request=$3,receipt=$3 WHERE merchant_id=$1 AND id=$2 AND status IN ('completed','cancelled')",

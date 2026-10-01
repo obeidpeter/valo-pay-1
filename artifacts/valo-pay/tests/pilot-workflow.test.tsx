@@ -167,7 +167,7 @@ it("read-only staff can inspect the journey but cannot save imports or claim cas
 
 it("identifies demo access honestly and does not offer working staff invitation controls", async () => {
   renderApp("/team");
-  await screen.findByText("Demo personas are active.");
+  await screen.findByText("Team member accounts are not switched on here. Demo roles are for practice only.");
   expect(
     screen.queryByRole("button", { name: "Create invitation" }),
   ).toBeNull();
@@ -363,7 +363,7 @@ it("lists what waits for a second administrator and never offers the asker their
       });
     if (options?.method === "POST" && /^\/api\/v1\/team\/(invitations|changes)\//.test(path)) {
       posted.push(path);
-      return json(path.endsWith("/decline") ? { message: "Change request withdrawn. The membership is unchanged." } : { message: "Invitation approved: finance@example.test can now accept it as Finance." });
+      return json(path.endsWith("/decline") ? { message: "Change request withdrawn. Their access has not changed." } : { message: "Invitation approved: finance@example.test can now accept it as Finance." });
     }
     return send(input, options);
   };
@@ -381,7 +381,7 @@ it("lists what waits for a second administrator and never offers the asker their
   await user.click(within(panel).getByRole("button", { name: "Approve invitation" }));
   expect(await within(panel).findByText("Invitation approved: finance@example.test can now accept it as Finance.")).toBeTruthy();
   await user.click(within(panel).getByRole("button", { name: "Withdraw request" }));
-  expect(await within(panel).findByText("Change request withdrawn. The membership is unchanged.")).toBeTruthy();
+  expect(await within(panel).findByText("Change request withdrawn. Their access has not changed.")).toBeTruthy();
   expect(posted).toEqual(["/api/v1/team/invitations/invite-theirs/approve", "/api/v1/team/changes/change-mine/decline"]);
 });
 
@@ -468,7 +468,7 @@ it("offers the latest version only when the refusal says the batch changed", asy
     /^\/v1\/pilot\/batches\/[^/]+\/save$/,
     {
       status: 409,
-      error: "Review your pending operations before submitting more requests.",
+      error: "You have 100 requests that Valo Pay has not confirmed. Check them in Request history before you send more.",
     },
     "POST",
   );
@@ -476,7 +476,7 @@ it("offers the latest version only when the refusal says the batch changed", asy
   await user.click(
     screen.getByRole("button", { name: "Save and check batch" }),
   );
-  await screen.findByText(/Review your pending operations/);
+  await screen.findByText(/You have 100 requests that Valo Pay has not confirmed/);
   expect(screen.queryByText(/This batch changed after you opened it/)).toBeNull();
   expect(screen.queryByRole("button", { name: "Load latest version" })).toBeNull();
   expect(csvValue()).toMatch(/ $/);

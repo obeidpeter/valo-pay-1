@@ -21,11 +21,11 @@ describe("workspace", () => {
 
   it("passes on the service's own words when it asks the visitor to wait, and tries again on request", async () => {
     const user = userEvent.setup();
-    api.failNext(workspace, { status: 429, error: "Too many new sandboxes from this address; please try again in an hour." });
+    api.failNext(workspace, { status: 429, error: "Too many new sandboxes were started from your network in the last hour. Try again in an hour." });
     renderApp("/overview");
     const alert = await screen.findByRole("alert");
     expect(within(alert).getByRole("heading", { level: 1, name: "Please wait before trying again" })).toBeTruthy();
-    expect(within(alert).getByText("Too many new sandboxes from this address; please try again in an hour.")).toBeTruthy();
+    expect(within(alert).getByText("Too many new sandboxes were started from your network in the last hour. Try again in an hour.")).toBeTruthy();
     // It claims nothing about what changed: a change saved just before is checked in Request history.
     expect(within(alert).getByText("If you had just saved a change, check Request history once your workspace opens, before you send it again.")).toBeTruthy();
     expect(screen.queryByText(/No lender data has been changed/)).toBeNull();
@@ -114,10 +114,10 @@ describe("a failed background refresh of the workspace", () => {
     const user = userEvent.setup();
     renderApp("/overview");
     await screen.findByRole("heading", { name: "Overview" });
-    api.failNext(workspace, { status: 429, error: "Request limit reached. Please try again in one minute.", headers: { "Retry-After": "120" } });
+    api.failNext(workspace, { status: 429, error: "Too many requests. Try again in 1 minute.", headers: { "Retry-After": "120" } });
     await refreshWorkspace();
     await waitFor(() => expect(refreshNotice()).toBeTruthy());
-    expect(refreshNotice()!.textContent).toContain("Request limit reached. Please try again in one minute.");
+    expect(refreshNotice()!.textContent).toContain("Too many requests. Try again in 1 minute.");
     expect(refreshNotice()!.textContent).toMatch(/The next automatic refresh is after \d{1,2} \w{3,4} \d{4}, \d{2}:\d{2} WAT\./);
     expect(screen.getByRole("heading", { name: "Overview" })).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Please wait before trying again" })).toBeNull();

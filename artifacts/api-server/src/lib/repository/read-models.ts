@@ -17,6 +17,7 @@ import {
 import { allocationPayer } from "../../domain/reconciliation";
 import type { DomainState, ValopayRecord } from "../../domain/types";
 import { publicExportRecord } from "../export-jobs";
+import { notFound } from "../refusal-words";
 import {
   queueView,
   queueViews,
@@ -124,7 +125,7 @@ export function createReadModelsRepository(dependencies: Dependencies) {
         const payment = row
           ? rowToRecord(row)
           : fail(
-              "Payment not found in this lender. Refresh the payments and choose one again.",
+              "Payment not found. Reload the payments and choose one again.",
               404,
             );
         const named =
@@ -645,7 +646,7 @@ export function createReadModelsRepository(dependencies: Dependencies) {
         [merchantId, session.workspace.id, session.principal, id],
       )
     ).rows[0];
-    if (!row) fail("Close record not found in this lender.", 404);
+    if (!row) fail(notFound("Daily close"), 404);
     return rowToRecord(row);
   }
 
@@ -701,7 +702,7 @@ export function createReadModelsRepository(dependencies: Dependencies) {
         values,
       )
     ).rows[0];
-    if (!customerRow) fail("Customer not found.", 404);
+    if (!customerRow) fail(notFound("Customer"), 404);
     const totalsRow = (
       await session.client.query<Record<string, string>>(
         `SELECT count(*) AS events,

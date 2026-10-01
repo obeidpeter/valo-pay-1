@@ -83,13 +83,13 @@ try {
   for (const key of [...saved.map((write) => write.key), refusedKey, pendingKey]) listedIds.set(key, (await entry(key)).id);
   for (const write of saved) {
     const shown = item(write.key);
-    assert.deepEqual([shown.status, shown.recordId, shown.recordKind, shown.message], ["completed", write.record.id, "customers", "The service saved this request."]);
+    assert.deepEqual([shown.status, shown.recordId, shown.recordKind, shown.message], ["completed", write.record.id, "customers", "Valo Pay saved this request."]);
   }
   assert.equal(item(refusedKey).status, "cancelled");
-  assert.match(item(refusedKey).message, /^The service refused this request: .+ Correct it and submit it again\.$/, "a refused request shows the reason it was given");
-  assert.deepEqual([item(pendingKey).status, item(pendingKey).recordId, item(pendingKey).message], ["pending", null, "Completion has not been confirmed. Check the original request."]);
+  assert.match(item(refusedKey).message, /^Valo Pay refused this request: .+ Correct it and send it again\.$/, "a refused request shows the reason it was given");
+  assert.deepEqual([item(pendingKey).status, item(pendingKey).recordId, item(pendingKey).message], ["pending", null, "Valo Pay has not confirmed this request yet. Check the original request."]);
   // Each entry says what it asked, from its path: a new customer record. Its name, reference and consent are not read.
-  for (const key of listedIds.keys()) assert.deepEqual(item(key).summary, { action: "Create a record", targetKind: "customers", targetId: null, details: [] });
+  for (const key of listedIds.keys()) assert.deepEqual(item(key).summary, { action: "Add a record", targetKind: "customers", targetId: null, details: [] });
   const paged = await call(`/v1/operations?merchantId=${lender}&offset=3`);
   assert.deepEqual([paged.bodyReads, paged.textReads, ok(paged).items.length, paged.data.total], [0, 0, 2, 5]);
   // The count the console shows on its Operations link: the one pending entry, counted without reading it.
@@ -256,9 +256,9 @@ try {
   assert.equal(JSON.stringify(ok(summarised)).includes(marker), false, "nothing the bodies hold beyond those fields is shown");
   const shownAs = (id: string) => summarised.data.items.find((candidate: any) => candidate.id === id);
   const changeId = (await entry(changeKey)).id, actionId = (await entry(actionKey)).id;
-  assert.deepEqual(shownAs(changeId).summary, { action: "Change a record", targetKind: "customers", targetId: target!.id, details: [{ name: "Status", value: "not_a_status" }] }, "a change names its record and the status it sent");
-  assert.deepEqual(shownAs(actionId).summary, { action: "Mandate suspend", targetKind: "mandates", targetId: mandate.id, details: [] }, "an action names the record its recordId names, and that record's kind");
-  assert.deepEqual([shownAs(exported).recordId, shownAs(exported).recordKind, shownAs(exported).summary.action], ["export-earlier", "exports", "Request an export"], "an export's saved result is the export, whatever kind it exports");
+  assert.deepEqual(shownAs(changeId).summary, { action: "Change a record", targetKind: "customers", targetId: target!.id, details: [{ name: "Status", value: "Not a status" }] }, "a change names its record and the status it sent, in words");
+  assert.deepEqual(shownAs(actionId).summary, { action: "Suspend mandate", targetKind: "mandates", targetId: mandate.id, details: [] }, "an action names the record its recordId names, and that record's kind");
+  assert.deepEqual([shownAs(exported).recordId, shownAs(exported).recordKind, shownAs(exported).summary.action], ["export-earlier", "exports", "Create an export"], "an export's saved result is the export, whatever kind it exports");
   assert.equal(shownAs(sealed).summary, null, "a sealed request is not opened for its summary");
   assert.deepEqual([shownAs(sealedExportId).recordId, shownAs(sealedExportId).recordKind, shownAs(sealedExportId).summary], [sealedExport, "exports", null], "a sealed export's saved result is the export too");
   const counted = await call(`/v1/operations/pending?merchantId=${lender}`);

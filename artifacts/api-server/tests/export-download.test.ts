@@ -55,7 +55,7 @@ for (const outcome of ["error", "close", "abort", "http-error"] as const) {
 }
 {
  const {stream,signal,clean}=fixture();
- await assert.rejects(collectExportBytes(stream,signal.signal,100,5),/timed out/);
+ await assert.rejects(collectExportBytes(stream,signal.signal,100,5),/did not answer in time/);
  clean();
 }
 // Use the same retry-request implementation that the installed storage SDK
@@ -142,12 +142,12 @@ try{
   await delay(100); // The delayed server sends headers after the request ended.
  }
  assert.ok(closed>=2,'native abort closes both pre-header and in-body requests');
- await assert.rejects(readExportMetadata(file('delayed-timeout'),undefined,5),/timed out/);
+ await assert.rejects(readExportMetadata(file('delayed-timeout'),undefined,5),/did not answer in time/);
  await delay(100);
  const countBeforeAuthTimeout=requests.length;
  let resolveAuth!:(headers:Headers)=>void;
  const authHeaders=new Promise<Headers>(resolve=>{resolveAuth=resolve;});
- await assert.rejects(readExportBytes(file('late-auth',()=>authHeaders),undefined,undefined,5),/timed out/);
+ await assert.rejects(readExportBytes(file('late-auth',()=>authHeaders),undefined,undefined,5),/did not answer in time/);
  resolveAuth(new Headers({authorization:'Bearer synthetic-fixture'}));await delay(20);
  assert.equal(requests.length,countBeforeAuthTimeout,'timed-out authentication never starts a late storage request');
  // Native upload binds cancellation before authentication and uses the same

@@ -249,7 +249,7 @@ export async function runDueCloses(options: CloseRunOptions = {}): Promise<Close
           if (!scheduledCloseDue(state, ctx.now)) return null;
           if (state.settings.anonymousWorkspace === true && await sandboxInactiveFor(ctx, closeRules.idleSandboxDays)) {
             pauseIdleSandboxClose(state, ctx.now);
-            appendAudit(state, ctx, "daily_close.paused", "settings", `Automatic daily close paused: nobody changed this sandbox for ${closeRules.idleSandboxDays} days. Switch it on again in Settings to resume.`, settleChanges(ctx, state));
+            appendAudit(state, ctx, "daily_close.paused", "settings", `Automatic daily close paused: nobody changed this sandbox for ${closeRules.idleSandboxDays} days. Turn it on again in Settings.`, settleChanges(ctx, state));
             await saveState(ctx, state);
             return { paused: true };
           }

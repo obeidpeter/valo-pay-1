@@ -34,7 +34,7 @@ describe("failed background refresh", () => {
     await waitFor(() => expect(screen.queryAllByText(/^Loading .*…$/)).toHaveLength(0));
     const before = figures();
     expect(before).toBeTruthy();
-    api.failNext(request, { status: 503, error: "The service is busy. Try again in a moment." });
+    api.failNext(request, { status: 503, error: "Valo Pay is busy. Try again in a moment." });
     await act(async () => { await queryClient.refetchQueries({ type: "active" }); });
     const status = (await screen.findByText(notice)).closest('[role="status"]') as HTMLElement;
     expect(status.textContent).toMatch(lastUpdated);
@@ -60,7 +60,7 @@ describe("failed background refresh", () => {
   });
 
   it("still shows the full problem when the first load fails", async () => {
-    api.failNext(/^\/v1\/overview$/, { status: 503, error: "The service is busy. Try again in a moment." });
+    api.failNext(/^\/v1\/overview$/, { status: 503, error: "Valo Pay is busy. Try again in a moment." });
     renderApp("/overview");
     expect(await screen.findByText("We could not load the overview")).toBeTruthy();
     expect(screen.queryByText("The overview could not be refreshed.")).toBeNull();

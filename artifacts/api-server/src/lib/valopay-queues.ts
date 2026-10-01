@@ -10,7 +10,7 @@ export const queueViews = {
 export type QueueName = keyof typeof queueViews;
 export interface QueueQuery { q?: string; view?: string; owner?: string; type?: string; limit?: number; offset?: number; record?: string; target?: string }
 export function queueView(queue: QueueName, view?: string) {
-  if (view && !(queueViews[queue] as readonly string[]).includes(view)) throw Object.assign(new Error('Unknown queue view.'), { status: 400 });
+  if (view && !(queueViews[queue] as readonly string[]).includes(view)) throw Object.assign(new Error('This view is not available. Choose a view from the list.'), { status: 400 });
   return view || queueViews[queue][0];
 }
 /** The WAT day of an instant, or '' for none. */

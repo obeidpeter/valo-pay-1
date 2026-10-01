@@ -56,16 +56,18 @@ import {
   coordinateCase,
 } from "../domain/pilot-workflow";
 import { routerOptions } from "./router-options";
+import { notFound, onlyRoles } from "../lib/refusal-words";
 
 const router: IRouter = Router(routerOptions);
 const idOf = pathId;
 router.post("/v1/team/verify", async (req, res) => {
-  if (!staffMode()) fail("Staff access is not enabled on this host.", 403);
+  if (!staffMode())
+    fail("Team member sign-in is not switched on at this address. Use the address your Admin gave you.", 403);
   const auth = getAuth(req, { acceptsToken: "session_token" });
-  if (!auth.userId) fail("Sign in to verify your identity.", 401);
+  if (!auth.userId) fail("Sign in first, then confirm your identity.", 401);
   if (!auth.factorVerificationAge || auth.factorVerificationAge[1] < 0)
     fail(
-      "Enrol and verify a second authentication factor in Account security first.",
+      "Set up two-step verification in Account security first.",
       403,
     );
   if (!auth.has({ reverification: "strict_mfa" })) {
@@ -239,11 +241,11 @@ router.get("/v1/pilot/batches/:id", async (req, res) => {
       async (ctx) => {
         const state = await loadState(ctx, q.merchantId, "share");
         if (!["Admin", "Operations", "Finance"].includes(ctx.role))
-          fail("An import operator role is required to open source rows.", 403);
+          fail(onlyRoles(["Admin", "Operations", "Finance"], "open the rows of an import batch", ctx.accessMode), 403);
         const batch = state.records.find(
           (r) => r.kind === "import-batches" && r.id === id,
         );
-        if (!batch) fail("Import batch not found.", 404);
+        if (!batch) fail(notFound("Import batch"), 404);
         await revealImportPayloads(ctx, state, (r) => r.id === id);
         return contractAnswer(importBatchDetailSchema, {
           batch,
@@ -311,7 +313,7 @@ router.get("/v1/pilot/cases/:id", async (req, res) => {
           record = state.records.find(
             (r) => r.kind === "exceptions" && r.id === id,
           );
-        if (!record) fail("Exception not found.", 404);
+        if (!record) fail(notFound("Exception"), 404);
         return contractAnswer(caseDetailSchema, {
           record,
           assignees: await caseAssignees(ctx),

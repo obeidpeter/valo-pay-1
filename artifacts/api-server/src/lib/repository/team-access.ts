@@ -5,6 +5,7 @@ import {
   grantNeedsApproval,
   invitationAcceptedSchema,
   sameJson,
+  valueLabel,
 } from "@workspace/valopay-schema";
 import { randomBytes, randomUUID } from "node:crypto";
 import type { StaffLenderAccessInput } from "@workspace/valopay-schema";
@@ -28,6 +29,7 @@ import { contractAnswer } from "../contract";
 import { markRolledBack } from "../transaction-outcome";
 import type { DomainState } from "../../domain/types";
 import { requestFingerprint } from "../digests";
+import { ONE_ADMIN, onlyRoles } from "../refusal-words";
 import { seedMerchant } from "../valopay-seed";
 import type { StaffRow, StoreContext, Session, MerchantRow } from "./types";
 type Dependencies = Pick<
@@ -120,7 +122,7 @@ export function createTeamAccessRepository(dependencies: Dependencies) {
           role,
         }));
     if (!session.lockedMerchantId)
-      fail("Select a lender before looking up available assignees.", 409);
+      fail("Choose a lender first, then choose who to assign.", 409);
     // The same three fields as a demo role: who, their name and their role; the membership's other details stay in the team directory.
     return (
       await session.client.query<StaffRow>(
@@ -169,9 +171,9 @@ export function createTeamAccessRepository(dependencies: Dependencies) {
   }
   const needsApproval = (role: string) =>
     (approvalRoles as readonly string[]).includes(role);
-  /** What a person refused as their own approver is told: the rule, and how a pilot with one administrator gets a second. */
+  /** What a person refused as their own approver is told: the rule, and how a pilot with one Admin gets a second. */
   const secondAdministrator = (what: string, who: string) =>
-    `A different administrator must approve this ${what}: the administrator who ${who} cannot approve it. A pilot with one administrator asks the operator to add a second with the provisioning command's --add-administrator mode.`;
+    `A different Admin must approve this ${what}. The Admin who ${who} cannot approve it. ${ONE_ADMIN}`;
   async function staffDirectory(ctx: StoreContext) {
     const session = sessionFor(ctx);
     if (ctx.accessMode !== "staff")
@@ -184,7 +186,7 @@ export function createTeamAccessRepository(dependencies: Dependencies) {
         changes: [],
         events: [],
         message:
-          "Real staff access is not enabled on this host. Demo roles are for practice only.",
+          "Team member accounts are not switched on here. Demo roles are for practice only.",
       };
     const memberRows = (
       await session.client.query<StaffRow>(
@@ -240,7 +242,7 @@ export function createTeamAccessRepository(dependencies: Dependencies) {
         changes: [],
         events: [],
         message:
-          "Verified staff access. Membership, lender access and MFA are checked for every request. You see the colleagues who work on your lenders. Financial records remain synthetic.",
+          "Team member sign-in is on. Your membership, your access to each lender and your two-step verification are checked on every request. You see the team members who work on the same lenders as you. Sample data only.",
       };
     const lenders = await listMerchants(ctx);
     // Timestamps as the ISO text the answer carries, as every other view writes them.
@@ -300,7 +302,7 @@ export function createTeamAccessRepository(dependencies: Dependencies) {
       changes,
       events,
       message:
-        "Verified staff access. Membership, lender access and MFA are checked for every request. Financial records remain synthetic.",
+        "Team member sign-in is on. Membership, lenders and two-step verification are checked on every request. Sample data only.",
     };
   }
   function viewerScope(ctx: StoreContext) {
@@ -311,12 +313,11 @@ export function createTeamAccessRepository(dependencies: Dependencies) {
   }
   function teamAdmin(ctx: StoreContext) {
     const session = sessionFor(ctx);
-    if (
-      ctx.accessMode !== "staff" ||
-      ctx.role !== "Admin" ||
-      session.access !== "team"
-    )
-      fail("A verified pilot administrator with recent MFA is required.", 403);
+    // The sandbox has no team members to manage; a team member other than an Admin is told who can.
+    if (ctx.accessMode !== "staff")
+      fail("Team member accounts are not switched on here. Demo roles are for practice only.", 403);
+    if (ctx.role !== "Admin" || session.access !== "team")
+      fail(onlyRoles(["Admin"], "manage the team", ctx.accessMode), 403);
     return session;
   }
   async function staffEvent(
@@ -371,7 +372,7 @@ export function createTeamAccessRepository(dependencies: Dependencies) {
         token,
         approval,
         message:
-          "Invitation created. Share the link directly with this person; no email has been sent. It expires in seven days.",
+          "Invitation created. No email has been sent, so share the link with this person yourself. It expires in 7 days.",
       };
     const administrators = Number(
       (
@@ -385,7 +386,7 @@ export function createTeamAccessRepository(dependencies: Dependencies) {
       id,
       token,
       approval,
-      message: `Invitation created. It waits for a second administrator's approval before it can be accepted: an Admin, Finance or Compliance reviewer grant needs two administrators, and the one who sent it cannot approve it.${administrators < 2 ? " This pilot has one active administrator: ask the operator to add a second with the provisioning command's --add-administrator mode." : ""} Share the link directly; no email has been sent. It expires in seven days.`,
+      message: `Invitation created. A different Admin must approve it before it can be accepted, because Admin, Finance and Compliance reviewer access needs 2 Admins.${administrators < 2 ? " Your pilot has only 1 Admin, so ask the Valo Pay team to add a second." : ""} No email has been sent, so share the link yourself. It expires in 7 days.`,
     };
   }
   /** A second administrator's approval of an invitation to Admin, Finance or Compliance reviewer, recorded in the access history; the invitee can accept it afterwards. */
@@ -404,15 +405,15 @@ export function createTeamAccessRepository(dependencies: Dependencies) {
         [session.workspace.id, id],
       )
     ).rows[0];
-    if (!invitation) fail("Invitation not found.", 404);
+    if (!invitation) fail("Invitation not found. Reload Team and access and try again.", 404);
     if (
       invitation.status !== "pending" ||
       invitation.expires_at.getTime() <= Date.parse(ctx.now)
     )
-      fail("This invitation is no longer pending.", 409);
+      fail("This invitation has already been accepted, revoked or has expired. Reload Team and access to see it.", 409);
     if (!needsApproval(invitation.role))
       fail(
-        "This invitation needs no approval: only Admin, Finance and Compliance reviewer invitations do.",
+        "This invitation needs no approval. Only Admin, Finance and Compliance reviewer invitations do.",
         409,
       );
     if (invitation.invited_by === ctx.actor)
@@ -420,7 +421,7 @@ export function createTeamAccessRepository(dependencies: Dependencies) {
     if (
       await invitationApprover(session.client, session.workspace.id, invitation)
     )
-      fail("This invitation is already approved.", 409);
+      fail("This invitation is already approved. Reload Team and access to see it.", 409);
     await staffEvent(
       session.client,
       session.workspace.id,
@@ -498,17 +499,17 @@ export function createTeamAccessRepository(dependencies: Dependencies) {
         [session.workspace.id, id],
       )
     ).rows[0];
-    if (!row) fail("Staff membership not found.", 404);
+    if (!row) fail("Team member not found. Reload Team and access and try again.", 404);
     if (row.user_id === session.userId)
-      fail("Ask another administrator to change your membership.", 403);
+      fail("Ask another Admin to change your own access.", 403);
     if (row.updated_at.toISOString() !== input.expectedUpdatedAt)
       fail(
-        "This membership changed. Refresh the team and review it again.",
+        "This team member’s access changed after you opened it. Reload the page and try again.",
         409,
       );
     if (row.status === "revoked" && input.status !== "revoked")
       fail(
-        "A revoked person must accept a new invitation before access is restored.",
+        "This person’s access was revoked. Send them a new invitation to restore it.",
         409,
       );
     const after = { role: input.role, status: input.status };
@@ -557,7 +558,7 @@ export function createTeamAccessRepository(dependencies: Dependencies) {
           })();
       return {
         ...staffView(row),
-        message: `This change waits for a second administrator: an Admin, Finance or Compliance reviewer grant takes effect only when a different administrator approves it in Team & access. ${row.display_name} keeps their current access until then.`,
+        message: `This change needs a second Admin. Admin, Finance and Compliance reviewer access starts only when a different Admin approves it in Team and access. ${row.display_name} keeps their current access until then.`,
         pendingChange: pending,
       };
     }
@@ -572,7 +573,7 @@ export function createTeamAccessRepository(dependencies: Dependencies) {
     return {
       ...staffView(updated),
       message:
-        "Access change saved. Existing sessions must pass it on their next request.",
+        "Access change saved. It applies from the person’s next request.",
       pendingChange: null,
     };
   }
@@ -589,7 +590,7 @@ export function createTeamAccessRepository(dependencies: Dependencies) {
         [session.workspace.id, requestId],
       )
     ).rows[0];
-    if (!found) fail("Change request not found.", 404);
+    if (!found) fail("Change request not found. Reload Team and access and try again.", 404);
     if (
       !(
         await session.client.query(changeRequestsSql, [
@@ -599,7 +600,7 @@ export function createTeamAccessRepository(dependencies: Dependencies) {
         ])
       ).rows.length
     )
-      fail("This change was already approved or declined.", 409);
+      fail("This change was already approved or declined. Reload Team and access to see it.", 409);
     return found;
   }
   /** A second administrator's approval of a waiting change: the exact change requested, applied now and recorded with who asked and who approved. */
@@ -612,17 +613,17 @@ export function createTeamAccessRepository(dependencies: Dependencies) {
         [session.workspace.id, request.subject],
       )
     ).rows[0];
-    if (!row) fail("Staff membership not found.", 404);
+    if (!row) fail("Team member not found. Reload Team and access and try again.", 404);
     if (row.updated_at.toISOString() !== request.detail.version)
       fail(
-        "This membership changed after the change was requested. Review the membership and ask for the change again.",
+        "This team member’s access changed after the change was requested. Check their access, then ask for the change again.",
         409,
       );
     if (request.actor === ctx.actor)
       fail(secondAdministrator("change", "asked for it"), 403);
     if (row.user_id === session.userId)
       fail(
-        "Ask another administrator to approve a change to your own membership.",
+        "Ask another Admin to approve a change to your own access.",
         403,
       );
     const updated = await applyStaffChange(
@@ -635,7 +636,7 @@ export function createTeamAccessRepository(dependencies: Dependencies) {
     );
     return {
       ...staffView(updated),
-      message: `Change approved: ${row.display_name} is now ${updated.role} (${updated.status}). Existing sessions must pass it on their next request.`,
+      message: `Change approved: ${row.display_name} is now ${updated.role} (${valueLabel(updated.status).toLowerCase()}). It applies from their next request.`,
       pendingChange: null,
     };
   }
@@ -652,7 +653,7 @@ export function createTeamAccessRepository(dependencies: Dependencies) {
     ).rows[0];
     if (subject?.user_id === session.userId)
       fail(
-        "Ask another administrator to decline a change to your own membership.",
+        "Ask another Admin to decline a change to your own access.",
         403,
       );
     await staffEvent(
@@ -671,8 +672,8 @@ export function createTeamAccessRepository(dependencies: Dependencies) {
     return {
       message:
         request.actor === ctx.actor
-          ? "Change request withdrawn. The membership is unchanged."
-          : "Change request declined. The membership is unchanged.",
+          ? "Change request withdrawn. Their access has not changed."
+          : "Change request declined. Their access has not changed.",
     };
   }
   /** The workspace's exclusive team lock serialises grant changes with every
@@ -690,7 +691,7 @@ export function createTeamAccessRepository(dependencies: Dependencies) {
         [session.workspace.id, id],
       )
     ).rows[0];
-    if (!member) fail("Staff membership not found.", 404);
+    if (!member) fail("Team member not found. Reload Team and access and try again.", 404);
     const available = await listMerchants(ctx);
     const checked = validateLenderAccessChange(
       input,
@@ -739,7 +740,7 @@ export function createTeamAccessRepository(dependencies: Dependencies) {
       lenderIds: checked.lenderIds,
       allLenders: false,
       message:
-        "Lender access saved. Existing sessions must pass these permissions on their next request.",
+        "Lender access saved. It applies from the person’s next request.",
     };
   }
   async function revokeInvitation(ctx: StoreContext, id: string) {
@@ -749,7 +750,7 @@ export function createTeamAccessRepository(dependencies: Dependencies) {
       [session.workspace.id, id],
     );
     if (!rowsAffected(result))
-      fail("This invitation is no longer pending.", 409);
+      fail("This invitation has already been accepted, revoked or has expired. Reload Team and access to see it.", 409);
     await staffEvent(
       session.client,
       session.workspace.id,
@@ -764,7 +765,7 @@ export function createTeamAccessRepository(dependencies: Dependencies) {
   /** Acceptance has no existing membership. Clerk supplies the verified email;
    * the browser supplies only the invitation token, never an email or role. */
   async function acceptStaffInvitation(req: Request, token: string) {
-    if (!staffMode()) fail("Staff access is not enabled on this host.", 403);
+    if (!staffMode()) fail("Team invitations cannot be accepted at this address. Use the address your Admin gave you.", 403);
     const auth = getAuth(req) as unknown as VerifiedClerkSession;
     const now = new Date().toISOString();
     verifyStaff(
@@ -852,7 +853,7 @@ export function createTeamAccessRepository(dependencies: Dependencies) {
       ).rows[0];
       if (!invite || !verifiedEmails.includes(invite.email))
         fail(
-          "This invitation is expired, used, revoked or belongs to another verified email address.",
+          "This invitation has expired, was used or revoked, or is for another email address. Sign in with the invited address, or ask an Admin for a new invitation.",
           403,
         );
       const existing = (
@@ -866,7 +867,7 @@ export function createTeamAccessRepository(dependencies: Dependencies) {
         existing.expires_at > new Date(checkedAt)
       )
         fail(
-          "You already have an active membership. Ask an administrator to change its role.",
+          "You are already a team member. Ask an Admin if you need a different role.",
           409,
         );
       if (existing && existing.status !== "active") {
@@ -882,7 +883,7 @@ export function createTeamAccessRepository(dependencies: Dependencies) {
           ).rows[0]?.at ?? existing.updated_at;
         if (invite.created_at <= withdrawnAt)
           fail(
-            "This invitation was sent before your access was suspended or revoked, so it cannot restore it. Ask an administrator for a new invitation.",
+            "This invitation was sent before your access was suspended or revoked, so it cannot restore it. Ask an Admin for a new invitation.",
             403,
           );
       }
@@ -892,7 +893,7 @@ export function createTeamAccessRepository(dependencies: Dependencies) {
         : undefined;
       if (needsApproval(invite.role) && !approvedBy)
         fail(
-          "This invitation is waiting for a second administrator's approval. Ask the administrator who sent it to have another administrator approve it in Team & access, then accept it again.",
+          "This invitation is waiting for a second Admin’s approval. Ask the Admin who sent it to have another Admin approve it in Team and access, then accept it again.",
           403,
         );
       if (existing) {
@@ -1272,7 +1273,7 @@ export function createTeamAccessRepository(dependencies: Dependencies) {
   ): Promise<{ lender: DomainState["merchant"]; repeated: boolean }> {
     const session = sessionFor(ctx);
     if (ctx.role !== "Admin" || session.access !== "team")
-      fail("An administrator must set up a lender.", 403);
+      fail(onlyRoles(["Admin"], "create a lender", ctx.accessMode), 403);
     // Workspace lock and deterministic ID make a repeated onboarding request safe.
     const id = digest(
         `onboarding:${session.workspace.id}:${session.owner}:${key}`,
@@ -1286,7 +1287,7 @@ export function createTeamAccessRepository(dependencies: Dependencies) {
     ).rows[0];
     if (found) {
       if (found.settings.onboardingFingerprint !== fingerprint)
-        fail("This setup request was already used for different details.", 409);
+        fail("This lender was already set up with different details. Reload the page and try again.", 409);
       return { lender: found.info, repeated: true };
     }
     // The journal does not record lender creation, so a creation whose answer was lost and is sent again after a reload
@@ -1301,7 +1302,7 @@ export function createTeamAccessRepository(dependencies: Dependencies) {
     ).rows[0];
     if (same)
       fail(
-        `A lender named "${same.name}" already exists in this workspace. Select it in the lender list, or choose another name.`,
+        `A lender named “${same.name}” already exists in this workspace. Choose it from the lender list, or use another name.`,
         409,
       );
     // 'team' access holds the workspace lock exclusively (lockWorkspace), so two creations at once are counted one after the other.
@@ -1314,7 +1315,7 @@ export function createTeamAccessRepository(dependencies: Dependencies) {
       ).rows[0]!.count;
       if (held >= SANDBOX_LENDER_LIMIT)
         fail(
-          `This sandbox already holds ${SANDBOX_LENDER_LIMIT} lenders, the most a sandbox can have. Continue with an existing lender; a staff workspace can hold more.`,
+          `This sandbox already has ${SANDBOX_LENDER_LIMIT} lenders, the most it can hold. Continue with a lender you already have.`,
           409,
         );
     }
@@ -1348,7 +1349,7 @@ export function createTeamAccessRepository(dependencies: Dependencies) {
       ctx,
       "lender.created",
       id,
-      "Created an empty synthetic lender for pilot rehearsal.",
+      "Created an empty lender. Sample data only.",
     );
     await saveState(ctx, state);
     return { lender: state.merchant, repeated: false };

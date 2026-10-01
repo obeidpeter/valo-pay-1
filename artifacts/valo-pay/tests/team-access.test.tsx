@@ -126,13 +126,13 @@ function liveTeam() {
     }
     if (path === "/team/invitations" && method === "POST") {
       state.invitations = [...state.invitations, { id: "i-2", email: body.email, role: body.role, status: "pending", expiresAt: at(7), invitedBy: "Clerk:user_admin", approval: "not_required", approvedBy: null }];
-      return { id: "i-2", token: "a".repeat(64), approval: "not_required", message: "Invitation created. Share the link directly with this person; no email has been sent. It expires in seven days." };
+      return { id: "i-2", token: "a".repeat(64), approval: "not_required", message: "Invitation created. No email has been sent, so share the link with this person yourself. It expires in 7 days." };
     }
     const decided = /^\/team\/changes\/([^/]+)\/(approve|decline)$/.exec(path);
     if (decided) {
       const request = state.changes.find((item) => item.id === decided[1])!;
       state.changes = state.changes.filter((item) => item !== request);
-      if (decided[2] === "decline") return { message: "Change request declined. The membership is unchanged." };
+      if (decided[2] === "decline") return { message: "Change request declined. Their access has not changed." };
       return { ...answered(version(request.memberId, request.to)), message: `Change approved: ${request.name} is now ${request.to.role} (${request.to.status}).`, pendingChange: null };
     }
     return undefined;
@@ -367,7 +367,7 @@ for (const first of ["Save lender access", "Save access change"] as const) it(`m
   await waitFor(() => expect(create.disabled).toBe(true));
   dropFocus();
   answerInvitation("applied");
-  const said = await screen.findByText(/^Invitation created\. Share the link directly/);
+  const said = await screen.findByText(/^Invitation created\. No email has been sent, so share the link with this person yourself\./);
   expect(old.isConnected).toBe(true);
   await waitFor(() => expect(document.activeElement).toBe(said));
 });
@@ -395,7 +395,7 @@ it("moves focus to the decision's message when Approve invitation, Approve chang
   for (const [button, said] of [
     ["Approve invitation", "Invitation approved: finance.new@example.test can now accept it as Finance."],
     ["Approve change", "Change approved: Chidi Ops is now Finance (active)."],
-    ["Reject change", "Change request declined. The membership is unchanged."],
+    ["Reject change", "Change request declined. Their access has not changed."],
   ] as const) {
     const pressed = within(panel).getAllByRole("button", { name: button })[0]!;
     await user.click(pressed);

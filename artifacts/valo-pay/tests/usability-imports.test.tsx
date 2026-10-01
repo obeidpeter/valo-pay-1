@@ -145,9 +145,9 @@ describe('UX-I02 shared form recovery and UX-I03 review correction', () => {
     await user.type(within(dialog).getByLabelText(/^Full name/), 'Sample name');
     await user.type(within(dialog).getByLabelText(/^Loan software reference/), 'UX-CONFLICT');
     await user.type(within(dialog).getByLabelText(/^Consent source or reference/), 'Synthetic consent');
-    api.failNext(/^\/v1\/records\/customers$/, { status: 409, error: 'Reference already exists. Use an idempotency key for safe replay.' }, 'POST');
+    api.failNext(/^\/v1\/records\/customers$/, { status: 409, error: 'This reference is already used. Enter a different reference.' }, 'POST');
     await user.click(within(dialog).getByRole('button', { name: 'Add customer' }));
-    await within(dialog).findByText('Reference already exists. Use an idempotency key for safe replay.');
+    await within(dialog).findByText('This reference is already used. Enter a different reference.');
     expect(within(dialog).queryByRole('button', { name: 'Discard draft and refresh' })).toBeNull();
     expect(within(dialog).getByLabelText(/^Loan software reference/)).toHaveProperty('value', 'UX-CONFLICT');
   });

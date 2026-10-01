@@ -12,7 +12,7 @@ import {
 export function staffMode(): boolean {
   const mode = process.env.VALOPAY_STAFF_ACCESS;
   if (mode && mode !== "off" && mode !== "staging")
-    throw Object.assign(new Error("Staff access configuration is invalid."), {
+    throw Object.assign(new Error("Team member sign-in is not set up correctly. Contact the Valo Pay team."), {
       status: 503,
     });
   return mode === "staging";
@@ -63,7 +63,7 @@ const httpsOrigin = (value: string) => {
 export function appOrigins(): string[] {
   const listed = (process.env.VALOPAY_APP_ORIGINS || "").split(",").map((v) => v.trim()).filter(Boolean);
   if (listed.length) {
-    if (!listed.every(httpsOrigin)) throw Object.assign(new Error("Application origin configuration is invalid."), { status: 503 });
+    if (!listed.every(httpsOrigin)) throw Object.assign(new Error("Sign-in is not set up correctly for this address. Contact the Valo Pay team."), { status: 503 });
     return listed;
   }
   return (process.env.REPLIT_DOMAINS || "").split(",").map((host) => `https://${host.trim().toLowerCase()}`).filter(httpsOrigin);

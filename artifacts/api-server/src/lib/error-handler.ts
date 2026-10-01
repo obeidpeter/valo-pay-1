@@ -71,15 +71,17 @@ const databaseCodes = ["23503", "23505", "23514", "P0001"];
 const characterCodes = ["22021", "22P05"];
 /** Network failures on the way to a service the request depends on: it could not be reached. */
 const networkCodes = new Set(["ECONNREFUSED", "ECONNRESET", "ENOTFOUND", "EAI_AGAIN", "ETIMEDOUT", "ECONNABORTED", "EHOSTUNREACH", "ENETUNREACH", "EPIPE", "UND_ERR_CONNECT_TIMEOUT", "UND_ERR_HEADERS_TIMEOUT", "UND_ERR_BODY_TIMEOUT", "UND_ERR_SOCKET"]);
-const GENERAL_FAILURE = "We could not confirm this action. Check Operations or retry the same request before submitting a new one.";
+// The console shows these as they are written: what happened, then what to do (docs/design/writing.md). A request
+// whose answer was lost is checked with "Check original request", on the notice or in Request history.
+const GENERAL_FAILURE = "We do not know yet whether Valo Pay saved this. Check the original request in Request history before you change anything.";
 const NOT_SAVED = "This action failed and nothing was saved. Try again, and quote this reference if it happens again.";
-const READ_FAILURE = "The service could not prepare this answer. Try again, and quote this reference if it happens again.";
-const SAVED_FAILURE = "This request was saved, but the service could not give its answer. Retry the same request, or check Operations, to see its saved result.";
-const RUNNING_FAILURE = "This request is still running. Wait a moment, then retry the same request or check Operations to see its result.";
-const UNREACHABLE = "A service this request depends on could not be reached. Try again shortly.";
-const MALFORMED_PATH = "The address is not valid: it holds a malformed percent-encoded character. Check the link and try again.";
+const READ_FAILURE = "Valo Pay could not load this. Try again, and quote this reference if it happens again.";
+const SAVED_FAILURE = "Valo Pay saved this request but could not send its answer. Check the original request in Request history to see the saved result.";
+const RUNNING_FAILURE = "This request is still running. Wait a moment, then check the original request in Request history to see its result.";
+const UNREACHABLE = "Valo Pay could not reach a system this request needs. Try again shortly.";
+const MALFORMED_PATH = "This address is not valid. Check the link and try again.";
 /** What became of a request whose key may have saved something, in one sentence. */
-const outcome = (state: OperationState | undefined) => state === "completed" ? "This request was saved." : state === "running" ? "This request is still running." : "Its outcome is not confirmed yet.";
+const outcome = (state: OperationState | undefined) => state === "completed" ? "This request was saved." : state === "running" ? "This request is still running." : "We do not know yet whether it was saved.";
 /** The wait a 429 names when its refusal carries none of its own: the request limit's minute. */
 const DEFAULT_RETRY_AFTER_SECONDS = 60;
 /** The wait after a service the request depends on could not be reached, as for an unavailable database. */
@@ -192,7 +194,7 @@ function describe(error: unknown, req: Parameters<ErrorRequestHandler>[1]): Answ
   const code = typeof failure.code === "string" ? failure.code : undefined;
   if (code && databaseCodes.includes(code)) {
     req.log.warn({ event: "request.rejected", status: 409, code }, "Database safety constraint rejected operation");
-    return { status: 409, body: { error: "This change conflicts with an existing record, protected evidence or an allocation limit. Refresh the record and check the details before trying again.", requestId } };
+    return { status: 409, body: { error: "This change conflicts with an existing record, saved evidence or an allocation limit. Reload the page, check the details and try again.", requestId } };
   }
   if (code && characterCodes.includes(code)) {
     req.log.info({ event: "request.rejected", status: 400, code }, "Text PostgreSQL cannot store was refused");
@@ -213,7 +215,7 @@ function describe(error: unknown, req: Parameters<ErrorRequestHandler>[1]): Answ
   // An upstream status (storage, identity) with none of our own is never the request's fault.
   if (!status && upstream >= 400) {
     req.log.error({ event: "request.failed", upstreamStatus: upstream, err: failure }, "A service this request depends on failed");
-    return unavailable(502, "A service this request depends on did not respond as expected. Try again shortly.");
+    return unavailable(502, "A system this request needs did not respond as expected. Try again shortly.");
   }
   // A dependency's error without a status is never the request's fault: a failure of the service, logged with its stack.
   if (!status && raisedByDependency(failure)) {
@@ -226,7 +228,7 @@ function describe(error: unknown, req: Parameters<ErrorRequestHandler>[1]): Answ
   req.log.info({ event: "request.rejected", status: answered, reason: failure.message }, "Request rejected");
   const wait = Number((failure as { retryAfterSeconds?: unknown }).retryAfterSeconds);
   const retry = answered === 429 ? { headers: { "Retry-After": String(Number.isInteger(wait) && wait > 0 ? wait : DEFAULT_RETRY_AFTER_SECONDS) } } : {};
-  return { status: answered, ...retry, body: { error: failure.message || "The operation was rejected.", requestId } };
+  return { status: answered, ...retry, body: { error: failure.message || "This request was refused.", requestId } };
 }
 
 /**

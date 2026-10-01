@@ -38,7 +38,7 @@ describe("performance", () => {
     queryClient.setDefaultOptions({ queries: { ...queryDefaults.queries, retryDelay: 0 } });
     try {
       const ada = api.state().records.find((record) => record.kind === "customers" && record.name === "Ada Okonkwo")!;
-      api.failNext(/\/history$/, { status: 503, error: "The service is busy. Try again in a moment." });
+      api.failNext(/\/history$/, { status: 503, error: "Valo Pay is busy. Try again in a moment." });
       renderApp(`/customers/${ada.id}`);
       expect(await screen.findByRole("heading", { name: "Ada Okonkwo" })).toBeTruthy();
       expect(api.calls.filter((call) => call.path.endsWith("/history")).map((call) => call.status)).toEqual([503, 200]);

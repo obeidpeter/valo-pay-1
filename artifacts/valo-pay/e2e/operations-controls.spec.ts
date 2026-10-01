@@ -117,7 +117,7 @@ for (const theme of ['light', 'dark'] as const) test(`new operations pages expos
       const setup = page.locator('details').filter({ has: page.getByRole('heading', { name: 'Technical setup', exact: true }) });
       await expect(setup).not.toHaveAttribute('open', '');
       await setup.getByRole('heading', { name: 'Technical setup', exact: true }).click();
-      await expect(page.getByText('No external wrapping key is configured in this offline test.', { exact: true })).toBeVisible();
+      await expect(page.getByText('Not set up. The Valo Pay team sets up an encryption key. No key is stored on this page.', { exact: true })).toBeVisible();
       await expect(page.getByRole('button', { name: 'Check the encryption key' })).toHaveCount(0);
     }
     await audit(page);

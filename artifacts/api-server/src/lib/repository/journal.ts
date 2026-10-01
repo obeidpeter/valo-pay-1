@@ -1,5 +1,7 @@
 /** Internal repository journal. Import through valopay-store; external access is rejected by the boundary check. */
-import { summariseRequest } from "../operation-summary";
+import { requestLabel, summariseRequest } from "../operation-summary";
+import { storedRequestLabel } from "../action-names";
+import { LENDER_NOT_FOUND, onlyRoles, sentWithAnotherRole } from "../refusal-words";
 import { requestFingerprint } from "../digests";
 import {
   markOperationClosed,
@@ -145,7 +147,8 @@ export function createJournalRepository(dependencies: Dependencies) {
       answered = textOrNull(row.receipt_id);
     return {
       id: row.id,
-      label: row.label,
+      // A label an earlier build stored as a spelled-out code reads in words.
+      label: storedRequestLabel(row.label),
       actor: row.actor,
       role: row.role,
       status: row.status,
@@ -153,12 +156,12 @@ export function createJournalRepository(dependencies: Dependencies) {
       updatedAt: row.updated_at.toISOString(),
       message:
         row.status === "completed"
-          ? "The service saved this request."
+          ? "Valo Pay saved this request."
           : row.status === "cancelled"
             ? row.rejected
-              ? `The service refused this request: ${objectField(row.rejected, "message")} Correct it and submit it again.`
-              : "Cancelled before completion. This request cannot run again."
-            : "Completion has not been confirmed. Check the original request.",
+              ? `Valo Pay refused this request: ${objectField(row.rejected, "message")} Correct it and send it again.`
+              : "Cancelled before it completed. This request cannot run again."
+            : "Valo Pay has not confirmed this request yet. Check the original request.",
       // Only a compact result reference. Original payloads and export locations stay private. The saved record's kind is
       // the lender's record's, else the answer's own, else its route's: an export's answer named the kind it exports
       // before the journal recorded the export itself, a sealed request names no route, and some answers name no kind.
@@ -228,11 +231,11 @@ export function createJournalRepository(dependencies: Dependencies) {
         );
       if (prior.request_hash !== hash)
         fail(
-          "This request key belongs to a different request. Recover the original request first.",
+          "This request was already sent with different details. Check the original request in Request history first.",
           409,
         );
       if (prior.actor !== ctx.actor || prior.role !== ctx.role)
-        fail("Return to the original role before checking this request.", 403);
+        fail(sentWithAnotherRole(ctx.accessMode), 403);
       return { id: prior.id, created: false };
     };
     const found = await existing();
@@ -246,7 +249,7 @@ export function createJournalRepository(dependencies: Dependencies) {
     if (raced) return raced;
     if (!(await receiptStored(session.client, merchantId, key, id))) unused?.();
     if (ctx.role === "Read-only")
-      fail("Your read-only role cannot submit operations.", 403);
+      fail(onlyRoles(["Admin", "Operations", "Finance", "Compliance reviewer"], "make changes", ctx.accessMode), 403);
     const count = Number(
       (
         await session.client.query<{ count: string }>(
@@ -257,19 +260,11 @@ export function createJournalRepository(dependencies: Dependencies) {
     );
     if (count >= 100)
       fail(
-        "Review your pending operations before submitting more requests.",
+        "You have 100 requests that Valo Pay has not confirmed. Check them in Request history before you send more.",
         409,
       );
-    const label =
-      request.path.includes("/actions") &&
-      request.body &&
-      typeof request.body === "object"
-        ? String(
-            (request.body as { action?: unknown }).action || "Workspace action",
-          )
-            .replaceAll("_", " ")
-            .slice(0, 100)
-        : `${request.method === "PATCH" ? "Update" : "Save"} ${request.path.split("/").filter(Boolean).slice(1, 3).join(" ").replaceAll("-", " ")}`;
+    // What Request history calls the request once it can no longer be read: its route or action in words.
+    const label = requestLabel(request);
     await session.client.query(
       `INSERT INTO valopay_operations(id,merchant_id,owner,actor,role,request_key,request_hash,request,label,created_at,updated_at)
     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10)`,
@@ -335,8 +330,8 @@ export function createJournalRepository(dependencies: Dependencies) {
       }
     }
     return typeof reason === "string" && reason.trim()
-      ? `The service refused this request and saved nothing: ${reason.trim()} It cannot run again; review the latest records and submit a new request.`
-      : "This request was cancelled before it completed and saved nothing. It cannot run again; review the latest records and submit a new request.";
+      ? `Valo Pay refused this request and saved nothing: ${reason.trim()} It cannot run again. Check the latest records, then send a new request.`
+      : "This request was cancelled before it completed, and nothing was saved. It cannot run again. Check the latest records, then send a new request.";
   }
   // The journal is read without the lender's lock: a busy lender never holds up Operations, a retry or a cancel's checks.
   async function listOperations(
@@ -394,15 +389,15 @@ export function createJournalRepository(dependencies: Dependencies) {
         [id, merchantId, session.owner || session.principal],
       )
     ).rows[0];
-    if (!row) fail("Request not found in your lender history.", 404);
-    if (row.actor !== ctx.actor || row.role !== ctx.role)
+    if (!row)
       fail(
-        "This request was submitted under a different role. Your current role cannot repeat it.",
-        403,
+        "Request not found. It may belong to another lender, or to another person.",
+        404,
       );
+    if (row.actor !== ctx.actor || row.role !== ctx.role) fail(sentWithAnotherRole(ctx.accessMode), 403);
     if (row.purged)
       fail(
-        "This terminal request payload expired under the lender retention policy. Its identity and completion history are retained; it cannot run again.",
+        "The details of this request were deleted under the lender’s retention policy, so it cannot run again. Request history keeps its record.",
         410,
       );
     return row;
@@ -493,14 +488,14 @@ export function createJournalRepository(dependencies: Dependencies) {
     const row = await operationEntry(ctx, merchantId, id);
     if (row.status === "completed")
       fail(
-        "This request already completed. Refresh Operations to see its saved result.",
+        "This request has already completed. Reload Request history to see its saved result.",
         409,
       );
     if (
       await receiptStored(session.client, merchantId, row.request_key, row.id)
     )
       fail(
-        "A receipt already exists for this request. Check the original request to recover it.",
+        "This request already has a saved result. Check the original request to see it.",
         409,
       );
     await session.client.query(
@@ -509,7 +504,7 @@ export function createJournalRepository(dependencies: Dependencies) {
     );
     return {
       message:
-        "The server confirmed this request has not completed and cancelled it. It cannot run again.",
+        "Valo Pay confirmed this request had not completed, and cancelled it. It cannot run again.",
     };
   }
   /** Resolve only this person's exact key and original role, without returning its private request body. */
@@ -548,7 +543,7 @@ export function createJournalRepository(dependencies: Dependencies) {
     const session = sessionFor(ctx);
     await readMerchant(ctx, merchantId, "none");
     if (ctx.role === "Read-only")
-      fail("Your read-only role cannot cancel operations.", 403);
+      fail(onlyRoles(["Admin", "Operations", "Finance", "Compliance reviewer"], "cancel requests", ctx.accessMode), 403);
     const owner = session.owner || session.principal,
       id = digest(`operation:${merchantId}:${owner}:${input.key}`);
     await session.client.query(
@@ -565,7 +560,7 @@ export function createJournalRepository(dependencies: Dependencies) {
     if (found) return cancelOperation(ctx, merchantId, id);
     if (await receiptStored(session.client, merchantId, input.key, id))
       fail(
-        "A receipt already exists for this request. Check the original request to recover it.",
+        "This request already has a saved result. Check the original request to see it.",
         409,
       );
     const fence = {
@@ -595,7 +590,7 @@ export function createJournalRepository(dependencies: Dependencies) {
     );
     return {
       message:
-        "The server cancelled this request key. Even if the original request arrives later, it cannot run. You can now prepare a new submission.",
+        "Valo Pay cancelled this request. Even if the original arrives later, it will not run. You can now send the change again.",
     };
   }
   /**
@@ -771,7 +766,10 @@ export function createJournalRepository(dependencies: Dependencies) {
         "This request was cancelled before it completed. Nothing was saved, and it cannot run again.",
         409,
       );
-    fail("The recovery request no longer belongs to this session.", 409);
+    fail(
+      "This request is no longer waiting to be saved. Reload Request history to see where it stands.",
+      409,
+    );
   }
 
   /** The stored answer for an idempotency key, when the request was already made: kept under `id` (receiptOf), or
@@ -804,7 +802,7 @@ export function createJournalRepository(dependencies: Dependencies) {
     ).rows[0];
     if (objectField(found?.response, "purged"))
       fail(
-        "This request already completed and its retained payload has expired. It cannot run again.",
+        "This request has already completed, and its saved details have since been deleted. It cannot run again.",
         410,
       );
     return found
@@ -849,7 +847,7 @@ export function createJournalRepository(dependencies: Dependencies) {
       session.workspace.id,
       session.principal,
     ]);
-    if (!owned.rows[0]) fail("Lender not found in this workspace.", 404);
+    if (!owned.rows[0]) fail(LENDER_NOT_FOUND, 404);
     try {
       const inserted = await session.client.query(
         `INSERT INTO valopay_idempotency(id,merchant_id,request_hash,response)
@@ -870,11 +868,13 @@ export function createJournalRepository(dependencies: Dependencies) {
         ],
       );
       if (!rowsAffected(inserted))
-        fail("Lender not found in this workspace.", 404);
+        fail(LENDER_NOT_FOUND, 404);
       await completeOperation(context, response);
     } catch (error) {
       if (objectField(error, "code") === "23505")
-        conflict("This idempotency key is already in use.");
+        conflict(
+          "This request is already being saved. Wait a moment, then check the original request.",
+        );
       throw error;
     }
   }

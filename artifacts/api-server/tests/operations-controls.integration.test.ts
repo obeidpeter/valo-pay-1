@@ -170,10 +170,10 @@ try{
   // Pending entries are limited per person and lender; closed ones do not count towards the limit.
   await pool.query("INSERT INTO valopay_operations(id,merchant_id,owner,actor,role,request_key,request_hash,request,label) SELECT 'cap-'||i,$1,$2,$3,$4,'cap-key-'||i,'cap-hash','{}','Cap fixture' FROM generate_series(1,99) i",[lender,pending.owner,pending.actor,pending.role]);
   const capped=await post(customerPath,{name:"Beyond the pending limit"});
-  assert.equal(capped.status,409);assert.match(String((capped.data as {error?:string}).error),/pending operations/);
+  assert.equal(capped.status,409);assert.match(String((capped.data as {error?:string}).error),/^You have 100 requests that Valo Pay has not confirmed\. Check them in Request history before you send more\.$/);
   await pool.query("UPDATE valopay_operations SET status='cancelled' WHERE merchant_id=$1 AND id LIKE 'cap-%'",[lender]);
   assert.equal((await post(customerPath,{name:"Beyond the pending limit"})).status,400,"Closed entries free the limit; the request is then refused on its own merits.");
-  await pool.query("DELETE FROM valopay_operations WHERE merchant_id=$1 AND (id LIKE 'cap-%' OR label='Save records customers' AND status='cancelled' AND id<>$2)",[lender,cancelled.id]);
+  await pool.query("DELETE FROM valopay_operations WHERE merchant_id=$1 AND (id LIKE 'cap-%' OR label IN ('Save records customers','Add a record') AND status='cancelled' AND id<>$2)",[lender,cancelled.id]);
   ok(await post(`/v1/operations/${cancelled.id}/cancel?merchantId=${lender}`,{}));
   await pool.query("UPDATE valopay_operations SET updated_at=$3::timestamptz WHERE merchant_id=$1 AND id=ANY($2::text[])",[lender,[completed.id,cancelled.id,pending.id],at(30)]);
   await pool.query("UPDATE valopay_records SET data=jsonb_set(data,'{committedAt}',to_jsonb($3::text)),updated_at=$3::timestamptz WHERE id=$1 AND merchant_id=$2",[batch.id,lender,at(30)]);

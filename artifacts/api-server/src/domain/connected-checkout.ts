@@ -9,6 +9,7 @@ import {
 } from "./reconciliation";
 import { dueNeedsReversalReview } from "./reversal-review";
 import { allow, owned, reject, intentOpen, externalScheduled } from "./connected-context";
+import { notFound } from "../lib/refusal-words";
 
 /** A step in a checkout's journey: its new status and what happened, in its event history. */
 function recordEvent(
@@ -40,7 +41,7 @@ function recordCheckoutReceipt(
 ) {
   const reference = `SYN-A2A-${intent.id}`;
   const payment = makeRecord(state, "payments", {
-    name: "Confirmed sample pay-by-bank receipt",
+    name: "Confirmed sample Pay by Bank payment",
     status: "unallocated",
     reference,
     customerId: intent.customerId,
@@ -96,8 +97,8 @@ function recordCheckoutReceipt(
       "certain",
       true,
       evidenceReference
-        ? `Finance confirmed the payment with evidence ${evidenceReference} after its outcome stayed unknown; the amount, beneficiary and instalment are bound to the checkout.`
-        : "Server simulator confirmed the amount, beneficiary and bound instalment.",
+        ? `Finance confirmed the payment with evidence ${evidenceReference} after its outcome was unknown. The amount, recipient and instalment come from the checkout.`
+        : "The sample bank confirmed the amount, recipient and instalment.",
     );
   if (Number(payment.data.allocatedKobo || 0) < payment.amountKobo)
     raiseException(state, ctx, "unallocated_payment", {
@@ -106,7 +107,7 @@ function recordCheckoutReceipt(
       amountKobo:
         payment.amountKobo - Number(payment.data.allocatedKobo || 0),
       notes:
-        "A late sample payment needs Finance review. Never collect the same instalment again.",
+        "A sample payment arrived late. Finance must review it before anything more is collected for this instalment.",
     });
   intent.data.paymentId = payment.id;
   intent.data.observationId = observation.id;
@@ -167,7 +168,7 @@ export function paymentAction(
   input: ConnectedAction,
   cleared: RecordOf<"exceptions">[],
 ) {
-  allow(ctx, ["Admin", "Operations", "Finance"]);
+  allow(ctx, ["Admin", "Operations", "Finance"], "work on checkouts");
   if (input.action === "payment.create") {
     const { dueItemId, amountKobo } = z
       .object({
@@ -195,7 +196,7 @@ export function paymentAction(
       )
     )
       reject(
-        "Another instruction is scheduled externally, pending or has an unknown outcome. Confirm its cancellation or resolve its outcome before creating a checkout.",
+        "Another payment for this instalment is scheduled, in progress or has an unknown outcome. Cancel it or resolve its outcome before you create a checkout.",
         409,
       );
     const draft = state.records.find(
@@ -234,11 +235,11 @@ export function paymentAction(
   if (input.action === "payment.authorise") {
     if (dueNeedsReversalReview(state, due)) reject("This instalment is held for renewed Finance review of an earlier reversal decision. Resolve that review and run reconciliation before authorising a checkout.", 409);
     if (intent.status !== "created")
-      reject("Only a new checkout can be authorised.", 409);
+      reject("This checkout is no longer new, so it cannot be authorised. Reload the page to see its status.", 409);
     if (Date.parse(String(intent.data.expiresAt)) <= Date.parse(ctx.now))
       reject("This checkout expired. Cancel it and create a new one.", 409);
     if (state.merchant.killSwitch)
-      reject("The workspace emergency stop is on.", 403);
+      reject("The emergency stop is on, so this payment cannot be authorised. An Admin can turn it off in Settings.", 403);
     if (
       intent.amountKobo > Number(due.data.outstandingKobo ?? due.amountKobo) ||
       ["paid", "cancelled", "closed", "in_dispute"].includes(due.status)
@@ -258,7 +259,7 @@ export function paymentAction(
       )
     )
       reject(
-        "Another instruction is scheduled externally or in flight. Authorisation is held until cancellation or outcome evidence prevents a duplicate collection.",
+        "Another payment for this instalment is scheduled or in progress. This checkout can be authorised once that payment is cancelled or its outcome is known, so the instalment is not collected twice.",
         409,
       );
     for (const r of state.records.filter(
@@ -270,7 +271,7 @@ export function paymentAction(
     )) {
       r.status = "cancelled";
       r.data.cancellationReason =
-        "Replaced by a separately authorised sample pay-by-bank checkout.";
+        "Replaced by a sample Pay by Bank checkout the customer authorised.";
       touch(r, ctx.now);
     }
     const consent = makeRecord(state, "connected-consents", {
@@ -295,23 +296,23 @@ export function paymentAction(
     intent.data.consentId = consent.id;
     return event(
       "authorised",
-      "Sample bank authorisation recorded. No money was moved.",
+      "Sample bank authorisation recorded. No money moved.",
     );
   }
   if (input.action === "payment.cancel") {
     if (intent.status !== "created")
       reject(
-        "Only an unauthorised checkout can be cancelled. An in-flight payment must be reconciled.",
+        "You can cancel a checkout only before it is authorised. For a payment in progress, record its outcome instead.",
         409,
       );
     return event("cancelled", input.reason);
   }
   if (input.action === "payment.return") {
     if (!["authorised", "pending"].includes(intent.status))
-      reject("Return is available only after sample authorisation.", 409);
+      reject("You can simulate the return from the bank only after the payment is authorised.", 409);
     return event(
       "pending",
-      "Browser returned. Payment is not confirmed; awaiting provider evidence.",
+      "The customer returned from their bank. The payment is not confirmed yet; Valo Pay is waiting for the provider.",
     );
   }
   if (input.action === "payment.outcome") {
@@ -321,12 +322,12 @@ export function paymentAction(
       .parse(input.data);
     if (intent.status === "confirmed" && outcome === "confirmed") return intent;
     if (!["authorised", "pending", "unknown"].includes(intent.status))
-      reject("This checkout is not waiting for a provider outcome.", 409);
+      reject("This checkout is not waiting for an outcome from the provider. Reload the page to see its status.", 409);
     if (outcome !== "confirmed") {
       event(
         outcome,
         outcome === "unknown"
-          ? "Sample provider did not establish the outcome. Query again; do not retry payment."
+          ? "The sample provider could not confirm the outcome. Check again later; do not start a new payment."
           : "Sample provider confirmed that payment failed.",
       );
       // A late answer to an outcome that stayed unknown clears its exception.
@@ -337,15 +338,15 @@ export function paymentAction(
     recordCheckoutReceipt(state, ctx, intent, due);
     event(
       "confirmed",
-      "Sample server receipt confirmed and added to collections reconciliation.",
+      "Sample payment confirmed and added to Reconciliation.",
     );
     cleared.push(...clearSettledExceptions(state, ctx));
     return intent;
   }
   if (input.action === "payment.refund_request") {
-    allow(ctx, ["Admin", "Operations"]);
+    allow(ctx, ["Admin", "Operations"], "request a refund");
     if (intent.status !== "confirmed")
-      reject("Only a confirmed payment can be requested for refund.", 409);
+      reject("You can request a refund only for a confirmed payment.", 409);
     if (intent.data.refundRequest)
       reject("A refund request is already recorded.", 409);
     intent.data.refundRequest = {
@@ -360,19 +361,19 @@ export function paymentAction(
     input.action === "payment.refund_confirm" ||
     input.action === "payment.reverse"
   ) {
-    allow(ctx, ["Finance"]);
+    allow(ctx, ["Finance"], input.action === "payment.refund_confirm" ? "confirm a refund" : "record a reversal");
     if (intent.status !== "confirmed")
-      reject("Only a confirmed receipt can be adjusted.", 409);
+      reject("You can record a refund or reversal only for a confirmed payment.", 409);
     if (
       input.action === "payment.refund_confirm" &&
       (!intent.data.refundRequest ||
         intent.data.refundRequest.maker === ctx.actor)
     )
-      reject("A different maker must request the refund first.", 403);
+      reject("Someone other than you must request the refund before you confirm it.", 403);
     const payment =
       recordsOf(state, "payments").find(
         (r) => r.id === intent.data.paymentId,
-      ) ?? reject("Receipt not found.", 404);
+      ) ?? reject(notFound("Payment"), 404);
     const refund = input.action === "payment.refund_confirm";
     // The money went back: the payment leaves the allocation queues and is no longer customer credit.
     if (refund) {
@@ -390,7 +391,7 @@ export function paymentAction(
         ctx,
         payment,
         input.reason,
-        "Finance recorded sample reversal evidence for the pay-by-bank receipt",
+        "Finance recorded sample reversal evidence for the Pay by Bank payment",
       );
     cleared.push(...clearSettledExceptions(state, ctx));
     return event(
@@ -398,5 +399,5 @@ export function paymentAction(
       `${input.reason} (sample evidence only)`,
     );
   }
-  reject("Unknown payment action.");
+  reject("This Pay by Bank action is not available.");
 }

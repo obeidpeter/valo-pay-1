@@ -6,6 +6,8 @@ import type { ExportInput } from './valopay-exports';
 import { reviewedCloseEvidence } from '../domain/close-review';
 import { sensitiveExportKinds, sensitiveExportRefusal } from '@workspace/valopay-schema';
 import { rolePermits } from './pilot-access';
+import { notFound, onlyRoles } from './refusal-words';
+import { recordTypesName } from './action-names';
 
 export const EXPORT_LEASE_MS = 5 * 60_000;
 export const MAX_EXPORT_BYTES = 32 * 1024 * 1024;
@@ -39,13 +41,15 @@ export interface ExportJobView {
   stage: ExportStage; lastProgressAt: string; stalled: boolean; retryAllowed: boolean; recoveryAt?: string;
 }
 const fail = (message: string, status: number, details: { retryAfterSeconds?: number } = {}): never => { throw Object.assign(new Error(message), { status }, details); };
+/** Every role but Read-only, which may only download exports already made. */
+const EXPORT_MAKER_ROLES = ['Admin', 'Operations', 'Finance', 'Compliance reviewer'] as const;
 
 /** export_sensitive (lib/pilot-access.ts): a dispute pack, the customer register or the audit trail is queued, retried and downloaded only by an Admin, Finance or Compliance reviewer; anyone else is refused (403) in plain words. */
 export function assertExportPermitted(role: string, kind: unknown): void {
   if ((sensitiveExportKinds as readonly unknown[]).includes(kind) && !rolePermits(role, 'export_sensitive')) fail(sensitiveExportRefusal, 403);
 }
 export function findExportJob(state: DomainState, id: string): ValopayRecord {
-  return state.records.find(record => record.kind === 'exports' && record.id === id) ?? fail('Export not found in this lender.', 404);
+  return state.records.find(record => record.kind === 'exports' && record.id === id) ?? fail(notFound('Export'), 404);
 }
 /** Internal storage identifiers and lease credentials are never sent to the console or exported as data. */
 export function publicExportRecord(record: ValopayRecord): ValopayRecord {
@@ -69,21 +73,21 @@ export function exportJobView(record: ValopayRecord, now = new Date().toISOStrin
     ...(record.data.fileDeletedAt ? {expiredAt:String(record.data.fileDeletedAt), ...(record.data.fileRetentionRunId ? {retentionRunId:String(record.data.fileRetentionRunId)} : {})} : {}),
     downloadUrl: `/api/v1/exports/${record.id}/download?merchantId=${encodeURIComponent(record.merchantId)}`,
     ...(ready ? { checksum: String(record.data.checksum), generatedAt: String(record.data.generatedAt || record.createdAt), byteLength: Number(record.data.byteLength || 0), generationMs: Number(record.data.generationMs || 0) } : {}),
-    ...(record.status === 'failed' ? { error: String(record.data.lastError || 'Export generation could not finish. Retry this export.') } : {}),
+    ...(record.status === 'failed' ? { error: String(record.data.lastError || 'This export could not be prepared. Retry it.') } : {}),
   };
 }
 /** Queueing writes metadata only; no rendering, object-storage calls or credentials belong in this transaction. */
 export function queueExport(state: DomainState, ctx: Context, input: ExportInput, privateDirectory: string): ExportJobView {
   // A sensitive kind is refused first, so a Read-only person is not told they may download it.
   assertExportPermitted(ctx.role, input.kind);
-  if (ctx.role === 'Read-only') fail('Your read-only role may download existing exports. Ask a colleague to generate new evidence.', 403);
+  if (ctx.role === 'Read-only') fail(onlyRoles(EXPORT_MAKER_ROLES, 'create exports', ctx.accessMode, 'You can still download exports already made.'), 403);
   const review = input.kind === 'reviewed-close' ? reviewedCloseEvidence(state, input.closeReviewId || '', true) : undefined;
-  if (!privateDirectory || !/^\/?[^/]+\/.+/.test(privateDirectory)) fail('Private export storage is not configured. Contact the workspace administrator.', 503);
-  if (input.customerId && !state.records.some(record => record.kind === 'customers' && record.id === input.customerId)) fail('Customer not found in this lender.', 404);
-  if (state.records.filter(record => record.kind === 'exports' && ['queued', 'running'].includes(record.status)).length >= EXPORT_QUEUE_LIMIT) fail('Ten exports are already waiting or running for this lender. Wait for one to finish before starting another.', 429, { retryAfterSeconds: EXPORT_QUEUE_RETRY_AFTER_SECONDS });
+  if (!privateDirectory || !/^\/?[^/]+\/.+/.test(privateDirectory)) fail('Exports are not set up yet. Contact the Valo Pay team.', 503);
+  if (input.customerId && !state.records.some(record => record.kind === 'customers' && record.id === input.customerId)) fail(notFound('Customer'), 404);
+  if (state.records.filter(record => record.kind === 'exports' && ['queued', 'running'].includes(record.status)).length >= EXPORT_QUEUE_LIMIT) fail('10 exports are already waiting or in progress for this lender. Wait for one to finish, then try again.', 429, { retryAfterSeconds: EXPORT_QUEUE_RETRY_AFTER_SECONDS });
   const id = randomUUID(), parts = privateDirectory.replace(/^\//, '').replace(/\/+$/, '').split('/'), bucket = parts.shift()!;
   const objectName = `${parts.join('/')}/exports/${state.merchant.id}/${id}.${input.format}`;
-  return exportJobView(makeRecord(state, 'exports', { id, name: `${input.kind} · ${input.format.toUpperCase()}`, status: 'queued', customerId: input.customerId || '', createdAt: ctx.now, updatedAt: ctx.now,
+  return exportJobView(makeRecord(state, 'exports', { id, name: `${recordTypesName(input.kind)} (${input.format.toUpperCase()})`, status: 'queued', customerId: input.customerId || '', createdAt: ctx.now, updatedAt: ctx.now,
     data: { kind: input.kind, format: input.format, usedInRealCase: false, requestedBy: ctx.actor, requestedRole: ctx.role, attempts: 0, bucket, objectName, stage: 'queued', lastProgressAt: ctx.now,
       ...(review ? {closeReviewId:review.id,closeSnapshotDigest:review.data.snapshotDigest} : {}) } }), ctx.now);
 }
@@ -93,8 +97,8 @@ export function exportIsClaimable(record: ValopayRecord, now: string): boolean {
 export function retryExport(state: DomainState, ctx: Context, id: string): ExportJobView {
   const record = findExportJob(state, id);
   assertExportPermitted(ctx.role, record.data.kind);
-  if (ctx.role === 'Read-only') fail('Your read-only role may download existing exports. Ask a colleague to retry evidence generation.', 403);
-  if(record.data.fileDeletedAt)fail('This export file expired under the retention policy. Start a new export if current evidence is needed.',410);
+  if (ctx.role === 'Read-only') fail(onlyRoles(EXPORT_MAKER_ROLES, 'retry exports', ctx.accessMode, 'You can still download exports already made.'), 403);
+  if(record.data.fileDeletedAt)fail('This export file was deleted under the lender’s retention policy. Create a new export if you need the file.',410);
   if (record.status === 'ready' || record.status === 'queued') return exportJobView(record, ctx.now);
   if (record.status === 'running' && !exportIsClaimable(record, ctx.now)) return exportJobView(record, ctx.now);
   returnExportToQueue(record, ctx.now);
@@ -174,7 +178,7 @@ export async function processExportJob(repository: ExportJobRepository, storage:
       if (rendering) return rendering;
       const generated = await generate(claim, signal);
       signal.throwIfAborted();
-      if (generated.bytes.length > MAX_EXPORT_BYTES) throw Object.assign(new Error('Export exceeds the 32 MB file limit. Export a customer pack or a smaller record category.'), { exportTooLarge: true });
+      if (generated.bytes.length > MAX_EXPORT_BYTES) throw Object.assign(new Error('This export would be larger than 32 MB. Export a dispute pack for one customer, or a smaller type of record.'), { exportTooLarge: true });
       const uploading = await progress('uploading');
       if (uploading) return uploading;
       try { await storage.put(claim, generated.bytes, generated.artifact, signal); artifact = generated.artifact; }
@@ -194,10 +198,10 @@ export async function processExportJob(repository: ExportJobRepository, storage:
     // hand the claim back for the next worker.
     if (options.signal?.aborted) return await release('stopping', 'released');
     const message = (error as { exportPdfFieldTooLarge?: boolean })?.exportPdfFieldTooLarge
-      ? 'A field is too long to lay out safely in PDF. Choose JSON or CSV to preserve the complete record.'
+      ? 'A field is too long to fit in a PDF. Choose CSV or JSON to keep the whole record.'
       : (error as { exportTooLarge?: boolean })?.exportTooLarge
-      ? 'Export exceeds the 32 MB file limit. Export a customer pack or a smaller record category.'
-      : 'Export generation could not finish. Retry this export. If it fails again, contact the workspace administrator.';
+      ? 'This export would be larger than 32 MB. Export a dispute pack for one customer, or a smaller type of record.'
+      : 'This export could not be prepared. Retry it, and if it fails again, contact the Valo Pay team.';
     // A stop is handled above. A failure the lender stays too busy to record goes back to the queue, as a busy progress
     // write does. If the database is unavailable, leave the durable running lease to expire and recover on a later poll.
     try {
