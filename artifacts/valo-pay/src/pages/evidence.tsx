@@ -123,7 +123,7 @@ export default function EvidencePage() {
           <h1 className="text-3xl font-bold tracking-tight">Go-live evidence</h1>
           <p className="text-muted-foreground mt-1">Track the go-live requirements, the commercial terms and the evidence for each decision. Sample data cannot show that you are ready to go live.</p>
         </div>
-        <ExportJobControl kind="gate-pack" formats={['pdf']} label="Export evidence pack" />
+        <ExportJobControl kind="gate-pack" formats={['pdf']} label="Export Go-live evidence pack (PDF)" />
       </header>
 
       {/* Gates */}

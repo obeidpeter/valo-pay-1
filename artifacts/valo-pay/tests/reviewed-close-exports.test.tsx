@@ -24,7 +24,7 @@ const page = () => `/close-review?close=${encodeURIComponent(closeId)}`;
 
 it('queues the exact approved review and resumes its download despite newer exports for other reviews', async () => {
   const user = userEvent.setup(), view = renderApp(page());
-  await user.click(await screen.findByRole('button', { name: 'Export reviewed close (JSON)' }));
+  await user.click(await screen.findByRole('button', { name: 'Export reviewed close evidence (JSON)' }));
   await screen.findByText('Reviewed close evidence: Waiting');
   const job = api.state().records.find(record => record.kind === 'exports')!;
   expect(job.data.closeReviewId).toBe(reviewId);
@@ -61,7 +61,7 @@ it('keeps a malformed committed receipt uncertain and replays the original revie
   renderApp(page());
   await user.click(await screen.findByRole('button', { name: 'PDF' }));
   await screen.findByRole('button', { name: 'Check original request' });
-  expect(screen.getByRole('button', { name: 'Export reviewed close (JSON)' }).hasAttribute('disabled')).toBe(true);
+  expect(screen.getByRole('button', { name: 'Export reviewed close evidence (JSON)' }).hasAttribute('disabled')).toBe(true);
   expect(screen.getByRole('button', { name: 'PDF' }).hasAttribute('disabled')).toBe(true);
   expect(screen.queryByRole('link', { name: 'Open reviewed close evidence' })).toBeNull();
   expect(window.open).not.toHaveBeenCalled();
@@ -107,7 +107,7 @@ for (const status of ['ready', 'failed']) it(`lets a read-only reviewer inspect 
   const job = api.mutate((state, ctx) => queueExport(state, ctx, { kind: 'reviewed-close', closeReviewId: reviewId, format: 'json' }, 'sample/private'));
   api.mutate(state => { const saved = state.records.find(record => record.id === job.id)!; saved.status = status; Object.assign(saved.data, { checksum: 'd'.repeat(64), generatedAt: api.now, lastError: 'Generation could not finish.', byteLength: 123 }); });
   api.role = 'Read-only'; renderApp(page());
-  const create = await screen.findByRole('button', { name: 'Export reviewed close (JSON)' });
+  const create = await screen.findByRole('button', { name: 'Export reviewed close evidence (JSON)' });
   expect(create.hasAttribute('disabled')).toBe(true);
   expect(screen.getByRole('button', { name: 'PDF' }).hasAttribute('disabled')).toBe(true);
   if (status === 'ready') expect((await screen.findByRole('link', { name: 'Open reviewed close evidence' })).getAttribute('href')).toContain(job.id);

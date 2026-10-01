@@ -439,7 +439,7 @@ export const helpGuides: HelpGuide[] = [
     steps: [
       "Open Reports and choose a view: Totals and closes, Billing or Pilot results.",
       "In Totals and closes, select Run daily close to save the day’s reconciliation results and open exceptions. Then prepare the close for review in Close review.",
-      "In Billing, check the statement for the billing month. Select Export billing CSV to download it.",
+      "In Billing, check the statement for the billing month. Select Export billing statement (CSV) to download it.",
       "In Pilot results, read what was measured. Results from sample data do not show live performance.",
     ],
     result:

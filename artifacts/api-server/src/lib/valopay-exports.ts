@@ -9,7 +9,7 @@ import { collectExportBytes, readExportBytes, readExportMetadata, writeExportByt
 import { buildDisputePack, disputePackCsv, packFonts, renderDisputePackPdf, type DisputePack } from "./valopay-packs";
 import { MAX_EXPORT_BYTES, publicExportRecord, type ClaimedExport, type ExportArtifact, type ExportJobStorage } from './export-jobs';
 import { reviewedCloseEvidence } from '../domain/close-review';
-import { notFoundText, recordTypeTitle } from "@workspace/valopay-schema";
+import { exportKindName, notFoundText } from "@workspace/valopay-schema";
 
 /** CSV downloads are UTF-8 and start with the byte order mark, which is what spreadsheet programs look for before they read accented letters correctly on opening; the importer skips it (csv-parse `bom`). */
 const CSV_BOM="\uFEFF";
@@ -44,9 +44,9 @@ async function pdfBytes(title:string,data:unknown,signal?:AbortSignal):Promise<B
   } catch(error) { document.destroy(error instanceof Error?error:new Error(String(error))); }
   return result;
 }
-/** A PDF export's title in words: the packs by the names Saved exports gives them, a record kind as its plural. */
+/** A PDF export's title in words: the one name its saved export and the console give it (exportKindName). */
 function exportTitle(kind:string):string{
- return kind==="gate-pack"?"Go-live evidence pack":kind==="reviewed-close"?"Reviewed close evidence":kind==="billing"?"Billing statement":recordTypeTitle(kind,2);
+ return exportKindName(kind);
 }
 /** The export kinds that are a customer's dispute pack (customer-pack is the older name). */
 export const packKinds=["customer-pack","dispute-pack"] as const;

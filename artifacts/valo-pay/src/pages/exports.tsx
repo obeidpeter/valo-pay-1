@@ -3,21 +3,19 @@ import { Link, useSearchParams } from 'wouter';
 import { useListRecords, getListRecordsQueryKey } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useWorkspace } from '@/lib/workspace-context';
-import { ExportJobControl, exportKindTitle, exportStatusLabel, exportStatusLabels } from '@/components/export-job-control';
+import { ExportJobControl, exportStatusLabel, exportStatusLabels } from '@/components/export-job-control';
+import { exportName } from '@workspace/valopay-schema';
 import { PilotError, PilotHeading, PilotPanel, pilotField } from '@/components/pilot-ui';
-import { readableLabel } from '@/components/record-label';
 import { Button } from '@/components/ui/button';
 import { PageButtons } from '@/components/record-pagination';
 import { keepRowsWhilePaging } from '@/lib/use-record-pagination';
 import { formatDate, formatNumber } from '@/lib/formatters';
 import { useFocusWhenLost } from '@/lib/focus';
 
-/** A saved export named by what it holds and its format ("Dispute pack (JSON)"), not by its machine name ("dispute-pack · JSON"). */
-function exportName(record: { name: string; data: Record<string, unknown> }): string {
-  const kind = String(record.data.kind || ''), format = String(record.data.format || '').toUpperCase();
-  if (!kind) return record.name;
-  const what = exportKindTitle(kind, readableLabel(kind));
-  return format && !what.toUpperCase().endsWith(` ${format}`) ? `${what} (${format})` : what;
+/** A saved export named by what it holds and its format ("Dispute pack (JSON)"), as the service names it, not by its machine name ("dispute-pack · JSON"). */
+function savedExportName(record: { name: string; data: Record<string, unknown> }): string {
+  const kind = String(record.data.kind || '');
+  return kind ? exportName(kind, record.data.format) : record.name;
 }
 
 export default function ExportsPage() {
@@ -59,14 +57,14 @@ function SavedExports() {
         {list.error && list.data && <p role="status" className="text-sm text-muted-foreground">Showing the last loaded export history. Try again to check for updates.</p>}
         {!list.data && !list.error && <p role="status">Loading saved exports…</p>}
         {list.data && !list.data.items.length && !list.error && <p className="text-sm text-muted-foreground">{status !== 'all' ? 'No exports match this status. Choose All exports in Export status to see every export for this lender.' : offset > 0 ? 'No exports on this page. Select Previous exports to go back.' : 'No exports yet. To create one, open a customer, Reports or an approved close review.'}</p>}
-        {list.data && list.data.items.length > 0 && <ul className="max-h-[36rem] space-y-2 overflow-y-auto p-1">{list.data.items.map(record=><li key={record.id}><Link href={`/exports?status=${status}&offset=${offset}&job=${encodeURIComponent(record.id)}`} aria-current={selected?.id===record.id?'page':undefined} className={`block rounded-lg border p-3 text-sm ${selected?.id===record.id?'border-primary bg-primary/5':''}`}><p className="font-semibold break-words">{exportName(record)}</p><p className="mt-1 text-xs text-muted-foreground">{formatDate(record.createdAt)} · {exportStatusLabel(record)}</p></Link></li>)}</ul>}
+        {list.data && list.data.items.length > 0 && <ul className="max-h-[36rem] space-y-2 overflow-y-auto p-1">{list.data.items.map(record=><li key={record.id}><Link href={`/exports?status=${status}&offset=${offset}&job=${encodeURIComponent(record.id)}`} aria-current={selected?.id===record.id?'page':undefined} className={`block rounded-lg border p-3 text-sm ${selected?.id===record.id?'border-primary bg-primary/5':''}`}><p className="font-semibold break-words">{savedExportName(record)}</p><p className="mt-1 text-xs text-muted-foreground">{formatDate(record.createdAt)} · {exportStatusLabel(record)}</p></Link></li>)}</ul>}
       {!!list.data && <nav aria-label="Export history pages" className="space-y-2"><p className="text-xs text-muted-foreground">{formatNumber(list.data.items.length?offset+1:0)}–{formatNumber(Math.min(offset+(list.data.items.length||0),list.data.total))} of {formatNumber(list.data.total)}</p><div className="flex gap-2"><PageButtons label="saved exports" busy={list.isPlaceholderData} atStart={offset===0} atEnd={offset+25>=list.data.total} onPrevious={()=>change(status,Math.max(0,offset-25))} onNext={()=>change(status,offset+25)} previous="Previous exports" next="Next exports" /></div></nav>}</PilotPanel>
       <PilotPanel title="Selected export">
         {requested && <PilotError error={focused.error} noticeRef={selectionProblem} fallback="We could not load this export. Check your connection and try again." retry={() => { void focused.refetch().then(result => { if (!result.error && result.data) setSelectionRecovery({ key: selectionRecoveryKey }); }); }} />}
         {requested && currentSelectionRecovery && !focused.error && <p ref={selectionRecovered} role="status" className="text-sm">Export details reloaded.</p>}
         {selected && <>
           {selectionQuery.error && <p role="status" className="text-sm text-muted-foreground">Showing the last loaded export details. Try again to check for updates.</p>}
-          <p className="break-words text-sm font-semibold">{exportName(selected)}</p><p className="break-all font-mono text-xs text-muted-foreground">Export ID: {selected.id}</p><ExportJobControl key={`${merchantId}:${selected.id}`} kind={String(selected.data.kind)} savedJobId={selected.id} formats={[]} label="Saved export" />
+          <p className="break-words text-sm font-semibold">{savedExportName(selected)}</p><p className="break-all font-mono text-xs text-muted-foreground">Export ID: {selected.id}</p><ExportJobControl key={`${merchantId}:${selected.id}`} kind={String(selected.data.kind)} savedJobId={selected.id} formats={[]} label="Saved export" />
         </>}
         {awaitingSelection && <p role="status">{requested ? 'Loading this export…' : 'Loading the export history…'}</p>}
         {emptySelection && <p className="text-sm text-muted-foreground">{requested ? 'Export not found. It may have been deleted, or it belongs to another lender. Choose one from this lender’s export history.' : 'Select a saved export to see its progress and available actions.'}</p>}

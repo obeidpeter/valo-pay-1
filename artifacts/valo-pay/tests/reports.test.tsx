@@ -368,9 +368,9 @@ describe("reports", () => {
     vi.spyOn(window, 'open').mockReturnValue(null);
     api.failNext(/^\/v1\/exports$/, 'offline', 'POST');
     renderApp('/reports?view=billing');
-    await user.click(await screen.findByRole('button', { name: 'Export billing CSV' }));
+    await user.click(await screen.findByRole('button', { name: 'Export billing statement (CSV)' }));
     expect(await screen.findByText('Request not confirmed')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Check original request' }));
-    expect(await screen.findByRole('link', { name: 'Open billing CSV' })).toBeTruthy();
+    expect(await screen.findByRole('link', { name: 'Open billing statement' })).toBeTruthy();
   });
 });

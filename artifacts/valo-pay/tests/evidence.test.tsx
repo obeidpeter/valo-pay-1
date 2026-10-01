@@ -348,12 +348,12 @@ describe('evidence register and operational reviews', () => {
     vi.spyOn(window, 'open').mockReturnValue(null);
     api.failNext(/^\/v1\/exports$/, 'offline', 'POST');
     renderApp('/evidence');
-    const exportButton = await screen.findByRole('button', { name: 'Export evidence pack' });
+    const exportButton = await screen.findByRole('button', { name: 'Export Go-live evidence pack (PDF)' });
     await user.click(exportButton);
     expect(await screen.findByText('Request not confirmed')).toBeTruthy();
     expect(exportButton.hasAttribute('disabled')).toBe(true);
     await user.click(screen.getByRole('button', { name: 'Check original request' }));
-    const link = await screen.findByRole('link', { name: 'Open evidence pack' });
+    const link = await screen.findByRole('link', { name: 'Open Go-live evidence pack' });
     expect(link.getAttribute('href')).toMatch(/\/exports\//);
     expect(window.open).toHaveBeenCalledWith(link.getAttribute('href'), '_blank');
   });

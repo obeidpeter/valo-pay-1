@@ -4,10 +4,9 @@ import type { Context, DomainState, ValopayRecord } from '../domain/types';
 import { makeRecord } from '../domain/records';
 import type { ExportInput } from './valopay-exports';
 import { reviewedCloseEvidence } from '../domain/close-review';
-import { sensitiveExportKinds, sensitiveExportRefusal } from '@workspace/valopay-schema';
+import { exportName, sensitiveExportKinds, sensitiveExportRefusal } from '@workspace/valopay-schema';
 import { rolePermits } from './pilot-access';
 import { notFound, onlyRoles } from './refusal-words';
-import { recordTypesName } from './action-names';
 
 export const EXPORT_LEASE_MS = 5 * 60_000;
 export const MAX_EXPORT_BYTES = 32 * 1024 * 1024;
@@ -87,7 +86,7 @@ export function queueExport(state: DomainState, ctx: Context, input: ExportInput
   if (state.records.filter(record => record.kind === 'exports' && ['queued', 'running'].includes(record.status)).length >= EXPORT_QUEUE_LIMIT) fail('10 exports are already waiting or in progress for this lender. Wait for one to finish, then try again.', 429, { retryAfterSeconds: EXPORT_QUEUE_RETRY_AFTER_SECONDS });
   const id = randomUUID(), parts = privateDirectory.replace(/^\//, '').replace(/\/+$/, '').split('/'), bucket = parts.shift()!;
   const objectName = `${parts.join('/')}/exports/${state.merchant.id}/${id}.${input.format}`;
-  return exportJobView(makeRecord(state, 'exports', { id, name: `${recordTypesName(input.kind)} (${input.format.toUpperCase()})`, status: 'queued', customerId: input.customerId || '', createdAt: ctx.now, updatedAt: ctx.now,
+  return exportJobView(makeRecord(state, 'exports', { id, name: exportName(input.kind, input.format), status: 'queued', customerId: input.customerId || '', createdAt: ctx.now, updatedAt: ctx.now,
     data: { kind: input.kind, format: input.format, usedInRealCase: false, requestedBy: ctx.actor, requestedRole: ctx.role, attempts: 0, bucket, objectName, stage: 'queued', lastProgressAt: ctx.now,
       ...(review ? {closeReviewId:review.id,closeSnapshotDigest:review.data.snapshotDigest} : {}) } }), ctx.now);
 }

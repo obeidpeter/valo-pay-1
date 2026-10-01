@@ -161,7 +161,7 @@ it('names the deletion run that deleted a file and opens its deletion record und
   const state=api.state();
   expect((await executeApprovedRun(state,ctx,run.id,file,async candidate=>{Object.assign(state.records.find(record=>record.id===candidate.sourceId)!.data,{fileDeletedAt:ctx.now,fileRetentionRunId:run.id});return 'deleted';})).status).toBe('completed');
   renderApp(`/exports?job=${id}`);
-  await screen.findByText('Saved export: File deleted');
+  await screen.findByText('Customers: File deleted');
   expect(screen.getByText(`Deletion run: ${run.id}`)).toBeTruthy();
   await user.click(screen.getByRole('link',{name:'Open the deletion record'}));
   const receipts=(await screen.findByRole('heading',{name:'Deletion records'})).parentElement!;

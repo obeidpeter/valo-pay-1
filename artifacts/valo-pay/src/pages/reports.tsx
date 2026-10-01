@@ -149,7 +149,7 @@ export default function ReportsPage() {
           <h1 className="text-3xl font-bold tracking-tight">Reports</h1>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          {view === 'billing' && <><ExportJobControl kind="billing" formats={['csv']} label="Export billing CSV" />
+          {view === 'billing' && <><ExportJobControl kind="billing" formats={['csv']} label="Export billing statement (CSV)" />
           <Button variant="outline" className="gap-2" action="issue_invoice" disabled={invoiceNeedsReview} aria-describedby={invoiceNeedsReview ? 'invoice-pricing-review' : undefined} onClick={() => setInvoiceDialogOpen(true)}>
             <FileText className="h-4 w-4" /> Issue invoice
           </Button></>}
@@ -169,7 +169,7 @@ export default function ReportsPage() {
       </header>
       <SectionNavigation label="Report views" value={view} onChange={value => setReportFilter('view', value)} sections={[
         { id: 'operations', label: 'Totals and closes', description: 'Current totals and the saved daily closes. Use the dates below to compare past closes.' },
-        { id: 'billing', label: 'Billing', description: 'Charges for this billing month, issued invoices and adjustments. The billing CSV covers this month’s statement.' },
+        { id: 'billing', label: 'Billing', description: 'Charges for this billing month, issued invoices and adjustments. The billing statement (CSV) covers this month.' },
         { id: 'evidence', label: 'Pilot results', description: 'Results for judging the pilot. Sample data cannot show how Valo Pay performs live.' },
       ]} />
       {view === 'billing' && (invoiceNeedsReview || statementNeedsReview) && <div id="invoice-pricing-review" role="status" className="rounded-xl border border-warning/40 bg-warning/5 p-4 text-sm">
@@ -440,7 +440,7 @@ export default function ReportsPage() {
 
           {/* Daily Closes */}
           <section hidden={view !== 'operations'} id="daily-closes" tabIndex={-1} aria-label="Daily close records" className="scroll-mt-6 bg-card border rounded-xl shadow-sm overflow-hidden">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b p-4"><p className="text-sm text-muted-foreground">Export the saved daily closes and their reconciliation details.</p><ExportJobControl kind="closes" formats={['json','csv']} label="Export close evidence" /></div>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b p-4"><p className="text-sm text-muted-foreground">Export the saved daily closes and their reconciliation details.</p><ExportJobControl kind="closes" formats={['json','csv']} label="Export daily closes (JSON)" /></div>
             <div className="p-5 border-b flex flex-wrap gap-3 items-center justify-between">
               <div className="flex items-center gap-2">
                 <CheckSquare aria-hidden="true" className="h-4 w-4 text-muted-foreground" />

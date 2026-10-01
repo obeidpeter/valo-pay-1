@@ -78,6 +78,30 @@ export function recordTypeTitle(kind: unknown, count = 1): string {
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
+/** The exports that are not a record kind, by the names their pages give them. */
+const exportKindNames: Readonly<Record<string, string>> = {
+  "gate-pack": "Go-live evidence pack",
+  billing: "Billing statement",
+  "reviewed-close": "Reviewed close evidence",
+  "dispute-pack": "Dispute pack",
+  "customer-pack": "Dispute pack",
+};
+
+/**
+ * What an export holds, in the one name its saved export, its file's title and the console all use: a pack by its
+ * name ("Go-live evidence pack"), a kind of record as its plural ("Daily closes").
+ */
+export function exportKindName(kind: unknown): string {
+  const code = String(kind ?? "");
+  return Object.hasOwn(exportKindNames, code) ? exportKindNames[code]! : recordTypeTitle(code, 2);
+}
+
+/** A saved export's name, what it holds and its format: "Dispute pack (PDF)". */
+export function exportName(kind: unknown, format: unknown): string {
+  const type = String(format ?? "").trim().toUpperCase();
+  return type ? `${exportKindName(kind)} (${type})` : exportKindName(kind);
+}
+
 /**
  * A stored value's label (valueLabel) as it reads inside a sentence: "awaiting
  * activation", "unpaid after final attempt". A label that starts with a name or

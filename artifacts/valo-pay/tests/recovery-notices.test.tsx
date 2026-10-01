@@ -81,7 +81,7 @@ describe("unconfirmed changes the journal records point to Request history", () 
     const user = userEvent.setup();
     renderApp("/reports?view=billing");
     api.failNext(/^\/v1\/exports$/, "offline", "POST");
-    await user.click(await screen.findByRole("button", { name: "Export billing CSV" }));
+    await user.click(await screen.findByRole("button", { name: "Export billing statement (CSV)" }));
     await screen.findByRole("button", { name: "Check original request" });
     keptInOperations(exportNotice());
   });

@@ -11,14 +11,14 @@ import { readableLabel } from './record-label';
 import { TechnicalDetails } from './technical-details';
 import { formatDate, formatNumber } from '@/lib/formatters';
 import { notifyDone, notifyProblem, saidBy } from '@/lib/notify';
-import { exportPermitted, exportResultSchema, sensitiveExportRefusal } from '@workspace/valopay-schema';
+import { exportKindName, exportPermitted, exportResultSchema, sensitiveExportRefusal } from '@workspace/valopay-schema';
 import { readAnswer } from '@/lib/answers';
 import { Link } from 'wouter';
 
 type Format = 'pdf' | 'csv' | 'json';
-/** What a saved export holds, in words: the packs by their names, anything else as `fallback`. */
-export function exportKindTitle(kind: string, fallback = 'Saved export'): string {
-  return kind === 'billing' ? 'Billing CSV' : kind === 'gate-pack' ? 'Evidence pack' : kind === 'reviewed-close' ? 'Reviewed close evidence' : kind === 'closes' ? 'Close evidence' : ['customer-pack','dispute-pack'].includes(kind) ? 'Dispute pack' : fallback;
+/** What a saved export holds, in the one name the service gives its saved export and its file (exportKindName): "Dispute pack". */
+export function exportKindTitle(kind: string): string {
+  return kind ? exportKindName(kind) : 'Saved export';
 }
 /**
  * A saved export's state in words: the one vocabulary Saved exports filters by, lists and shows in the export's own
@@ -46,7 +46,8 @@ export function ExportJobControl({ kind, customerId, closeReviewId, savedJobId, 
   // Which request failed: a new export (start) or a retry or restart of a saved one, so a refusal names the right action.
   const [problem, setProblem] = useState<{ scope: string; action: 'start' | 'restart'; message: string } | null>(null);
   const title = exportKindTitle(kind);
-  const openLabel = kind === 'billing' ? 'Open billing CSV' : `Open ${title.toLowerCase()}`;
+  // A pack named after its page keeps the page's capital: "Open Go-live evidence pack".
+  const openLabel = `Open ${kind === 'gate-pack' ? title : title.charAt(0).toLowerCase() + title.slice(1)}`;
   // Search the saved review identity before paging, then enforce the exact match.
   const params = { merchantId: merchantId!, customerId, search: closeReviewId || kind, limit: 5 };
   const recent = useListRecords('exports', params, { query: { enabled: !!merchantId && !savedJobId, queryKey: getListRecordsQueryKey('exports', params), refetchInterval: savedJobId ? false : 5000 } });
