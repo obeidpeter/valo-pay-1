@@ -48,7 +48,10 @@ describe("connected task navigation", () => {
     renderApp("/cash-desk");
     const action = await screen.findByRole("button", { name: "Set up Cash Desk" });
     expect((action as HTMLButtonElement).disabled).toBe(true);
-    expect(document.getElementById(action.getAttribute("aria-describedby")!)?.textContent).toContain("Only Admin or Operations can set up Cash Desk. Your role is Finance.");
+    // Under the disabled button, only who can do it: the bar above the page shows the reader's role.
+    const reason = document.getElementById(action.getAttribute("aria-describedby")!)?.textContent;
+    expect(reason).toContain("Only Admin or Operations can set up Cash Desk.");
+    expect(reason).not.toMatch(/Your role is|Change your demo role/);
   });
 });
 

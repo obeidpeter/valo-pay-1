@@ -100,8 +100,7 @@ export default function CashDeskPage() {
   }, [merchantId]);
   const maker = ["Admin", "Operations"].includes(workspace?.role ?? "");
   const finance = workspace?.role === "Finance";
-  const refuse: RoleRefusal = (roles, what) =>
-    roleRefusal(roles, what, workspace?.role ?? "", workspace?.accessMode);
+  const refuse: RoleRefusal = roleRefusal;
   const ask = (next: PendingAction) => {
     setAction(next);
     setReason("");

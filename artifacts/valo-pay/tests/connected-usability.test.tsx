@@ -41,9 +41,12 @@ it("shows a Finance viewer why granting and withdrawing permissions are unavaila
     name: "Grant permission",
   });
   expect((grant as HTMLButtonElement).disabled).toBe(true);
-  expect(screen.getByText(/Your role is Finance\./).textContent).toContain(
-    "Compliance reviewer can withdraw one",
-  );
+  expect(
+    screen.getByText(
+      "Only Admin or Operations can grant a permission. Only Admin, Operations or Compliance reviewer can withdraw one.",
+    ),
+  ).toBeTruthy();
+  expect(screen.queryByText(/Your role is/)).toBeNull();
 });
 
 it("allows Compliance to review revocation while keeping permission grants unavailable; cancellation returns focus and clears the revocation note", async () => {
@@ -109,7 +112,7 @@ it("does not offer a Compliance viewer payment actions rejected by the server", 
     ).disabled,
   ).toBe(true);
   expect(
-    screen.getByText(/^Only Admin, Operations or Finance can create or change a checkout\. Your role is Compliance reviewer\./),
+    screen.getByText("Only Admin, Operations or Finance can create or change a checkout."),
   ).toBeTruthy();
 });
 

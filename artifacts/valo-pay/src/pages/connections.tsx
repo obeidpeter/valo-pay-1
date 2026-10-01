@@ -8,6 +8,7 @@ import {
   ConnectedState,
   FieldHint,
   describedBy,
+  roleRefusal,
   tooShort,
 } from "@/components/connected-frame";
 import { FieldError, fieldMessageId } from "@/components/form-field";
@@ -30,7 +31,6 @@ export default function ConnectionsPage() {
   return <ConnectionsContent key={merchantId} api={api} />;
 }
 function ConnectionsContent({ api }: { api: ReturnType<typeof useConnected> }) {
-  const { workspace } = useWorkspace();
   const [purpose, setPurpose] = useState("account_read"),
     [subject, setSubject] = useState(""),
     [days, setDays] = useState("30"),
@@ -333,11 +333,8 @@ function ConnectionsContent({ api }: { api: ReturnType<typeof useConnected> }) {
               )}
             </div>
             <p className="text-xs text-muted-foreground">
-              Admin or Operations can grant a permission. Admin, Operations or
-              Compliance reviewer can withdraw one. Your role is {data.role}.
-              {(!canGrant || !canRevoke) && workspace?.accessMode !== "staff"
-                ? " Change your demo role in Settings."
-                : ""}
+              {roleRefusal(["Admin", "Operations"], "grant a permission")}{" "}
+              {roleRefusal(["Admin", "Operations", "Compliance reviewer"], "withdraw one")}
             </p>
           </form>
         </ConnectedPanel>

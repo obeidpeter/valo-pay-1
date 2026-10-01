@@ -207,7 +207,7 @@ function CreditDeskContent({ api }: { api: ReturnType<typeof useConnected> }) {
           refusal={
             data.canAssess
               ? ""
-              : roleRefusal(["Admin", "Operations"], "run an assessment", api.data.role, workspace?.accessMode)
+              : roleRefusal(["Admin", "Operations"], "run an assessment")
           }
           canAssess={data.canAssess}
           canWrite={api.canWrite}

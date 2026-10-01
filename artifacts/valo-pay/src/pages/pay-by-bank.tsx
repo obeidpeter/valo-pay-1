@@ -193,11 +193,11 @@ function PaymentContent({ api }: { api: ReturnType<typeof useConnected> }) {
   // Why a confirmed payment's refund or reversal is not this role's to take, before a refund is requested.
   const adjustmentRefusal =
     !canRequestRefund && !canRecord
-      ? `Only Admin or Operations can request a refund, and only Finance can record a reversal. Your role is ${role}.${staff ? "" : " Change your demo role in Settings."}`
+      ? "Only Admin or Operations can request a refund, and only Finance can record a reversal."
       : !canRequestRefund
-        ? roleRefusal(["Admin", "Operations"], "request a refund", role, workspace?.accessMode)
+        ? roleRefusal(["Admin", "Operations"], "request a refund")
         : !canRecord
-          ? roleRefusal(["Finance"], "record a reversal", role, workspace?.accessMode)
+          ? roleRefusal(["Finance"], "record a reversal")
           : "";
   const step = review ? reviewedSteps[review.action] : undefined;
   const openReview = (action: string, record: ConnectedRecord) => {
@@ -356,8 +356,6 @@ function PaymentContent({ api }: { api: ReturnType<typeof useConnected> }) {
                     {roleRefusal(
                       ["Admin", "Operations", "Finance"],
                       "create or change a checkout",
-                      role,
-                      workspace?.accessMode,
                     )}
                   </p>
                 )}

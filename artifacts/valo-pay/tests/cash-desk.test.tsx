@@ -526,7 +526,7 @@ describe("Cash Desk", () => {
     // The maker is told why the Finance steps are closed to them.
     expect(
       screen.getByText(
-        "Only Finance can approve the funding plan, prepare its bank export file or record payment results. Your role is Operations. Change your demo role in Settings.",
+        "Only Finance can approve the funding plan, prepare its bank export file or record payment results.",
       ),
     ).toBeTruthy();
   });

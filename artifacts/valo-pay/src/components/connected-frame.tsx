@@ -256,12 +256,13 @@ export function describedBy(id: string, error?: string): string {
   return error ? `${id}-help ${fieldMessageId(id)}` : `${id}-help`;
 }
 /**
- * Why a role cannot take an action, in one shape on every connected page and the rest of the console (the shared
- * onlyRoles, which names roles as the standard lists them, with no article): "Only Admin or Operations can grant a
- * permission. Your role is Finance." In the sandbox the demo role is the way to try it.
+ * Why a role cannot take an action, under its disabled button, in one shape on every connected page and the rest of
+ * the console (the shared onlyRoles, which names roles as the standard lists them, with no article): "Only Admin or
+ * Operations can grant a permission." The bar above every page already shows the reader's role and, in the sandbox,
+ * how to change it, so the reason does not repeat them (docs/design/writing.md, Notices).
  */
-export function roleRefusal(roles: readonly string[], action: string, role: string, accessMode?: string): string {
-  return onlyRoles(roles, action, { role, accessMode });
+export function roleRefusal(roles: readonly string[], action: string): string {
+  return onlyRoles(roles, action, { brief: true });
 }
 /** The records whose statuses these pages show. */
 export type ConnectedStatusRecord =
