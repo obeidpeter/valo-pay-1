@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { installFakeApi, type FakeApi } from './fake-api';
-import { renderApp, screen, userEvent, waitFor } from './harness';
+import { renderApp, screen, userEvent, waitFor, within } from './harness';
 import { makeRecord } from '../../api-server/src/domain/records';
 import { bindCloseReviewBasis, closeReviewIssues, prepareCloseReview, decideCloseReview } from '../../api-server/src/domain/close-review';
 import { queueExport } from '../../api-server/src/lib/export-jobs';
@@ -40,8 +40,10 @@ it('queues the exact approved review and resumes its download despite newer expo
   expect(link.getAttribute('href')).toContain(job.id);
   expect(screen.queryByText(/Recent exports/)).toBeNull();
   expect(api.calls.filter(call => call.method === 'POST' && call.path === '/v1/exports')).toHaveLength(1);
-  await user.click(screen.getByText('Technical details'));
-  expect(screen.getByText(/this file can be deleted by an approved deletion run in Data retention/)).toBeTruthy();
+  // The export's own Technical details; the close review above it has a section of that name too.
+  const box = screen.getByText(/^Reviewed close evidence: /).closest('[role="status"]') as HTMLElement;
+  await user.click(within(box).getByText('Technical details'));
+  expect(within(box).getByText(/this file can be deleted by an approved deletion run in Data retention/)).toBeTruthy();
 });
 
 it('keeps a malformed committed receipt uncertain and replays the original review, format and key', async () => {

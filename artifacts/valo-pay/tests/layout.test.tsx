@@ -57,7 +57,7 @@ describe("layout", () => {
   it("names the place Your workspace once the reader is signed in", async () => {
     signedIn();
     renderApp("/overview");
-    await screen.findByRole("heading", { name: "Operations overview" });
+    await screen.findByRole("heading", { name: "Overview" });
     const sidebar = screen.getByRole("complementary", { name: "Sidebar" });
     expect(within(sidebar).getByText("Your workspace")).toBeTruthy();
     expect(within(sidebar).queryByText("Sandbox", { exact: true })).toBeNull();
@@ -67,7 +67,7 @@ describe("layout", () => {
   it("opens Settings at the demo role control from the bar's Change demo role", async () => {
     const user = userEvent.setup();
     renderApp("/overview");
-    await screen.findByRole("heading", { name: "Operations overview" });
+    await screen.findByRole("heading", { name: "Overview" });
     await user.click(screen.getByRole("link", { name: "Change demo role" }));
     const control = await screen.findByLabelText("Demo role", { selector: "select" });
     await waitFor(() => expect(document.activeElement).toBe(control));
@@ -77,7 +77,7 @@ describe("layout", () => {
     api.role = "Finance";
     signedIn(true);
     renderApp("/overview");
-    await screen.findByRole("heading", { name: "Operations overview" });
+    await screen.findByRole("heading", { name: "Overview" });
     expect(document.querySelector("#main .workspace-bar")!.textContent).toContain("Role: Finance");
     expect(screen.queryByRole("link", { name: "Change demo role" })).toBeNull();
   });

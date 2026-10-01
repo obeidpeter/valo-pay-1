@@ -51,7 +51,7 @@ describe("print", () => {
   it("names your workspace on paper once the reader is signed in", async () => {
     signedIn();
     renderApp("/overview");
-    await screen.findByRole("heading", { name: "Operations overview" });
+    await screen.findByRole("heading", { name: "Overview" });
     expect(screen.getByText("Valo Pay · Your workspace")).toBeTruthy();
     expect(screen.getByText(/^Printed /).textContent).toMatch(/ from your Valo Pay workspace · Overview · (Meridian Credit|Cedar Cooperative)\.$/);
   });

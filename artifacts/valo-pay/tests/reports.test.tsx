@@ -251,7 +251,7 @@ describe("reports", () => {
     api.mutate(state => { state.records.find(record => record.kind === 'policies')!.status = 'approved'; });
     const user = userEvent.setup();
     renderApp('/reports?view=evidence');
-    const draft = (await screen.findByText('Recovery measurement · pre-registration')).closest('div.border')! as HTMLElement;
+    const draft = (await screen.findByText('Recovery test plan')).closest('div.border')! as HTMLElement;
     await user.click(within(draft).getByRole('button', { name: 'Edit' }));
     let dialog = await screen.findByRole('dialog', { name: 'Edit experiment' });
     const baseline = () => within(dialog).getByLabelText(/^Baseline recovery rate \(%\)/) as HTMLInputElement;

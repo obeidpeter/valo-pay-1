@@ -96,7 +96,8 @@ describe('UX-I01 import outcome and correction guidance', () => {
     const notice = (await screen.findByText('Request not confirmed')).closest('[role=alert]') as HTMLElement;
     expect(screen.getByLabelText('CSV content')).toHaveProperty('disabled', true);
     await user.click(within(notice).getByRole('button', { name: 'Discard original request' }));
-    await waitFor(() => expect(screen.queryByText('Request not confirmed')).toBeNull());
+    // The wizard's own notice goes. The request stays in the notice above the page, also headed Request not confirmed, until it is cancelled.
+    await waitFor(() => expect(notice.isConnected).toBe(false));
     expect(screen.getByLabelText('CSV content')).toHaveProperty('disabled', false);
     await cancelInterrupted(user);
     await user.click(screen.getByRole('button', { name: 'Import data' }));

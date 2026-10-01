@@ -140,7 +140,7 @@ it("locks a mandate draft after a lost create response, then recovers one mandat
   await user.click(
     within(dialog).getByRole("button", { name: "Add mandate" }),
   );
-  await screen.findByText("Request not confirmed");
+  await within(dialog).findByText("Request not confirmed");
   expect(
     within(dialog)
       .getByLabelText(/Mandate name/)
@@ -305,7 +305,7 @@ it("a lost mandate create can be discarded deliberately, which unlocks the dialo
   await user.click(
     within(dialog).getByRole("button", { name: "Add mandate" }),
   );
-  await screen.findByText("Request not confirmed");
+  await within(dialog).findByText("Request not confirmed");
   const cancel = within(dialog).getByRole("button", {
     name: "Cancel",
   }) as HTMLButtonElement;
@@ -316,7 +316,8 @@ it("a lost mandate create can be discarded deliberately, which unlocks the dialo
   );
   expect(confirm).toHaveBeenCalledWith(expect.stringContaining("check Request history"));
   await waitFor(() => expect(cancel.disabled).toBe(false));
-  expect(screen.queryByText("Request not confirmed")).toBeNull();
+  // The dialog's notice goes. The request stays in the notice above the page, also headed Request not confirmed, until it is cancelled.
+  expect(within(dialog).queryByText("Request not confirmed")).toBeNull();
   // The notice went with its button: focus is on the form's own button again, not on the page or the dialog's top.
   await waitFor(() => expect(document.activeElement).toBe(within(dialog).getByRole("button", { name: "Add mandate" })));
   expect(

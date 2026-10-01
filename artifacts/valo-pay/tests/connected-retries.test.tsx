@@ -422,7 +422,8 @@ it("offers a deliberate discard of the form, retaining its request until the ser
     screen.getByRole("button", { name: "Discard original request" }),
   );
   expect(confirm).toHaveBeenCalledWith(expect.stringContaining("check Request history"));
-  expect(screen.getByText("Request not confirmed")).toBeTruthy();
+  const notice = screen.getByText("Request not confirmed").closest('[role="alert"]') as HTMLElement;
+  expect(notice).toBeTruthy();
   expect(
     screen.getByRole("link", { name: "Open Request history" }).getAttribute("href"),
   ).toBe("/operations");
@@ -430,9 +431,8 @@ it("offers a deliberate discard of the form, retaining its request until the ser
   await user.click(
     screen.getByRole("button", { name: "Discard original request" }),
   );
-  await waitFor(() =>
-    expect(screen.queryByText("Request not confirmed")).toBeNull(),
-  );
+  // The form's own notice goes. The request stays in the notice above the page, also headed Request not confirmed, until it is cancelled.
+  await waitFor(() => expect(notice.isConnected).toBe(false));
   expect(
     screen.getByLabelText("Reason for this assessment").closest("fieldset")
       ?.disabled,
