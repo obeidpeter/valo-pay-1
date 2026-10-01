@@ -13,16 +13,34 @@ export function CustomerAvatar({ name, large = false }: { name: string; large?: 
   return <span aria-hidden="true" className={`inline-flex shrink-0 items-center justify-center rounded-full border border-border bg-secondary text-foreground font-semibold ${large ? 'h-14 w-14 text-lg' : 'h-9 w-9 text-xs'}`}>{initials || '?'}</span>;
 }
 
+/** Statuses shown in the success colour: done, and done well. Record-keyed codes ("payroll-run.completed") are the connected pages'. */
+const successStatuses = new Set(['active', 'paid', 'allocated', 'confirmed', 'resolved', 'reconciled', 'succeeded', 'payroll-item.succeeded', 'payroll-run.completed']);
+/** Statuses shown in the danger colour. */
+const dangerStatuses = new Set(['failed', 'expired', 'unpaid_final', 'variance']);
+/** Statuses shown in the warning colour: work waiting on someone, or an outcome nobody knows yet. */
+const warningStatuses = new Set(['pending_activation', 'proposed', 'unallocated', 'possible_duplicate', 'in_progress', 'checkout.unknown', 'payroll-item.unknown', 'permission.revoked', 'assessment.blocked', 'accounting-draft.blocked']);
+/** Whatever its code, a status that reads one of these words warns: it cannot continue, or its outcome is not known. */
+const warningWords = new Set(['Outcome unknown', 'Blocked', 'Withdrawn', 'Some outcomes unknown']);
+
+/** A status's colour: success, danger, warning or neutral (`tone` for tests and callers that need the name). */
+export function statusTone(status: unknown): 'success' | 'danger' | 'warning' | 'neutral' {
+  const value = String(status || '');
+  if (successStatuses.has(value)) return 'success';
+  if (dangerStatuses.has(value)) return 'danger';
+  if (warningStatuses.has(value) || (value && warningWords.has(readableLabel(value)))) return 'warning';
+  return 'neutral';
+}
+const toneClasses = {
+  success: 'bg-success/10 text-success border-success/20',
+  danger: 'bg-destructive/10 text-destructive border-destructive/20',
+  warning: 'bg-warning text-warning-foreground border-warning-border',
+  neutral: 'bg-secondary text-secondary-foreground border-border',
+} as const;
+
 /** A status in the shared words (valueLabel), in sentence case; a missing status reads "Not recorded", never a code. */
 export function StatusBadge({ status }: { status: unknown }) {
   const value = String(status || '');
-  const tone = ['active', 'paid', 'allocated', 'confirmed', 'resolved', 'reconciled', 'succeeded'].includes(value)
-    ? 'bg-success/10 text-success border-success/20'
-    : ['failed', 'expired', 'unpaid_final', 'variance'].includes(value)
-      ? 'bg-destructive/10 text-destructive border-destructive/20'
-      : ['pending_activation', 'proposed', 'unallocated', 'possible_duplicate', 'in_progress'].includes(value)
-        ? 'bg-warning text-warning-foreground border-warning-border'
-        : 'bg-secondary text-secondary-foreground border-border';
+  const tone = toneClasses[statusTone(value)];
   const label = value ? readableLabel(value) : 'Not recorded';
   return <span title={label} className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-medium ${tone}`}><span aria-hidden="true" className="h-1 w-1 rounded-full bg-current" />{label}</span>;
 }
