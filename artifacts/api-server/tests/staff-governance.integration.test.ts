@@ -126,7 +126,7 @@ try {
   await grant("idle", [first.id]);
   const lender = `?merchantId=${first.id}`;
   const customer = ok(await call(`/v1/records/customers${lender}`, "adminA", "POST", { name: "Governance customer", reference: `GOV-${randomUUID()}`, data: { consentProvenance: "Synthetic consent" } }));
-  for (const [kind, extra] of [["dispute-pack", { customerId: customer.id }], ["customers", {}], ["audit", {}]] as const) refused(await call(`/v1/exports${lender}`, "idle", "POST", { kind, format: "json", ...extra }), 403, /Only an Admin, Finance or Compliance reviewer can export or download/);
+  for (const [kind, extra] of [["dispute-pack", { customerId: customer.id }], ["customers", {}], ["audit", {}]] as const) refused(await call(`/v1/exports${lender}`, "idle", "POST", { kind, format: "json", ...extra }), 403, /Only Admin, Finance or Compliance reviewer can export or download/);
   const pack = ok(await call(`/v1/exports${lender}`, "finance", "POST", { kind: "dispute-pack", format: "pdf", customerId: customer.id }));
   const gatePack = ok(await call(`/v1/exports${lender}`, "idle", "POST", { kind: "gate-pack", format: "pdf" }));
   refused(await call(`/v1/exports/${pack.id}/download${lender}`, "idle", "GET"), 403, /Only Admin, Finance or Compliance reviewer/);
