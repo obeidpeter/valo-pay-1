@@ -82,7 +82,7 @@ test("a decision on Team and access moves focus to what it did, and a staff admi
   });
   await page.goto("/team");
   // Administrator A's access ends within 14 days: the warning's code loads for a staff administrator.
-  await expect(page.getByRole("status", { name: "Administrator access" })).toContainText("Your Admin access ends on");
+  await expect(page.getByRole("status", { name: "Admin access" })).toContainText("Your Admin access ends on");
   const panel = page.locator("section").filter({ has: page.getByRole("heading", { name: "Waiting for a second Admin" }) });
   for (const [name, said] of [["Approve invitation", /^Invitation approved/], ["Approve change", /^Change approved: Chidi Ops/], ["Reject change", /^Change request declined/]] as const) {
     const count = await panel.getByRole("button", { name }).count();

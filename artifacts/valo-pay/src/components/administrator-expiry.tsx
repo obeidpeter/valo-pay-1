@@ -49,7 +49,7 @@ export function AdministratorExpiry() {
   const warnings = staffAdministrator && data ? administratorExpiryWarnings(data, Date.now()) : [];
   if (!warnings.length) return null;
   return (
-    <section role="status" aria-label="Administrator access" className="mb-6 space-y-1 rounded-lg border border-warning-border bg-warning/10 p-4 text-sm print:hidden">
+    <section role="status" aria-label="Admin access" className="mb-6 space-y-1 rounded-lg border border-warning-border bg-warning/10 p-4 text-sm print:hidden">
       <h2 className="font-semibold">Admin access is ending</h2>
       {warnings.map((warning) => <p key={warning}>{warning}</p>)}
     </section>

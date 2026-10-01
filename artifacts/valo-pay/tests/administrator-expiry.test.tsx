@@ -63,7 +63,7 @@ it("warns a staff administrator above the page when every administrator's access
   const soon = new Date(Date.now() + 5 * DAY).toISOString();
   staffHost("Admin", [member("Clerk:user_me", "Admin", soon)]);
   renderApp("/overview");
-  const notice = await screen.findByRole("status", { name: "Administrator access" });
+  const notice = await screen.findByRole("status", { name: "Admin access" });
   expect(notice.textContent).toMatch(/Admin access is ending/);
   expect(notice.textContent).toMatch(/Your Admin access ends on .* and no other Admin’s access lasts longer/);
 });
@@ -73,7 +73,7 @@ it("says nothing to a staff administrator whose access lasts", async () => {
   // Team & access shows the same read of the team, so once its member is on screen the warning has had its data.
   renderApp("/team");
   await screen.findByText(/^Admin · Active · expires /);
-  expect(screen.queryByRole("status", { name: "Administrator access" })).toBeNull();
+  expect(screen.queryByRole("status", { name: "Admin access" })).toBeNull();
   expect(reads.team).toBe(1);
 });
 
@@ -81,7 +81,7 @@ it("never reads the team for this outside a staff administrator's console", asyn
   const reads = staffHost("Finance", [member("Clerk:user_me", "Finance", new Date(Date.now() + 2 * DAY).toISOString())]);
   renderApp("/overview");
   await screen.findByRole("heading", { name: "Overview" });
-  expect(screen.queryByRole("status", { name: "Administrator access" })).toBeNull();
+  expect(screen.queryByRole("status", { name: "Admin access" })).toBeNull();
   expect(reads.team).toBe(0);
 });
 
@@ -94,6 +94,6 @@ it("never reads the team for this in the sandbox", async () => {
   };
   renderApp("/overview");
   await screen.findByRole("heading", { name: "Overview" });
-  expect(screen.queryByRole("status", { name: "Administrator access" })).toBeNull();
+  expect(screen.queryByRole("status", { name: "Admin access" })).toBeNull();
   expect(team).toBe(0);
 });
