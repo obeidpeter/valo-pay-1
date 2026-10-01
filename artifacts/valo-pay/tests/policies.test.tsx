@@ -136,6 +136,21 @@ describe('policy and template review', () => {
     await waitFor(() => expect(screen.getAllByText(/ · version 1$/)).toHaveLength(2));
   });
 
+  it('passes the preview check for a template written with {{lender}}, as for one written with {{merchant}}', async () => {
+    api.role = 'Admin';
+    const user = userEvent.setup();
+    renderApp('/policies');
+    await user.click(await screen.findByRole('button', { name: 'Edit template' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Edit template' });
+    const text = within(dialog).getByLabelText(/^Message/);
+    for (const placeholder of ['{{lender}}', '{{merchant}}']) {
+      await user.clear(text);
+      await user.paste(`${placeholder} will collect {{amount}} on {{date}}. Questions? Contact {{contact}}.`);
+      expect(within(dialog).getByText(/^Example Lender will collect ₦25,000\.00 on /)).toBeTruthy();
+      expect(within(dialog).queryByText('This message needs changes before it can be saved or submitted.')).toBeNull();
+    }
+  });
+
   it('updates the synthetic template preview while editing without interpreting markup', async () => {
     api.role = 'Admin';
     const user = userEvent.setup();
