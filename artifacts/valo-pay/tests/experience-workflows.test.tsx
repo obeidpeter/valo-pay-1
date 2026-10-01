@@ -74,7 +74,7 @@ describe("payment evidence progress", () => {
     render(<PaymentProgress status={status} expired={false} held={false} refundRequested={false} />);
     const progress = screen.getByRole("list", { name: "Checkout steps" });
     const receipt = within(progress).getByText("3. Payment confirmed").closest("li")!;
-    expect(receipt.textContent).not.toContain("Recorded");
+    expect(receipt.textContent).not.toContain("Completed");
     expect(receipt.getAttribute("aria-current")).toBe("step");
     if (status === "unknown") expect(screen.getByText(/Do not start another payment for this instalment while the outcome is unknown/)).toBeTruthy();
     else expect(screen.getByText(/a return from the bank do not prove payment/)).toBeTruthy();

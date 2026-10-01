@@ -43,7 +43,7 @@ it("walks through authorisation, an unconfirmed return from the bank and a confi
     ).toBe("pending"),
   );
   expect(screen.getByRole("heading", { name: "Wait for the payment to be confirmed" })).toBeTruthy();
-  expect(within(screen.getByRole("list", { name: "Checkout steps" })).getByText("3. Payment confirmed").closest("li")!.textContent).not.toContain("Recorded");
+  expect(within(screen.getByRole("list", { name: "Checkout steps" })).getByText("3. Payment confirmed").closest("li")!.textContent).not.toContain("Completed");
   expect(
     api
       .state()
@@ -56,7 +56,7 @@ it("walks through authorisation, an unconfirmed return from the bank and a confi
   );
   await screen.findByRole("link", { name: "Open Reconciliation" });
   expect(screen.getByRole("heading", { name: "Payment confirmed" })).toBeTruthy();
-  expect(within(screen.getByRole("list", { name: "Checkout steps" })).getByText("3. Payment confirmed").closest("li")!.textContent).toContain("Recorded");
+  expect(within(screen.getByRole("list", { name: "Checkout steps" })).getByText("3. Payment confirmed").closest("li")!.textContent).toContain("Completed");
   expect(
     api
       .state()
