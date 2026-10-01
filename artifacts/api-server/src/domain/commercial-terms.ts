@@ -1,4 +1,4 @@
-import { DESIGN_PARTNER_DISCOUNT, discountDateProblem, discountProposedBy, discountTermsStatus, type DiscountConfirmationData } from '@workspace/valopay-schema';
+import { DESIGN_PARTNER_DISCOUNT, demoRolesNote, discountDateProblem, discountProposedBy, discountTermsStatus, type DiscountConfirmationData } from '@workspace/valopay-schema';
 import { touch } from './records';
 import type { Context, TypedRecord } from './types';
 
@@ -41,7 +41,7 @@ export function confirmDiscountTerms(terms: TypedRecord<'commercial'>, ctx: Cont
     refuse('The proposed discount dates changed after you opened them. Reload the page and check the new dates against the signed agreement.', 409);
   }
   if (discountProposedBy(proposal, { actor: ctx.actor, principal: principal(ctx) })) {
-    refuse('A different person must confirm these discount dates. The person who proposed them cannot confirm them. Switching demo roles is not a second person.', 403);
+    refuse(`A different person must confirm these discount dates. The person who proposed them cannot confirm them.${demoRolesNote(ctx.accessMode)}`, 403);
   }
   terms.data.discountReview = { ...proposal, confirmedBy: ctx.actor, confirmedPrincipal: principal(ctx), confirmedAt: ctx.now };
   touch(terms, ctx.now);

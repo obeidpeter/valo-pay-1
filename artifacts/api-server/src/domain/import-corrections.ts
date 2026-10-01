@@ -13,6 +13,7 @@ import {
   legacyCollatedCompare,
   sameJson,
   changedText,
+  demoRolesNote,
   importFieldLabel,
   notFoundText,
 } from "@workspace/valopay-schema";
@@ -522,7 +523,7 @@ export function decideImportCorrection(
       ctx.actor === proposal.data.proposedBy
     )
       refuse(
-        "A different person must review this correction. Switching demo roles is not a second person.",
+        `A different person must review this correction.${demoRolesNote(ctx.accessMode)}`,
         403,
       );
   }

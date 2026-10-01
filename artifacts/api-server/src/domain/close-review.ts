@@ -1,4 +1,4 @@
-import { counted, dayText, hasFeeSchedule, moneyText, notFoundText, otherCurrenciesText, valueLabel, prepareCloseReviewSchema, decideCloseReviewSchema, reassignCloseReviewSchema, closeReviewHistoryQuerySchema, legacyCollatedCompare, sameJson, type PrepareCloseReviewInput, type DecideCloseReviewInput, type ReassignCloseReviewInput, type CloseReviewHistoryQuery, type PilotProgressStep } from "@workspace/valopay-schema";
+import { counted, dayText, demoRolesNote, hasFeeSchedule, moneyText, notFoundText, otherCurrenciesText, valueLabel, prepareCloseReviewSchema, decideCloseReviewSchema, reassignCloseReviewSchema, closeReviewHistoryQuerySchema, legacyCollatedCompare, sameJson, type PrepareCloseReviewInput, type DecideCloseReviewInput, type ReassignCloseReviewInput, type CloseReviewHistoryQuery, type PilotProgressStep } from "@workspace/valopay-schema";
 import type { Context, DomainState, ValopayRecord } from "./types";
 import { makeRecord, touch } from "./records";
 import { assertRecordVersion } from "../lib/edit-versions";
@@ -129,7 +129,7 @@ export function decideCloseReview(state: DomainState, ctx: Context, id: string, 
   assertRecordVersion(review, input.expectedUpdatedAt);
   if (review.status !== "awaiting_review") refuse("This review already has a decision. Reload the page to see it.", 409);
   if (ctx.role !== "Finance" || ctx.actor !== review.data.reviewer) refuse("Only the named Finance reviewer can decide this review.", 403);
-  if (principal(ctx) === review.data.preparedPrincipal || ctx.actor === review.data.preparedBy) refuse("A different person must review this close. Switching demo roles is not a second person.", 403);
+  if (principal(ctx) === review.data.preparedPrincipal || ctx.actor === review.data.preparedBy) refuse(`A different person must review this close.${demoRolesNote(ctx.accessMode)}`, 403);
   if (input.action === "approve" && !reviewIsCurrent(state, review)) refuse("This close is no longer current. Run a new daily close and prepare a new review. The earlier close stays as it was.", 409);
   if (input.action === "approve") {
     if (pendingFinancialCorrections(state).length) refuse("Resolve the import corrections that change money before you approve this close. Return the review for changes if needed.", 409);
@@ -173,7 +173,7 @@ export function reassignCloseReview(state: DomainState, ctx: Context, id: string
   if (review.status !== "awaiting_review") refuse("Only a review waiting for a decision can be reassigned. The recorded decision is unchanged.", 409);
   if (!reviewers.some(person => person.actor === input.reviewer && person.role === "Finance")) refuse("Choose an active Finance reviewer with access to this lender.", 403);
   if (input.reviewer === review.data.reviewer) refuse("Choose a different Finance reviewer.", 409);
-  if (input.reviewer === review.data.preparedBy || input.reviewer.startsWith("Sandbox ")) refuse("Choose a team member who did not prepare this close. Switching demo roles is not a second person.", 403);
+  if (input.reviewer === review.data.preparedBy || input.reviewer.startsWith("Sandbox ")) refuse(`Choose a team member who did not prepare this close.${demoRolesNote(ctx.accessMode)}`, 403);
   const previousReviewer = review.data.reviewer;
   review.data.reviewer = input.reviewer;
   touch(review, ctx.now);

@@ -128,6 +128,14 @@ export function evidenceSourceText(source: unknown): string {
   return Object.hasOwn(phrases, code) ? phrases[code]! : valueWords(code);
 }
 
+/**
+ * The standard's second-person sentence, where it matters: only the sandbox has demo roles, so a staff pilot never
+ * reads it. It starts with a space, to follow the sentence it explains.
+ */
+export function demoRolesNote(accessMode: unknown): string {
+  return accessMode === "staff" ? "" : " Switching demo roles is not a second person.";
+}
+
 /** A lender's mode by the name Settings gives it: "Records payments only" (observation) or "Instructions after go-live" (instruction). */
 export function lenderModeText(mode: unknown): string {
   return mode === "observation" ? "Records payments only" : mode === "instruction" ? "Instructions after go-live" : valueLabel(mode);

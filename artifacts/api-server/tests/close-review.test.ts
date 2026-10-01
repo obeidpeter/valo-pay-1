@@ -45,6 +45,9 @@ const step = (state: DomainState, id: string) => pilotProgress(state).steps.find
   assert.throws(() => decideCloseReview(state, { ...finance, actor: "Clerk:other" }, review.id, decision), /named Finance/);
   assert.throws(() => decideCloseReview(state, { ...finance, role: "Admin" }, review.id, decision), /named Finance/);
   assert.throws(() => decideCloseReview(state, { ...finance, principalId: ops.principalId }, review.id, decision), /different person/);
+  // A staff pilot has no demo roles, so its refusal leaves out the sandbox's sentence about them.
+  assert.throws(() => decideCloseReview(state, { ...finance, principalId: ops.principalId, accessMode: "staff" as const }, review.id, decision), (error: any) => error.message === "A different person must review this close.");
+  assert.throws(() => decideCloseReview(state, { ...finance, principalId: ops.principalId }, review.id, decision), /A different person must review this close\. Switching demo roles is not a second person\./);
   decideCloseReview(state, finance, review.id, decision);
   advanceRecordVersions(before, state, finance.now);
   assert.equal(step(state, "close").state, "completed");
