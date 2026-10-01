@@ -86,6 +86,8 @@ Sections named in the navigation of a page use the same words as the heading the
 | **preparer** and **reviewer** | The person who prepares work and the different person who reviews it | maker, checker, assessor |
 | **the Valo Pay team** | The people who run Valo Pay | operator, platform operator, support (unless a named route exists) |
 
+In a refusal, write role names exactly as listed, with no article: "Only Admin or Finance can …".
+
 ## Terms
 
 Use the word in the first column. Terms explained defines each one in plain words.
@@ -188,6 +190,7 @@ The exception: where an auditor needs a checksum or a hash, show it inside a **T
 
 - A button is a verb and its object, in sentence case, with no full stop: "Import checked batch", "Turn on emergency stop".
 - The button that opens a dialog, the dialog's title and the dialog's submit button use the same verb and object. The title may be a question: "Approve accounting draft?" with the button "Approve draft".
+- An edit form is titled "Edit {thing}", and its submit button says "Save changes".
 - The busy label repeats the verb: "Importing…", "Saving…", "Checking original request…".
 - **Add** a record you type in or an item in a list. **Create** a new top-level thing: a lender, an invitation, a checkout. **Draft** a new version of a policy or a template. **Run** a process: reconciliation, a daily close, a test, an assessment. **Record** something that happened elsewhere: a refund, a reminder, a notice.
 - A reviewer **Approves** or **Rejects**. The person who asked may **Withdraw**. Discount dates are the one exception: a second person **confirms** them against the signed agreement.
@@ -204,6 +207,8 @@ The exception: where an auditor needs a checksum or a hash, show it inside a **T
 | Could not load | "We could not load {thing}" | The reason if known, then "Try again" |
 | Request not confirmed | "Request not confirmed" | "We do not know yet whether Valo Pay saved this. Check the original request before you change anything." Buttons: "Check original request", "Open Request history" |
 | Refusal | Say what the reader cannot do | "Only {roles} can {action}. Your role is {role}." In the sandbox add: "Change your demo role in Settings." |
+
+Under a disabled button, say only "Only {roles} can {action}." and any specific reason. The bar above every page shows the reader's role and, in the sandbox, a link to change it.
 
 Use at most one reassurance line, worded the same everywhere: "Nothing has changed."
 
