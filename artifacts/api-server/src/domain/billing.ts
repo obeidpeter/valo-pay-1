@@ -186,7 +186,7 @@ const reasonText: Record<AdjustmentReason, string> = {
   refund: "was refunded to the customer",
   confirmed_duplicate: "was confirmed as a duplicate",
   wrong_allocation: "was found to be matched to the wrong instalment",
-  re_allocation: "had more money allocated to it",
+  re_allocation: "had more of its money allocated",
 };
 
 /**
@@ -264,7 +264,7 @@ export function recoveryFeeLines(state: DomainState, period: string) {
   const enabled = state.settings.recoveryFeeEnabled === true && state.settings.recoveryFeeDecision === "proven";
   const note = enabled
     ? `${nairaText(RECOVERY_FEE_KOBO)} for each failed debit the automated retry group recovers, billed once its ${experimentRules.outcomeWindowDays}-day window has closed, so a reversal inside the window never needs a credit.`
-    : "The recovery fee is off. It can be charged only after the recovery test is recorded as proven and the fee is switched on in Settings.";
+    : "The recovery fee is off. It can be charged only after the recovery test is recorded as proven and the Valo Pay team switches the fee on.";
   if (!enabled) return { enabled, lines: [] as RecoveryFeeLine[], kobo: 0, note };
   const end = Date.parse(periodEnd(period));
   const billed = new Set(issuedInvoices(state).flatMap((invoice) => ((invoice.data.recoveryFee?.lines || []) as Array<{ dueItemId: string }>).map((line) => line.dueItemId)));
@@ -365,7 +365,7 @@ export function buildBillingStatement(state: DomainState, now: string): Record<s
     invoices, nextInvoicePeriod: nextPeriod, nextInvoicePricingReady: nextPricing.ready, nextInvoicePricingExplanation: nextPricing.explanation,
     pendingAdjustments: adjustments, pendingAdjustmentsKobo: sumMoney(adjustments.map((line) => line.kobo)),
     rateDiscrepancies: rateDiscrepancies(state), rateDiscrepancyGuidance: RATE_DISCREPANCY_GUIDANCE,
-    adjustmentRule: "If a billed collection is reversed, refunded, confirmed as a duplicate or found to be matched to the wrong instalment, the next invoice corrects it with a credit or charge. Issued invoices are never changed. A correction is priced at the rate of the invoice that first billed the collection.",
+    adjustmentRule: "If a billed collection is reversed, refunded, confirmed as a duplicate, found to be matched to the wrong instalment or has more of its money allocated, the next invoice corrects it with a credit or charge. Issued invoices are never changed. A correction is priced at the rate of the invoice that first billed the collection.",
     recoveryFee: recoveryFeeLines(state, period).note,
     implementationExcludedFromRecurring: true, synthetic: true,
   };

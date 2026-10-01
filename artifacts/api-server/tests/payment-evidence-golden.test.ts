@@ -1149,7 +1149,7 @@ section("amounts written in the payment's own currency", () => {
   close(state, "2027-07-02T10:00:00");
   const [card] = payment(state, "CARD-USD-9");
   const refund = accepted(request(state, () => executeAction(state, finance(wat("2027-07-02T11:00:00")), { action: "record_refund", recordId: card!.id, reason: "Card refund made outside Valo Pay.", data: { reference: "RF-***9" } })), "the USD refund");
-  equal([refund.message, refund.data.refundedKobo], ["External refund of USD 1,000.00 recorded: the money this payment had not allocated. No money moved.", 100_000], "the refund's answer writes its amount in dollars");
+  equal([refund.message, refund.data.refundedKobo], ["External refund of USD 1,000.00 recorded: the money this payment had not allocated. The refund was paid outside Valo Pay. Valo Pay moved no money.", 100_000], "the refund's answer writes its amount in dollars");
   const two = recordsOf(state, "settlement-batches").find((item) => item.reference === "B-U2")!;
   check(exceptionsFor(state, two.id, "settlement_variance").some((item) => String(item.data.notes).includes("Settlement line PSK-USD-9 (USD 1,000.00) is already counted in settlement batch B-U1")), "a USD line counted in two batches is reported in dollars");
 });

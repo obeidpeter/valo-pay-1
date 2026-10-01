@@ -597,7 +597,7 @@ function runAction(state: DomainState, ctx: Context, input: ActionInput, audit?:
     if (paymentUnappliedKobo(payment) <= 0) throw Object.assign(new Error(`Payment ${payment.reference} has all of its money allocated to instalments, so there is nothing unallocated to refund. A refund recorded here returns only money the payment has not allocated.`), { status: 409 });
     payment.data.refundReference = String(data.reference); payment.data.refundRecordedAt = now; payment.data.refundRecordedExternally = true;
     const refundedKobo = recordPaymentRefund(state, ctx, payment, "No longer in use: the payment was refunded outside Valo Pay.");
-    return result(`External refund of ${moneyText(refundedKobo, currencyOf(payment))} recorded: the money this payment had not allocated. No money moved.`, payment, { refundedKobo });
+    return result(`External refund of ${moneyText(refundedKobo, currencyOf(payment))} recorded: the money this payment had not allocated. The refund was paid outside Valo Pay. Valo Pay moved no money.`, payment, { refundedKobo });
   }
   if (input.action === "simulate_failure") {
     assertActionRole(ctx, ["Admin", "Operations"], "record a sample failure");
