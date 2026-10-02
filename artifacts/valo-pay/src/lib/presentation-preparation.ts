@@ -37,10 +37,10 @@ export type PreparationStep = { id: PreparationStepId; label: string; descriptio
 export const preparationSteps: readonly PreparationStep[] = [
   { id: 'imports', label: 'Import batches', description: 'Import the sample customers and instalments. Save and check the payment file, for you to import live.' },
   { id: 'case', label: 'A case with an owner', description: 'Claim one open exception with a next step and a note. Two others stay unclaimed for you.' },
-  { id: 'pay-by-bank', label: 'Pay by Bank checkouts', description: 'Create 3 checkouts: confirmed, waiting for the customer and outcome unknown. A waiting checkout expires after 15 minutes.' },
+  { id: 'pay-by-bank', label: 'Pay by Bank checkouts', description: 'Create 3 checkouts: confirmed, waiting for the customer and outcome unknown. A waiting checkout expires after 15 minutes, so select Prepare for presentation again just before you present.' },
   { id: 'daily-closes', label: 'Daily closes', description: 'Run a daily close for each of the 3 days before today, in WAT.' },
   { id: 'close-review', label: 'Close review', description: 'Submit the latest close for review. It waits for a different person, a Finance team member.' },
-  { id: 'credit-desk', label: 'Credit Desk', description: 'Assess one applicant, reviewed by a different person, and show one who refused permission.' },
+  { id: 'credit-desk', label: 'Credit Desk', description: 'Run an assessment that a different person reviews, and one for an applicant who refused permission.' },
   { id: 'cash-desk', label: 'Cash Desk', description: 'Set up Cash Desk with a forecast and a VAT schedule. An accounting draft and a payroll funding plan wait for approval.' },
   { id: 'exports', label: 'Saved exports', description: 'Export a dispute pack (PDF) for Ada Okonkwo and a billing statement (CSV).' },
 ];
@@ -343,7 +343,8 @@ async function runCloses(run: Run): Promise<Outcome> {
   }
   if (!closedLatest) {
     const [newest] = await closesOf(run, latest);
-    const { entry } = await closeDetail(run, newest!.id);
+    if (!newest) throw answerProblem(`The daily close for ${formatDate(latest)} could not be found. Open Close review to check it.`);
+    const { entry } = await closeDetail(run, newest.id);
     // Import corrections waiting for a decision keep any new close from being reviewed: Close review says so.
     if (entry.problem && !currentReview(entry) && !entry.pendingFinancialCorrections) {
       await run.actAs(CLOSERS);
