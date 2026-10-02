@@ -55,6 +55,12 @@ test('Prepare for presentation fills the lender’s pages once, and a second pre
   }
   await page.evaluate(() => document.documentElement.classList.remove('dark'));
 
+  // The seeded proposed match is still waiting in Matches to review.
+  const lender = await page.locator('select[id^="lender-"]:visible').inputValue();
+  const matches = await (await page.request.get(`/api/v1/reconciliation/proposals?merchantId=${lender}&q=SBX-PAY-1003`)).json();
+  expect(matches.total).toBe(1);
+  expect(matches.related.map((record: { reference: string }) => record.reference)).toEqual(expect.arrayContaining(['SBX-PAY-1003', 'DEMO-LOAN-1003']));
+
   // The pages show what was prepared.
   await page.goto('/pay-by-bank');
   const history = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Checkout history' }) });

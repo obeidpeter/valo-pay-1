@@ -42,6 +42,11 @@ test("prepares a new sandbox through the real API, and a second press saves noth
   }
   await expect(page.getByRole("paragraph").filter({ hasText: /^Demo role: Admin$/ })).toBeVisible();
 
+  // The seeded proposed match is still waiting in Matches to review.
+  const matches = await (await context.request.get(`/api/v1/reconciliation/proposals?merchantId=${lender}`)).json();
+  expect(matches.total).toBe(1);
+  expect(matches.related.map((record: { reference: string }) => record.reference)).toEqual(expect.arrayContaining(["SBX-PAY-1003", "DEMO-LOAN-1003"]));
+
   // The pages show what was prepared.
   await page.goto("/imports");
   await expect(page.getByRole("button", { name: /Presentation payment evidence/ })).toBeVisible();
