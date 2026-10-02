@@ -40,7 +40,7 @@ export const preparationSteps: readonly PreparationStep[] = [
   { id: 'pay-by-bank', label: 'Pay by Bank checkouts', description: 'Create 3 checkouts: confirmed, waiting for the customer and outcome unknown. Like any checkout, the waiting one expires after 15 minutes.' },
   { id: 'daily-closes', label: 'Daily closes', description: 'Run a daily close for each of the 3 days before today, in WAT.' },
   { id: 'close-review', label: 'Close review', description: 'Submit the latest close for review. It waits for a different person, a Finance team member.' },
-  { id: 'credit-desk', label: 'Credit Desk', description: 'Run an assessment that a different person reviews, and one for an applicant who refused permission.' },
+  { id: 'credit-desk', label: 'Credit Desk', description: 'Run an assessment that waits for a different person to review it, and one for an applicant who refused permission.' },
   { id: 'cash-desk', label: 'Cash Desk', description: 'Set up Cash Desk with a forecast and a VAT schedule. An accounting draft and a payroll funding plan wait for approval.' },
   { id: 'exports', label: 'Saved exports', description: 'Export a dispute pack (PDF) for Ada Okonkwo and a billing statement (CSV).' },
 ];
@@ -392,7 +392,6 @@ async function submitCloseReview(run: Run): Promise<Outcome> {
 
 const GRANTERS = ['Admin', 'Operations'];
 const ASSESSORS = ['Admin', 'Operations'];
-const CREDIT_REVIEWERS = ['Finance', 'Compliance reviewer', 'Admin'];
 /** The loan the Credit Desk page starts with: ₦240,000.00, repaid at ₦90,000.00 a month for 3 months. */
 const SAMPLE_LOAN = { principalKobo: 24_000_000, repaymentKobo: 9_000_000, termMonths: 3 };
 type Assessment = ConnectedView['credit']['assessments'][number];
@@ -413,9 +412,9 @@ const assess = (run: Run, customerId: string, scenario: string) =>
 /**
  * Applicant A and Applicant B are the lender's first two customers by reference, never the sample pack's customer.
  * B has both permissions and an assessment in which the applicant refused permission to assess the application: it
- * shows "Refusal is not a credit-risk penalty." A has both permissions, a complete-evidence assessment and its review
- * by a different demo person, who approves it. B goes first, so A's reviewed assessment is the newest and Credit Desk
- * opens on it.
+ * shows "Refusal is not a credit-risk penalty." A has both permissions and a complete-evidence assessment that waits for
+ * a different person to review it, like the close, the accounting draft and the payroll plan: the button approves
+ * nothing. B goes first, so A's assessment is the newest and Credit Desk opens on it.
  */
 async function prepareCredit(run: Run): Promise<Outcome> {
   let view = await connectedView(run);
@@ -429,30 +428,11 @@ async function prepareCredit(run: Run): Promise<Outcome> {
     wrote = true;
     view = await connectedView(run);
   }
-  const reviewed = latestAssessment(view, a.id);
-  if (!(reviewed?.scenario === 'ready' && !reviewed.permissionRestricted && reviewed.reviews.length)) {
+  const waiting = latestAssessment(view, a.id);
+  if (!(waiting?.scenario === 'ready' && !waiting.permissionRestricted && waiting.result.state === 'review_pending')) {
     wrote = (await grantPermissions(run, a.id, ['account_read', 'credit_assessment'])) || wrote;
-    view = await connectedView(run);
-    let assessment = latestAssessment(view, a.id);
-    // An assessment waiting for its review is reviewed; anything else is assessed again first.
-    if (!(assessment?.scenario === 'ready' && !assessment.permissionRestricted && assessment.result.state === 'review_pending' && assessment.result.score && !assessment.reviews.length)) {
-      await run.actAs(ASSESSORS);
-      const { record } = await assess(run, a.id, 'ready');
-      wrote = true;
-      view = await connectedView(run);
-      assessment = view.credit.assessments.find(item => item.id === (record as { id: string }).id);
-      if (!assessment) throw answerProblem(UNREADABLE_ANSWER);
-    }
-    // A different person reviews it: in the sandbox, another demo role.
-    await run.actAs(CREDIT_REVIEWERS.filter(role => `Sandbox ${role}` !== assessment!.createdBy));
-    await connectedAction(run, 'credit.review', {
-      expectedAssessmentVersion: assessment.result.version,
-      outcome: 'approve',
-      rationale: 'Checked the sample income, essential costs, existing repayments and the proposed repayment schedule.',
-      applicantExplanation: 'The sample evidence supports the proposed repayments. This is practice with sample data, not a lending decision.',
-      reasonCodes: ['reviewer_evidence_assessment'],
-      ...(assessment.result.policy.recommendation === 'policy_not_met' ? { overrideRationale: 'Sample data for the presentation: the reviewer checked the extra evidence behind this approval.' } : {}),
-    }, 'Record a sample credit review', assessment.id);
+    await run.actAs(ASSESSORS);
+    await assess(run, a.id, 'ready');
     wrote = true;
   }
   return wrote ? 'completed' : 'already-done';

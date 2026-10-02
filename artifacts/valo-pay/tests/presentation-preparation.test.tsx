@@ -102,13 +102,13 @@ it('fills the active lender’s pages through the pages’ own requests and puts
   const exceptionLinks = new Set(records('exceptions').filter(exception => !['resolved', 'closed'].includes(exception.status)).map(exception => exception.data.linkedRecordId));
   expect(checkouts.some(checkout => exceptionLinks.has(checkout.data.dueItemId))).toBe(false);
 
-  // Applicant A's assessment, reviewed by a different demo person; Applicant B's refused one.
+  // Applicant A's assessment, waiting for a different person to review it: the button approves nothing. Applicant B's refused one.
   const assessments = records('connected-credit-assessments');
   const ready = assessments.find(assessment => assessment.data.scenario === 'ready')!;
   const refused = assessments.find(assessment => assessment.data.scenario === 'refused')!;
   expect(assessments).toHaveLength(2);
-  expect(ready.data.createdBy).toBe('Sandbox Admin');
-  expect(records('connected-credit-reviews')).toMatchObject([{ customerId: ready.customerId, data: { assessmentRecordId: ready.id, review: { reviewer: 'Sandbox Finance', outcome: 'approve' } } }]);
+  expect(ready).toMatchObject({ status: 'review_pending', data: { createdBy: 'Sandbox Admin', result: { state: 'review_pending' } } });
+  expect(records('connected-credit-reviews')).toEqual([]);
   expect(refused.customerId).not.toBe(ready.customerId);
   expect(JSON.stringify(refused.data.result.evidence.issues)).toContain('Refusal is not a credit-risk penalty.');
   const grants = records('connected-consents').filter(consent => consent.data.purpose !== 'one_time_payment');
@@ -132,8 +132,9 @@ it('fills the active lender’s pages through the pages’ own requests and puts
 
   // The presenter's demo role, put back after the Finance steps; nothing touched the other lender.
   expect(api.role).toBe('Admin');
+  // Only the VAT schedule, which only Finance saves, takes another demo role; it approves nothing.
   const roles = writes.filter(write => write.body.action === 'set_role').map(write => (write.body.data as { role: string }).role);
-  expect(roles).toEqual(['Finance', 'Admin', 'Finance', 'Admin']);
+  expect(roles).toEqual(['Finance', 'Admin']);
   expect(writes.every(write => write.merchantId === lender.merchant.id)).toBe(true);
   expect(api.state(api.merchantIds[1]).records.some(record => record.kind.startsWith('connected-') || record.kind === 'closes' || record.kind === 'import-batches')).toBe(false);
 

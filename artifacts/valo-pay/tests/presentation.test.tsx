@@ -340,7 +340,8 @@ it('tells each moment over the prepared records and keeps its boundary statement
   expect(notes('Take a payment by bank')).toContain('Only a payment the bank or provider confirms counts.');
   expect(notes('Take a payment by bank')).toContain('An expired checkout does not mean that a payment failed.');
   expect(notes('Take a payment by bank')).toContain('Live payments and bank connections are switched off. No money moved. Nothing was sent to a bank.');
-  expect(notes('Check an applicant’s affordability')).toContain('in Review history, the review another demo role recorded');
+  expect(notes('Check an applicant’s affordability')).toContain('Show the score and the affordability check. It waits for a different person to review it.');
+  expect(notes('Check an applicant’s affordability')).toContain('Each assessment waits for a different person to review it.');
   expect(notes('Check an applicant’s affordability')).toContain('choose the applicant who refused permission. There is no score, and the refusal does not count against them.');
   expect(notes('Check an applicant’s affordability')).toContain('A credit result is not a lending decision.');
   expect(notes('Check an applicant’s affordability')).toContain('Switching demo roles is not a second person');

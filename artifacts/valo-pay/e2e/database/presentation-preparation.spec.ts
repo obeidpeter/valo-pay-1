@@ -61,9 +61,11 @@ test("prepares a new sandbox through the real API, and a second press saves noth
   await expect(closes.getByRole("link").first()).toContainText("Waiting for review");
   await expect(page.getByText("Sandbox Finance", { exact: true }).first()).toBeVisible();
   await page.goto("/credit-desk");
+  // Ada Okonkwo's assessment waits for a different person to review it: the button approves nothing.
   await expect(page.getByRole("heading", { level: 3, name: "Ada Okonkwo" })).toBeVisible();
+  await expect(page.getByText(/^A different person must review this assessment\./)).toBeVisible();
   await page.getByRole("tab", { name: "Review history" }).click();
-  await expect(page.getByRole("heading", { name: "Sample approval recorded" })).toBeVisible();
+  await expect(page.getByText(/^No review yet for this version\./)).toBeVisible();
   const version = page.getByLabel("Assessment version");
   await version.selectOption((await version.locator("option", { hasText: "More evidence needed" }).getAttribute("value"))!);
   await expect(page.getByText(/Refusal is not a credit-risk penalty\./)).toBeVisible();

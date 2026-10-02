@@ -12,7 +12,7 @@ Open **Presentation** in the console navigation. This page supports a 20-minute 
    - a daily close for each of the 3 previous business days in West Africa Time, the latest submitted for Finance review, so it waits for a different person;
    - one sample exception claimed by a team member, with a next step and a handover note, while two other open exceptions stay unclaimed;
    - 3 Pay by Bank checkouts on 3 different open instalments, never PRES-D001: one confirmed, one awaiting authorisation and one with an unknown outcome;
-   - in Credit Desk, an applicant holding Read applicant accounts and Assess an application, with an assessment reviewed by a different demo role, and an applicant who refused permission;
+   - in Credit Desk, an applicant holding Read applicant accounts and Assess an application, with an assessment waiting for a different person’s review, and an applicant who refused permission;
    - in Cash Desk, the Read business accounts permission, Cash Desk set up with a saved 30-day forecast, an accounting draft and a payroll funding plan waiting for approval, and a saved VAT schedule;
    - in Saved exports, a dispute pack (PDF) for Ada Okonkwo and a billing statement (CSV).
 
@@ -43,7 +43,7 @@ The three CSV files stay as downloads for a hand import, with the instructions o
 | 6:00 | 75 seconds | Exceptions and case history | The prepared case’s owner, next step and handover note, then the owner and due date of another open exception. |
 | 7:15 | 75 seconds | Reports and Close review | Recorded closes for 3 business days, the latest close’s source coverage and its review waiting for a different Finance reviewer. After the live import, the review says the records changed after this close: a close can be approved only while it still matches its records. |
 | 8:30 | 90 seconds | Pay by Bank | Confirmed, awaiting-authorisation and unknown-outcome checkouts; only a payment the bank or provider confirms counts. |
-| 10:00 | 90 seconds | Credit Desk | The assessment and its review by another demo role, and the applicant who refused permission; a credit result is not a lending decision. |
+| 10:00 | 90 seconds | Credit Desk | The assessment, waiting for a different person to review it, and the applicant who refused permission; a credit result is not a lending decision. |
 | 11:30 | 75 seconds | Cash Desk | The 30-day forecast, then the accounting draft and payroll funding plan waiting for a different Finance reviewer; nothing is posted, filed or paid. |
 | 12:45 | 60 seconds | Saved exports | The prepared dispute pack: ready evidence can be retrieved, and pending or failed generation stays explicit. |
 
