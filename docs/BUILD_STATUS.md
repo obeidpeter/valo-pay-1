@@ -11,12 +11,19 @@ The Presentation page gains **Prepare for presentation**, offered only in the sa
 - Cash Desk is set up, with a forecast, an accounting draft and a payroll plan waiting for approval and a saved VAT schedule;
 - Saved exports has a dispute pack and a billing statement.
 
-Each step reads the current records first and skips what is already done, so a second press adds nothing. A failed step shows its reason, and the later steps still run. The demo role the presenter had is always put back. The seeded match waiting for Finance, the sample pack's instalment and two open exceptions are left untouched for the live demo. Go-live evidence, live payments and second-person approvals are not touched. Without file storage for exports, that step fails in plain words and the rest complete.
+Each step reads the current records first and skips what is already done, so a second press adds nothing unless records changed since. A failed step shows its reason, and the later steps still run. The demo role the presenter had is always put back. The seeded match waiting for Finance, the sample pack's instalment and two open exceptions are left untouched for the live demo. Go-live evidence, live payments and second-person approvals are not touched. Without file storage for exports, that step fails in plain words and the rest complete. An export still being prepared after 30 seconds also fails that step; a later press finds it again and does not request it twice.
 
 The demonstration story is now nine moments of about 12 minutes inside a 20-minute investor meeting, adding Pay by Bank, Credit Desk and Cash Desk to the six collections moments. The presenter brief and `docs/investor-presentation.md` give the run sheet and honest answers to likely investor questions. The guide toolbar keeps focus on the talking point list at the last step, and gives that list its own row on a phone.
 
 Tests:
-- `tests/presentation-preparation.test.tsx` runs every step against the fake API, and checks a repeat press, a failed step, a part-made checkout and staff access;
+- `tests/presentation-preparation.test.tsx` runs every step against the fake API. It also checks:
+  - a repeat press, a failed step and a part-made checkout;
+  - an export still being prepared;
+  - the demo role put back after a run, after leaving the page and after a reload;
+  - a latest close made out of date, which is closed again;
+  - the instalments and exceptions kept free for the live demo;
+  - the live import still matching its instalment automatically, with the confidence Certain;
+  - workspaces that are not a sandbox, which are refused;
 - `e2e/presentation-preparation.spec.ts` runs the button in desktop and mobile Chromium;
 - `e2e/database/presentation-preparation.spec.ts` runs it through the real API and PostgreSQL;
 - `tests/presentation.test.tsx` checks the nine moments, their timing, the run sheet and that the guide matches the brief.
