@@ -7,6 +7,7 @@ import { presentationChecks, presentationSteps } from '@/lib/presentation';
 import { presentationSamples, presenterBrief, downloadPresentationFile, sampleImportSteps } from '@/lib/presenter-brief';
 import { formatDate } from '@/lib/formatters';
 import { Button } from '@/components/ui/button';
+import { PresentationPreparation } from '@/components/presentation-preparation';
 
 export default function PresentationPage() {
   const { state, save } = usePresentation();
@@ -31,6 +32,7 @@ export default function PresentationPage() {
         <section className="rounded-xl border bg-secondary/25 p-5"><p className="text-xs font-semibold text-muted-foreground">Active lender</p><p className="mt-3 text-xl font-semibold">{lender?.name || 'None chosen'}</p><p className="mt-2 text-sm">{workspace?.accessMode === 'staff' ? 'Role' : 'Demo role'}: {workspace?.role || 'None'}</p><p className="mt-4 border-t pt-4 text-sm leading-6 text-muted-foreground">Sample data only. No money moves. The figures on screen show how the work is done. They are not real results, such as growth, better recoveries or live payments.</p><Link href="/pilot" className="mt-3 inline-flex min-h-10 items-center gap-2 text-sm font-medium text-primary underline underline-offset-4">Open Pilot journey<ArrowRight className="h-4 w-4" aria-hidden="true" /></Link></section>
       </div>
     </section>
+    <PresentationPreparation />
 
     <section aria-labelledby="demo-story"><div className="mb-4 flex flex-wrap items-end justify-between gap-2"><div><p className="text-xs font-semibold text-primary">The product story</p><h2 id="demo-story" className="mt-2 text-2xl font-semibold tracking-tight">Six moments that explain the value</h2></div><p className="text-sm text-muted-foreground">Open each page when you are ready.</p></div>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{presentationSteps.map((step, index) => <article key={step.href} className="flex flex-col rounded-xl border bg-card p-5"><div className="flex items-center justify-between"><span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-sm font-semibold text-primary">0{index + 1}</span><span className="text-xs text-muted-foreground">{step.time}</span></div><h3 className="mt-4 font-semibold">{step.title}</h3><p className="mt-2 flex-1 text-sm leading-6 text-muted-foreground">{step.value}</p><Link href={hrefFor(step)} className="mt-4 inline-flex min-h-10 items-center gap-2 text-sm font-medium text-primary underline underline-offset-4" onClick={() => save({ ...state, step: index })}>{step.action}<ArrowRight className="h-4 w-4" aria-hidden="true" /></Link></article>)}</div>
