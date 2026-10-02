@@ -5,7 +5,7 @@ import { Router } from 'wouter';
 import { installFakeApi, type FakeApi } from './fake-api';
 import { renderApp, screen, userEvent, waitFor, within } from './harness';
 import { presentationSamples, presenterBrief } from '@/lib/presenter-brief';
-import { presentationSteps } from '@/lib/presentation';
+import { presentationChecks, presentationSteps } from '@/lib/presentation';
 import { queryClient } from '@/App';
 import { Layout } from '@/components/layout';
 import { PresentationProvider } from '@/components/presentation-guide';
@@ -64,11 +64,11 @@ it('separates preparation by lender and clearing checkboxes preserves all record
   await user.click(screen.getByRole('button', { name: 'Start presentation guide' }));
   await user.selectOptions(screen.getByLabelText('Active lender', { selector: '#lender-sidebar' }), api.merchantIds[1]!);
   expect(screen.queryByRole('region', { name: 'Presentation guide' })).toBeNull();
-  expect(screen.getByText('0 of 6 preparation checks marked')).toBeTruthy();
+  expect(screen.getByText('0 of 7 preparation checks marked')).toBeTruthy();
   await user.selectOptions(screen.getByLabelText('Active lender', { selector: '#lender-sidebar' }), api.merchantIds[0]!);
-  expect(screen.getByText('1 of 6 preparation checks marked')).toBeTruthy();
+  expect(screen.getByText('1 of 7 preparation checks marked')).toBeTruthy();
   await user.click(screen.getByRole('button', { name: 'Clear preparation checks' }));
-  expect(screen.getByText('0 of 6 preparation checks marked')).toBeTruthy();
+  expect(screen.getByText('0 of 7 preparation checks marked')).toBeTruthy();
   expect(api.state()).toEqual(before);
   expect(api.calls.filter(c => c.method !== 'GET')).toEqual([]);
 });
@@ -156,8 +156,8 @@ it("writes the pack's dates and the talking points' durations as the rest of the
   // The files themselves keep the ISO date other systems read.
   expect(presentationSamples('2026-09-22')[1]!.csv).toContain(',2026-09-22,');
   renderApp('/presentation');
-  const pack = (await screen.findByRole('heading', { name: 'A repeatable sample import' })).closest('section')!;
-  expect(within(pack).getByText(/^Import the customer and instalment files/).textContent).toMatch(/The files’ business date is \d{1,2} \w{3,4} \d{4} \(WAT\)\.$/);
+  const pack = (await screen.findByRole('heading', { name: 'Sample files' })).closest('section')!;
+  expect(within(pack).getByText(/^Prepare for presentation imports the customer and instalment files/).textContent).toMatch(/The files’ business date is \d{1,2} \w{3,4} \d{4} \(WAT\)\.$/);
   expect(pack.textContent).not.toMatch(/\d{4}-\d{2}-\d{2}/);
   // Each download's name starts with its visible label, then says which file.
   for (const kind of ['customers', 'instalments', 'payment evidence']) expect(within(pack).getByRole('button', { name: `Download CSV of ${kind}` })).toBeTruthy();
@@ -186,6 +186,25 @@ it('opens the sample customer at step three, where the automatic R1 match and it
   const match = within(history).getByText(/^Matched automatically by rule R1\. Confidence: Certain\./);
   expect(match.textContent).toContain('Provider reference PRES-O001 matches instalment PRES-D001');
   expect(within(match.parentElement!).getByText('₦18,000.50')).toBeTruthy();
+  expect(api.calls.filter(c => c.method !== 'GET')).toEqual([]);
+});
+
+// Preparation starts with Prepare for presentation, and the checklist asks for it; the files stay for a hand import.
+it('starts the preparation with Prepare for presentation and keeps the sample files for a hand import', async () => {
+  const user = userEvent.setup(), before = structuredClone(api.state());
+  renderApp('/presentation');
+  const checks = (await screen.findByRole('heading', { name: 'Before you share your screen' })).closest('section')!;
+  expect(within(checks).getByText(/^Start with Prepare for presentation, then check each page yourself\./)).toBeTruthy();
+  expect(within(checks).getAllByRole('checkbox').map(box => box.closest('label')!.textContent)).toEqual(presentationChecks.map(check => check.label));
+  expect(within(checks).getByText('0 of 7 preparation checks marked')).toBeTruthy();
+  await user.click(within(checks).getByRole('checkbox', { name: 'I pressed Prepare for presentation for this lender and checked each page I will show.' }));
+  expect(within(checks).getByText('1 of 7 preparation checks marked')).toBeTruthy();
+  const pack = screen.getByRole('heading', { name: 'Sample files' }).closest('section')!;
+  expect(within(pack).getByText(/^Prepare for presentation imports the customer and instalment files for this lender\. It also saves and checks the payment file, so you can import it once during the demo\. Download the files only to import them by hand\./)).toBeTruthy();
+  expect(within(pack).getAllByRole('button', { name: /^Download CSV/ })).toHaveLength(3);
+  expect(presenterBrief('2026-09-22')).toContain('- [ ] I pressed Prepare for presentation for this lender and checked each page I will show.');
+  // Ticking the check is the presenter's own note: it changes no record.
+  expect(api.state()).toEqual(before);
   expect(api.calls.filter(c => c.method !== 'GET')).toEqual([]);
 });
 

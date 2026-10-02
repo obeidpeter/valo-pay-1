@@ -27,9 +27,10 @@ export const presentationSteps = [
 ] as const;
 
 export const presentationChecks = [
-  { id: 'build', label: 'I opened the right version of Valo Pay and checked the pages I will show.' },
+  { id: 'build', label: 'I opened the right version of Valo Pay in a new private window.' },
   { id: 'lender', label: 'I chose one sample lender and checked what my role allows.' },
-  { id: 'records', label: 'I rehearsed the import, match and case I will use.' },
+  { id: 'prepare', label: 'I pressed Prepare for presentation for this lender and checked each page I will show.' },
+  { id: 'records', label: 'I left the prepared payment batch unimported, to import it once during the demo.' },
   { id: 'close', label: 'I checked which sources the daily close covers and its review status.' },
   { id: 'backup', label: 'I downloaded a sample export and prepared a backup recording or screenshots.' },
   { id: 'claims', label: 'I will say which figures are sample data and what is still needed for live use.' },
