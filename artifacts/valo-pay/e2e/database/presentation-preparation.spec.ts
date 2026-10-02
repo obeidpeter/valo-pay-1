@@ -1,12 +1,14 @@
 import { test, expect, type APIRequestContext, type Locator } from "@playwright/test";
 
 // Prepare for presentation through the real API and PostgreSQL, the routes the live site runs: a new sandbox, the
-// run, the pages that show what it prepared, then a second press that saves nothing. This test server sets up no file
-// storage unless PRIVATE_OBJECT_DIR is given, and then the exports step must say so in Valo Pay's words while every
-// other step completes.
+// run, the pages that show what it prepared, then a second press that saves nothing. This test server runs no export
+// worker, and sets up no file storage unless PRIVATE_OBJECT_DIR is given. So the exports step must say in Valo Pay's
+// words that exports are not set up, or that the first file is still being prepared, while every other step completes.
 const steps = ["Import batches", "A case with an owner", "Pay by Bank checkouts", "Daily closes", "Close review", "Credit Desk", "Cash Desk", "Saved exports"];
 const storage = Boolean(process.env.PRIVATE_OBJECT_DIR);
-const NO_STORAGE = "Exports are not set up yet. Contact the Valo Pay team.";
+const EXPORTS_PROBLEM = storage
+  ? "Dispute pack (PDF) is still being prepared. Open Saved exports to check it, or select Prepare for presentation again."
+  : "Exports are not set up yet. Contact the Valo Pay team.";
 
 async function expectSteps(items: Locator, status: string, exportsStatus = status) {
   await expect(items).toHaveCount(steps.length);
@@ -33,13 +35,9 @@ test("prepares a new sandbox through the real API, and a second press saves noth
 
   await section.getByRole("button", { name: "Prepare for presentation" }).click();
   await expect(summary).not.toHaveText("", { timeout: 180_000 });
-  const exportsStatus = storage ? "Completed" : "Failed";
-  await expectSteps(items, "Completed", exportsStatus);
-  if (storage) await expect(summary).toHaveText("All 8 steps are done. Open Overview to start.");
-  else {
-    await expect(items.last()).toContainText(NO_STORAGE);
-    await expect(summary).toHaveText("1 step failed. Select Prepare for presentation to try it again.");
-  }
+  await expectSteps(items, "Completed", "Failed");
+  await expect(items.last()).toContainText(EXPORTS_PROBLEM);
+  await expect(summary).toHaveText("1 step failed. Select Prepare for presentation to try it again.");
   await expect(page.getByRole("paragraph").filter({ hasText: /^Demo role: Admin$/ })).toBeVisible();
 
   // The seeded proposed match is still waiting in Matches to review.
@@ -73,14 +71,16 @@ test("prepares a new sandbox through the real API, and a second press saves noth
   await expect(page.getByRole("heading", { level: 1, name: "My work" })).toBeVisible();
   await expect(page.getByText("Ask the lender team for the customer’s signed consent record")).toBeVisible();
 
-  // A second press finds every step done and saves nothing; without file storage the exports are refused again.
+  // A second press finds every step done and saves nothing but the exports: without file storage they are refused
+  // again, and with it the file still being prepared is read again, not requested again.
   const before = await auditEntries(context.request, lender);
   const writes: string[] = [];
   page.on("request", request => { if (request.url().includes("/api/") && request.method() !== "GET") writes.push(new URL(request.url()).pathname); });
   await page.goto("/presentation");
   await section.getByRole("button", { name: "Prepare for presentation" }).click();
   await expect(summary).not.toHaveText("", { timeout: 120_000 });
-  await expectSteps(items, "Already done", storage ? "Already done" : "Failed");
+  await expectSteps(items, "Already done", "Failed");
+  await expect(items.last()).toContainText(EXPORTS_PROBLEM);
   expect(writes).toEqual(storage ? [] : ["/api/v1/exports"]);
   expect(await auditEntries(context.request, lender)).toBe(before);
   await expect(page.getByRole("paragraph").filter({ hasText: /^Demo role: Admin$/ })).toBeVisible();
