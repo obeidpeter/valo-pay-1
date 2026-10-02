@@ -2,10 +2,10 @@
  * Prepare for presentation: the sample work the investor presentation shows, made for the active lender through the
  * requests the console's own pages send, with the same payloads and headers. Sandbox only, never a staff pilot.
  *
- * Each step reads what is there first and writes only what is missing, so pressing the button again adds nothing and
- * a step already done says so. A step that fails records why, in Valo Pay's words, and the steps that do not need it
- * still run. The presenter's demo role is switched where an action needs another role or a different person (in the
- * sandbox each demo role is a different sample person), and is always put back.
+ * Each step reads what is there first and writes only what is missing, so pressing the button again adds nothing,
+ * unless records changed since, and a step already done says so. A step that fails records why, in Valo Pay's words,
+ * and the steps that do not need it still run. The presenter's demo role is switched where an action needs another
+ * role or a different person (in the sandbox each demo role is a different sample person), and is always put back.
  *
  * The order matters. The daily closes run after every step that changes what a close covers (the imports, the case
  * and the checkouts), so the close waiting for review stays current. Credit Desk, Cash Desk and the exports change

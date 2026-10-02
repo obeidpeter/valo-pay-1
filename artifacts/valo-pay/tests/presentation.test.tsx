@@ -178,6 +178,8 @@ it('sets out the 20-minute run sheet, the preparation and honest answers in the 
   expect(answers).toContain('- Is this live? No. This is working software in a sandbox with sample data. Live payments and bank connections are switched off');
   expect(answers).toContain('- Who is it for? Nigerian lenders and cooperatives first');
   expect(answers).toContain('- What is connected? No bank, payment provider or accounting software is connected yet.');
+  // Imported files are not a live feed.
+  expect(answers).toContain('Customer and instalment records arrive as files from a loan management system. There is no direct connection to a loan management system.');
   expect(answers).toContain('- How is money kept safe? Valo Pay never holds money.');
   expect(answers).toContain('Permission to read an account is not permission to take money from it.');
   expect(answers).toContain('- What is needed before go-live? Go-live evidence lists 5 requirements, and each is still pending.');

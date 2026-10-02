@@ -247,6 +247,7 @@ Every status passes through the shared labels (`valueLabel` and `StatusBadge`). 
 | Waiting for review | A second person must review it |
 | Approved / Rejected / Withdrawn | A reviewer's decision, or the requester took it back |
 | Completed | Done |
+| Already done | A step found complete before it ran |
 | Failed | It did not work; say what to do |
 | Blocked | It cannot continue until something changes; say what |
 | Ready to download | An export file is ready |
