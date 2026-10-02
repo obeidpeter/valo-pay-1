@@ -41,7 +41,7 @@ The three CSV files stay as downloads for a hand import, with the instructions o
 | 3:00 | 90 seconds | Import batches | The prepared payment batch: validation, the exact naira amount and saved source provenance, then one live import. |
 | 4:30 | 90 seconds | Reconciliation, then the sample customer’s history | Rule R1 matched the payment to its instalment automatically, with the confidence Certain, and the history shows why; a less certain match waits for Finance. |
 | 6:00 | 75 seconds | Exceptions and case history | The prepared case’s owner, next step and handover note, then the owner and due date of another open exception. |
-| 7:15 | 75 seconds | Reports and Close review | Recorded closes for 3 business days, the latest close’s source coverage and its review waiting for a different Finance reviewer. |
+| 7:15 | 75 seconds | Reports and Close review | Recorded closes for 3 business days, the latest close’s source coverage and its review waiting for a different Finance reviewer. After the live import, the review says the records changed after this close: a close can be approved only while it still matches its records. |
 | 8:30 | 90 seconds | Pay by Bank | Confirmed, awaiting-authorisation and unknown-outcome checkouts; only a payment the bank or provider confirms counts. |
 | 10:00 | 90 seconds | Credit Desk | The assessment and its review by another demo role, and the applicant who refused permission; a credit result is not a lending decision. |
 | 11:30 | 75 seconds | Cash Desk | The 30-day forecast, then the accounting draft and payroll funding plan waiting for a different Finance reviewer; nothing is posted, filed or paid. |
