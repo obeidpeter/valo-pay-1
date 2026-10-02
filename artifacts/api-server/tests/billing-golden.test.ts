@@ -5,7 +5,8 @@ import assert from "node:assert/strict";
 import { ctxAt, wat } from "./helpers.js";
 import { executeAction } from "../src/domain/actions.js";
 import { buildOverview, buildReports } from "../src/domain/reports.js";
-import { billableCollection, issueInvoice, monthOf, pendingAdjustments, previousMonth, periodEnd } from "../src/domain/billing.js";
+import { billableCollection, compareIssuedInvoiceRates, issueInvoice, monthOf, pendingAdjustments, previousMonth, periodEnd, rateDiscrepancies } from "../src/domain/billing.js";
+import { GetReportsResponse } from '@workspace/api-zod';
 import { supersedeAllocation } from "../src/domain/reconciliation.js";
 import { makeRecord, recordsOf } from "../src/domain/records.js";
 import { seedMerchant } from "../src/lib/valopay-seed.js";
@@ -58,6 +59,53 @@ assert.equal(periodEnd("2027-06"), "2027-06-30T22:59:59.999Z", "June ends at mid
 assert.equal(monthOf(wat("2028-01-01T00:30:00")), "2028-01", "00:30 WAT on 1 January is January, though it is still December in UTC");
 assert.equal(previousMonth(wat("2028-02-01T00:30:00")), "2028-01", "at 00:30 WAT on 1 February the previous month is January");
 checks += 5;
+
+// ---------- Historical rate-check coverage distinguishes agreement from invoices that could not be compared ----------
+{
+  const { state } = fixture('rate-comparison-coverage', '2027-01-01');
+  const oldTerms = recordsOf(state, 'commercial')[0]!;
+  delete oldTerms.data.discountReview;
+  const currentTerms = makeRecord(state, 'commercial', { name: 'Current ordinary terms', status: 'signed', createdAt: wat('2027-04-01T09:00:00'), data: { signed: true, designPartner: false, effectiveDate: '2027-04-01', licenceKobo: LICENCE } });
+  const addInvoice = (period: string, rate: number) => makeRecord(state, 'invoices', { name: `Invoice ${period}`, status: 'issued', reference: `COVERAGE-${period}`, data: { period, issuedAt: wat('2027-06-01T09:00:00'), designPartnerDiscount: { rate, kobo: 0 }, totals: { netKobo: 0, vatBps: 750, vatKobo: 0, totalKobo: 0 }, usageLines: [], adjustments: [] } });
+  const noTerms = addInvoice('2026-12', 0), awaiting = addInvoice('2027-01', 0.5), agrees = addInvoice('2027-04', 0);
+  const before = structuredClone(state);
+  const report = buildReports(state, wat('2027-06-02T09:00:00'));
+  const checked = GetReportsResponse.parse(report).billing;
+  assert.equal(checked.pricingReady, true, 'current ordinary terms do not hide the unchecked historical months');
+  assert.equal(checked.nextInvoicePricingReady, true);
+  assert.deepEqual(checked.rateDiscrepancies, [], 'zero differences does not mean every invoice was compared');
+  const { invoices, ...counts } = checked.rateComparisonCoverage!;
+  assert.deepEqual(counts, { totalInvoices: 3, checked: 1, different: 0, awaitingConfirmation: 1, noApplicableTerms: 1 });
+  assert.deepEqual(invoices.map(row => [row.invoiceId, row.invoiceReference, row.period, row.status, row.commercialId, row.commercialName]), [
+    [noTerms.id, noTerms.reference, '2026-12', 'no_applicable_terms', null, null],
+    [awaiting.id, awaiting.reference, '2027-01', 'awaiting_confirmation', oldTerms.id, oldTerms.name],
+    [agrees.id, agrees.reference, '2027-04', 'agrees', currentTerms.id, currentTerms.name],
+  ]);
+  assert.match(invoices[0]!.explanation, /No signed terms apply/);
+  assert.match(invoices[1]!.explanation, /These discount dates have not been proposed/);
+  assert.deepEqual(state, before, 'the coverage read changes neither issued invoices nor commercial terms');
+  const { rateComparisonCoverage: _coverage, ...legacyBilling } = report.billing;
+  assert.deepEqual(GetReportsResponse.parse({ ...report, billing: legacyBilling }).billing, legacyBilling, 'older responses and existing billing data remain readable without coverage');
+
+  agrees.data.designPartnerDiscount!.rate = 0.5;
+  const mixed = compareIssuedInvoiceRates(state);
+  assert.deepEqual([mixed.coverage.checked, mixed.coverage.different, mixed.coverage.awaitingConfirmation, mixed.coverage.noApplicableTerms], [1, 1, 1, 1]);
+  assert.deepEqual(mixed.discrepancies, rateDiscrepancies(state), 'the existing discrepancy API is preserved');
+  assert.equal(mixed.coverage.invoices.at(-1)!.status, 'different');
+
+  // Confirming the old dates makes that month comparable; earlier ordinary terms cover the remaining historical gap.
+  validateRecord(state, staffAt('coverage_proposer', 'Finance', wat('2027-06-03T09:00:00')), 'commercial', oldTerms, true);
+  confirmTerms(state, wat('2027-06-04T09:00:00'), 'coverage_confirmer');
+  makeRecord(state, 'commercial', { name: 'Earlier ordinary terms', status: 'signed', data: { signed: true, designPartner: false, effectiveDate: '2026-12-01' } });
+  agrees.data.designPartnerDiscount!.rate = 0;
+  const complete = compareIssuedInvoiceRates(state);
+  assert.deepEqual({ ...complete.coverage, invoices: undefined }, { totalInvoices: 3, checked: 3, different: 0, awaitingConfirmation: 0, noApplicableTerms: 0, invoices: undefined });
+  assert.ok(complete.coverage.invoices.every(row => row.status === 'agrees'));
+  assert.deepEqual(complete.discrepancies, []);
+  state.records = state.records.filter(record => record.kind !== 'invoices');
+  assert.deepEqual(compareIssuedInvoiceRates(state).coverage, { totalInvoices: 0, checked: 0, different: 0, awaitingConfirmation: 0, noApplicableTerms: 0, invoices: [] });
+  checks += 16;
+}
 
 // ---------- Review fix: a design-partner price that is not ready names its actual cause, in the same words everywhere ----------
 {

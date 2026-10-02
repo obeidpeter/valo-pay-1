@@ -225,6 +225,16 @@ export function pendingAdjustments(state: DomainState): AdjustmentLine[] {
  * those terms, and the explanation names them, when they took effect and the whole-month rule.
  */
 export interface RateDiscrepancy { invoiceId: string; invoiceReference: string; period: string; commercialId: string; chargedRate: number; agreedRate: number; explanation: string }
+export interface InvoiceRateComparison {
+  invoiceId: string; invoiceReference: string; period: string;
+  status: "agrees" | "different" | "awaiting_confirmation" | "no_applicable_terms";
+  commercialId: string | null; commercialName: string | null; explanation: string;
+}
+/** Checked includes both agreeing and differing invoices; the two unchecked counts never imply agreement. */
+export interface RateComparisonCoverage {
+  totalInvoices: number; checked: number; different: number; awaitingConfirmation: number; noApplicableTerms: number;
+  invoices: InvoiceRateComparison[];
+}
 const rateText = (rate: number): string => rate > 0 ? `the ${Math.round(rate * 100)}% design-partner discount` : "the full public price";
 /** What Finance does about a discrepancy: there is no correction for an issued invoice's discount, so it is agreed outside the platform. */
 export const RATE_DISCREPANCY_GUIDANCE = [
@@ -246,17 +256,42 @@ function effectiveFrom(terms: TypedRecord<"commercial">): string {
  * month, its invoices are not compared. It is only reported: an issued invoice is never rewritten and no money is created.
  */
 export function rateDiscrepancies(state: DomainState): RateDiscrepancy[] {
-  return issuedInvoices(state).flatMap((invoice) => {
+  return compareIssuedInvoiceRates(state).discrepancies;
+}
+
+/** One read computes the differences and the coverage of that comparison, without changing invoices or terms. */
+export function compareIssuedInvoiceRates(state: DomainState): { discrepancies: RateDiscrepancy[]; coverage: RateComparisonCoverage } {
+  const discrepancies: RateDiscrepancy[] = [];
+  const coverage: RateComparisonCoverage = { totalInvoices: 0, checked: 0, different: 0, awaitingConfirmation: 0, noApplicableTerms: 0, invoices: [] };
+  for (const invoice of issuedInvoices(state)) {
     const period = String(invoice.data.period), inEffect = termsFor(state, period);
     const agreed = inEffect ? designPartnerDiscount(inEffect.data, period) : undefined;
     const chargedRate = rateOf(invoice.data.designPartnerDiscount?.rate, 0);
-    if (!inEffect || !agreed?.ready || agreed.rate === chargedRate) return [];
+    const identity = { invoiceId: invoice.id, invoiceReference: invoice.reference, period, commercialId: inEffect?.id ?? null, commercialName: inEffect?.name ?? null };
+    coverage.totalInvoices++;
+    if (!inEffect) {
+      coverage.noApplicableTerms++;
+      coverage.invoices.push({ ...identity, status: "no_applicable_terms", explanation: `No signed terms apply to ${monthText(period)}, so this invoice's rate has not been checked. Review the commercial terms in Go-live evidence.` });
+      continue;
+    }
+    if (!agreed?.ready) {
+      coverage.awaitingConfirmation++;
+      coverage.invoices.push({ ...identity, status: "awaiting_confirmation", explanation: `This invoice's rate has not been checked. ${agreed!.explanation}` });
+      continue;
+    }
+    coverage.checked++;
+    const different = agreed.rate !== chargedRate;
     const terms = `“${inEffect.name}”, ${inEffect.data.designPartner === true
       ? `design-partner terms in effect from ${effectiveFrom(inEffect)}, whose confirmed agreement ${String(inEffect.data.discountTermsReference ?? "").trim()} gives ${rateText(agreed.rate!)}`
       : `ordinary terms in effect from ${effectiveFrom(inEffect)}, which give the full public price`}`;
-    return [{ invoiceId: invoice.id, invoiceReference: invoice.reference, period, commercialId: inEffect.id, chargedRate, agreedRate: agreed.rate!,
-      explanation: `${invoice.reference} for ${monthText(period)} charged ${rateText(chargedRate)}. A month uses the terms in effect at its end: for ${monthText(period)} those are ${terms}.` }];
-  });
+    const explanation = `${invoice.reference} for ${monthText(period)} charged ${rateText(chargedRate)}. A month uses the terms in effect at its end: for ${monthText(period)} those are ${terms}.`;
+    coverage.invoices.push({ ...identity, status: different ? "different" : "agrees", explanation });
+    if (different) {
+      coverage.different++;
+      discrepancies.push({ invoiceId: invoice.id, invoiceReference: invoice.reference, period, commercialId: inEffect.id, chargedRate, agreedRate: agreed.rate!, explanation });
+    }
+  }
+  return { discrepancies, coverage };
 }
 
 /** BIL-03: the recovery fee, billed only after the 30-day window closes and only when the gate is open. */
@@ -355,6 +390,7 @@ export function buildBillingStatement(state: DomainState, now: string): Record<s
     netKobo: invoice.data.totals?.netKobo, vatKobo: invoice.data.totals?.vatKobo, totalKobo: invoice.data.totals?.totalKobo, creditNote: invoice.data.totals?.creditNote === true,
   }));
   const adjustments = pendingAdjustments(state);
+  const rateComparison = compareIssuedInvoiceRates(state);
   return {
     period, usageRateBps: USAGE_FEE_BPS, usageCapKobo: USAGE_FEE_CAP_KOBO, reversalWindowDays: reversalWindowDays(state, state.merchant.provider), vatBps: vatBpsFor(state),
     billableChannels: [...billableChannels], billableRule: "A collection is billed once four things are true. The direct debit succeeded, as the provider’s notification or settlement line shows. The payment has settled. Some of its allocated money was not reversed or refunded by the invoice date. The provider’s reversal window has passed since it settled.",
@@ -364,7 +400,7 @@ export function buildBillingStatement(state: DomainState, now: string): Record<s
     pricingReady: pricing.ready, pricingExplanation: pricing.explanation,
     invoices, nextInvoicePeriod: nextPeriod, nextInvoicePricingReady: nextPricing.ready, nextInvoicePricingExplanation: nextPricing.explanation,
     pendingAdjustments: adjustments, pendingAdjustmentsKobo: sumMoney(adjustments.map((line) => line.kobo)),
-    rateDiscrepancies: rateDiscrepancies(state), rateDiscrepancyGuidance: RATE_DISCREPANCY_GUIDANCE,
+    rateDiscrepancies: rateComparison.discrepancies, rateDiscrepancyGuidance: RATE_DISCREPANCY_GUIDANCE, rateComparisonCoverage: rateComparison.coverage,
     adjustmentRule: "If a billed collection is reversed, refunded, confirmed as a duplicate, found to be matched to the wrong instalment or has more of its money allocated, the next invoice corrects it with a credit or charge. Issued invoices are never changed. A correction is priced at the rate of the invoice that first billed the collection.",
     recoveryFee: recoveryFeeLines(state, period).note,
     implementationExcludedFromRecurring: true, synthetic: true,

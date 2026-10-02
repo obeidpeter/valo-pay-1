@@ -13,6 +13,7 @@ import { readableLabel } from '@/components/record-label';
 import { LoadProblem } from '@/components/load-problem';
 import { ReviewDialog, reviewJobs } from '@/components/review-dialog';
 import { discountTermsStatus, termsReplaced } from '@workspace/valopay-schema';
+import { useHashTarget } from '@/lib/use-hash-target';
 
 /**
  * A design partner's discount dates as the service reads them, in its words: why the terms cannot price a new invoice,
@@ -82,6 +83,7 @@ export default function EvidencePage() {
     { merchantId: merchantId! },
     { query: { enabled: !!merchantId, queryKey: getListRecordsQueryKey('commercial', { merchantId: merchantId! }) } }
   );
+  useHashTarget(['commercial-terms', ...(commercial?.items ?? []).map(terms => `commercial-${encodeURIComponent(terms.id)}`)], !!commercial && !isLoadingComm && !commercialError);
 
   const { data: evidence, isLoading: isLoadingEvidence, error: evidenceError, refetch: retryEvidence, isFetching: fetchingEvidence } = useListRecords(
     'evidence',
@@ -237,7 +239,7 @@ export default function EvidencePage() {
       </section>
 
       {/* Commercial terms */}
-      <section className="bg-card border rounded-xl shadow-sm overflow-hidden">
+      <section id="commercial-terms" tabIndex={-1} className="bg-card border rounded-xl shadow-sm overflow-hidden focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
         <div className="p-4 border-b bg-secondary/20 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <FileCheck className="h-5 w-5 text-primary" />
@@ -268,7 +270,7 @@ export default function EvidencePage() {
                 <EmptyRow colSpan={7} title="No commercial terms yet">Select Add terms to record signed terms, licence plans and prices. They count towards the go-live requirements.</EmptyRow>
               ) : (
                 commercial.items.map(comm => (
-                  <tr key={comm.id} className="hover:bg-secondary/10">
+                  <tr key={comm.id} id={`commercial-${encodeURIComponent(comm.id)}`} tabIndex={-1} className="hover:bg-secondary/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
                     <td className="px-6 py-4 font-medium">{comm.name}</td>
                     <td className="px-6 py-4 font-mono">{formatNumber(Number(comm.data?.monthlyVolume || 0))}</td>
                     <td className="px-6 py-4 font-mono">{formatKobo(Number(comm.data?.averageTicketKobo || 0))}</td>

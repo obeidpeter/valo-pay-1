@@ -9,7 +9,7 @@ import { EmptyRow, EmptyState } from '@/components/empty-state';
 import { Loading } from '@/components/loading';
 import { DailyCloseStatus } from '@/components/daily-close-status';
 import { useWorkspace } from '@/lib/workspace-context';
-import { useGetReports, getGetReportsQueryKey, useListRecords, getListRecordsQueryKey } from '@workspace/api-client-react';
+import { useGetReports, getGetReportsQueryKey, useListRecords, getListRecordsQueryKey, type RateComparisonCoverage } from '@workspace/api-client-react';
 import { BarChart3, FileText, CheckSquare, RefreshCcw } from 'lucide-react';
 import { PermissionButton as Button } from '@/components/permission-button';
 import { formatKobo, formatDate, formatCount, formatNumber, formatPercent, formatPercentagePoints } from '@/lib/formatters';
@@ -40,6 +40,38 @@ const adjustmentRows = (record: Unknown): Array<Record<string, any>> => Array.is
 /** Issued invoices charged at another rate than the terms in effect for their month give, each with the service's explanation; an older answer has none. */
 const discrepancyRows = (record: Unknown): Array<Record<string, any>> => Array.isArray(record?.rateDiscrepancies) ? (record!.rateDiscrepancies as Array<Record<string, any>>) : [];
 const rateText = (rate: unknown) => typeof rate !== 'number' ? 'Not recorded' : rate > 0 ? `${formatPercent(rate)} discount` : 'Full public price';
+/** An absent coverage object is an older response, never evidence that every historical invoice was checked. */
+function InvoiceRateChecks({ coverage }: { coverage?: RateComparisonCoverage }) {
+  if (!coverage) return null;
+  const pending = coverage.invoices.filter(invoice => invoice.status === 'awaiting_confirmation' || invoice.status === 'no_applicable_terms');
+  const checked = coverage.invoices.filter(invoice => invoice.status === 'agrees' || invoice.status === 'different');
+  const termsLink = (invoice: RateComparisonCoverage['invoices'][number]) => <Link href={invoice.commercialId ? `/evidence#commercial-${encodeURIComponent(invoice.commercialId)}` : '/evidence#commercial-terms'} className="inline-flex min-h-8 items-center font-medium text-primary underline underline-offset-4">{invoice.commercialName ? `Review ${invoice.commercialName}` : 'Review commercial terms'}</Link>;
+  return <section aria-label="Issued invoice rate checks" className={`space-y-3 rounded-xl border p-4 text-sm ${pending.length ? 'border-warning/40 bg-warning/5' : ''}`}>
+    <div role="status">
+      <h3 className="font-semibold">Issued invoice rate checks</h3>
+      {coverage.totalInvoices === 0 ? <p className="mt-1">No issued invoices to compare yet.</p> : <>
+        <p className="mt-1">{formatNumber(coverage.checked)} of {formatCount(coverage.totalInvoices, 'issued invoice')} checked; {formatCount(coverage.different, 'rate difference')} found.</p>
+        {pending.length > 0 && <p className="mt-1">Checks are incomplete: {formatNumber(coverage.awaitingConfirmation)} awaiting confirmed terms; {formatNumber(coverage.noApplicableTerms)} without applicable signed terms.</p>}
+      </>}
+    </div>
+    {pending.length > 0 && <ul className="space-y-3">
+      {pending.map(invoice => <li key={invoice.invoiceId} className="border-t border-border/60 pt-3">
+        <p className="font-medium">{invoice.invoiceReference} · {invoice.period} · {invoice.status === 'awaiting_confirmation' ? 'Awaiting confirmed terms' : 'No applicable signed terms'}</p>
+        <p className="mt-1 whitespace-pre-line text-muted-foreground">{invoice.explanation}</p>
+        {termsLink(invoice)}
+      </li>)}
+    </ul>}
+    {checked.length > 0 && <ReportDisclosure title={`Checked invoice rates (${formatNumber(checked.length)})`}>
+      <ul className="space-y-3">
+        {checked.map(invoice => <li key={invoice.invoiceId} className="border-b border-border/60 pb-3 last:border-0 last:pb-0">
+          <p className="font-medium">{invoice.invoiceReference} · {invoice.period} · {invoice.status === 'different' ? 'Rate differs' : 'Rate agrees'}</p>
+          <p className="mt-1 whitespace-pre-line text-muted-foreground">{invoice.explanation}</p>
+          {termsLink(invoice)}
+        </li>)}
+      </ul>
+    </ReportDisclosure>}
+  </section>;
+}
 const billingSummaryKeys = new Set(['period', 'volumeTier', 'totalKobo', 'usageFeeKobo', 'successfulCollections', 'nextInvoicePeriod', 'pendingAdjustmentsKobo']);
 const billingReadinessKeys = new Set(['pricingReady', 'pricingExplanation', 'nextInvoicePricingReady', 'nextInvoicePricingExplanation']);
 const billingLabels: Record<string, string> = {
@@ -260,6 +292,7 @@ export default function ReportsPage() {
                     <EmptyState title="No billing data for this month" className="px-0 py-4">A collection is billed only when its direct debit succeeds, the money settles and the provider’s reversal period ends without a reversal.</EmptyState>
                   )}
                 </div>
+                <InvoiceRateChecks coverage={reports.billing?.rateComparisonCoverage} />
                 {discrepancyRows(reports.billing).length > 0 && <div role="status" className="space-y-3 rounded-xl border border-warning/40 bg-warning/5 p-4 text-sm">
                   <p className="font-semibold">Issued invoices that differ from the terms in effect</p>
                   <ScrollFrame label="Issued invoices that differ from the terms in effect" className="overflow-x-auto">

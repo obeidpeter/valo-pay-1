@@ -638,6 +638,18 @@ export const GetReportsQueryParams = zod.object({
   "includeCloses": zod.enum(['true', 'false']).optional().describe('Default true for compatibility: the close array, where closes more than a week before the latest carry their summary (GET /v1/close-history/{id} returns any close whole). The console passes false and loads paged close summaries separately.')
 })
 
+export const getReportsResponseBillingTwoRateComparisonCoverageTotalInvoicesMin = 0;
+
+export const getReportsResponseBillingTwoRateComparisonCoverageCheckedMin = 0;
+
+export const getReportsResponseBillingTwoRateComparisonCoverageDifferentMin = 0;
+
+export const getReportsResponseBillingTwoRateComparisonCoverageAwaitingConfirmationMin = 0;
+
+export const getReportsResponseBillingTwoRateComparisonCoverageNoApplicableTermsMin = 0;
+
+
+
 export const GetReportsResponse = zod.object({
   "metrics": zod.array(zod.object({
   "key": zod.string(),
@@ -646,7 +658,24 @@ export const GetReportsResponse = zod.object({
   "unit": zod.string(),
   "detail": zod.string()
 }).describe('A named measurement with its unit and the basis it was derived from.')),
-  "billing": zod.record(zod.string(), zod.unknown()).describe('Billing statement and invoice history. Additive pricingReady/pricingExplanation and nextInvoicePricingReady/nextInvoicePricingExplanation distinguish a statement or next invoice held until signed design-partner terms can price it; the explanation names the actual cause (the full-price terms not recorded as signed, dates or reference missing or invalid, dates changed since they were proposed or confirmed, a proposal awaiting a second person\'s confirmation, or unreadable stored evidence) in the words the 409 of issue_invoice uses. While held, totalKobo and revenue-derived unitEconomics values are null, not zero, and unitEconomics.note names the cause too; existing issued invoices are unchanged. Additive rateDiscrepancies lists each issued invoice charged at another rate than the terms billing reads for its month now give (the lender\'s signed terms in effect by the month\'s end, whichever terms billed it; ordinary terms give the full public price, and design-partner terms count once their discount dates are confirmed, so while those in effect are not, the month\'s invoices are not compared): invoiceId, invoiceReference, period, commercialId (the terms compared with), chargedRate, agreedRate and an explanation naming those terms, when they took effect and the whole-month rule. rateDiscrepancyGuidance says what to do, since an issued invoice is never changed and has no correction path, including the adjustment lines later invoices carry for its collections at the same rate. Older responses may omit this metadata.'),
+  "billing": zod.record(zod.string(), zod.unknown()).describe('A record\'s data: the fields the kind\'s schema declares, and anything else a caller stored.').and(zod.object({
+  "rateComparisonCoverage": zod.object({
+  "totalInvoices": zod.number().int().min(getReportsResponseBillingTwoRateComparisonCoverageTotalInvoicesMin),
+  "checked": zod.number().int().min(getReportsResponseBillingTwoRateComparisonCoverageCheckedMin).describe('Invoices compared, including both agreeing and differing rates.'),
+  "different": zod.number().int().min(getReportsResponseBillingTwoRateComparisonCoverageDifferentMin),
+  "awaitingConfirmation": zod.number().int().min(getReportsResponseBillingTwoRateComparisonCoverageAwaitingConfirmationMin).describe('Invoices not compared because their design-partner terms are not ready. Each invoice gives the actual cause.'),
+  "noApplicableTerms": zod.number().int().min(getReportsResponseBillingTwoRateComparisonCoverageNoApplicableTermsMin),
+  "invoices": zod.array(zod.object({
+  "invoiceId": zod.string(),
+  "invoiceReference": zod.string(),
+  "period": zod.string(),
+  "status": zod.enum(['agrees', 'different', 'awaiting_confirmation', 'no_applicable_terms']),
+  "commercialId": zod.string().nullable(),
+  "commercialName": zod.string().nullable(),
+  "explanation": zod.string()
+}).describe('One issued invoice\'s rate-check result, its effective agreement when present, and the reason it agrees, differs or cannot yet be compared.'))
+}).optional().describe('Coverage of historical invoice rate checks: checked includes agreeing and differing invoices; unchecked invoices remain visible with their identities and causes.')
+})).describe('Billing statement and invoice history. Additive pricingReady/pricingExplanation and nextInvoicePricingReady/nextInvoicePricingExplanation distinguish a statement or next invoice held until signed design-partner terms can price it; the explanation names the actual cause (the full-price terms not recorded as signed, dates or reference missing or invalid, dates changed since they were proposed or confirmed, a proposal awaiting a second person\'s confirmation, or unreadable stored evidence) in the words the 409 of issue_invoice uses. While held, totalKobo and revenue-derived unitEconomics values are null, not zero, and unitEconomics.note names the cause too; existing issued invoices are unchanged. Additive rateDiscrepancies lists each issued invoice charged at another rate than the terms billing reads for its month now give (the lender\'s signed terms in effect by the month\'s end, whichever terms billed it; ordinary terms give the full public price, and design-partner terms count once their discount dates are confirmed, so while those in effect are not, the month\'s invoices are not compared): invoiceId, invoiceReference, period, commercialId (the terms compared with), chargedRate, agreedRate and an explanation naming those terms, when they took effect and the whole-month rule. rateDiscrepancyGuidance says what to do, since an issued invoice is never changed and has no correction path, including the adjustment lines later invoices carry for its collections at the same rate. Additive rateComparisonCoverage counts all issued invoices, those checked (agreeing plus different), differences, those awaiting confirmed design-partner terms and those without applicable signed terms. Its invoices list gives every invoice identity, comparison status, effective commercial record ID/name when present and the reason, so zero differences never conceals incomplete checks. Older responses may omit this metadata.'),
   "experiment": zod.record(zod.string(), zod.unknown()).describe('A record\'s data: the fields the kind\'s schema declares, and anything else a caller stored.'),
   "operational": zod.record(zod.string(), zod.unknown()).describe('A record\'s data: the fields the kind\'s schema declares, and anything else a caller stored.'),
   "closes": zod.array(zod.object({

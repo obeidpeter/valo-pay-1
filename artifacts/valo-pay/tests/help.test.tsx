@@ -124,7 +124,8 @@ describe("public task help", () => {
       }),
     ).toBeTruthy();
     expect(new URLSearchParams(window.location.search).get("q")).toBe("kobo");
-    expect(screen.getByRole("status").textContent).toBe("1 guide for “kobo”");
+    expect(screen.getByRole("link", { name: /Set up data sources and check expected files/ })).toBeTruthy();
+    expect(screen.getByRole("status").textContent).toBe("2 guides for “kobo”");
     await user.clear(input);
     await user.type(input, "zzznosuchtask");
     await user.keyboard("{Enter}");
@@ -392,16 +393,25 @@ describe("contextual help links", () => {
     expect(link.getAttribute("href")).toContain(`returnTo=${encodeURIComponent(route)}`);
   });
 
-  it.each(["/pilot", "/sources", "/presentation"])("links %s, which has no guide of its own, to the help index", async (route) => {
+  it.each([
+    ["/pilot", "pilot", "Follow a pilot and set up a sample lender", /Lender creation is not listed in Request history/],
+    ["/sources", "sources", "Set up data sources and check expected files", /Enter Expected total in naira, whatever unit the file uses/],
+    ["/presentation", "presentation", "Prepare and give a sample presentation", /It does not complete tasks, change permissions or approve a pilot/],
+  ] as const)("opens the dedicated guide for %s and returns to that page", async (route, topic, title, boundary) => {
     const user = userEvent.setup();
     renderApp(route);
     const main = await screen.findByRole("main");
-    const link = await within(main).findByRole("link", { name: "Help" });
-    expect(link.getAttribute("href")).toBe(helpIndexHref(route));
+    const link = await within(main).findByRole("link", { name: `Help: ${title}` });
+    expect(link.getAttribute("href")).toBe(helpHref(topic, route));
     await user.click(link);
-    await screen.findByRole("heading", { name: "Help", level: 1 });
-    await waitFor(() => expect(document.title).toBe("Help · Valo Pay"));
-    expect(screen.getByRole("link", { name: "Back to your page" }).getAttribute("href")).toBe(route);
+    await screen.findByRole("heading", { name: title, level: 2 });
+    expect(screen.getByText(boundary)).toBeTruthy();
+    await waitFor(() => expect(document.title).toBe(`${title} · Help · Valo Pay`));
+    const back = screen.getByRole("link", { name: "Back to your page" });
+    expect(back.getAttribute("href")).toBe(route);
+    await user.click(back);
+    await screen.findByRole("heading", { name: helpGuides.find(guide => guide.id === topic)!.destination, level: 1 });
+    expect(api.calls.filter(call => call.method === "POST")).toEqual([]);
   });
 
   it("opens the precise task with a safe static return page", () => {

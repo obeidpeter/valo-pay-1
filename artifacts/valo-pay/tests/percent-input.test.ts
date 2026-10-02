@@ -26,6 +26,7 @@ describe('rates typed in per cent and stored as basis points', () => {
 describe('rates typed in per cent and stored as a fraction of 1', () => {
   it.each([
     ['40', 0.4], ['37.5', 0.375], ['7', 0.07], ['0.05', 0.0005], ['10', 0.1], ['92', 0.92], ['100', 1], ['0', 0],
+    ['7.125', 0.07125], ['33.3333', 0.333333], ['12.345 %', 0.12345],
   ])('saves %s%% as exactly %d', (typed, fraction) => {
     expect(percentToFraction(typed)).toBe(fraction);
   });
@@ -48,7 +49,15 @@ describe('rates typed in per cent and stored as a fraction of 1', () => {
     }
   });
 
-  it.each(['', '-5', '12.345', '100.5', '150', 'forty'])('refuses %s instead of rounding it', typed => {
+  it.each([0.07125, 0.333333, 0.12345678901234568, 1e-7, Number.MIN_VALUE])('preserves the saved fraction %d when its percentage is saved unchanged', fraction => {
+    expect(percentToStored('fraction', storedToPercent('fraction', fraction))).toBe(fraction);
+  });
+
+  it('refuses an amount below the smallest supported fraction instead of saving zero', () => {
+    expect(() => percentToFraction(`0.${'0'.repeat(324)}1`)).toThrow('This percentage is too small to save. Enter a larger percentage or 0.');
+  });
+
+  it.each(['', '%', '-5', '100.5', '150', '1e2', '1,5', 'NaN', 'Infinity', 'forty'])('refuses %s', typed => {
     expect(() => percentToFraction(typed)).toThrow(PercentInputError);
   });
 });

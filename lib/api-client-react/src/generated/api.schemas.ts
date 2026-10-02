@@ -539,13 +539,68 @@ export interface ImportResult {
   warnings?: string[];
 }
 
+export type InvoiceRateComparisonStatus = typeof InvoiceRateComparisonStatus[keyof typeof InvoiceRateComparisonStatus];
+
+
+export const InvoiceRateComparisonStatus = {
+  agrees: 'agrees',
+  different: 'different',
+  awaiting_confirmation: 'awaiting_confirmation',
+  no_applicable_terms: 'no_applicable_terms',
+} as const;
+
+/**
+ * One issued invoice's rate-check result, its effective agreement when present, and the reason it agrees, differs or cannot yet be compared.
+ */
+export interface InvoiceRateComparison {
+  invoiceId: string;
+  invoiceReference: string;
+  period: string;
+  status: InvoiceRateComparisonStatus;
+  /** @nullable */
+  commercialId: string | null;
+  /** @nullable */
+  commercialName: string | null;
+  explanation: string;
+}
+
+/**
+ * Coverage of historical invoice rate checks: checked includes agreeing and differing invoices; unchecked invoices remain visible with their identities and causes.
+ */
+export interface RateComparisonCoverage {
+  /** @minimum 0 */
+  totalInvoices: number;
+  /**
+     * Invoices compared, including both agreeing and differing rates.
+     * @minimum 0
+     */
+  checked: number;
+  /** @minimum 0 */
+  different: number;
+  /**
+     * Invoices not compared because their design-partner terms are not ready. Each invoice gives the actual cause.
+     * @minimum 0
+     */
+  awaitingConfirmation: number;
+  /** @minimum 0 */
+  noApplicableTerms: number;
+  invoices: InvoiceRateComparison[];
+}
+
+/**
+ * Billing statement and invoice history, preserving the existing free-form fields and optionally reporting historical rate-comparison coverage.
+ */
+export type ReportBilling = RecordData & {
+  rateComparisonCoverage?: RateComparisonCoverage;
+};
+
 /**
  * The reports: metrics, billing, the experiment, operational measurement and the daily closes.
  */
 export interface Report {
   metrics: Metric[];
-  /** Billing statement and invoice history. Additive pricingReady/pricingExplanation and nextInvoicePricingReady/nextInvoicePricingExplanation distinguish a statement or next invoice held until signed design-partner terms can price it; the explanation names the actual cause (the full-price terms not recorded as signed, dates or reference missing or invalid, dates changed since they were proposed or confirmed, a proposal awaiting a second person's confirmation, or unreadable stored evidence) in the words the 409 of issue_invoice uses. While held, totalKobo and revenue-derived unitEconomics values are null, not zero, and unitEconomics.note names the cause too; existing issued invoices are unchanged. Additive rateDiscrepancies lists each issued invoice charged at another rate than the terms billing reads for its month now give (the lender's signed terms in effect by the month's end, whichever terms billed it; ordinary terms give the full public price, and design-partner terms count once their discount dates are confirmed, so while those in effect are not, the month's invoices are not compared): invoiceId, invoiceReference, period, commercialId (the terms compared with), chargedRate, agreedRate and an explanation naming those terms, when they took effect and the whole-month rule. rateDiscrepancyGuidance says what to do, since an issued invoice is never changed and has no correction path, including the adjustment lines later invoices carry for its collections at the same rate. Older responses may omit this metadata. */
-  billing: RecordData;
+  /** Billing statement and invoice history. Additive pricingReady/pricingExplanation and nextInvoicePricingReady/nextInvoicePricingExplanation distinguish a statement or next invoice held until signed design-partner terms can price it; the explanation names the actual cause (the full-price terms not recorded as signed, dates or reference missing or invalid, dates changed since they were proposed or confirmed, a proposal awaiting a second person's confirmation, or unreadable stored evidence) in the words the 409 of issue_invoice uses. While held, totalKobo and revenue-derived unitEconomics values are null, not zero, and unitEconomics.note names the cause too; existing issued invoices are unchanged. Additive rateDiscrepancies lists each issued invoice charged at another rate than the terms billing reads for its month now give (the lender's signed terms in effect by the month's end, whichever terms billed it; ordinary terms give the full public price, and design-partner terms count once their discount dates are confirmed, so while those in effect are not, the month's invoices are not compared): invoiceId, invoiceReference, period, commercialId (the terms compared with), chargedRate, agreedRate and an explanation naming those terms, when they took effect and the whole-month rule. rateDiscrepancyGuidance says what to do, since an issued invoice is never changed and has no correction path, including the adjustment lines later invoices carry for its collections at the same rate. Additive rateComparisonCoverage counts all issued invoices, those checked (agreeing plus different), differences, those awaiting confirmed design-partner terms and those without applicable signed terms. Its invoices list gives every invoice identity, comparison status, effective commercial record ID/name when present and the reason, so zero differences never conceals incomplete checks. Older responses may omit this metadata. */
+  billing: ReportBilling;
   experiment: RecordData;
   operational: RecordData;
   closes: ValopayRecord[];

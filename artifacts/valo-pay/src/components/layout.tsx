@@ -58,8 +58,8 @@ const helpTopics: Record<string, HelpTopicId | null> = {
   '/mandates': 'mandates', '/policies': 'policies', '/pay-by-bank': 'payment-status',
   '/credit-desk': 'credit-review', '/cash-desk': 'cash', '/connections': 'permissions',
   '/reports': 'reports', '/exports': 'exports', '/audit': 'audit', '/evidence': 'evidence',
-  '/pilot': null, '/sources': null, '/operations': 'recovery', '/team': 'team',
-  '/lifecycle': 'retention', '/settings': 'settings', '/presentation': null,
+  '/pilot': 'pilot', '/sources': 'sources', '/operations': 'recovery', '/team': 'team',
+  '/lifecycle': 'retention', '/settings': 'settings', '/presentation': 'presentation',
 };
 
 /** `formerly` holds a page's earlier names, which page search still finds but nothing shows. */
