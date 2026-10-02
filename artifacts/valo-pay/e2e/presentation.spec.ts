@@ -11,11 +11,17 @@ test('presentation preparation, downloads and guide are usable on desktop and ph
   await page.goto('/presentation');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Presentation');
   await page.getByRole('checkbox', { name: /I chose one sample lender/ }).check();
+  await expect(page.getByRole('checkbox', { name: 'I pressed Prepare for presentation for this lender and checked each page I will show.' })).toBeVisible();
   const briefEvent = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Download presenter brief' }).click();
   const brief = await briefEvent;
   expect(brief.suggestedFilename()).toBe('valo-pay-presenter-brief.md');
-  expect(await readFile((await brief.path())!, 'utf8')).toContain('external connection has not been verified');
+  const briefText = await readFile((await brief.path())!, 'utf8');
+  expect(briefText).toContain('external connection has not been verified');
+  expect(briefText).toContain('## 20-minute run sheet');
+  expect(briefText).toContain('  - 8:30 · Take a payment by bank · 90 seconds');
+  expect(briefText).toContain('- 14:00 to 16:00: What is real and what comes next. Open Go-live evidence.');
+  expect(briefText).toContain('- [ ] I pressed Prepare for presentation for this lender and checked each page I will show.');
   const csvEvent = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Download CSV of payment evidence' }).click();
   const csv = await csvEvent;
