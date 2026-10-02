@@ -405,15 +405,23 @@ const assess = (run: Run, customerId: string, scenario: string) =>
   connectedAction(run, 'credit.assess', { customerId, scenario, ...SAMPLE_LOAN }, 'Assess a sample applicant for the presentation');
 /**
  * Applicant A and Applicant B are the lender's first two customers by reference, never the sample pack's customer.
- * A has both permissions, a complete-evidence assessment and its review by a different demo person, who approves it.
- * B has both permissions too, and an assessment in which the applicant refused permission to assess the application:
- * it shows "Refusal is not a credit-risk penalty."
+ * B has both permissions and an assessment in which the applicant refused permission to assess the application: it
+ * shows "Refusal is not a credit-risk penalty." A has both permissions, a complete-evidence assessment and its review
+ * by a different demo person, who approves it. B goes first, so A's reviewed assessment is the newest and Credit Desk
+ * opens on it.
  */
 async function prepareCredit(run: Run): Promise<Outcome> {
   let view = await connectedView(run);
   const [a, b] = view.customers.filter(customer => customer.reference !== PRESENTATION_CUSTOMER).sort((x, y) => x.reference.localeCompare(y.reference) || x.id.localeCompare(y.id));
   if (!a || !b) throw answerProblem('This lender needs at least 2 customers for Credit Desk.');
   let wrote = false;
+  if (latestAssessment(view, b.id)?.scenario !== 'refused') {
+    wrote = (await grantPermissions(run, b.id, ['account_read', 'credit_assessment'])) || wrote;
+    await run.actAs(ASSESSORS);
+    await assess(run, b.id, 'refused');
+    wrote = true;
+    view = await connectedView(run);
+  }
   const reviewed = latestAssessment(view, a.id);
   if (!(reviewed?.scenario === 'ready' && !reviewed.permissionRestricted && reviewed.reviews.length)) {
     wrote = (await grantPermissions(run, a.id, ['account_read', 'credit_assessment'])) || wrote;
@@ -438,13 +446,6 @@ async function prepareCredit(run: Run): Promise<Outcome> {
       reasonCodes: ['reviewer_evidence_assessment'],
       ...(assessment.result.policy.recommendation === 'policy_not_met' ? { overrideRationale: 'Sample data for the presentation: the reviewer checked the extra evidence behind this approval.' } : {}),
     }, 'Record a sample credit review', assessment.id);
-    wrote = true;
-  }
-  view = await connectedView(run);
-  if (latestAssessment(view, b.id)?.scenario !== 'refused') {
-    wrote = (await grantPermissions(run, b.id, ['account_read', 'credit_assessment'])) || wrote;
-    await run.actAs(ASSESSORS);
-    await assess(run, b.id, 'refused');
     wrote = true;
   }
   return wrote ? 'completed' : 'already-done';
