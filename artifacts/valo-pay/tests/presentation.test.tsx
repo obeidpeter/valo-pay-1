@@ -4,7 +4,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { Router } from 'wouter';
 import { installFakeApi, type FakeApi } from './fake-api';
 import { renderApp, screen, userEvent, waitFor, within } from './harness';
-import { presentationSamples, presenterBrief } from '@/lib/presenter-brief';
+import { demoSlot, momentStarts, presentationSamples, presenterBrief } from '@/lib/presenter-brief';
 import { presentationChecks, presentationSteps } from '@/lib/presentation';
 import { queryClient } from '@/App';
 import { Layout } from '@/components/layout';
@@ -144,15 +144,52 @@ it('answers whether Paystack is connected with what exists and no more', () => {
   expect(brief).not.toMatch(/has a Paystack test connection/);
 });
 
+// The 20-minute meeting in the downloaded brief: the opener, the nine moments from 2:00, what is real, then questions.
+it('sets out the 20-minute run sheet, the preparation and honest answers in the presenter brief', () => {
+  const brief = presenterBrief('2026-09-22');
+  const section = (from: string, to: string) => brief.slice(brief.indexOf(from), brief.indexOf(to));
+  const runSheet = section('## 20-minute run sheet', '## Before the meeting');
+  expect(runSheet).toContain('- 0:00 to 2:00: The problem and who it is for. Say it in your own words. For example: “Valo Pay helps Nigerian lenders collect repayments, see what was paid and prove it. Today it runs on sample data only.”');
+  expect(runSheet).toContain([
+    '- 2:00 to 14:00: The demo. Follow the 9 moments under Demonstration. They take about 12 minutes:',
+    '  - 2:00 · Start with the work · 1 minute',
+    '  - 3:00 · Bring in payment evidence · 90 seconds',
+    '  - 4:30 · Explain the match · 90 seconds',
+    '  - 6:00 · Give an exception an owner · 75 seconds',
+    '  - 7:15 · Review the day’s close · 75 seconds',
+    '  - 8:30 · Take a payment by bank · 90 seconds',
+    '  - 10:00 · Check an applicant’s affordability · 90 seconds',
+    '  - 11:30 · See the business’s cash · 75 seconds',
+    '  - 12:45 · Leave with the evidence · 60 seconds',
+    '- 14:00 to 16:00: What is real and what comes next. Open Go-live evidence. Show that the 5 go-live requirements are still pending, so Valo Pay is not ready to go live. Say that live payments and bank connections are switched off, so no collection instruction can be sent. Then explain the pilot plan with lenders.',
+  ].join('\n'));
+  expect(runSheet).toContain('- 16:00 to 20:00: Questions. Give short, honest answers. They are under Questions to prepare for.');
+  // The last moment ends by 14:00, when what is real begins.
+  expect(momentStarts().at(-1)! + presentationSteps.at(-1)!.seconds).toBeLessThanOrEqual(demoSlot.to);
+  // The preparation starts with the button, and keeps the payment batch for the live import.
+  const before = section('## Before the meeting', '## Sample files');
+  expect(before).toContain('On the Presentation page, select Prepare for presentation and wait until every step is done.');
+  expect(before).toContain('Then open each page you will show, but leave the payment batch for the demo.');
+  const answers = section('## Questions to prepare for', '## If something fails');
+  expect(answers).toContain('- Is this live? No. This is working software in a sandbox with sample data. Live payments and bank connections are switched off');
+  expect(answers).toContain('- Who is it for? Nigerian lenders and cooperatives first');
+  expect(answers).toContain('- What is connected? No bank, payment provider or accounting software is connected yet.');
+  expect(answers).toContain('- How is money kept safe? Valo Pay never holds money.');
+  expect(answers).toContain('Permission to read an account is not permission to take money from it.');
+  expect(answers).toContain('- What is needed before go-live? Go-live evidence lists 5 requirements, and each is still pending.');
+  // The answers claim no traction, revenue, partner or approval.
+  expect(answers).not.toMatch(/\b(?:revenue|traction|partnered|partnership|approved by|licen[cs]ed)\b|we have signed|is connected to/i);
+});
+
 // Dates as the console writes them, never ISO, in the brief and on the page; durations in numerals.
 it("writes the pack's dates and the talking points' durations as the rest of the console does", async () => {
   const brief = presenterBrief('2026-09-22');
-  expect(brief).toContain('Prepared for 22 Sept 2026 (WAT). Suggested length: about 6 minutes.');
+  expect(brief).toContain('Prepared for 22 Sept 2026 (WAT). Meeting: 20 minutes, with a demo of about 12 minutes.');
   expect(brief).toContain('Set the business date to 22 Sept 2026.');
   expect(brief).toContain('### 1. Start with the work · 1 minute');
   expect(brief).toContain('### 2. Bring in payment evidence · 90 seconds');
   expect(brief).toContain('### 3. Explain the match · 90 seconds');
-  expect(brief).not.toMatch(/\d{4}-\d{2}-\d{2}|\bsec\b|six minutes/);
+  expect(brief).not.toMatch(/\d{4}-\d{2}-\d{2}|\bsec\b|six minutes|twelve minutes|twenty minutes/);
   // The files themselves keep the ISO date other systems read.
   expect(presentationSamples('2026-09-22')[1]!.csv).toContain(',2026-09-22,');
   renderApp('/presentation');
