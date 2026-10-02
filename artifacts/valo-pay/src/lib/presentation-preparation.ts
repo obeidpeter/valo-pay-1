@@ -546,6 +546,22 @@ const prerequisites: Partial<Record<PreparationStepId, { step: PreparationStepId
 };
 
 /**
+ * The presenter's own demo role, kept in this browser tab by lender for the length of a run. A reload or a closed tab
+ * ends a run before it can put the role back, so the next press puts back this role, not the one that run switched
+ * to. Where the browser refuses storage, a run still puts the role back itself.
+ */
+const KEPT_ROLE = 'valopay-preparation-role:';
+function keptRole(merchantId: string): string | null {
+  try { return sessionStorage.getItem(KEPT_ROLE + merchantId); } catch { return null; }
+}
+function keepRole(merchantId: string, role: string | null): void {
+  try {
+    if (role === null) sessionStorage.removeItem(KEPT_ROLE + merchantId);
+    else sessionStorage.setItem(KEPT_ROLE + merchantId, role);
+  } catch { /* Storage refused, as some private windows refuse it: nothing to keep. */ }
+}
+
+/**
  * Runs every step in order for the lender, reporting each step's progress, and puts the presenter's demo role back
  * at the end, whatever happened. Refuses, before anything is sent, outside the sandbox or for a lender the workspace
  * does not have. `signal` stops the run before its next request, as when the page is left.
@@ -560,9 +576,12 @@ export async function preparePresentation({ merchantId, onProgress, signal, expo
   const workspace = await getWorkspace({ signal: timeout() });
   if (!preparationOffered(workspace)) throw answerProblem(SANDBOX_ONLY);
   if (!workspace.merchants.some(lender => lender.id === merchantId)) throw answerProblem('Choose a lender in Active lender, then try again.');
-  const original = workspace.role;
+  // The presenter's own role: the one a run cut off in this tab kept, while it is still a demo role, else the current one.
+  const kept = keptRole(merchantId);
+  const original = kept && workspace.roles.includes(kept) ? kept : workspace.role;
+  keepRole(merchantId, original);
   // The current role and person; unknown while a switch is not confirmed, so the role is put back even then.
-  let role: string | undefined = original, actor: string | undefined = workspace.actor;
+  let role: string | undefined = workspace.role, actor: string | undefined = workspace.actor;
   const checkpoint = () => { if (signal?.aborted) throw answerProblem(STOPPED); };
   const switchRole = async (next: string, check = true) => {
     role = actor = undefined;
@@ -611,6 +630,8 @@ export async function preparePresentation({ merchantId, onProgress, signal, expo
     if (role !== original) {
       try { await switchRole(original, false); } catch (error) { roleProblem = reasonOf(error); }
     }
+    // Kept until the role is back, so the next press still knows it when it could not be put back.
+    if (role === original) keepRole(merchantId, null);
   }
   return { steps, failed: steps.filter(step => step.status === 'failed').length, role: original, ...(roleProblem ? { roleProblem } : {}) };
 }

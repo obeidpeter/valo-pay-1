@@ -1,7 +1,7 @@
 // Prepare for presentation, pressed on the Presentation page against the fake API, which runs the real domain: every
 // step through the pages' own requests, then the state the presentation shows, a second press that adds nothing, a
 // step that fails and is finished by pressing again, and no offer outside the sandbox.
-import { afterEach, beforeEach, expect, it } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { installFakeApi, type FakeApi } from './fake-api';
 import { renderApp, screen, userEvent, waitFor, within } from './harness';
 import { closeDates, preparePresentation, preparationSteps } from '@/lib/presentation-preparation';
@@ -238,6 +238,32 @@ it('carries on a checkout an earlier press left part-way, and leaves a waiting c
   const waiting = records('connected-intents').find(checkout => checkout.status === 'created')!;
   expect(Date.parse(waiting.data.expiresAt)).toBeLessThan(Date.parse(api.now));
   expect(api.role).toBe('Admin');
+}, 60_000);
+
+it('keeps the presenter’s own demo role in the tab while it runs, and puts it back after a reload cut an earlier run off', async () => {
+  const merchantId = api.merchantIds[0]!, key = `valopay-preparation-role:${merchantId}`;
+  // A reload during Cash Desk ended an earlier run as Finance, before it could put Admin back.
+  sessionStorage.setItem(key, 'Admin');
+  api.role = 'Finance';
+  const release = api.hold(/^\/v1\/exports$/);
+  const running = preparePresentation({ merchantId });
+  await waitFor(() => expect(writes.some(write => write.path === '/api/v1/exports')).toBe(true), { timeout: 30_000 });
+  expect(sessionStorage.getItem(key)).toBe('Admin');
+  release();
+  expect(await running).toMatchObject({ failed: 0, role: 'Admin' });
+  // Admin, not the role the cut-off run left, did the work and is current again; nothing is kept once it is back.
+  expect(records('close-reviews')).toMatchObject([{ data: { preparedBy: 'Sandbox Admin' } }]);
+  expect(api.role).toBe('Admin');
+  expect(sessionStorage.getItem(key)).toBeNull();
+}, 60_000);
+
+it('still puts the demo role back where the browser refuses storage', async () => {
+  for (const method of ['getItem', 'setItem', 'removeItem'] as const)
+    vi.spyOn(Storage.prototype, method).mockImplementation(() => { throw new DOMException('The operation is insecure.', 'SecurityError'); });
+  api.role = 'Read-only';
+  expect(await preparePresentation({ merchantId: api.merchantIds[0]! })).toMatchObject({ failed: 0, role: 'Read-only' });
+  expect(api.role).toBe('Read-only');
+  expect(writes.filter(write => write.body.action === 'set_role').at(-1)!.body).toMatchObject({ data: { role: 'Read-only' } });
 }, 60_000);
 
 it.each([
