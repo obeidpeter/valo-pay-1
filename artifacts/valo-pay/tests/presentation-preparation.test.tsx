@@ -1,12 +1,14 @@
 // Prepare for presentation, pressed on the Presentation page against the fake API, which runs the real domain: every
 // step through the pages' own requests, then the state the presentation shows, a second press that adds nothing, a
-// step that fails and is finished by pressing again, and no offer outside the sandbox.
+// step that fails and is finished by pressing again, the guards that keep what the live demo needs, the demo role put
+// back however a run ends, and no offer outside the sandbox.
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { installFakeApi, type FakeApi } from './fake-api';
 import { renderApp, screen, userEvent, waitFor, within } from './harness';
 import { closeDates, preparePresentation, preparationSteps } from '@/lib/presentation-preparation';
 import { reviewIsCurrent } from '../../api-server/src/domain/close-review';
 import { connectedRevision, runConnectedAction } from '../../api-server/src/domain/connected';
+import { coordinateCase } from '../../api-server/src/domain/pilot-workflow';
 import { WAT_OFFSET_MS } from '@workspace/valopay-schema';
 
 let api: FakeApi;
@@ -36,6 +38,9 @@ async function press(user: ReturnType<typeof userEvent.setup>, summary: string) 
   await waitFor(() => expect(within(section()).getByRole('status').textContent).toBe(summary), { timeout: 45_000 });
 }
 const ALL_DONE = 'All 8 steps are done. Open Overview to start.';
+/** Today in West Africa Time, by the fake API's clock. */
+const watToday = () => new Date(Date.parse(api.now) + WAT_OFFSET_MS).toISOString().slice(0, 10);
+const isOpen = (record: { status: string }) => !['resolved', 'closed'].includes(record.status);
 
 it('fills the active lender’s pages through the pages’ own requests and puts the demo role back', async () => {
   const user = userEvent.setup();
@@ -238,6 +243,111 @@ it('carries on a checkout an earlier press left part-way, and leaves a waiting c
   const waiting = records('connected-intents').find(checkout => checkout.status === 'created')!;
   expect(Date.parse(waiting.data.expiresAt)).toBeLessThan(Date.parse(api.now));
   expect(api.role).toBe('Admin');
+}, 60_000);
+
+it('puts back a demo role other than Admin when the run ends', async () => {
+  install({ role: 'Operations' });
+  expect(await preparePresentation({ merchantId: api.merchantIds[0]! })).toMatchObject({ failed: 0, role: 'Operations' });
+  // The VAT schedule takes Finance, which the exports keep: only the end of the run puts Operations back.
+  expect(writes.filter(write => write.body.action === 'set_role').map(write => write.body)).toEqual([
+    { action: 'set_role', data: { role: 'Finance' } },
+    { action: 'set_role', data: { role: 'Operations' } },
+  ]);
+  expect(api.role).toBe('Operations');
+}, 60_000);
+
+it('stops when the presenter leaves the page during a run, sends nothing more and puts the demo role back', async () => {
+  install({ role: 'Read-only' });
+  vi.spyOn(window, 'confirm').mockReturnValue(true);
+  const user = userEvent.setup();
+  renderApp('/presentation');
+  await screen.findByRole('heading', { name: 'Sample records for the presentation' });
+  // The first checkout waits on its way to Valo Pay, after the run switched to Admin for the imports.
+  const release = api.hold(/^\/v1\/connected\/actions$/);
+  await user.click(within(section()).getByRole('button', { name: 'Prepare for presentation' }));
+  await waitFor(() => expect(writes.some(write => write.path === '/api/v1/connected/actions')).toBe(true), { timeout: 30_000 });
+  expect(api.role).toBe('Admin');
+  await user.click(screen.getAllByRole('link', { name: 'Overview' })[0]!);
+  await waitFor(() => expect(screen.queryByRole('region', { name: 'Sample records for the presentation' })).toBeNull());
+  const sent = writes.length;
+  release();
+  await waitFor(() => expect(api.role).toBe('Read-only'));
+  expect(writes.slice(sent).map(write => write.body)).toEqual([{ action: 'set_role', data: { role: 'Read-only' } }]);
+  expect(records('connected-intents')).toHaveLength(1);
+}, 60_000);
+
+it('closes the latest date again when records changed after its close, and submits the new close for review', async () => {
+  const merchantId = api.merchantIds[0]!, dates = closeDates(watToday());
+  expect((await preparePresentation({ merchantId })).failed).toBe(0);
+  // A second case claimed after the run: the latest close no longer matches its records.
+  api.mutate((state, ctx) => {
+    const exception = state.records.find(record => record.kind === 'exceptions' && isOpen(record) && !record.data.case?.assignee)!;
+    coordinateCase(state, ctx, exception.id, {
+      action: 'claim', expectedUpdatedAt: exception.updatedAt, note: 'Claimed after the preparation.', nextAction: 'Check the linked record',
+      nextActionAt: new Date(Date.parse(ctx.now) + 86_400_000).toISOString(), evidenceIds: [],
+    }, [{ actor: 'Sandbox Admin', name: 'Sandbox Admin', role: 'Admin' }]);
+  });
+  const [earlier] = records('close-reviews');
+  expect(reviewIsCurrent(api.state(), earlier!)).toBe(false);
+
+  const again = await preparePresentation({ merchantId });
+  expect(again.steps.filter(step => step.status !== 'already-done')).toEqual([{ id: 'daily-closes', status: 'completed' }, { id: 'close-review', status: 'completed' }]);
+  const closes = records('closes');
+  expect(closes.map(close => close.data.sourceBusinessDate)).toEqual([...dates, dates[2]]);
+  const review = records('close-reviews').find(item => item.id !== earlier!.id)!;
+  expect(records('close-reviews')).toHaveLength(2);
+  expect(review).toMatchObject({ status: 'awaiting_review', data: { closeId: closes[3]!.id, reviewer: 'Sandbox Finance' } });
+  expect(reviewIsCurrent(api.state(), review)).toBe(true);
+}, 60_000);
+
+it('keeps the sample checkouts off the demo’s instalments once every seeded instalment is overdue', async () => {
+  // Three days on, no seeded instalment comes first for not being due yet.
+  install({ now: new Date(Date.now() + 3 * 86_400_000).toISOString() });
+  const merchantId = api.merchantIds[0]!;
+  const result = await preparePresentation({ merchantId });
+  expect(result.steps.find(step => step.id === 'pay-by-bank')).toEqual({ id: 'pay-by-bank', status: 'completed' });
+  const references = new Map(records('due-items').map(due => [due.id, due.reference]));
+  const used = records('connected-intents').map(checkout => references.get(checkout.data.dueItemId));
+  expect(used).toHaveLength(3);
+  expect(used).not.toContain('DEMO-LOAN-1003');
+  expect(used).not.toContain('PRES-D001');
+  // The seeded proposed match is still waiting in Matches to review.
+  const proposal = records('allocations').find(allocation => allocation.status === 'proposed')!;
+  expect(references.get(proposal.data.dueItemId)).toBe('DEMO-LOAN-1003');
+  const waitingMatches = await (await fetch(`/api/v1/reconciliation/proposals?merchantId=${merchantId}`)).json();
+  expect(waitingMatches.items.map((item: { id: string }) => item.id)).toEqual([proposal.id]);
+}, 60_000);
+
+it('claims no case when fewer than 3 exceptions are open, so 2 stay unclaimed for the demo', async () => {
+  api.mutate(state => {
+    const open = state.records.filter(record => record.kind === 'exceptions' && isOpen(record));
+    for (const exception of open.slice(2)) exception.status = 'resolved';
+  });
+  expect(records('exceptions').filter(isOpen)).toHaveLength(2);
+  const result = await preparePresentation({ merchantId: api.merchantIds[0]! });
+  expect(result.steps.find(step => step.id === 'case')).toEqual({
+    id: 'case', status: 'failed',
+    reason: 'Fewer than 3 exceptions are open, so none was claimed: 2 must stay unclaimed for your demo. For a fresh sandbox, use a private browser window.',
+  });
+  expect(result.failed).toBe(1);
+  expect(records('case-events')).toEqual([]);
+  expect(records('exceptions').some(exception => exception.data.case?.assignee)).toBe(false);
+}, 60_000);
+
+it('leaves the payment file for the live import, which pays PRES-D001 by rule R1 with the confidence Certain', async () => {
+  const merchantId = api.merchantIds[0]!;
+  expect((await preparePresentation({ merchantId })).failed).toBe(0);
+  // Moments 2 and 3: the presenter imports the checked payment file, then runs reconciliation.
+  const batch = records('import-batches').find(item => item.data.source === 'Presentation sample' && item.data.kind === 'observations')!;
+  expect(batch.status).toBe('ready');
+  const send = (path: string, body: unknown) => fetch(`/api/v1${path}?merchantId=${merchantId}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': crypto.randomUUID() }, body: JSON.stringify(body),
+  });
+  expect((await send(`/pilot/batches/${batch.id}/commit`, { expectedUpdatedAt: batch.updatedAt })).status).toBe(200);
+  expect((await send('/actions', { action: 'run_reconciliation' })).status).toBe(200);
+  const sample = records('due-items').find(due => due.reference === 'PRES-D001')!;
+  expect(sample.status).toBe('paid');
+  expect(records('allocations').filter(allocation => allocation.data.dueItemId === sample.id)).toMatchObject([{ data: { rule: 'R1', confidence: 'certain' } }]);
 }, 60_000);
 
 it('keeps the presenter’s own demo role in the tab while it runs, and puts it back after a reload cut an earlier run off', async () => {
