@@ -21,10 +21,13 @@ export type HelpTopicId =
   | "exports"
   | "audit"
   | "evidence"
+  | "pilot"
+  | "sources"
   | "recovery"
   | "team"
   | "retention"
-  | "settings";
+  | "settings"
+  | "presentation";
 /**
  * A task guide in its fixed parts (docs/design/writing.md, Help and Terms explained). Its category is the
  * navigation group its page sits in, so a guide and its page are found in the same place. Its words are the words
@@ -517,6 +520,55 @@ export const helpGuides: HelpGuide[] = [
     terms: ["evidence", "reviewer", "sample-data"],
   },
   {
+    id: "pilot",
+    category: "Setup and administration",
+    title: "Follow a pilot and set up a sample lender",
+    summary:
+      "Find the next unfinished pilot step, or create an empty lender for practice.",
+    destination: "Pilot journey",
+    needs:
+      "Choose the lender you want to review in Active lender. Only Admin can create a lender. Use sample data only.",
+    steps: [
+      "Check each step’s status and Next step. Select a step to open the page where you can complete the missing work.",
+      "Select Open Team and access to check invitations and team access when Staff access says Not set up.",
+      "To practise with a new lender, enter Lender name and choose Lender type under Set up a lender.",
+      "Select Create lender once. Wait for Lender created and check that the new lender is selected in Active lender.",
+      "Open Import batches. Import sample customers first, then their mandates, instalments and payment evidence. Return to Pilot journey to check the saved progress.",
+    ],
+    result:
+      "The new lender starts empty, with scheduled actions switched off. Pilot progress reflects saved work and decisions. It does not approve real customer data or live payments.",
+    blocked:
+      "Read the Next step on the unfinished card. Ask the named role to complete that work. If access is missing, ask an Admin to check Team and access.",
+    recovery:
+      "If Create lender is not confirmed, keep this page open and select Check original request. Lender creation is not listed in Request history. If you already left, check Active lender before creating it again.",
+    terms: ["active-lender", "role", "sample-data", "batch", "request-not-confirmed"],
+  },
+  {
+    id: "sources",
+    category: "Setup and administration",
+    title: "Set up data sources and check expected files",
+    summary:
+      "Save a source profile, list the files expected for a date and investigate missing deliveries.",
+    destination: "Data sources",
+    needs:
+      "Choose the correct lender. Only Admin, Operations or Finance can save source profiles and expected files. Have the source’s delivery schedule, row counts and totals ready.",
+    steps: [
+      "Complete Add source profile with the source name, record type, source row ID column, delivery schedule and column mapping.",
+      "Check Amounts in the source file: naira and kobo are different units. Enter Expected total in naira, whatever unit the file uses.",
+      "Select Add source profile. Select Use in a new batch on the saved profile to reuse its settings in Import batches.",
+      "Choose Business date (WAT). Select Add expected file for every file due on that date, then enter its source batch ID, row count and total.",
+      "Select Save expected files after adding the reason and evidence reference. If none are due, tick No files are expected for this business date instead.",
+      "Select Import expected file for a missing file, or Open batch for one received. Check Batch totals and checks for duplicates and conflicts.",
+    ],
+    result:
+      "A profile saves the settings for future imports. The expected files list is complete only when the imported files and totals match. Changing it needs a new daily close. Paystack practice buttons create sample messages only; they do not contact Paystack or create payments.",
+    blocked:
+      "Ask the source owner about a missing file. Keep source row IDs when correcting errors. Finance must review files in another currency or confirm that no files are expected.",
+    recovery:
+      "If a save is not confirmed, select Check original request or open Request history before saving again. Reopen the same lender and business date to check the saved files.",
+    terms: ["source-row-id", "batch", "committed", "kobo", "close", "request-history"],
+  },
+  {
     id: "recovery",
     category: "Setup and administration",
     title: "Check a request that was not confirmed",
@@ -605,6 +657,31 @@ export const helpGuides: HelpGuide[] = [
     recovery:
       "If a change was interrupted, check Request history before you make it again.",
     terms: ["demo-role", "emergency-stop", "collection-transfer", "role"],
+  },
+  {
+    id: "presentation",
+    category: "Setup and administration",
+    title: "Prepare and give a sample presentation",
+    summary:
+      "Prepare the sample files, follow the talking points and show what the records actually prove.",
+    destination: "Presentation",
+    needs:
+      "Choose one sample lender in the sandbox. Check that your role allows each task you plan to show. Prepare a backup recording or screenshots.",
+    steps: [
+      "Select Download presenter brief. Complete the checks under Before you share your screen after trying the tasks yourself.",
+      "Select Download CSV for each sample file. Follow Import instructions and repeat rehearsals: import customers and instalments before the meeting, then payment evidence during it.",
+      "Select Start presentation guide. Select the page link for the current talking point, and use Next talking point to move through the story.",
+      "Select Show presenter notes (visible on this screen) when you need the talking points. Anyone viewing your screen can read these notes.",
+      "Select Open the sample customer after running reconciliation. The sample payment matches automatically, so its explanation is in Customer history.",
+      "Select End presentation when you finish. Select Clear preparation checks only when you want to reset the checklist; it keeps your records.",
+    ],
+    result:
+      "The guide adds page links and talking points. It does not complete tasks, change permissions or approve a pilot. Sample data only. No money moves.",
+    blocked:
+      "The guide works only in the sandbox with a lender selected. If a task is blocked, explain the missing permission or evidence. Never present sample totals as real business results.",
+    recovery:
+      "Return to the same lender in this browser tab to continue the guide. Check Request history before repeating an unconfirmed change. Reimporting the same file can report duplicates; use a new empty sample lender for a fresh run. Never clear an existing workspace.",
+    terms: ["sandbox", "sample-data", "batch", "match", "close-review", "export"],
   },
 ];
 

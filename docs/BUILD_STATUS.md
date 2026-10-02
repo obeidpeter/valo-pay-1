@@ -1,5 +1,17 @@
 # Valo Pay — build status
 
+## PR #81 follow-up and release verification · 2 October 2026
+
+This candidate preserves saved recovery-experiment percentages when another field is edited, including values with more than two decimal places. Basis-point fee inputs retain their separate precision rule. Reports now states how many issued invoices have had their discount rate compared, how many differ, how many await confirmation, and how many have no applicable terms. Each unresolved comparison explains the reason and links to the relevant agreement when available. These checks do not change issued invoices, contract dates or pricing rules. Help adds task guides for Pilot journey, Data sources and Presentation, bringing the total to 28 guides.
+
+The illustrated walkthrough is being refreshed against this candidate and PR #81's controls, with current sample screenshots and revised task instructions. Manual screenshots are local synthetic examples; they are not evidence that this candidate is deployed or that live integrations are enabled.
+
+The cancelled browser job in [PR #81's post-merge CI](https://github.com/obeidpeter/valo-pay/actions/runs/36908119894) was rerun. All eight jobs now pass. The Replit source workspace is clean on `main` at `1f0caf928c4ab09976f5a293d891d43a72ebfc10` (PR #81), but this is not the published build.
+
+An independent public health request at 07:26:37 UTC on 2 October returned `status: ok` and build `c2ade26 2026-09-29T12:39:30.718Z`, confirming that the published site still serves PR #79. That instance had been up for 95 seconds, with a recent background heartbeat and successful cleanup poll, zero worker crashes/restarts, no pending cleanup failures, and the scheduler off. This health answer does not establish database/schema readiness, completed deletion work, provider readiness or continuous monitoring. No deployment was performed for this verification.
+
+Read-only inspection found no verified independently scheduled operational monitor, running monitor revision, or confirmed alert-delivery record. The app's healthy worker and CI monitor tests do not establish those facts. Independent monitoring, durable monitor state and alert delivery remain uncommissioned until their deployment and delivery evidence are recorded. Deploy the app and compatible monitor together when the release is approved; do not infer an external monitor is running from the app's health endpoint.
+
 ## Latest deployed release · PR #79 · 29 September 2026
 
 [PR #79](https://github.com/obeidpeter/valo-pay/pull/79), the [beginner usability programme](usability-2026-09-29/README.md), merged as `c2ade2639876edd7036f3ce885ab4f5db5ec53fc` and was published to [Valo Pay](https://valo-pay.replit.app). The merge retained the tree of tested source `d34b00a39d93bb93b498219db69a51b772c39439`. The release changes navigation, role-aware orientation, task help and source/status clarity, preserving financial rules and authority. It adds no migration, production backend change or dependency change.

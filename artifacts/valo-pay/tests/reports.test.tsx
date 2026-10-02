@@ -10,7 +10,72 @@ let api: FakeApi;
 beforeEach(() => { api = installFakeApi(); });
 afterEach(() => { api.uninstall(); vi.restoreAllMocks(); });
 
+/** Current invoicing is ready while an older agreement can still leave historical invoices unchecked. */
+function historicalRateChecks({ different = false, complete = false, noTerms = false } = {}) {
+  api.setNow('2027-06-02T09:00:00.000Z');
+  let oldId = '';
+  api.mutate((state, ctx) => {
+    const old = state.records.find(record => record.kind === 'commercial')!;
+    oldId = old.id;
+    old.name = 'Earlier design-partner agreement';
+    Object.assign(old.data, { signed: true, designPartner: !complete, signedFullPriceTerms: true, effectiveDate: '2027-01-01' });
+    delete old.data.discountReview;
+    makeRecord(state, 'commercial', { name: 'Current ordinary agreement', status: 'signed', createdAt: '2027-04-01T09:00:00.000Z', data: { signed: true, designPartner: false, effectiveDate: '2027-04-01', licenceKobo: 60_000_000 } });
+    const invoice = (period: string, rate: number) => makeRecord(state, 'invoices', { name: `Invoice ${period}`, status: 'issued', reference: `HIST-${period}`, createdAt: ctx.now, data: { period, issuedAt: ctx.now, usageLines: [], adjustments: [], designPartnerDiscount: { rate, kobo: 0 }, totals: { netKobo: 0, vatBps: 750, vatKobo: 0, totalKobo: 0 } } });
+    if (noTerms) invoice('2026-12', 0);
+    invoice('2027-01', complete ? 0 : 0.5);
+    invoice('2027-04', different ? 0.5 : 0);
+  });
+  return oldId;
+}
+
 describe("reports", () => {
+  it('shows unchecked historical invoices even when no differences are known and current invoicing is ready', async () => {
+    const id = historicalRateChecks({ noTerms: true });
+    const before = structuredClone(api.state().records.filter(record => record.kind === 'invoices'));
+    const user = userEvent.setup();
+    renderApp('/reports?view=billing');
+    const coverage = await screen.findByRole('region', { name: 'Issued invoice rate checks' });
+    expect(within(coverage).getByText('1 of 3 issued invoices checked; 0 rate differences found.')).toBeTruthy();
+    expect(within(coverage).getByText('Checks are incomplete: 1 awaiting confirmed terms; 1 without applicable signed terms.')).toBeTruthy();
+    expect(within(coverage).getByText('HIST-2027-01 · 2027-01 · Awaiting confirmed terms')).toBeTruthy();
+    expect(within(coverage).getByText('HIST-2026-12 · 2026-12 · No applicable signed terms')).toBeTruthy();
+    expect(within(coverage).getByRole('link', { name: 'Review commercial terms' }).getAttribute('href')).toBe('/evidence#commercial-terms');
+    const agreement = within(coverage).getByRole('link', { name: 'Review Earlier design-partner agreement' });
+    expect(agreement.getAttribute('href')).toBe(`/evidence#commercial-${encodeURIComponent(id)}`);
+    expect(screen.queryByText('Commercial terms need review')).toBeNull();
+    expect(screen.queryByText('Issued invoices that differ from the terms in effect')).toBeNull();
+    expect((screen.getByRole('button', { name: 'Issue invoice' }) as HTMLButtonElement).disabled).toBe(false);
+    expect(api.state().records.filter(record => record.kind === 'invoices')).toEqual(before);
+    await user.click(agreement);
+    await screen.findByRole('heading', { name: 'Go-live evidence' });
+    await waitFor(() => expect(document.activeElement?.id).toBe(`commercial-${encodeURIComponent(id)}`));
+  });
+
+  it('keeps differences and incomplete checks visible together', async () => {
+    historicalRateChecks({ different: true });
+    renderApp('/reports?view=billing');
+    const coverage = await screen.findByRole('region', { name: 'Issued invoice rate checks' });
+    expect(within(coverage).getByText('1 of 2 issued invoices checked; 1 rate difference found.')).toBeTruthy();
+    expect(within(coverage).getByText('Checks are incomplete: 1 awaiting confirmed terms; 0 without applicable signed terms.')).toBeTruthy();
+    const differences = (await screen.findByText('Issued invoices that differ from the terms in effect')).parentElement!;
+    expect(within(differences).getByRole('table').textContent).toContain('HIST-2027-04');
+    expect(within(coverage).getByText('HIST-2027-01 · 2027-01 · Awaiting confirmed terms')).toBeTruthy();
+  });
+
+  it('shows complete comparison coverage and the identities of agreeing invoices', async () => {
+    historicalRateChecks({ complete: true });
+    const user = userEvent.setup();
+    renderApp('/reports?view=billing');
+    const coverage = await screen.findByRole('region', { name: 'Issued invoice rate checks' });
+    expect(within(coverage).getByText('2 of 2 issued invoices checked; 0 rate differences found.')).toBeTruthy();
+    expect(within(coverage).queryByText(/Checks are incomplete/)).toBeNull();
+    await user.click(within(coverage).getByText('Checked invoice rates (2)'));
+    expect(within(coverage).getByText('HIST-2027-01 · 2027-01 · Rate agrees')).toBeTruthy();
+    expect(within(coverage).getByText('HIST-2027-04 · 2027-04 · Rate agrees')).toBeTruthy();
+    expect(within(coverage).getByRole('link', { name: 'Review Current ordinary agreement' })).toBeTruthy();
+  });
+
   it('explains blocked pricing without turning unavailable revenue into zero or claiming no signed terms', async () => {
     const user = userEvent.setup();
     const baseFetch = globalThis.fetch;
@@ -104,13 +169,14 @@ describe("reports", () => {
       const response = await baseFetch(input, init);
       if (!String(input).includes('/api/v1/reports')) return response;
       const body = await response.json();
-      for (const key of ['pricingReady', 'pricingExplanation', 'nextInvoicePricingReady', 'nextInvoicePricingExplanation']) delete body.billing[key];
+      for (const key of ['pricingReady', 'pricingExplanation', 'nextInvoicePricingReady', 'nextInvoicePricingExplanation', 'rateComparisonCoverage']) delete body.billing[key];
       return new Response(JSON.stringify(body), { status: response.status, headers: response.headers });
     };
     renderApp('/reports?view=billing');
     await screen.findByText('Current statement total');
     expect((screen.getByRole('button', { name: 'Issue invoice' }) as HTMLButtonElement).disabled).toBe(false);
     expect(screen.queryByText('Commercial terms need review')).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Issued invoice rate checks' })).toBeNull();
   });
   it('checks a selected source business date without backdating the financial close', async () => {
     const user = userEvent.setup();
@@ -258,9 +324,9 @@ describe("reports", () => {
     const share = () => within(dialog).getByLabelText(/^Comparison group share \(%\)/) as HTMLInputElement;
     // Saved as 0.4 and 0.5, shown in per cent.
     expect([baseline().value, share().value]).toEqual(['40', '50']);
-    await user.clear(baseline()); await user.type(baseline(), '7.125');
+    await user.clear(baseline()); await user.type(baseline(), '100.5');
     await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
-    expect(await within(dialog).findByText('Enter a percentage from 0 to 100 with no more than 2 decimal places, for example 0.3 or 40.')).toBeTruthy();
+    expect(await within(dialog).findByText('Enter a percentage from 0 to 100, for example 7.125 or 40.')).toBeTruthy();
     expect(api.state().records.find(record => record.kind === 'experiments')!.data.baselineRate).toBe(0.4);
     // 7 per cent is 0.07 exactly, never 0.07 times a rounding error.
     await user.clear(baseline()); await user.type(baseline(), '7');
@@ -272,6 +338,30 @@ describe("reports", () => {
     await user.click(within(draft).getByRole('button', { name: 'Edit' }));
     dialog = await screen.findByRole('dialog', { name: 'Edit experiment' });
     expect([baseline().value, share().value]).toEqual(['7', '20']);
+  });
+
+  it('preserves higher-precision experiment rates when only the name changes', async () => {
+    api.mutate(state => {
+      state.records.find(record => record.kind === 'policies')!.status = 'approved';
+      Object.assign(state.records.find(record => record.kind === 'experiments')!.data, { baselineRate: 0.07125, holdoutShare: 0.333333 });
+    });
+    const user = userEvent.setup();
+    renderApp('/reports?view=evidence');
+    const draft = (await screen.findByText('Recovery test plan')).closest('div.border')! as HTMLElement;
+    await user.click(within(draft).getByRole('button', { name: 'Edit' }));
+    let dialog = await screen.findByRole('dialog', { name: 'Edit experiment' });
+    const rates = () => [within(dialog).getByLabelText(/^Baseline recovery rate \(%\)/), within(dialog).getByLabelText(/^Comparison group share \(%\)/)].map(input => (input as HTMLInputElement).value);
+    expect(rates()).toEqual(['7.125', '33.3333']);
+    const name = within(dialog).getByLabelText(/^Experiment name/);
+    await user.clear(name); await user.type(name, 'Recovery test renamed');
+    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Edit experiment' })).toBeNull());
+    const saved = api.state().records.find(record => record.kind === 'experiments')!;
+    expect([saved.data.baselineRate, saved.data.holdoutShare]).toEqual([0.07125, 0.333333]);
+    const renamed = (await screen.findByText('Recovery test renamed')).closest('div.border')! as HTMLElement;
+    await user.click(within(renamed).getByRole('button', { name: 'Edit' }));
+    dialog = await screen.findByRole('dialog', { name: 'Edit experiment' });
+    expect(rates()).toEqual(['7.125', '33.3333']);
   });
 
   it('shows the daily-close failure and a safe way to check for a completed record before retrying', async () => {

@@ -16668,6 +16668,113 @@
         ],
         "description": "How many rows were valid, invalid and imported, and each row's outcome. warnings, when present, says which name or reference came from a fallback (the reference, a row number or a generated reference) while a column was left unused, and the check and the commit are not refused for it."
       },
+      "InvoiceRateComparison": {
+        "type": "object",
+        "properties": {
+          "invoiceId": {
+            "type": "string"
+          },
+          "invoiceReference": {
+            "type": "string"
+          },
+          "period": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "agrees",
+              "different",
+              "awaiting_confirmation",
+              "no_applicable_terms"
+            ]
+          },
+          "commercialId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "commercialName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "explanation": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "invoiceId",
+          "invoiceReference",
+          "period",
+          "status",
+          "commercialId",
+          "commercialName",
+          "explanation"
+        ],
+        "description": "One issued invoice's rate-check result, its effective agreement when present, and the reason it agrees, differs or cannot yet be compared."
+      },
+      "RateComparisonCoverage": {
+        "type": "object",
+        "properties": {
+          "totalInvoices": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "checked": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Invoices compared, including both agreeing and differing rates."
+          },
+          "different": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "awaitingConfirmation": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Invoices not compared because their design-partner terms are not ready. Each invoice gives the actual cause."
+          },
+          "noApplicableTerms": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "invoices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InvoiceRateComparison"
+            }
+          }
+        },
+        "required": [
+          "totalInvoices",
+          "checked",
+          "different",
+          "awaitingConfirmation",
+          "noApplicableTerms",
+          "invoices"
+        ],
+        "description": "Coverage of historical invoice rate checks: checked includes agreeing and differing invoices; unchecked invoices remain visible with their identities and causes."
+      },
+      "ReportBilling": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/RecordData"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "rateComparisonCoverage": {
+                "$ref": "#/components/schemas/RateComparisonCoverage"
+              }
+            },
+            "required": []
+          }
+        ],
+        "description": "Billing statement and invoice history, preserving the existing free-form fields and optionally reporting historical rate-comparison coverage."
+      },
       "Report": {
         "type": "object",
         "properties": {
@@ -16678,8 +16785,8 @@
             }
           },
           "billing": {
-            "$ref": "#/components/schemas/RecordData",
-            "description": "Billing statement and invoice history. Additive pricingReady/pricingExplanation and nextInvoicePricingReady/nextInvoicePricingExplanation distinguish a statement or next invoice held until signed design-partner terms can price it; the explanation names the actual cause (the full-price terms not recorded as signed, dates or reference missing or invalid, dates changed since they were proposed or confirmed, a proposal awaiting a second person's confirmation, or unreadable stored evidence) in the words the 409 of issue_invoice uses. While held, totalKobo and revenue-derived unitEconomics values are null, not zero, and unitEconomics.note names the cause too; existing issued invoices are unchanged. Additive rateDiscrepancies lists each issued invoice charged at another rate than the terms billing reads for its month now give (the lender's signed terms in effect by the month's end, whichever terms billed it; ordinary terms give the full public price, and design-partner terms count once their discount dates are confirmed, so while those in effect are not, the month's invoices are not compared): invoiceId, invoiceReference, period, commercialId (the terms compared with), chargedRate, agreedRate and an explanation naming those terms, when they took effect and the whole-month rule. rateDiscrepancyGuidance says what to do, since an issued invoice is never changed and has no correction path, including the adjustment lines later invoices carry for its collections at the same rate. Older responses may omit this metadata."
+            "$ref": "#/components/schemas/ReportBilling",
+            "description": "Billing statement and invoice history. Additive pricingReady/pricingExplanation and nextInvoicePricingReady/nextInvoicePricingExplanation distinguish a statement or next invoice held until signed design-partner terms can price it; the explanation names the actual cause (the full-price terms not recorded as signed, dates or reference missing or invalid, dates changed since they were proposed or confirmed, a proposal awaiting a second person's confirmation, or unreadable stored evidence) in the words the 409 of issue_invoice uses. While held, totalKobo and revenue-derived unitEconomics values are null, not zero, and unitEconomics.note names the cause too; existing issued invoices are unchanged. Additive rateDiscrepancies lists each issued invoice charged at another rate than the terms billing reads for its month now give (the lender's signed terms in effect by the month's end, whichever terms billed it; ordinary terms give the full public price, and design-partner terms count once their discount dates are confirmed, so while those in effect are not, the month's invoices are not compared): invoiceId, invoiceReference, period, commercialId (the terms compared with), chargedRate, agreedRate and an explanation naming those terms, when they took effect and the whole-month rule. rateDiscrepancyGuidance says what to do, since an issued invoice is never changed and has no correction path, including the adjustment lines later invoices carry for its collections at the same rate. Additive rateComparisonCoverage counts all issued invoices, those checked (agreeing plus different), differences, those awaiting confirmed design-partner terms and those without applicable signed terms. Its invoices list gives every invoice identity, comparison status, effective commercial record ID/name when present and the reason, so zero differences never conceals incomplete checks. Older responses may omit this metadata."
           },
           "experiment": {
             "$ref": "#/components/schemas/RecordData"

@@ -9,21 +9,23 @@ export class PercentInputError extends Error {}
 /** How a per cent field is stored by the API. */
 export type PercentStorage = 'basisPoints' | 'fraction';
 
-const PERCENT_RULE = 'Enter a percentage from 0 to 100 with no more than 2 decimal places, for example 0.3 or 40.';
+const BASIS_POINTS_RULE = 'Enter a percentage from 0 to 100 with no more than 2 decimal places, for example 0.3 or 40.';
+const FRACTION_RULE = 'Enter a percentage from 0 to 100, for example 7.125 or 40.';
 
-/** The whole and decimal digits of a typed percentage from 0 to 100, with at most 2 decimals; a trailing % is allowed. */
-function typedPercent(value: string): { whole: string; decimals: string } {
+/** Only whole basis points require a two-decimal limit. Fractional rates keep the API's existing precision. */
+function typedPercent(value: string, storage: PercentStorage): { whole: string; decimals: string } {
+  const rule = storage === 'basisPoints' ? BASIS_POINTS_RULE : FRACTION_RULE;
   const input = value.trim().replace(/\s*%$/, '');
   const parts = /^(\d*)(?:\.(\d*))?$/.exec(input);
-  if (!parts || !/\d/.test(input)) throw new PercentInputError(PERCENT_RULE);
+  if (!parts || !/\d/.test(input)) throw new PercentInputError(rule);
   const whole = (parts[1] || '0').replace(/^0+(?=\d)/, ''), decimals = (parts[2] || '').replace(/0+$/, '');
-  if (decimals.length > 2 || Number(whole) > 100 || (Number(whole) === 100 && decimals)) throw new PercentInputError(PERCENT_RULE);
+  if ((storage === 'basisPoints' && decimals.length > 2) || Number(whole) > 100 || (Number(whole) === 100 && decimals)) throw new PercentInputError(rule);
   return { whole, decimals };
 }
 
 /** A typed percentage as whole basis points: "0.3" is 30, "12.5" is 1250 and "100" is 10000. */
 export function percentToBasisPoints(value: string): number {
-  const { whole, decimals } = typedPercent(value);
+  const { whole, decimals } = typedPercent(value, 'basisPoints');
   return Number(whole) * 100 + Number(decimals.padEnd(2, '0'));
 }
 
@@ -36,9 +38,11 @@ export function basisPointsToPercent(basisPoints: number): string {
 
 /** A typed percentage as a fraction of 1: "40" is 0.4, "37.5" is 0.375 and "0.05" is 0.0005. */
 export function percentToFraction(value: string): number {
-  const { whole, decimals } = typedPercent(value);
+  const { whole, decimals } = typedPercent(value, 'fraction');
   const digits = whole.padStart(3, '0');
-  return Number(`${digits.slice(0, -2)}.${digits.slice(-2)}${decimals}`);
+  const fraction = Number(`${digits.slice(0, -2)}.${digits.slice(-2)}${decimals}`);
+  if (fraction === 0 && /[1-9]/.test(`${whole}${decimals}`)) throw new PercentInputError('This percentage is too small to save. Enter a larger percentage or 0.');
+  return fraction;
 }
 
 /** A fraction's shortest decimal digits, without an exponent: 1e-7 is "0.0000001". */
