@@ -178,9 +178,9 @@ it('carries on a checkout an earlier press left part-way, and replaces a waiting
   const due = records('due-items').find(item => item.reference === 'DEMO-LOAN-1008')!;
   const reason = 'Sample checkout 1 of 3, prepared for the presentation';
   const left = api.mutate((state, ctx) => {
-    const created = runConnectedAction(state, ctx, { action: 'payment.create', data: { dueItemId: due.id, amountKobo: due.amountKobo }, reason, expectedRevision: connectedRevision(state) });
-    runConnectedAction(state, ctx, { action: 'payment.authorise', data: {}, recordId: created.id, reason, expectedRevision: connectedRevision(state) });
-    return created.id;
+    const { id } = runConnectedAction(state, ctx, { action: 'payment.create', data: { dueItemId: due.id, amountKobo: due.amountKobo }, reason, expectedRevision: connectedRevision(state) }) as { id: string };
+    runConnectedAction(state, ctx, { action: 'payment.authorise', data: {}, recordId: id, reason, expectedRevision: connectedRevision(state) });
+    return id;
   });
   renderApp('/presentation');
   await screen.findByRole('heading', { name: 'Sample records for the presentation' });
