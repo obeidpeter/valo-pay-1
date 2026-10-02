@@ -198,6 +198,8 @@ it("writes the pack's dates and the talking points' durations as the rest of the
   expect(pack.textContent).not.toMatch(/\d{4}-\d{2}-\d{2}/);
   // Each download's name starts with its visible label, then says which file.
   for (const kind of ['customers', 'instalments', 'payment evidence']) expect(within(pack).getByRole('button', { name: `Download CSV of ${kind}` })).toBeTruthy();
+  expect(screen.getByRole('heading', { level: 1, name: 'Presentation' }).nextElementSibling!.textContent).toBe('Show investors how a lender gets from records to a reviewed close, and what connected banking adds: a demo of about 12 minutes in a 20-minute meeting.');
+  expect(screen.getByText('The presenter brief holds the 20-minute run sheet and short answers to likely questions.')).toBeTruthy();
   expect(screen.getAllByText('1 minute')).toHaveLength(1);
   expect(screen.getAllByText('90 seconds')).toHaveLength(4);
   expect(screen.getAllByText('75 seconds')).toHaveLength(3);
