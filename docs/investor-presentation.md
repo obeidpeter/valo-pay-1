@@ -9,7 +9,7 @@ Open **Presentation** in the console navigation. This page supports a 20-minute 
 3. On the day, open the published site in a new private window and keep it open until the meeting ends. Choose one lender (Meridian Credit is recommended; Cedar Cooperative is the other) and use the demo role Admin. Verify the actual permissions needed for the actions you will show. Do not use real customer records or alter access merely to complete the demonstration.
 4. Select **Prepare for presentation**. It is offered only in the anonymous sandbox and sends the platform's existing requests, as the pages send them, with sample data only: no money moves and nothing is sent to a bank. For the active lender it leaves:
    - the sample customers and instalments imported from the Presentation page's files, and the sample payment evidence batch saved and checked but **not imported**;
-   - a daily close for each of the 3 previous business days in West Africa Time, the latest submitted for Finance review, so it waits for a different person;
+   - a daily close for each of the 3 days before today in West Africa Time, the latest submitted for Finance review, so it waits for a different person;
    - one sample exception claimed by a team member, with a next step and a handover note, while two other open exceptions stay unclaimed;
    - 3 Pay by Bank checkouts on 3 different open instalments, never PRES-D001: one confirmed, one awaiting authorisation and one with an unknown outcome;
    - in Credit Desk, an applicant holding Read applicant accounts and Assess an application, with an assessment waiting for a different person’s review, and an applicant who refused permission;
@@ -41,7 +41,7 @@ The three CSV files stay as downloads for a hand import, with the instructions o
 | 3:00 | 90 seconds | Import batches | The prepared payment batch: validation, the exact naira amount and saved source provenance, then one live import. |
 | 4:30 | 90 seconds | Reconciliation, then the sample customer’s history | Rule R1 matched the payment to its instalment automatically, with the confidence Certain, and the history shows why; a less certain match waits for Finance. |
 | 6:00 | 75 seconds | Exceptions and case history | The prepared case’s owner, next step and handover note, then the owner and due date of another open exception. |
-| 7:15 | 75 seconds | Reports and Close review | Recorded closes for 3 business days, the latest close’s source coverage and its review waiting for a different Finance reviewer. After the live import, the review says the records changed after this close: a close can be approved only while it still matches its records. |
+| 7:15 | 75 seconds | Reports and Close review | Recorded closes for the 3 days before today, the latest close’s source coverage and its review waiting for a different Finance reviewer. After the live import, the review says the records changed after this close: a close can be approved only while it still matches its records. |
 | 8:30 | 90 seconds | Pay by Bank | Confirmed, awaiting-authorisation and unknown-outcome checkouts; only a payment the bank or provider confirms counts. |
 | 10:00 | 90 seconds | Credit Desk | The assessment, waiting for a different person to review it, and the applicant who refused permission; a credit result is not a lending decision. |
 | 11:30 | 75 seconds | Cash Desk | The 30-day forecast, then the accounting draft and payroll funding plan waiting for a different Finance reviewer; nothing is posted, filed or paid. |

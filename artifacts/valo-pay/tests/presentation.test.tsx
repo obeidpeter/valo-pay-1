@@ -332,8 +332,9 @@ it('tells each moment over the prepared records and keeps its boundary statement
   expect(notes('Explain the match')).toContain('If the customer is not found, this lender is not prepared yet. Select Prepare for presentation on the Presentation page.');
   expect(notes('Give an exception an owner')).toContain('Open the case of the exception that shows Assigned to. Its handover history shows who claimed it, the next step and the handover note.');
   expect(notes('Give an exception an owner')).toContain('Resolving an exception does not make a payment or supply missing evidence.');
-  expect(notes('Review the day’s close')).toContain('a close for each of the 3 previous business days');
-  expect(notes('Review the day’s close')).toContain('where it waits for a different Finance reviewer');
+  expect(notes('Review the day’s close')).toContain('a close for each of the 3 days before today');
+  expect(notes('Review the day’s close')).toContain('Its review waits for a different Finance reviewer.');
+  expect(notes('Review the day’s close')).toContain('Since your live import it also says Records changed after this close and Out of date: a close can be approved only while it still matches its records.');
   expect(notes('Review the day’s close')).toContain('A different person must review it');
   expect(notes('Review the day’s close')).toContain('Switching demo roles is not a second person.');
   expect(notes('Take a payment by bank')).toContain('Checkout history holds 3 prepared checkouts. Select each one: Confirmed, Awaiting authorisation and Outcome unknown.');

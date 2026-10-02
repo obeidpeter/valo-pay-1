@@ -6,7 +6,7 @@ The Presentation page gains **Prepare for presentation**, offered only in an ano
 - the sample customers and instalments files are imported, and the payment evidence file is saved and checked but left for the presenter to import live;
 - one exception's case is claimed with a next step and a handover note;
 - Pay by Bank has 3 checkouts: confirmed, waiting for the customer and with an unknown outcome;
-- the 3 previous business days each have a daily close, and the latest is submitted for review by a different Finance reviewer;
+- the 3 days before today each have a daily close, and the latest is submitted for review by a different Finance reviewer;
 - Credit Desk has an assessment waiting for a different person's review and an applicant who refused permission;
 - Cash Desk is set up, with a forecast, an accounting draft and a payroll plan waiting for approval and a saved VAT schedule;
 - Saved exports has a dispute pack and a billing statement.
