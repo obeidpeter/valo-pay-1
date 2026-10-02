@@ -169,7 +169,7 @@ test("on a phone the presentation guide keeps its title on a line or two and lea
   await page.getByRole("button", { name: "Start presentation guide" }).click();
   const guide = page.getByRole("region", { name: "Presentation guide" });
   await guide.getByLabel("Talking point").selectOption("2");
-  const title = guide.getByText("3 of 6 · Explain the match");
+  const title = guide.getByText("3 of 9 · Explain the match");
   await expect(title).toBeVisible();
   const titleBox = (await title.boundingBox())!, guideBox = (await guide.boundingBox())!;
   const lineHeight = await title.evaluate((node) => parseFloat(getComputedStyle(node).lineHeight));
