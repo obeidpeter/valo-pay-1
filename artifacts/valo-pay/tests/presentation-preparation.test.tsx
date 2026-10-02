@@ -211,16 +211,20 @@ it('carries on a checkout an earlier press left part-way, and leaves a waiting c
   expect(api.role).toBe('Admin');
 }, 60_000);
 
-it('is not offered in a staff workspace, and the runner refuses there before sending anything', async () => {
+it.each([
+  { workspace: 'a staff workspace', change: { accessMode: 'staff', actor: 'Clerk:user_a', authenticated: true }, shown: 'Role: Admin' },
+  // The field is optional in the contract: a workspace that leaves it out is not taken for the sandbox.
+  { workspace: 'a workspace that does not say it is the sandbox', change: { accessMode: undefined }, shown: 'Demo role: Admin' },
+])('is not offered in $workspace, and the runner refuses there before sending anything', async ({ change, shown }) => {
   const fake = globalThis.fetch;
   globalThis.fetch = async (input, init) => {
     const response = await fake(input, init);
     if (new URL(String(input instanceof Request ? input.url : input), 'http://localhost').pathname !== '/api/v1/workspace') return response;
-    return new Response(JSON.stringify({ ...(await response.json()), accessMode: 'staff', actor: 'Clerk:user_a', authenticated: true }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify({ ...(await response.json()), ...change }), { status: 200, headers: { 'Content-Type': 'application/json' } });
   };
   renderApp('/presentation');
   await screen.findByRole('heading', { level: 1, name: 'Presentation' });
-  await screen.findByText('Role: Admin');
+  await screen.findByText(shown);
   expect(screen.queryByRole('region', { name: 'Sample records for the presentation' })).toBeNull();
   expect(screen.queryByRole('button', { name: 'Prepare for presentation' })).toBeNull();
   await expect(preparePresentation({ merchantId: api.merchantIds[0]! })).rejects.toThrow('Prepare for presentation works only in the sandbox, with sample data.');

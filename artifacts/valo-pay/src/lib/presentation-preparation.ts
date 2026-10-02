@@ -60,9 +60,12 @@ export type PreparationResult = {
   roleProblem?: string;
 };
 
-/** Offered, and run, only in the sandbox: never in a staff pilot, whose team members' records are not sample data. */
+/**
+ * Offered, and run, only in the sandbox: never in a staff pilot, whose team members' records are not sample data, nor
+ * in a workspace that does not say it is the sandbox.
+ */
 export function preparationOffered(workspace: { environment?: string; accessMode?: string } | undefined): boolean {
-  return workspace?.environment === 'sandbox' && workspace.accessMode !== 'staff';
+  return workspace?.environment === 'sandbox' && workspace.accessMode === 'sandbox';
 }
 
 const SANDBOX_ONLY = 'Prepare for presentation works only in the sandbox, with sample data.';

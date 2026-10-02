@@ -2,7 +2,7 @@
 
 ## Presentation preparation · 2 October 2026
 
-The Presentation page gains **Prepare for presentation**, offered only in an anonymous sandbox. One press fills the active sample lender's pages through the same API requests the console's own buttons send:
+The Presentation page gains **Prepare for presentation**, offered only in the sandbox. One press fills the active sample lender's pages through the same API requests the console's own buttons send:
 - the sample customers and instalments files are imported, and the payment evidence file is saved and checked but left for the presenter to import live;
 - one exception's case is claimed with a next step and a handover note;
 - Pay by Bank has 3 checkouts: confirmed, waiting for the customer and with an unknown outcome;
