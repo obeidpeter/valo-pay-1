@@ -172,6 +172,8 @@ it('sets out the 20-minute run sheet, the preparation and honest answers in the 
   const before = section('## Before the meeting', '## Sample files');
   expect(before).toContain('On the Presentation page, select Prepare for presentation and wait until every step is done.');
   expect(before).toContain('Then open each page you will show, but leave the payment batch for the demo.');
+  // The automatic daily close at 07:00 WAT would close the latest prepared date again.
+  expect(before).toContain('Use the demo role Admin. Prepare after 07:00 WAT, when the automatic daily close has run. If you prepared earlier, select Prepare for presentation again after 07:00 WAT.');
   const answers = section('## Questions to prepare for', '## If something fails');
   expect(answers).toContain('- Is this live? No. This is working software in a sandbox with sample data. Live payments and bank connections are switched off');
   expect(answers).toContain('- Who is it for? Nigerian lenders and cooperatives first');
@@ -191,6 +193,7 @@ it('lists the brief’s run sheet, moments and answers in docs/investor-presenta
   const starts = momentStarts();
   presentationSteps.forEach((step, index) => expect(doc).toContain(`| ${meetingClock(starts[index]!)} | ${step.time} |`));
   for (const { question, answer } of investorAnswers) expect(doc).toContain(`- ${question} ${answer}`);
+  expect(doc).toContain('use the demo role Admin. Prepare after 07:00 WAT, when the automatic daily close has run. If you prepared earlier, select Prepare for presentation again after 07:00 WAT.');
 });
 
 // Dates as the console writes them, never ISO, in the brief and on the page; durations in numerals.
