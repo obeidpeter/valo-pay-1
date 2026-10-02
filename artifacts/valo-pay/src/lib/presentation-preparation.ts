@@ -37,7 +37,7 @@ export type PreparationStep = { id: PreparationStepId; label: string; descriptio
 export const preparationSteps: readonly PreparationStep[] = [
   { id: 'imports', label: 'Import batches', description: 'Import the sample customers and instalments. Save and check the payment file, for you to import live.' },
   { id: 'case', label: 'A case with an owner', description: 'Claim one open exception with a next step and a note. Two others stay unclaimed for you.' },
-  { id: 'pay-by-bank', label: 'Pay by Bank checkouts', description: 'Create 3 checkouts: confirmed, waiting for the customer and outcome unknown. A waiting checkout expires after 15 minutes, so select Prepare for presentation again just before you present.' },
+  { id: 'pay-by-bank', label: 'Pay by Bank checkouts', description: 'Create 3 checkouts: confirmed, waiting for the customer and outcome unknown. Like any checkout, the waiting one expires after 15 minutes.' },
   { id: 'daily-closes', label: 'Daily closes', description: 'Run a daily close for each of the 3 days before today, in WAT.' },
   { id: 'close-review', label: 'Close review', description: 'Submit the latest close for review. It waits for a different person, a Finance team member.' },
   { id: 'credit-desk', label: 'Credit Desk', description: 'Run an assessment that a different person reviews, and one for an applicant who refused permission.' },
@@ -250,7 +250,7 @@ const CHECKOUT_WORKERS = ['Admin', 'Operations', 'Finance'];
 type Checkout = 'confirmed' | 'unknown' | 'waiting';
 /**
  * Each checkout's reason. Its first event keeps it, which the checkout timeline shows, and a later press finds the
- * checkout an earlier press left part-way by it.
+ * checkout an earlier press made by it.
  */
 const checkoutReasons: Record<Checkout, string> = {
   confirmed: 'Sample checkout 1 of 3, prepared for the presentation',
@@ -261,49 +261,52 @@ type Intent = ConnectedView['payments']['intents'][number];
 const reasonOfCheckout = (intent: Intent) => intent.data.events?.[0]?.detail;
 
 /**
- * The open instalment a new checkout is for: never the sample pack's PRES-D001, nothing another payment holds, and
- * first the instalments not due yet, so the overdue ones the demo shows (a match waiting for Finance, a failed
- * collection attempt) keep their story.
+ * The instalments a new checkout may be for, in a fixed order: open, with no checkout yet, held by no other payment,
+ * and none the demo needs as it is. That rules out the sample pack's PRES-D001, an instalment with a match (such as
+ * the proposed match waiting in Matches to review) and one an open exception is about, directly or through a payment,
+ * collection attempt or checkout that names it. Instalments not due yet come first, then the others, each by reference.
  */
-async function freeInstalment(run: Run, view: ConnectedView) {
+async function checkoutInstalments(run: Run, view: ConnectedView) {
+  const [dueItems, allocations, exceptions, payments, attempts] = await Promise.all(
+    ['due-items', 'allocations', 'exceptions', 'payments', 'attempts'].map(kind => records(run, kind)));
   const today = watDay(view.asOf);
-  const dueDates = new Map((await records(run, 'due-items')).map(record => [record.id, String(record.data.dueDate ?? '')]));
-  const live = (intent: Intent) => Date.parse(String(intent.data.expiresAt ?? '')) > Date.parse(view.asOf);
-  const taken = new Set(view.payments.intents.filter(intent => intent.status === 'created' && live(intent)).map(intent => intent.data.dueItemId));
+  const dueDates = new Map(dueItems!.map(record => [record.id, String(record.data.dueDate ?? '')]));
+  const named = new Map([...payments!, ...attempts!, ...view.payments.intents].map(record => [record.id, record.data.dueItemId]));
+  // Matched instalments and those with a checkout already, each checkout on its own instalment.
+  const needed = new Set<unknown>([...allocations!, ...view.payments.intents].map(record => record.data.dueItemId));
+  for (const exception of exceptions!.filter(isOpen)) {
+    const linked = exception.data.linkedRecordId;
+    needed.add(linked).add(named.get(String(linked))).add(exception.data.dueItemId);
+  }
   const overdue = (id: string) => Number((dueDates.get(id) ?? '') <= today);
-  const [due] = view.payments.dues
-    .filter(item => !item.blocked && item.reference !== PRESENTATION_INSTALMENT && item.outstandingKobo > 0 && !taken.has(item.id) && !view.payments.heldForReversalReview.includes(item.id))
-    .sort((a, b) => overdue(a.id) - overdue(b.id) || a.reference.localeCompare(b.reference));
-  if (!due) throw answerProblem('No open instalment is free for a new checkout. For a fresh sandbox, use a private browser window.');
-  return due;
+  return view.payments.dues
+    .filter(due => !due.blocked && due.outstandingKobo > 0 && due.reference !== PRESENTATION_INSTALMENT && !needed.has(due.id) && !view.payments.heldForReversalReview.includes(due.id))
+    .sort((a, b) => overdue(a.id) - overdue(b.id) || a.reference.localeCompare(b.reference) || a.id.localeCompare(b.id));
 }
 /**
  * Three checkouts on three instalments, as Pay by Bank takes them: one created, authorised, returned from the bank and
- * confirmed; one created only, waiting for the customer; one created, authorised and reported with an outcome
- * unknown. A checkout of each kind already there counts, whoever made it. A waiting checkout expires 15 minutes after
- * it is created: a later press cancels an expired one this step made and creates a new one.
+ * confirmed; one created, authorised and reported with an outcome unknown; one created only, waiting for the customer.
+ * A checkout of each kind already there counts, whoever made it, and one this step left part-way is carried on; a new
+ * one takes the next instalment checkoutInstalments allows. Like every checkout, the waiting one expires 15 minutes
+ * after it is created and then shows Checkout expired: it is left as it is.
  */
 async function prepareCheckouts(run: Run): Promise<Outcome> {
   let wrote = false;
   for (const kind of ['confirmed', 'unknown', 'waiting'] as const) {
     const view = await connectedView(run);
     const sample = view.payments.dues.find(item => item.reference === PRESENTATION_INSTALMENT)?.id;
-    const live = (intent: Intent) => Date.parse(String(intent.data.expiresAt ?? '')) > Date.parse(view.asOf);
     const intents = view.payments.intents.filter(intent => !sample || intent.data.dueItemId !== sample);
-    if (kind === 'waiting' ? intents.some(intent => intent.status === 'created' && live(intent)) : intents.some(intent => intent.status === kind)) continue;
+    if (intents.some(intent => intent.status === (kind === 'waiting' ? 'created' : kind))) continue;
     await run.actAs(CHECKOUT_WORKERS);
     wrote = true;
     const reason = checkoutReasons[kind];
-    // This step's own checkout, left part-way by an earlier press, is carried on rather than started again.
+    const live = (intent: Intent) => Date.parse(String(intent.data.expiresAt ?? '')) > Date.parse(view.asOf);
     let checkout: { id: string; status: string } | undefined = kind === 'waiting' ? undefined
       : intents.find(intent => reasonOfCheckout(intent) === reason && (['authorised', 'pending'].includes(intent.status) || (intent.status === 'created' && live(intent))));
     if (!checkout) {
-      if (kind === 'waiting')
-        for (const expired of intents.filter(intent => reasonOfCheckout(intent) === reason && intent.status === 'created' && !live(intent)))
-          await connectedAction(run, 'payment.cancel', {}, 'This checkout expired, so a new sample checkout replaces it.', expired.id);
-      const due = await freeInstalment(run, view);
-      const created = (await connectedAction(run, 'payment.create', { dueItemId: due.id, amountKobo: due.outstandingKobo }, reason)).record as { id: string; status: string };
-      checkout = created;
+      const [due] = await checkoutInstalments(run, view);
+      if (!due) throw answerProblem('No open instalment is free for a sample checkout. For a fresh sandbox, use a private browser window.');
+      checkout = (await connectedAction(run, 'payment.create', { dueItemId: due.id, amountKobo: due.outstandingKobo }, reason)).record as { id: string; status: string };
     }
     if (kind === 'waiting') continue;
     if (checkout.status === 'created') await connectedAction(run, 'payment.authorise', {}, reason, checkout.id);

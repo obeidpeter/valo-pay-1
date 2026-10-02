@@ -90,6 +90,17 @@ it('fills the active lender’s pages through the pages’ own requests and puts
   const confirmed = checkouts.find(checkout => checkout.status === 'confirmed')!;
   expect(confirmed.data.events.map((event: { status: string }) => event.status)).toEqual(['created', 'authorised', 'pending', 'confirmed']);
   expect(checkouts.find(checkout => checkout.status === 'unknown')!.data.events.map((event: { status: string }) => event.status)).toEqual(['created', 'authorised', 'unknown']);
+  // In a fixed order, on instalments the demo does not need as they are: never PRES-D001, one with a match or one an
+  // open exception is about. The seeded proposed match is still waiting in Matches to review.
+  const instalments = new Map(records('due-items').map(due => [due.id, due]));
+  expect(['confirmed', 'unknown', 'created'].map(status => instalments.get(checkouts.find(checkout => checkout.status === status)!.data.dueItemId)!.reference)).toEqual(['DEMO-LOAN-1005', 'DEMO-LOAN-1006', 'DEMO-LOAN-1007']);
+  const proposal = records('allocations').find(allocation => allocation.status === 'proposed')!;
+  expect(instalments.get(proposal.data.dueItemId)).toMatchObject({ reference: 'DEMO-LOAN-1003', status: 'scheduled', data: { outstandingKobo: 1_800_000 } });
+  expect(records('payments').find(payment => payment.id === proposal.data.paymentId)).toMatchObject({ reference: 'SBX-PAY-1003', status: 'proposed' });
+  const waitingMatches = await (await fetch(`/api/v1/reconciliation/proposals?merchantId=${lender.merchant.id}`)).json();
+  expect(waitingMatches.items.map((item: { id: string }) => item.id)).toEqual([proposal.id]);
+  const exceptionLinks = new Set(records('exceptions').filter(exception => !['resolved', 'closed'].includes(exception.status)).map(exception => exception.data.linkedRecordId));
+  expect(checkouts.some(checkout => exceptionLinks.has(checkout.data.dueItemId))).toBe(false);
 
   // Applicant A's assessment, reviewed by a different demo person; Applicant B's refused one.
   const assessments = records('connected-credit-assessments');
@@ -169,7 +180,7 @@ it('records a failed step in Valo Pay’s words, carries on, puts the role back 
   expect(api.role).toBe('Admin');
 }, 60_000);
 
-it('carries on a checkout an earlier press left part-way, and replaces a waiting checkout that expired', async () => {
+it('carries on a checkout an earlier press left part-way, and leaves a waiting checkout that expired as it is', async () => {
   // Midday in West Africa Time, so the 20 minutes below stay on the same business date.
   api.uninstall();
   api = installFakeApi({ now: `${new Date().toISOString().slice(0, 10)}T11:00:00.000Z` });
@@ -187,17 +198,15 @@ it('carries on a checkout an earlier press left part-way, and replaces a waiting
   await press(user, ALL_DONE);
   expect(records('connected-intents')).toHaveLength(3);
   expect(records('connected-intents').find(checkout => checkout.id === left)!.data.events.map((event: { status: string }) => event.status)).toEqual(['created', 'authorised', 'pending', 'confirmed']);
-  const waiting = records('connected-intents').find(checkout => checkout.status === 'created')!;
+  const before = structuredClone(api.state().records);
 
-  // A checkout waits for the customer for 15 minutes.
+  // Like every checkout, the waiting one expires 15 minutes after it is created: a later press leaves it as it is.
   api.setNow(new Date(Date.parse(api.now) + 20 * 60_000).toISOString());
   await press(user, ALL_DONE);
-  expect(statuses()).toEqual(preparationSteps.map((step, index) => [`${index + 1}. ${step.label}`, step.id === 'pay-by-bank' ? 'Completed' : 'Already done']));
-  const checkouts = records('connected-intents');
-  expect(checkouts).toHaveLength(4);
-  expect(checkouts.find(checkout => checkout.id === waiting.id)).toMatchObject({ status: 'cancelled' });
-  expect(checkouts.find(checkout => checkout.id === waiting.id)!.data.events.at(-1).detail).toBe('This checkout expired, so a new sample checkout replaces it.');
-  expect(checkouts.filter(checkout => checkout.status === 'created' && Date.parse(checkout.data.expiresAt) > Date.parse(api.now))).toHaveLength(1);
+  expect(statuses()).toEqual(preparationSteps.map((step, index) => [`${index + 1}. ${step.label}`, 'Already done']));
+  expect(api.state().records).toEqual(before);
+  const waiting = records('connected-intents').find(checkout => checkout.status === 'created')!;
+  expect(Date.parse(waiting.data.expiresAt)).toBeLessThan(Date.parse(api.now));
   expect(api.role).toBe('Admin');
 }, 60_000);
 
