@@ -290,6 +290,27 @@ it('tells nine moments in about 12 minutes and opens Pay by Bank, Credit Desk an
   expect(api.calls.filter(c => c.method !== 'GET')).toEqual([]);
 });
 
+// Reaching the ninth talking point makes Next talking point unavailable; the focus then goes to the talking points, not the page body.
+it('keeps the keyboard focus in the guide when Next talking point reaches the last talking point', async () => {
+  presentAt(6);
+  const user = userEvent.setup();
+  renderApp('/overview');
+  const guide = await screen.findByRole('region', { name: 'Presentation guide' });
+  const next = within(guide).getByRole('button', { name: 'Next talking point' }) as HTMLButtonElement;
+  next.focus();
+  await user.keyboard('{Enter}');
+  expect(within(guide).getByText('8 of 9 · See the business’s cash')).toBeTruthy();
+  expect(document.activeElement).toBe(next);
+  await user.keyboard('{Enter}');
+  expect(within(guide).getByText('9 of 9 · Leave with the evidence')).toBeTruthy();
+  expect(next.disabled).toBe(true);
+  const list = within(guide).getByLabelText('Talking point') as HTMLSelectElement;
+  expect(document.activeElement).toBe(list);
+  expect(list.value).toBe('8');
+  expect([...list.options].map(option => option.textContent)).toEqual(presentationSteps.map((step, index) => `${index + 1}. ${step.title}`));
+  expect(api.calls.filter(c => c.method !== 'GET')).toEqual([]);
+});
+
 // Each moment is told over what Prepare for presentation leaves for the lender, and keeps the boundary that applies to it.
 it('tells each moment over the prepared records and keeps its boundary statements', () => {
   const notes = (title: string) => { const step = presentationSteps.find(s => s.title === title)!; return `${step.show} ${step.say} ${step.fallback}`; };

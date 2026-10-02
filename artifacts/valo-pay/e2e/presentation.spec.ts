@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import path from 'node:path';
 import { readFile } from 'node:fs/promises';
 import { presentationSamples } from '../src/lib/presenter-brief';
+import { presentationSteps } from '../src/lib/presentation';
 
 test.beforeEach(async ({ request }) => { await request.post('/__test/reset'); });
 
@@ -87,4 +88,70 @@ test('step three opens the sample customer, where rule R1 matched the payment au
   await expect(match).toBeVisible();
   await expect(guide.getByRole('button', { name: 'End presentation' })).toBeVisible();
   expect(writes).toEqual([]);
+});
+
+test('the guide takes nine talking points by keyboard and opens Pay by Bank, Credit Desk and Cash Desk', async ({ page }) => {
+  const writes: string[] = [];
+  page.on('request', req => { if (req.url().includes('/api/') && req.method() !== 'GET') writes.push(req.method()); });
+  await page.goto('/presentation');
+  await expect(page.getByRole('heading', { level: 2, name: 'Nine moments that explain the value' })).toBeVisible();
+  await page.getByRole('button', { name: 'Start presentation guide' }).click();
+  const guide = page.getByRole('region', { name: 'Presentation guide' });
+  const list = guide.getByLabel('Talking point');
+  await list.selectOption('5');
+  for (const [counter, action, href, heading] of [
+    ['6 of 9 · Take a payment by bank', 'Open Pay by Bank', '/pay-by-bank', 'Pay by Bank'],
+    ['7 of 9 · Check an applicant’s affordability', 'Open Credit Desk', '/credit-desk', 'Credit Desk'],
+    ['8 of 9 · See the business’s cash', 'Open Cash Desk', '/cash-desk', 'Cash Desk'],
+  ] as const) {
+    await expect(guide.getByText(counter)).toBeVisible();
+    const open = guide.getByRole('link', { name: action });
+    await expect(open).toHaveAttribute('href', href);
+    await open.click();
+    await expect(page.getByRole('heading', { level: 1, name: heading })).toBeVisible();
+    await guide.getByRole('button', { name: 'Next talking point' }).focus();
+    await page.keyboard.press('Enter');
+  }
+  // The last press leaves Next talking point unavailable, so the focus goes to the talking points, not the page body.
+  await expect(guide.getByText('9 of 9 · Leave with the evidence')).toBeVisible();
+  await expect(guide.getByRole('button', { name: 'Next talking point' })).toBeDisabled();
+  await expect(list).toBeFocused();
+  await expect(list).toHaveValue('8');
+  await expect(guide.getByRole('link', { name: 'Open Saved exports' })).toHaveAttribute('href', '/exports');
+  expect(writes).toEqual([]);
+});
+
+test('typing a talking point’s number picks it from the list', async ({ page }, info) => {
+  test.skip(!info.project.name.endsWith('chromium'), 'Chromium changes a closed list as the key is typed; Firefox and WebKit may open it instead.');
+  await page.goto('/presentation');
+  await page.getByRole('button', { name: 'Start presentation guide' }).click();
+  const guide = page.getByRole('region', { name: 'Presentation guide' });
+  await guide.getByLabel('Talking point').focus();
+  for (const [key, counter] of [['7', '7 of 9 · Check an applicant’s affordability'], ['9', '9 of 9 · Leave with the evidence'], ['2', '2 of 9 · Bring in payment evidence']] as const) {
+    await page.keyboard.press(key);
+    await expect(guide.getByText(counter)).toBeVisible();
+    // The list reads keys typed within a second as one search, so the next number waits until that has passed.
+    await page.waitForTimeout(1_100);
+  }
+});
+
+test('on a phone the guide fits each of the nine talking points and shows the one chosen', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 664 });
+  await page.goto('/presentation');
+  await page.getByRole('button', { name: 'Start presentation guide' }).click();
+  const guide = page.getByRole('region', { name: 'Presentation guide' });
+  const list = guide.getByLabel('Talking point');
+  for (const [index, step] of presentationSteps.entries()) {
+    await list.selectOption(String(index));
+    const title = guide.getByText(`${index + 1} of ${presentationSteps.length} · ${step.title}`);
+    await expect(title).toBeVisible();
+    const titleBox = (await title.boundingBox())!, guideBox = (await guide.boundingBox())!, listBox = (await list.boundingBox())!;
+    const lineHeight = await title.evaluate((node) => parseFloat(getComputedStyle(node).lineHeight));
+    expect(titleBox.height, step.title).toBeLessThanOrEqual(lineHeight * 2 + 1);
+    expect(guideBox.height, step.title).toBeLessThanOrEqual(664 * 0.5);
+    // The list has its own row, wide enough to show the talking point's title, with Next talking point under it.
+    expect(listBox.width, step.title).toBeGreaterThan(guideBox.width * 0.6);
+    expect((await guide.getByRole('button', { name: 'Next talking point' }).boundingBox())!.y, step.title).toBeGreaterThanOrEqual(listBox.y + listBox.height);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+  }
 });
