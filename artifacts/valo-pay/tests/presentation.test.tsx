@@ -1,10 +1,12 @@
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { cleanup, render } from '@testing-library/react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { Router } from 'wouter';
 import { installFakeApi, type FakeApi } from './fake-api';
 import { renderApp, screen, userEvent, waitFor, within } from './harness';
-import { demoSlot, momentStarts, presentationSamples, presenterBrief } from '@/lib/presenter-brief';
+import { demoSlot, investorAnswers, meetingClock, meetingRunSheet, momentStarts, presentationSamples, presenterBrief } from '@/lib/presenter-brief';
 import { presentationChecks, presentationSteps } from '@/lib/presentation';
 import { queryClient } from '@/App';
 import { Layout } from '@/components/layout';
@@ -179,6 +181,16 @@ it('sets out the 20-minute run sheet, the preparation and honest answers in the 
   expect(answers).toContain('- What is needed before go-live? Go-live evidence lists 5 requirements, and each is still pending.');
   // The answers claim no traction, revenue, partner or approval.
   expect(answers).not.toMatch(/\b(?:revenue|traction|partnered|partnership|approved by|licen[cs]ed)\b|we have signed|is connected to/i);
+});
+
+// The team's document tells the same story as the brief: the same parts of the meeting, moments and answers.
+it('lists the brief’s run sheet, moments and answers in docs/investor-presentation.md', () => {
+  // From the console package, as the console's tests run, or from the repository's root.
+  const doc = readFileSync([join(process.cwd(), '..', '..', 'docs', 'investor-presentation.md'), join(process.cwd(), 'docs', 'investor-presentation.md')].find(path => existsSync(path))!, 'utf8');
+  for (const part of meetingRunSheet) expect(doc).toContain(`| ${part.from} to ${part.to} | ${part.part} |`);
+  const starts = momentStarts();
+  presentationSteps.forEach((step, index) => expect(doc).toContain(`| ${meetingClock(starts[index]!)} | ${step.time} |`));
+  for (const { question, answer } of investorAnswers) expect(doc).toContain(`- ${question} ${answer}`);
 });
 
 // Dates as the console writes them, never ISO, in the brief and on the page; durations in numerals.
