@@ -12,9 +12,10 @@ import { WAT_OFFSET_MS } from '@workspace/valopay-schema';
 let api: FakeApi;
 /** Every write the console sent, with its Idempotency-Key and body. */
 let writes: Array<{ method: string; path: string; merchantId: string | null; key: string | null; body: Record<string, unknown> }>;
-beforeEach(() => {
-  sessionStorage.clear();
-  api = installFakeApi();
+/** A new fake API, with these options, recording every write the console sends it. */
+function install(options?: Parameters<typeof installFakeApi>[0]) {
+  (api as FakeApi | undefined)?.uninstall();
+  api = installFakeApi(options);
   writes = [];
   const fake = globalThis.fetch;
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -22,7 +23,8 @@ beforeEach(() => {
     if (method !== 'GET') writes.push({ method, path: url.pathname, merchantId: url.searchParams.get('merchantId'), key: new Headers(init?.headers).get('Idempotency-Key'), body: typeof init?.body === 'string' ? JSON.parse(init.body) : {} });
     return fake(input, init);
   }) as typeof fetch;
-});
+}
+beforeEach(() => { sessionStorage.clear(); install(); });
 afterEach(() => { api.uninstall(); sessionStorage.clear(); });
 
 const records = (kind: string) => api.state().records.filter(record => record.kind === kind);
@@ -181,10 +183,37 @@ it('records a failed step in Valo Pay’s words, carries on, puts the role back 
   expect(api.role).toBe('Admin');
 }, 60_000);
 
+it('fails the exports step while a file is still being prepared, and follows that file on the next press rather than requesting it again', async () => {
+  // As on the published site, where the export worker prepares each file after it is requested.
+  install({ queuedExports: true });
+  const merchantId = api.merchantIds[0]!;
+  const still = (name: string) => `${name} is still being prepared. Open Saved exports to check it, or select Prepare for presentation again.`;
+  const first = await preparePresentation({ merchantId, exportWaitMs: 0 });
+  expect(first.steps.at(-1)).toEqual({ id: 'exports', status: 'failed', reason: still('Dispute pack (PDF)') });
+  expect(first.failed).toBe(1);
+  const [pack] = records('exports');
+  expect(records('exports')).toMatchObject([{ status: 'queued', data: { kind: 'dispute-pack', format: 'pdf' } }]);
+
+  // Not Already done and not requested again: the file being prepared is read again, as Saved exports reads it.
+  const sent = writes.length, called = api.calls.length;
+  const second = await preparePresentation({ merchantId, exportWaitMs: 0 });
+  expect(second.steps.slice(0, -1).map(step => step.status)).toEqual(preparationSteps.slice(0, -1).map(() => 'already-done'));
+  expect(second.steps.at(-1)).toEqual({ id: 'exports', status: 'failed', reason: still('Dispute pack (PDF)') });
+  expect(writes.slice(sent)).toEqual([]);
+  expect(api.calls.slice(called).filter(call => call.path === `/v1/exports/${pack!.id}`).map(call => call.method)).toEqual(['GET']);
+  expect(records('exports')).toHaveLength(1);
+
+  // Once its file is ready, the next press counts it and requests the billing statement.
+  api.mutate(state => { const job = state.records.find(record => record.id === pack!.id)!; job.status = 'ready'; job.data.checksum = 'sample-checksum'; });
+  const third = await preparePresentation({ merchantId, exportWaitMs: 0 });
+  expect(third.steps.at(-1)).toEqual({ id: 'exports', status: 'failed', reason: still('Billing statement (CSV)') });
+  expect(records('exports').map(file => [file.data.kind, file.status])).toEqual([['dispute-pack', 'ready'], ['billing', 'queued']]);
+  expect(api.role).toBe('Admin');
+}, 60_000);
+
 it('carries on a checkout an earlier press left part-way, and leaves a waiting checkout that expired as it is', async () => {
   // Midday in West Africa Time, so the 20 minutes below stay on the same business date.
-  api.uninstall();
-  api = installFakeApi({ now: `${new Date().toISOString().slice(0, 10)}T11:00:00.000Z` });
+  install({ now: `${new Date().toISOString().slice(0, 10)}T11:00:00.000Z` });
   const user = userEvent.setup();
   // An earlier press created and authorised the checkout to be confirmed, then stopped.
   const due = records('due-items').find(item => item.reference === 'DEMO-LOAN-1008')!;

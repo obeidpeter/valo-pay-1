@@ -86,6 +86,8 @@ export function closeDates(today: string): string[] {
 type Outcome = 'completed' | 'already-done';
 interface Run {
   merchantId: string;
+  /** How long an export being prepared is followed before the step stops waiting. */
+  exportWaitMs: number;
   /** Stops before the next request once the caller has gone; the role is still put back. */
   checkpoint(): void;
   /** Valo Pay's clock, read once: the dates and follow-up times written are its, not the browser's. */
@@ -473,26 +475,33 @@ async function prepareCash(run: Run): Promise<Outcome> {
 // ---- 8. Saved exports ----
 
 const EXPORTERS = ['Admin', 'Finance', 'Compliance reviewer'];
+/** How long a press follows an export being prepared, as Saved exports follows it, unless a test sets another time. */
 const EXPORT_WAIT_MS = 30_000;
 const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+const preparing = (job: { status?: string }) => ['queued', 'running'].includes(job.status ?? '');
 /** A new or restarted export's answer is a confirmation only with its link, and its checksum once ready (safe-mutations). */
 function exportJob(answer: unknown, id?: string): ExportResultView {
   const job = readAnswer(exportResultSchema, answer);
   if (!job || (id && job.id !== id) || !job.downloadUrl || !((job.status && job.status !== 'ready') || job.checksum)) throw answerProblem(INCOMPLETE_CONFIRMATION);
   return job;
 }
-/** Follows an export being prepared, as Saved exports does, until its file is ready or it failed (about 30 seconds at most). */
+/** An export as it is now, read as Saved exports reads it. */
+async function exportNow(run: Run, id: string): Promise<ExportResultView> {
+  run.checkpoint();
+  return exportJob(await getExportJob(id, { merchantId: run.merchantId }, { signal: timeout() }), id);
+}
+/** Follows an export being prepared, as Saved exports does, until its file is ready or it failed, for 30 seconds at most. */
 async function settled(run: Run, job: ExportResultView): Promise<ExportResultView> {
-  for (const started = Date.now(); ['queued', 'running'].includes(job.status ?? '') && Date.now() - started < EXPORT_WAIT_MS;) {
+  for (const started = Date.now(); preparing(job) && Date.now() - started < run.exportWaitMs;) {
     await pause(1_500);
-    run.checkpoint();
-    job = exportJob(await getExportJob(job.id, { merchantId: run.merchantId }, { signal: timeout() }), job.id);
+    job = await exportNow(run, job.id);
   }
   return job;
 }
 /**
  * A dispute pack (PDF) for Ada Okonkwo, as her history exports it, and a billing statement (CSV), as Reports exports
- * it. One that failed is retried rather than requested again. When the files cannot be prepared, such as where file
+ * it. Only a file that is ready counts as done. One still being prepared, by this press or an earlier one, is followed
+ * again rather than requested again; one that failed is retried. When the files cannot be prepared, such as where file
  * storage is not set up, the step says so in Valo Pay's words.
  */
 async function prepareExports(run: Run): Promise<Outcome> {
@@ -502,22 +511,29 @@ async function prepareExports(run: Run): Promise<Outcome> {
     { title: 'Dispute pack (PDF)', input: { kind: 'dispute-pack', format: 'pdf' as const, customerId: ada.id } },
     { title: 'Billing statement (CSV)', input: { kind: 'billing', format: 'csv' as const } },
   ];
-  let wrote = false;
+  // Following an export an earlier press left being prepared is this press's work too: the step is not Already done.
+  let worked = false;
   for (const { title, input } of wanted) {
     const customerId = 'customerId' in input ? input.customerId : undefined;
     const saved = (await records(run, 'exports', { search: input.kind, ...(customerId ? { customerId } : {}) }))
       .filter(record => record.data.kind === input.kind && record.data.format === input.format && (!customerId || record.customerId === customerId) && !record.data.fileDeletedAt);
-    if (saved.some(record => ['ready', 'queued', 'running'].includes(record.status))) continue;
-    await run.actAs(EXPORTERS);
-    const failed = saved.find(record => record.status === 'failed');
-    run.checkpoint();
-    const job = await settled(run, failed
-      ? exportJob(await retryExportJob(failed.id, { merchantId: run.merchantId }, { headers: idempotency(), signal: timeout() }), failed.id)
-      : exportJob(await createExport(input, { merchantId: run.merchantId }, { headers: idempotency(), signal: timeout() })));
-    wrote = true;
+    if (saved.some(record => record.status === 'ready')) continue;
+    const pending = saved.find(preparing), failed = saved.find(record => record.status === 'failed');
+    let job: ExportResultView;
+    if (pending) job = await exportNow(run, pending.id);
+    else {
+      await run.actAs(EXPORTERS);
+      run.checkpoint();
+      job = failed
+        ? exportJob(await retryExportJob(failed.id, { merchantId: run.merchantId }, { headers: idempotency(), signal: timeout() }), failed.id)
+        : exportJob(await createExport(input, { merchantId: run.merchantId }, { headers: idempotency(), signal: timeout() }));
+    }
+    job = await settled(run, job);
+    worked = true;
     if (job.status === 'failed') throw answerProblem(`${title} not prepared. ${job.error || NO_REASON}`);
+    if (preparing(job)) throw answerProblem(`${title} is still being prepared. Open Saved exports to check it, or select Prepare for presentation again.`);
   }
-  return wrote ? 'completed' : 'already-done';
+  return worked ? 'completed' : 'already-done';
 }
 
 const runners: Record<PreparationStepId, (run: Run) => Promise<Outcome>> = {
@@ -534,10 +550,12 @@ const prerequisites: Partial<Record<PreparationStepId, { step: PreparationStepId
  * at the end, whatever happened. Refuses, before anything is sent, outside the sandbox or for a lender the workspace
  * does not have. `signal` stops the run before its next request, as when the page is left.
  */
-export async function preparePresentation({ merchantId, onProgress, signal }: {
+export async function preparePresentation({ merchantId, onProgress, signal, exportWaitMs = EXPORT_WAIT_MS }: {
   merchantId: string;
   onProgress?: (progress: PreparationProgress) => void;
   signal?: AbortSignal;
+  /** How long an export being prepared is followed: 30 seconds, as Saved exports follows it, unless a test sets less. */
+  exportWaitMs?: number;
 }): Promise<PreparationResult> {
   const workspace = await getWorkspace({ signal: timeout() });
   if (!preparationOffered(workspace)) throw answerProblem(SANDBOX_ONLY);
@@ -556,6 +574,7 @@ export async function preparePresentation({ merchantId, onProgress, signal }: {
   let clock: Promise<string> | undefined;
   const run: Run = {
     merchantId,
+    exportWaitMs,
     checkpoint,
     now: () => (clock ??= connectedView(run).then(view => view.asOf, (error: unknown) => { clock = undefined; throw error; })),
     async actAs(roles) {
