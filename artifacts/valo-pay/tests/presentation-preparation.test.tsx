@@ -6,6 +6,7 @@ import { installFakeApi, type FakeApi } from './fake-api';
 import { renderApp, screen, userEvent, waitFor, within } from './harness';
 import { closeDates, preparePresentation, preparationSteps } from '@/lib/presentation-preparation';
 import { reviewIsCurrent } from '../../api-server/src/domain/close-review';
+import { connectedRevision, runConnectedAction } from '../../api-server/src/domain/connected';
 import { WAT_OFFSET_MS } from '@workspace/valopay-schema';
 
 let api: FakeApi;
@@ -165,6 +166,38 @@ it('records a failed step in Valo Pay’s words, carries on, puts the role back 
   await press(user, ALL_DONE);
   expect(statuses()).toEqual(preparationSteps.map((step, index) => [`${index + 1}. ${step.label}`, step.id === 'exports' ? 'Completed' : 'Already done']));
   expect(records('exports').map(file => [file.data.kind, file.data.format]).sort()).toEqual([['billing', 'csv'], ['dispute-pack', 'pdf']]);
+  expect(api.role).toBe('Admin');
+}, 60_000);
+
+it('carries on a checkout an earlier press left part-way, and replaces a waiting checkout that expired', async () => {
+  // Midday in West Africa Time, so the 20 minutes below stay on the same business date.
+  api.uninstall();
+  api = installFakeApi({ now: `${new Date().toISOString().slice(0, 10)}T11:00:00.000Z` });
+  const user = userEvent.setup();
+  // An earlier press created and authorised the checkout to be confirmed, then stopped.
+  const due = records('due-items').find(item => item.reference === 'DEMO-LOAN-1008')!;
+  const reason = 'Sample checkout 1 of 3, prepared for the presentation';
+  const left = api.mutate((state, ctx) => {
+    const created = runConnectedAction(state, ctx, { action: 'payment.create', data: { dueItemId: due.id, amountKobo: due.amountKobo }, reason, expectedRevision: connectedRevision(state) });
+    runConnectedAction(state, ctx, { action: 'payment.authorise', data: {}, recordId: created.id, reason, expectedRevision: connectedRevision(state) });
+    return created.id;
+  });
+  renderApp('/presentation');
+  await screen.findByRole('heading', { name: 'Sample records for the presentation' });
+  await press(user, ALL_DONE);
+  expect(records('connected-intents')).toHaveLength(3);
+  expect(records('connected-intents').find(checkout => checkout.id === left)!.data.events.map((event: { status: string }) => event.status)).toEqual(['created', 'authorised', 'pending', 'confirmed']);
+  const waiting = records('connected-intents').find(checkout => checkout.status === 'created')!;
+
+  // A checkout waits for the customer for 15 minutes.
+  api.setNow(new Date(Date.parse(api.now) + 20 * 60_000).toISOString());
+  await press(user, ALL_DONE);
+  expect(statuses()).toEqual(preparationSteps.map((step, index) => [`${index + 1}. ${step.label}`, step.id === 'pay-by-bank' ? 'Completed' : 'Already done']));
+  const checkouts = records('connected-intents');
+  expect(checkouts).toHaveLength(4);
+  expect(checkouts.find(checkout => checkout.id === waiting.id)).toMatchObject({ status: 'cancelled' });
+  expect(checkouts.find(checkout => checkout.id === waiting.id)!.data.events.at(-1).detail).toBe('This checkout expired, so a new sample checkout replaces it.');
+  expect(checkouts.filter(checkout => checkout.status === 'created' && Date.parse(checkout.data.expiresAt) > Date.parse(api.now))).toHaveLength(1);
   expect(api.role).toBe('Admin');
 }, 60_000);
 

@@ -248,11 +248,14 @@ async function claimCase(run: Run): Promise<Outcome> {
 
 const CHECKOUT_WORKERS = ['Admin', 'Operations', 'Finance'];
 type Checkout = 'confirmed' | 'unknown' | 'waiting';
-/** Each checkout's reason, saved as the detail of its first event: a run that stopped part-way finds its own checkout by it. */
+/**
+ * Each checkout's reason. Its first event keeps it, which the checkout timeline shows, and a later press finds the
+ * checkout an earlier press left part-way by it.
+ */
 const checkoutReasons: Record<Checkout, string> = {
-  confirmed: 'Prepare a sample checkout that the bank confirms',
-  unknown: 'Prepare a sample checkout whose outcome stays unknown',
-  waiting: 'Prepare a sample checkout that waits for the customer',
+  confirmed: 'Sample checkout 1 of 3, prepared for the presentation',
+  unknown: 'Sample checkout 2 of 3, prepared for the presentation',
+  waiting: 'Sample checkout 3 of 3, prepared for the presentation',
 };
 type Intent = ConnectedView['payments']['intents'][number];
 const reasonOfCheckout = (intent: Intent) => intent.data.events?.[0]?.detail;
@@ -297,7 +300,7 @@ async function prepareCheckouts(run: Run): Promise<Outcome> {
     if (!checkout) {
       if (kind === 'waiting')
         for (const expired of intents.filter(intent => reasonOfCheckout(intent) === reason && intent.status === 'created' && !live(intent)))
-          await connectedAction(run, 'payment.cancel', {}, 'Replace an expired sample checkout for the presentation', expired.id);
+          await connectedAction(run, 'payment.cancel', {}, 'This checkout expired, so a new sample checkout replaces it.', expired.id);
       const due = await freeInstalment(run, view);
       const created = (await connectedAction(run, 'payment.create', { dueItemId: due.id, amountKobo: due.outstandingKobo }, reason)).record as { id: string; status: string };
       checkout = created;
