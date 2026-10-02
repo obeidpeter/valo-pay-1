@@ -663,13 +663,13 @@ export const helpGuides: HelpGuide[] = [
     category: "Setup and administration",
     title: "Prepare and give a sample presentation",
     summary:
-      "Prepare the sample files, follow the talking points and show what the records actually prove.",
+      "Fill the sandbox with sample records, follow the talking points and show what the records actually prove.",
     destination: "Presentation",
     needs:
       "Choose one sample lender in the sandbox. Check that your role allows each task you plan to show. Prepare a backup recording or screenshots.",
     steps: [
       "Select Download presenter brief. Complete the checks under Before you share your screen after trying the tasks yourself.",
-      "Select Download CSV for each sample file. Follow Import instructions and repeat rehearsals: import customers and instalments before the meeting, then payment evidence during it.",
+      "Select Prepare for presentation and wait until every step says Completed or Already done. It leaves the payment batch saved but not imported, so you can import it during the meeting. To import the sample files by hand instead, select Download CSV for each file and follow Import instructions.",
       "Select Start presentation guide. Select the page link for the current talking point, and use Next talking point to move through the story.",
       "Select Show presenter notes (visible on this screen) when you need the talking points. Anyone viewing your screen can read these notes.",
       "Select Open the sample customer after running reconciliation. The sample payment matches automatically, so its explanation is in Customer history.",
@@ -680,7 +680,7 @@ export const helpGuides: HelpGuide[] = [
     blocked:
       "The guide works only in the sandbox with a lender selected. If a task is blocked, explain the missing permission or evidence. Never present sample totals as real business results.",
     recovery:
-      "Return to the same lender in this browser tab to continue the guide. Check Request history before repeating an unconfirmed change. Reimporting the same file can report duplicates; use a new empty sample lender for a fresh run. Never clear an existing workspace.",
+      "Return to the same lender in this browser tab to continue the guide. If a preparation step failed, select Prepare for presentation again: it skips what is already done. Check Request history before repeating an unconfirmed change. Reimporting the same file can report duplicates; use a new empty sample lender for a fresh run. Never clear an existing workspace.",
     terms: ["sandbox", "sample-data", "batch", "match", "close-review", "export"],
   },
 ];

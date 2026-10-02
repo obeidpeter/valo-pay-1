@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, type ReactNode } from 'react';
+import { createContext, useContext, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'wouter';
 import { ArrowRight, Presentation, X } from 'lucide-react';
 import { useListRecords, getListRecordsQueryKey } from '@workspace/api-client-react';
@@ -65,7 +65,16 @@ export function PresentationGuide() {
   const step = presentationSteps[state.step];
   const visible = state.active && workspace?.environment === 'sandbox';
   const hrefFor = usePresentationHref(visible && 'customer' in step);
+  // Next talking point is unavailable on the last talking point, so reaching it would drop the focus to the page body.
+  // It goes to the list of talking points instead, where the arrow keys, or typing a talking point's number, move on.
+  const list = useRef<HTMLSelectElement>(null), reachedLast = useRef(false);
+  useLayoutEffect(() => {
+    if (!reachedLast.current) return;
+    reachedLast.current = false;
+    list.current?.focus();
+  }, [state.step]);
   if (!visible) return null;
+  const last = presentationSteps.length - 1;
   // The title keeps at least 16rem, so where the row is too narrow for it and the actions (a phone, or a tablet
   // beside the sidebar) the actions wrap under it instead of squeezing it to a word a line; on a phone the guide
   // is tighter, so the page it is guiding stays in view.
@@ -81,12 +90,16 @@ export function PresentationGuide() {
         <Button variant="ghost" size="sm" className="px-2 sm:px-3" onClick={() => { save({ ...state, active: false }); focusMain(); }}><X className="mr-1 h-4 w-4" aria-hidden="true" />End presentation</Button>
       </div>
     </div>
+    {/* On a phone the list of talking points takes its own row, so it shows the talking point's title rather than its
+        first word or two, and Next talking point goes under it with Back to Presentation. */}
     <div className="mt-2 flex flex-wrap items-center gap-2 border-t pt-2 sm:mt-3 sm:pt-3">
-      <label htmlFor="presentation-step" className="text-xs font-medium">Talking point</label>
-      <select id="presentation-step" className="min-h-9 min-w-0 max-w-full flex-1 rounded-md border bg-background px-2 text-sm sm:flex-none" value={state.step} onChange={e => save({ ...state, step: Number(e.target.value) })}>
-        {presentationSteps.map((s, i) => <option key={s.href} value={i}>{i + 1}. {s.title}</option>)}
-      </select>
-      <Button size="sm" variant="outline" disabled={state.step === presentationSteps.length - 1} onClick={() => save({ ...state, step: state.step + 1 })}>Next talking point</Button>
+      <div className="flex min-w-0 basis-full items-center gap-2 sm:basis-auto">
+        <label htmlFor="presentation-step" className="shrink-0 text-xs font-medium">Talking point</label>
+        <select ref={list} id="presentation-step" className="min-h-9 min-w-0 flex-1 rounded-md border bg-background px-2 text-sm sm:flex-none" value={state.step} onChange={e => save({ ...state, step: Number(e.target.value) })}>
+          {presentationSteps.map((s, i) => <option key={s.href} value={i}>{i + 1}. {s.title}</option>)}
+        </select>
+      </div>
+      <Button size="sm" variant="outline" disabled={state.step === last} onClick={() => { reachedLast.current = state.step + 1 === last; save({ ...state, step: state.step + 1 }); }}>Next talking point</Button>
       <Link href="/presentation" className="ml-auto inline-flex min-h-9 items-center text-sm text-primary underline underline-offset-4">Back to Presentation</Link>
     </div>
     <details key={state.step} className="mt-1 text-sm sm:mt-3"><summary className="min-h-9 cursor-pointer py-2 font-medium">Show presenter notes (visible on this screen)</summary><p className="mt-2">{step.show}</p><p className="mt-2 text-muted-foreground">Say: {step.say}</p><p className="mt-2 text-muted-foreground">If something goes wrong: {step.fallback}</p></details>

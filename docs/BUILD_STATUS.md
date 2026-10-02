@@ -1,5 +1,35 @@
 # Valo Pay — build status
 
+## Presentation preparation · 2 October 2026
+
+The Presentation page gains **Prepare for presentation**, offered only in the sandbox. One press fills the active sample lender's pages through the same API requests the console's own buttons send:
+- the sample customers and instalments files are imported, and the payment evidence file is saved and checked but left for the presenter to import live;
+- one exception's case is claimed with a next step and a handover note;
+- Pay by Bank has 3 checkouts: confirmed, waiting for the customer and with an unknown outcome;
+- the 3 days before today each have a daily close, and the latest is submitted for review by a different Finance reviewer;
+- Credit Desk has an assessment waiting for a different person's review and an applicant who refused permission;
+- Cash Desk is set up, with a forecast, an accounting draft and a payroll plan waiting for approval and a saved VAT schedule;
+- Saved exports has a dispute pack and a billing statement.
+
+Each step reads the current records first and skips what is already done, so a second press adds nothing unless records changed since. A failed step shows its reason, and the later steps still run. The demo role the presenter had is always put back. The seeded match waiting for Finance, the sample pack's instalment and two open exceptions are left untouched for the live demo. Go-live evidence, live payments and second-person approvals are not touched. Without file storage for exports, that step fails in plain words and the rest complete. An export still being prepared after 30 seconds also fails that step; a later press finds it again and does not request it twice.
+
+The demonstration story is now nine moments of about 12 minutes inside a 20-minute investor meeting, adding Pay by Bank, Credit Desk and Cash Desk to the six collections moments. The presenter brief and `docs/investor-presentation.md` give the run sheet and honest answers to likely investor questions. The guide toolbar keeps focus on the talking point list at the last step, and gives that list its own row on a phone.
+
+Tests:
+- `tests/presentation-preparation.test.tsx` runs every step against the fake API. It also checks:
+  - a repeat press, a failed step and a part-made checkout;
+  - an export still being prepared;
+  - the demo role put back after a run, after leaving the page and after a reload;
+  - a latest close made out of date, which is closed again;
+  - the instalments and exceptions kept free for the live demo;
+  - the live import still matching its instalment automatically, with the confidence Certain;
+  - workspaces that are not a sandbox, which are refused;
+- `e2e/presentation-preparation.spec.ts` runs the button in desktop and mobile Chromium;
+- `e2e/database/presentation-preparation.spec.ts` runs it through the real API and PostgreSQL;
+- `tests/presentation.test.tsx` checks the nine moments, their timing, the run sheet and that the guide matches the brief.
+
+This is not yet deployed: the published site still serves PR #79 until the owner publishes again.
+
 ## PR #81 follow-up and release verification · 2 October 2026
 
 This candidate preserves saved recovery-experiment percentages when another field is edited, including values with more than two decimal places. Basis-point fee inputs retain their separate precision rule. Reports now states how many issued invoices have had their discount rate compared, how many differ, how many await confirmation, and how many have no applicable terms. Each unresolved comparison explains the reason and links to the relevant agreement when available. These checks do not change issued invoices, contract dates or pricing rules. Help adds task guides for Pilot journey, Data sources and Presentation, bringing the total to 28 guides.

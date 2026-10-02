@@ -8,7 +8,7 @@ import { connectedActionResultFor } from "@workspace/valopay-schema";
 import { consoleConnectedViewSchema, type ConnectedView } from './connected-view';
 export type { ConnectedRecord, ConnectedView } from './connected-view';
 /** Shown for a connected action whose answer does not confirm the expected sample result: the action may have been saved. */
-const UNCONFIRMED_SAMPLE = "Valo Pay’s answer did not confirm this action. Check the original request again.";
+export const UNCONFIRMED_SAMPLE = "Valo Pay’s answer did not confirm this action. Check the original request again.";
 type ConnectedInput = {
   action: string;
   data: Record<string, unknown>;
@@ -16,7 +16,8 @@ type ConnectedInput = {
   reason: string;
 };
 
-async function request(url: string, options: RequestInit = {}): Promise<unknown> {
+/** One connected-banking request, also sent by Prepare for presentation: a refusal throws with its status and Valo Pay's words. */
+export async function request(url: string, options: RequestInit = {}): Promise<unknown> {
   const response = await fetch(url, {
     credentials: "same-origin",
     ...options,

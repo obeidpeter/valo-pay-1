@@ -239,7 +239,7 @@ export function installFakeApi(options: { now?: string; role?: string; queuedExp
     }],
     ["GET", /^\/v1\/workspace$/, () => S.GetWorkspaceResponse.parse({
       name: "Valo Pay", environment: "sandbox", actor: context().actor, role: api.role, authenticated: false,
-      merchants: api.merchantIds.map((id) => states.get(id)!.merchant), roles: [...roles], productionEnabled: false,
+      merchants: api.merchantIds.map((id) => states.get(id)!.merchant), roles: [...roles], productionEnabled: false, accessMode: "sandbox",
     })],
     ['GET', /^\/v1\/connected$/, (_p,query)=>withState(merchantOf(query),(state,ctx)=>contract(connectedViewSchema, connectedView(state,ctx)))],
     ['POST', /^\/v1\/connected\/actions$/, (_p,query,raw)=>{const input=connectedActionSchema.parse(raw);return withState(merchantOf(query),(state,ctx)=>contract(connectedActionResultSchema, {message:`${connectedActionDone(input.action)}. Sample data only.`,record:runConnectedAction(state,ctx,input),mode:'synthetic',externalInstructionPerformed:false}),{action:input.action,objectId:input.recordId||'connected-workspace',summary:input.reason});}],
