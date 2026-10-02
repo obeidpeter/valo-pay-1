@@ -40,7 +40,7 @@ test('presentation preparation, downloads and guide are usable on desktop and ph
   await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible();
   await guide.getByRole('button', { name: 'Next talking point' }).click();
   await page.reload();
-  await expect(guide.getByText('2 of 6 · Bring in payment evidence')).toBeVisible();
+  await expect(guide.getByText('2 of 9 · Bring in payment evidence')).toBeVisible();
   await guide.getByRole('link', { name: 'Open Import batches' }).click();
   await expect(page.getByRole('heading', { name: 'Import batches' })).toBeVisible();
   await guide.getByRole('button', { name: 'End presentation' }).click();
@@ -72,7 +72,7 @@ test('step three opens the sample customer, where rule R1 matched the payment au
   await page.getByRole('button', { name: 'Start presentation guide' }).click();
   const guide = page.getByRole('region', { name: 'Presentation guide' });
   await guide.getByLabel('Talking point').selectOption('2');
-  await expect(guide.getByText('3 of 6 · Explain the match')).toBeVisible();
+  await expect(guide.getByText('3 of 9 · Explain the match')).toBeVisible();
   const open = guide.getByRole('link', { name: 'Open the sample customer' });
   await expect(open).toHaveAttribute('href', `/customers/${customer.id}`);
   await open.click();

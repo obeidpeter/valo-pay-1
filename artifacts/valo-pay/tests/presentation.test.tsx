@@ -5,6 +5,7 @@ import { Router } from 'wouter';
 import { installFakeApi, type FakeApi } from './fake-api';
 import { renderApp, screen, userEvent, waitFor, within } from './harness';
 import { presentationSamples, presenterBrief } from '@/lib/presenter-brief';
+import { presentationSteps } from '@/lib/presentation';
 import { queryClient } from '@/App';
 import { Layout } from '@/components/layout';
 import { PresentationProvider } from '@/components/presentation-guide';
@@ -47,7 +48,7 @@ it('keeps presentation controls separate from platform actions and resumes after
   cleanup();
   renderApp('/overview');
   guide = await screen.findByRole('region', { name: 'Presentation guide' });
-  expect(within(guide).getByText('2 of 6 · Bring in payment evidence')).toBeTruthy();
+  expect(within(guide).getByText('2 of 9 · Bring in payment evidence')).toBeTruthy();
   await user.click(within(guide).getByRole('link', { name: 'Open Import batches' }));
   await screen.findByRole('heading', { name: 'Import batches' });
   await user.click(screen.getByRole('button', { name: 'End presentation' }));
@@ -86,7 +87,7 @@ it('ignores malformed saved state and works when browser storage is unavailable'
   await user.click(await screen.findByRole('button', { name: 'Start presentation guide' }));
   expect(screen.getByRole('region', { name: 'Presentation guide' })).toBeTruthy();
   await user.click(screen.getByRole('button', { name: 'Next talking point' }));
-  expect(screen.getByText('2 of 6 · Bring in payment evidence')).toBeTruthy();
+  expect(screen.getByText('2 of 9 · Bring in payment evidence')).toBeTruthy();
   expect(api.calls.filter(c => c.method !== 'GET')).toEqual([]);
 });
 
@@ -148,8 +149,8 @@ it("writes the pack's dates and the talking points' durations as the rest of the
   const brief = presenterBrief('2026-09-22');
   expect(brief).toContain('Prepared for 22 Sept 2026 (WAT). Suggested length: about 6 minutes.');
   expect(brief).toContain('Set the business date to 22 Sept 2026.');
-  expect(brief).toContain('### 1. Start with the work · 45 seconds');
-  expect(brief).toContain('### 2. Bring in payment evidence · 1 minute');
+  expect(brief).toContain('### 1. Start with the work · 1 minute');
+  expect(brief).toContain('### 2. Bring in payment evidence · 90 seconds');
   expect(brief).toContain('### 3. Explain the match · 90 seconds');
   expect(brief).not.toMatch(/\d{4}-\d{2}-\d{2}|\bsec\b|six minutes/);
   // The files themselves keep the ISO date other systems read.
@@ -160,7 +161,10 @@ it("writes the pack's dates and the talking points' durations as the rest of the
   expect(pack.textContent).not.toMatch(/\d{4}-\d{2}-\d{2}/);
   // Each download's name starts with its visible label, then says which file.
   for (const kind of ['customers', 'instalments', 'payment evidence']) expect(within(pack).getByRole('button', { name: `Download CSV of ${kind}` })).toBeTruthy();
-  expect(screen.getAllByText('45 seconds')).toHaveLength(2);
+  expect(screen.getAllByText('1 minute')).toHaveLength(1);
+  expect(screen.getAllByText('90 seconds')).toHaveLength(4);
+  expect(screen.getAllByText('75 seconds')).toHaveLength(3);
+  expect(screen.getAllByText('60 seconds')).toHaveLength(1);
 });
 
 it('opens the sample customer at step three, where the automatic R1 match and its explanation are shown', async () => {
@@ -170,7 +174,7 @@ it('opens the sample customer at step three, where the automatic R1 match and it
   const user = userEvent.setup();
   renderApp('/overview');
   const guide = await screen.findByRole('region', { name: 'Presentation guide' });
-  expect(within(guide).getByText('3 of 6 · Explain the match')).toBeTruthy();
+  expect(within(guide).getByText('3 of 9 · Explain the match')).toBeTruthy();
   const link = within(guide).getByRole('link', { name: 'Open the sample customer' });
   await waitFor(() => expect(link.getAttribute('href')).toBe(`/customers/${customer.id}`));
   await user.click(within(guide).getByText(/Show presenter notes/));
@@ -183,6 +187,77 @@ it('opens the sample customer at step three, where the automatic R1 match and it
   expect(match.textContent).toContain('Provider reference PRES-O001 matches instalment PRES-D001');
   expect(within(match.parentElement!).getByText('₦18,000.50')).toBeTruthy();
   expect(api.calls.filter(c => c.method !== 'GET')).toEqual([]);
+});
+
+/** A phrase found anywhere in an element's text, whatever its punctuation. */
+const phrase = (text: string) => new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+
+// The demo of a 20-minute meeting: the six collections moments in their order, then connected banking, then the evidence.
+it('tells nine moments in about 12 minutes and opens Pay by Bank, Credit Desk and Cash Desk from the page and the guide', async () => {
+  expect(presentationSteps.map(step => step.title)).toEqual(['Start with the work', 'Bring in payment evidence', 'Explain the match', 'Give an exception an owner', 'Review the day’s close', 'Take a payment by bank', 'Check an applicant’s affordability', 'See the business’s cash', 'Leave with the evidence']);
+  const total = presentationSteps.reduce((sum, step) => sum + step.seconds, 0);
+  expect(total).toBeGreaterThan(11 * 60);
+  expect(total).toBeLessThanOrEqual(12 * 60);
+  renderApp('/presentation');
+  const story = (await screen.findByRole('heading', { name: 'Nine moments that explain the value' })).closest('section')!;
+  expect(within(story).getAllByRole('article').map(card => card.querySelector('span')?.textContent)).toEqual(['01', '02', '03', '04', '05', '06', '07', '08', '09']);
+  expect(within(story).getAllByRole('link').map(link => [link.textContent, link.getAttribute('href')])).toEqual([
+    ['Open Overview', '/overview'], ['Open Import batches', '/imports'], ['Open the sample customer', '/customers?q=PRES-C001'],
+    ['Open Exceptions', '/exceptions'], ['Open Reports', '/reports#daily-closes'], ['Open Pay by Bank', '/pay-by-bank'],
+    ['Open Credit Desk', '/credit-desk'], ['Open Cash Desk', '/cash-desk'], ['Open Saved exports', '/exports'],
+  ]);
+  cleanup();
+  // In the guide, each connected banking moment opens its page, and its notes keep the boundary it must say.
+  presentAt(5);
+  const user = userEvent.setup();
+  renderApp('/overview');
+  await screen.findByRole('region', { name: 'Presentation guide' });
+  for (const [counter, action, href, heading, boundary] of [
+    ['6 of 9 · Take a payment by bank', 'Open Pay by Bank', '/pay-by-bank', 'Pay by Bank', 'Only a payment the bank or provider confirms counts.'],
+    ['7 of 9 · Check an applicant’s affordability', 'Open Credit Desk', '/credit-desk', 'Credit Desk', 'A credit result is not a lending decision.'],
+    ['8 of 9 · See the business’s cash', 'Open Cash Desk', '/cash-desk', 'Cash Desk', 'Nothing was posted to accounting software. No VAT return was filed and no tax was paid. No one has been paid.'],
+  ] as const) {
+    const guide = screen.getByRole('region', { name: 'Presentation guide' });
+    expect(within(guide).getByText(counter)).toBeTruthy();
+    const link = within(guide).getByRole('link', { name: action });
+    expect(link.getAttribute('href')).toBe(href);
+    await user.click(link);
+    await screen.findByRole('heading', { level: 1, name: heading });
+    expect(window.location.pathname).toBe(href);
+    await user.click(within(guide).getByText(/Show presenter notes/));
+    expect(within(guide).getByText(phrase(boundary))).toBeTruthy();
+    await user.click(within(guide).getByRole('button', { name: 'Next talking point' }));
+  }
+  expect(within(screen.getByRole('region', { name: 'Presentation guide' })).getByText('9 of 9 · Leave with the evidence')).toBeTruthy();
+  expect(api.calls.filter(c => c.method !== 'GET')).toEqual([]);
+});
+
+// Each moment is told over what Prepare for presentation leaves for the lender, and keeps the boundary that applies to it.
+it('tells each moment over the prepared records and keeps its boundary statements', () => {
+  const notes = (title: string) => { const step = presentationSteps.find(s => s.title === title)!; return `${step.show} ${step.say} ${step.fallback}`; };
+  expect(notes('Start with the work')).toContain('They are sample data, not real growth or measured savings.');
+  expect(notes('Bring in payment evidence')).toContain('Open the prepared payment batch, which is checked but not imported.');
+  expect(notes('Bring in payment evidence')).toContain('then select Import checked batch once.');
+  expect(notes('Explain the match')).toContain('If the customer is not found, this lender is not prepared yet. Select Prepare for presentation on the Presentation page.');
+  expect(notes('Give an exception an owner')).toContain('Open the case of the exception that shows Assigned to. Its handover history shows who claimed it, the next step and the handover note.');
+  expect(notes('Give an exception an owner')).toContain('Resolving an exception does not make a payment or supply missing evidence.');
+  expect(notes('Review the day’s close')).toContain('a close for each of the 3 previous business days');
+  expect(notes('Review the day’s close')).toContain('where it waits for a different Finance reviewer');
+  expect(notes('Review the day’s close')).toContain('A different person must review it');
+  expect(notes('Review the day’s close')).toContain('Switching demo roles is not a second person.');
+  expect(notes('Take a payment by bank')).toContain('Checkout history holds 3 prepared checkouts. Select each one: Confirmed, Awaiting authorisation and Outcome unknown.');
+  expect(notes('Take a payment by bank')).toContain('Only a payment the bank or provider confirms counts.');
+  expect(notes('Take a payment by bank')).toContain('An expired checkout does not mean that a payment failed.');
+  expect(notes('Take a payment by bank')).toContain('Live payments and bank connections are switched off. No money moved. Nothing was sent to a bank.');
+  expect(notes('Check an applicant’s affordability')).toContain('in Review history, the review another demo role recorded');
+  expect(notes('Check an applicant’s affordability')).toContain('choose the applicant who refused permission. There is no score, and the refusal does not count against them.');
+  expect(notes('Check an applicant’s affordability')).toContain('A credit result is not a lending decision.');
+  expect(notes('Check an applicant’s affordability')).toContain('Switching demo roles is not a second person');
+  expect(notes('See the business’s cash')).toContain('The accounting draft and the payroll funding plan each wait for a different Finance reviewer to approve them.');
+  expect(notes('See the business’s cash')).toContain('Nothing was posted to accounting software. No VAT return was filed and no tax was paid. No one has been paid.');
+  expect(notes('See the business’s cash')).toContain('Permission to read an account is not permission to take money from it.');
+  expect(notes('Leave with the evidence')).toContain('Open the prepared dispute pack for Ada Okonkwo.');
+  expect(notes('Leave with the evidence')).toContain('Do not call a waiting file ready.');
 });
 
 it('sends step three to the customer search while the sample pack is not imported', async () => {
@@ -215,7 +290,7 @@ it('keeps the toolbar and End presentation when a page stops working during a pr
   );
   expect(await screen.findByRole('heading', { level: 1, name: 'We could not display this page' })).toBeTruthy();
   const guide = await screen.findByRole('region', { name: 'Presentation guide' });
-  expect(within(guide).getByText('1 of 6 · Start with the work')).toBeTruthy();
+  expect(within(guide).getByText('1 of 9 · Start with the work')).toBeTruthy();
   expect(within(guide).getByRole('link', { name: 'Open Overview' })).toBeTruthy();
   await user.click(within(guide).getByRole('button', { name: 'End presentation' }));
   expect(screen.queryByRole('region', { name: 'Presentation guide' })).toBeNull();
