@@ -52,7 +52,7 @@ Record each executed candidate command, revision, result and relevant limitation
 | Canonical GitHub repository | In-place rename confirmed through authenticated UI and API; same ID, permissions, public visibility and history; canonical local remote; no deletion, recreation or ownership transfer |
 | Replit source remote | Canonical versioned Git remote read back; app UUID and source/publication checkpoint retained; display title **Valo Pay 1** confirmed through authenticated UI; no new publication |
 | Historical evidence validation | Installed-dependency checks passed: 2,559 documentation checks; traceability validates 251 requirements, 18 features, 14 gates and 32 symbol pointers; full tooling suite passed 54 checks, including the historical mapping regression cases |
-| Focused backend verification | 88 identity/collision/session checks, 213 API security checks, 3,676 startup checks and API typecheck passed; full final release checks remain separate |
+| Focused backend verification | 106 identity/collision/session checks, 213 API security checks, 3,676 startup checks and API typecheck passed; all 53 API suites pass after targeted fixes, eight operator entrypoints reject foreign bindings, and all 12 operational suites pass; final CI remains separate |
 | Renamed-repository candidate Actions run | Not yet recorded |
 | Private auth/database/storage/monitor bindings | Not verified by the public health response |
 | Production cutover and post-cutover workflow rehearsal | Not executed by this documentation step |

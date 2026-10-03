@@ -8,6 +8,7 @@ const clean = Object.fromEntries(Object.entries(process.env).filter(([name]) => 
 const env = { ...clean, NODE_ENV: "production", VALO_PAY_1_ENVIRONMENT: "production", VALO_PAY_1_RESOURCE_BINDINGS: JSON.stringify({ applicationId: "valo-pay" }), DATABASE_URL: "postgres://unused:unused@127.0.0.1:1/unused", LOG_LEVEL: "silent", CLERK_TELEMETRY_DISABLED: "1" };
 const connectionId = "a".repeat(64);
 const cases = [
+  ["lib/db/drizzle.config.ts", [], {}],
   ["scripts/provision-pilot.ts", ["--synthetic-staging", "org_Synthetic", "user_Synthetic", "Synthetic"], { VALO_PAY_1_STAFF_ACCESS: "staging" }],
   ["scripts/rewrap-payloads.ts", ["--limit", "1"], { VALO_PAY_1_PAYLOAD_ENCRYPTION: "kms", VALO_PAY_1_KMS_KEY: "projects/synthetic/locations/global/keyRings/synthetic/cryptoKeys/synthetic" }],
   ["scripts/src/export-cleanup.ts", ["--retry"], { PRIVATE_OBJECT_DIR: "/synthetic-bucket/private" }],
