@@ -10,7 +10,7 @@ Prepared 3 October 2026. This is a staged migration record, not a production rel
 - Replit application observed: UUID `da98915e-a44c-4f6e-af96-a37614f3a217`, display title `Valo Pay — Stage 1`, workspace address `https://replit.com/@obeidpeter1/Valo-Pay-Stage-1`.
 - The public deployment at `https://valo-pay.replit.app` reported healthy PR #83 build `5acfb5b1 2026-10-03T06:22:11.222Z`. Its scheduler was **off**. This supersedes the older current-release claims in pre-migration documentation; those dated release records remain historical evidence.
 - Replit's inspected development checkout was clean on `main` at publication checkpoint `e18441ca0111a1f3f05b3791c5efe82239c838ad`, with the PR #83 source. Its remote was updated and independently read back as `https://github.com/obeidpeter/valo-pay-1.git`; the app UUID, branch, source and publication remained unchanged. Its display title was then changed to **Valo Pay 1** through authenticated project settings and confirmed in the header/sidebar; the workspace slug and live hostname remain unchanged. Its development database reported `heliumdb`, role `postgres`, schema `public`; this is **not evidence of the production database binding**. Only secret names were inventoried. The managed Clerk integration is enabled, but its actual instance/origin configuration was not established.
-- GitHub reported Pages disabled and no repository rulesets. The integration could not read branch protection (403), so required-check/protection parity is unverified. External app installations, deployment trust and automatic deployment behaviour remain unverified.
+- GitHub reported Pages disabled and no repository rulesets. The API could not read classic branch protection (403); authenticated settings subsequently showed none configured. Settings showed no environments, Actions repository/environment secrets or webhooks, and identified the installed ChatGPT Codex Connector, Claude and Replit apps. Their external permissions, organisation-level access, deployment trust and automatic deployment behaviour remain unverified. Source workflows have read-only repository permission and no deployment/OIDC job.
 - The user authorises safe implementation and an in-place repository rename when its dependencies permit it. The request does **not** authorise a production cutover, destructive deletion, new billable services, ownership transfer or live financial transactions.
 
 ## Delivery status
@@ -19,11 +19,11 @@ The table is a release checklist. A prepared row must not be relabelled verified
 
 | Area | Intended outcome | Status at preparation |
 | --- | --- | --- |
-| Application and source | Current UI, generated documents, owned symbols, package names and tooling use the versioned identity | Implementation and candidate verification in progress; do not infer deployment |
+| Application and source | Current UI, generated documents, owned symbols, package names and tooling use the versioned identity | Implemented and locally verified; candidate CI and release readiness tracked below; not deployed |
 | Resource inventory | Public identities and source dependencies documented; secret values excluded | Prepared in [naming and resource map](naming-resource-map.md) |
-| GitHub | Existing repository renamed in place to `obeidpeter/valo-pay-1`; ID, permissions, public visibility and history retained; local remote updated | Implemented and verified through authenticated UI and API; remaining integrations, protection verification and candidate CI are separate outstanding checks |
+| GitHub | Existing repository renamed in place to `obeidpeter/valo-pay-1`; ID, permissions, public visibility and history retained; local remote updated | Implemented and verified through authenticated UI and API; external integration verification and candidate CI are separate outstanding checks |
 | Replit | Existing app retained exclusively for generation 1; labels and source links updated deliberately | Canonical Git remote and display title **Valo Pay 1** updated and verified; same UUID/clean branch/publication checkpoint; workspace slug/live hostname retained and no live cutover |
-| Runtime configuration | Versioned owned keys and explicit expected resource bindings reject wrong destinations | Guard implemented; 88 backend identity/collision/session checks passed; no external secret binding or deployment verification claimed |
+| Runtime configuration | Versioned owned keys and explicit expected resource bindings reject wrong destinations | Guard implemented; 106 backend identity/collision/session checks passed; no external secret binding or deployment verification claimed |
 | Authentication and data | Existing identities, data, signed records and security controls remain intact; future project cannot reuse their bindings | Explicit cookie/browser transition implemented; records retained; private provider settings, backup and live connection validation remain required |
 | Compatibility | Legacy repository, hostname and browser state have bounded treatment and owners | Register prepared; old repository name and hostname are not yet cleared for reuse |
 | Documentation | Four handover documents and exact historical evidence register | Prepared; source implementation and final test evidence must be reconciled before release |
@@ -53,9 +53,15 @@ Record each executed candidate command, revision, result and relevant limitation
 | Replit source remote | Canonical versioned Git remote read back; app UUID and source/publication checkpoint retained; display title **Valo Pay 1** confirmed through authenticated UI; no new publication |
 | Historical evidence validation | Installed-dependency checks passed: 2,559 documentation checks; traceability validates 251 requirements, 18 features, 14 gates and 32 symbol pointers; full tooling suite passed 54 checks, including the historical mapping regression cases |
 | Focused backend verification | 106 identity/collision/session checks, 213 API security checks, 3,676 startup checks and API typecheck passed; all 53 API suites pass after targeted fixes, eight operator entrypoints reject foreign bindings, and all 12 operational suites pass; final CI remains separate |
-| Renamed-repository candidate Actions run | Not yet recorded |
+| Renamed-repository candidate Actions run | Functional candidate CI remains pending; the production dependency audit is blocked by the independently verified pre-existing advisory below |
 | Private auth/database/storage/monitor bindings | Not verified by the public health response |
 | Production cutover and post-cutover workflow rehearsal | Not executed by this documentation step |
+
+### Existing dependency advisory blocks release
+
+The production audit reports high-severity [GHSA-vfj7-8cjw-p6xm / CVE-2026-93687](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm): deeply nested patterns can exhaust the stack in `braces` versions through 3.0.3. On 3 October 2026 the official advisory listed no patched release. Baseline PR #83 and this candidate have the same versions and integrity records for `http-proxy-middleware@4.2.0` → `micromatch@4.0.8` → `braces@3.0.3`; `pnpm why -r --prod braces` confirms this is the sole production dependency chain. The rename did not introduce or upgrade it.
+
+The application's Clerk proxy uses the middleware's default literal path filter, so inspected request routing does not feed user-supplied patterns into brace compilation. That reachability assessment does not clear the dependency audit. No dependency patch, proxy replacement, advisory suppression or audit waiver is included in this migration. The audit remains mandatory and failing; functional CI completion and separate, reviewed dependency remediation remain outstanding. This candidate is not release-ready or deployed.
 
 ## Implemented boundary to commission
 

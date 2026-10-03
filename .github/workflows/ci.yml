@@ -51,16 +51,8 @@ jobs:
       - name: Install locked dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Audit production dependencies for high or critical advisories
-        run: pnpm audit --prod --audit-level=high
-
       - name: Verify deployment runtime fails closed without downloading
         run: node scripts/deployment-node.test.mjs
-
-      # The console declares its runtime packages (React, Clerk, Vite and the rest) as development
-      # dependencies, which --prod leaves out: this covers what ships to browsers and the build tools.
-      - name: Audit every dependency, the console's included, for high or critical advisories
-        run: pnpm audit --audit-level=high
 
       - name: Check the committed contract and its generated packages match the generator
         run: pnpm run check:contract
@@ -98,6 +90,18 @@ jobs:
         env:
           PORT: "5173"
           BASE_PATH: "/"
+
+      # Keep both audits mandatory, while allowing functional checks to produce evidence when
+      # an upstream advisory appears. A failed audit still fails this job and the release check.
+      - name: Audit production dependencies for high or critical advisories
+        if: ${{ !cancelled() }}
+        run: pnpm audit --prod --audit-level=high
+
+      # The console declares its runtime packages (React, Clerk, Vite and the rest) as development
+      # dependencies, which --prod leaves out: this covers what ships to browsers and the build tools.
+      - name: Audit every dependency, the console's included, for high or critical advisories
+        if: ${{ !cancelled() }}
+        run: pnpm audit --audit-level=high
 
   # The browser workflows, one Playwright project a job, so each job has room under its timeout and a
   # retry of a slow spec cannot push the source checks past theirs.
