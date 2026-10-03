@@ -2,9 +2,9 @@ import { randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import type { Context, DomainState, ValopayRecord } from '../domain/types';
 import { makeRecord } from '../domain/records';
-import type { ExportInput } from './valopay-exports';
+import type { ExportInput } from './valo-pay-1-exports';
 import { reviewedCloseEvidence } from '../domain/close-review';
-import { exportName, sensitiveExportKinds, sensitiveExportRefusal } from '@workspace/valopay-schema';
+import { exportName, sensitiveExportKinds, sensitiveExportRefusal } from '@workspace/valo-pay-1-schema';
 import { rolePermits } from './pilot-access';
 import { notFound, onlyRoles } from './refusal-words';
 
@@ -81,7 +81,7 @@ export function queueExport(state: DomainState, ctx: Context, input: ExportInput
   assertExportPermitted(ctx.role, input.kind);
   if (ctx.role === 'Read-only') fail(onlyRoles(EXPORT_MAKER_ROLES, 'create exports', ctx.accessMode, 'You can still download exports already made.'), 403);
   const review = input.kind === 'reviewed-close' ? reviewedCloseEvidence(state, input.closeReviewId || '', true) : undefined;
-  if (!privateDirectory || !/^\/?[^/]+\/.+/.test(privateDirectory)) fail('Exports are not set up yet. Contact the Valo Pay team.', 503);
+  if (!privateDirectory || !/^\/?[^/]+\/.+/.test(privateDirectory)) fail('Exports are not set up yet. Contact the Valo Pay 1 team.', 503);
   if (input.customerId && !state.records.some(record => record.kind === 'customers' && record.id === input.customerId)) fail(notFound('Customer'), 404);
   if (state.records.filter(record => record.kind === 'exports' && ['queued', 'running'].includes(record.status)).length >= EXPORT_QUEUE_LIMIT) fail('10 exports are already waiting or in progress for this lender. Wait for one to finish, then try again.', 429, { retryAfterSeconds: EXPORT_QUEUE_RETRY_AFTER_SECONDS });
   const id = randomUUID(), parts = privateDirectory.replace(/^\//, '').replace(/\/+$/, '').split('/'), bucket = parts.shift()!;
@@ -200,7 +200,7 @@ export async function processExportJob(repository: ExportJobRepository, storage:
       ? 'A field is too long to fit in a PDF. Choose CSV or JSON to keep the whole record.'
       : (error as { exportTooLarge?: boolean })?.exportTooLarge
       ? 'This export would be larger than 32 MB. Export a dispute pack for one customer, or a smaller type of record.'
-      : 'This export could not be prepared. Retry it, and if it fails again, contact the Valo Pay team.';
+      : 'This export could not be prepared. Retry it, and if it fails again, contact the Valo Pay 1 team.';
     // A stop is handled above. A failure the lender stays too busy to record goes back to the queue, as a busy progress
     // write does. If the database is unavailable, leave the durable running lease to expire and recover on a later poll.
     try {

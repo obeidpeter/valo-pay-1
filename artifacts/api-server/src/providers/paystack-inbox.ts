@@ -13,7 +13,7 @@ const digest = (input: unknown) => createHash("sha256").update(JSON.stringify(in
 export type PaystackEventContext = { connectionId: string; mode: "fixture" | "test" };
 const decisionFor = (state: DomainState, event: PaystackWebhook, connection: PaystackEventContext, excluding?: string) => {
   const previous = state.records.filter(r => r.kind === "provider-events" && r.id !== excluding && r.data.connectionId === connection.connectionId && r.data.mode === connection.mode && !["quarantined", "rejected_fixture"].includes(r.status));
-  if (event.kind === "ignored") return { status: "ignored", message: "Valo Pay does not use this type of Paystack message. No payment or other financial record was created." };
+  if (event.kind === "ignored") return { status: "ignored", message: "Valo Pay 1 does not use this type of Paystack message. No payment or other financial record was created." };
   if (event.kind === "mandate") {
     const old = previous.filter(r => r.data.event?.kind === "mandate" && r.data.event.authorizationFingerprint === event.authorizationFingerprint).sort((a,b) => Number(b.data.event.state === "active") - Number(a.data.event.state === "active"))[0];
     const decision = reconcilePaystackMandateEvidence(old?.data.event, event).decision;
@@ -29,7 +29,7 @@ const decisionFor = (state: DomainState, event: PaystackWebhook, connection: Pay
 
 /** Called only after raw-byte signature validation and server-only connection resolution. Persist under the lender lock. */
 export function receivePaystackEvent(state: DomainState, ctx: Context, event: PaystackWebhook, connection: PaystackEventContext) {
-  if (!connection.connectionId || !["fixture", "test"].includes(connection.mode)) refuse("The Paystack test connection is not available. Contact the Valo Pay team.", 403);
+  if (!connection.connectionId || !["fixture", "test"].includes(connection.mode)) refuse("The Paystack test connection is not available. Contact the Valo Pay 1 team.", 403);
   const hash = digest(event), key = event.kind === "ignored" ? `unsupported:${hash}` : event.dedupeKey;
   const prior = state.records.find(r => r.kind === "provider-events" && r.data.connectionId === connection.connectionId && r.data.mode === connection.mode && r.data.dedupeKey === key && r.data.payloadDigest === hash);
   if (prior) {

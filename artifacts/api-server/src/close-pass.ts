@@ -2,7 +2,7 @@
 import "./lib/close-pass-settings";
 import { logger } from "./lib/logger";
 import { runClosePassOnce } from "./lib/close-scheduler";
-import { closeDatabase, watchDatabase } from "./lib/valopay-store";
+import { closeDatabase, watchDatabase, verifyProductDatabaseBinding } from "./lib/valo-pay-1-store";
 
 /**
  * The one-shot close pass: runs the scheduled daily closes that are due once
@@ -11,11 +11,17 @@ import { closeDatabase, watchDatabase } from "./lib/valopay-store";
  * run, or a lender's close is still failing or overdue, 1 it could not run or
  * was stopped; a public anonymous sandbox's close never makes it 2), for a
  * host whose API process runs no scheduler, such as Autoscale with
- * VALOPAY_CLOSE_SCHEDULER=external and a Replit Scheduled Deployment running
+ * VALO_PAY_1_CLOSE_SCHEDULER=external and a Replit Scheduled Deployment running
  * `node artifacts/api-server/dist/close-pass.mjs`.
  * A stop signal ends the pass after the lender close in progress.
  */
 watchDatabase(logger);
+try { await verifyProductDatabaseBinding(); }
+catch (error) {
+  logger.fatal({ event: "identity.refused", err: error }, "Valo Pay 1 resource identity verification failed; no close pass was started");
+  await closeDatabase();
+  process.exit(1);
+}
 const stop = new AbortController();
 for (const signal of ["SIGTERM", "SIGINT"] as const) process.on(signal, () => stop.abort());
 // As in index.ts: a failure nothing caught is a structured line before the exit, not a bare stack.

@@ -1,7 +1,7 @@
 import { Worker, type WorkerOptions } from "node:worker_threads";
 import { pathToFileURL } from "node:url";
 import type { Logger } from "pino";
-import { closeRules } from "@workspace/valopay-schema";
+import { closeRules } from "@workspace/valo-pay-1-schema";
 import { applySchedulerEvent, type SchedulerEvent } from "./close-scheduler";
 import { EXPORT_CONCURRENCY } from "./export-jobs";
 import { writeLogLine, type LogLineMessage } from "./logger";
@@ -14,7 +14,7 @@ declare const __VALOPAY_BACKGROUND_ENTRY__: string | undefined;
  * scheduled close, which closes one lender at a time (or, where a scheduled
  * job runs the closes, reads what is still owed), and one for each export
  * slot. Cleanup shares this bound for its short, timed transactions and holds
- * no connection during private-storage I/O. With the request pool (VALOPAY_DATABASE_POOL_SIZE) and readiness's one
+ * no connection during private-storage I/O. With the request pool (VALO_PAY_1_DATABASE_POOL_SIZE) and readiness's one
  * connection, an API process holds at most that size plus four.
  */
 export const BACKGROUND_POOL_SIZE = 1 + EXPORT_CONCURRENCY;
@@ -28,7 +28,7 @@ export const BACKGROUND_STEADY_MS = 60_000;
 export interface BackgroundOptions {
   /** The scheduled daily close, with its options (tests narrow it to their own lenders), or null when this process schedules none. */
   closes: { intervalMs?: number; firstDelayMs?: number; batchSize?: number; budgetMs?: number; onlyMerchantIds?: string[] } | null;
-  /** Where a scheduled job runs the closes (VALOPAY_CLOSE_SCHEDULER=external), the read of what is still owed at the scheduler's interval (startBacklogWatch), with its options; null or absent otherwise. */
+  /** Where a scheduled job runs the closes (VALO_PAY_1_CLOSE_SCHEDULER=external), the read of what is still owed at the scheduler's interval (startBacklogWatch), with its options; null or absent otherwise. */
   backlog?: { intervalMs?: number; firstDelayMs?: number; onlyMerchantIds?: string[] } | null;
   /** The export worker, with its options, or null (tests of the close alone). */
   exports: { intervalMs?: number; maxBackoffMs?: number } | null;
@@ -105,7 +105,7 @@ export function startBackgroundWorker(options: BackgroundOptions & { log: Logger
   backgroundHealth.configure({ closes: Boolean(options.closes), backlog: Boolean(options.backlog), exports: Boolean(options.exports), cleanup: Boolean(options.cleanup) }, options.cleanup?.intervalMs);
   const workerData: BackgroundOptions & { thread: "background" } = { thread: "background", closes: options.closes, backlog: options.backlog ?? null, exports: options.exports, cleanup: options.cleanup ?? null };
   // The database module sizes its pool from this setting when the thread loads it: the thread's pool, not the requests'.
-  const settings: WorkerOptions = { workerData, env: { ...process.env, VALOPAY_DATABASE_POOL_SIZE: String(BACKGROUND_POOL_SIZE) } };
+  const settings: WorkerOptions = { workerData, env: { ...process.env, VALO_PAY_1_DATABASE_POOL_SIZE: String(BACKGROUND_POOL_SIZE) } };
   let current: Worker | undefined, restart: ReturnType<typeof setTimeout> | undefined;
   let stopping = false, crashes = 0;
   let ended!: () => void;

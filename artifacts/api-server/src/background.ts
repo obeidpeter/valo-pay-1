@@ -2,7 +2,7 @@
  * The background worker thread: the scheduled daily close and the export
  * worker, off the event loop that answers requests and health probes, so a
  * month-end close or a large export never holds them up. Where a scheduled
- * job runs the closes (VALOPAY_CLOSE_SCHEDULER=external), the thread reads
+ * job runs the closes (VALO_PAY_1_CLOSE_SCHEDULER=external), the thread reads
  * what is still owed at the scheduler's interval instead, for /api/healthz.
  * The main thread starts it, starts it again after a crash and stops it on
  * shutdown (lib/background-worker.ts). It has its own database pool, which the main
@@ -22,7 +22,7 @@ import { logger } from "./lib/logger";
 import { observeScheduler, runDailyAuditCheck, startBacklogWatch, startCloseScheduler } from "./lib/close-scheduler";
 import { startExportWorker } from "./lib/export-worker";
 import { startExportCleanupWorker } from "./lib/export-cleanup-worker";
-import { closeDatabase, watchDatabase } from "./lib/valopay-store";
+import { closeDatabase, watchDatabase, verifyProductDatabaseBinding } from "./lib/valo-pay-1-store";
 import type { BackgroundMessage, BackgroundOptions, BackgroundRequest } from "./lib/background-worker";
 import { BACKGROUND_HEARTBEAT_MS } from "./lib/background-health";
 
@@ -32,6 +32,7 @@ const post = (message: BackgroundMessage) => port.postMessage(message);
 
 // As on the main thread: an idle connection that fails is a log line, not the end of the thread.
 watchDatabase(logger);
+await verifyProductDatabaseBinding();
 let stopping: Promise<void> | undefined;
 // Without a scheduler, the close's connection serves one thing at a time: the daily audit checks a person's closes ask
 // for, in the order asked for, and, where a scheduled job runs the closes, the reads of what is still owed, each of

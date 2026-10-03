@@ -1,7 +1,8 @@
-export const target = "obeidpeter/valo-pay";
+export const target = "obeidpeter/valo-pay-1";
+export const repositoryId = "1374783064";
 
 export function assertDestination(repo) {
-  if (repo.full_name !== target || repo.private !== false || repo.archived || !repo.permissions?.push) {
+  if (String(repo.id) !== repositoryId || repo.full_name !== target || repo.private !== false || repo.archived || !repo.permissions?.push) {
     throw new Error("Repository must match the approved public writable destination: " + target);
   }
 }

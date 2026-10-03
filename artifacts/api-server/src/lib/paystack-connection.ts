@@ -1,4 +1,4 @@
-import { inMerchantAsSystem, merchantInWorkspace, loadState, saveState, appendAudit, systemWorkspaceMatches, fail } from './valopay-store';
+import { inMerchantAsSystem, merchantInWorkspace, loadState, saveState, appendAudit, systemWorkspaceMatches, fail } from './valo-pay-1-store';
 import { paystackConnections, paystackTestSecretKey } from '../providers/paystack-ingress-config';
 import type { PaystackConnectionTransaction, PaystackIngress } from '../routes/sources';
 import type { DomainState } from '../domain/types';

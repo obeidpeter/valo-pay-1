@@ -12,7 +12,7 @@ Prepare a fresh workspace, the facilitator's expected outcomes, and a synthetic 
 
 ## Opening script
 
-“We are testing Valo Pay, not you. These are made-up records and no money moves. Work as you normally would and say what you are looking for or expecting. You can stop at any time. I will mostly watch rather than explain the interface. If you get stuck, tell me what you would do next.”
+“We are testing Valo Pay 1, not you. These are made-up records and no money moves. Work as you normally would and say what you are looking for or expecting. You can stop at any time. I will mostly watch rather than explain the interface. If you get stuck, tell me what you would do next.”
 
 ## Tasks to read aloud
 
@@ -44,7 +44,7 @@ The task format follows [Nielsen Norman Group's guidance on realistic, actionabl
 
 The configuration inspection on 18 September 2026 confirmed healthy public liveness/readiness checks, with the scheduler intentionally off. It found no Paystack test credentials, outbound email service or verified sender, or managed key provider. A separate staging identity application and independent recovery resources/storage-backup access were not verified. Existing managed sign-in and App Storage do not establish these separate resources.
 
-The alert destination is the address configured in `VALOPAY_ALERT_TO` on the host. Complete email delivery and inbox receipt verification using the procedure in [operational rehearsals](operational-rehearsals.md). Supply the Paystack test key through host secrets and run the existing test-only read-only connection check described in [Paystack setup](paystack.md). Never substitute a live key or paste credentials into a study result, pull request or conversation.
+The alert destination is the address configured in `VALO_PAY_1_ALERT_TO` on the host. Complete email delivery and inbox receipt verification using the procedure in [operational rehearsals](operational-rehearsals.md). Supply the Paystack test key through host secrets and run the existing test-only read-only connection check described in [Paystack setup](paystack.md). Never substitute a live key or paste credentials into a study result, pull request or conversation.
 
 Use the separate identity, restricted database and key-provider procedures in [pilot security](pilot-security.md) and [pilot database recovery](pilot-database.md). Agree recovery objectives with the pilot owner, then verify database, private objects, retained keys and access roles together in an independent restore environment. Record actual measurements and failures. These services and participant sessions cannot be completed by changing application source alone.
 
@@ -55,15 +55,15 @@ Use the separate identity, restricted database and key-provider procedures in [p
 Prepare a disposable loopback PostgreSQL database with the current schema, using the repository's database setup instructions. Then set these variables and run the command from the repository root:
 
 ```powershell
-$env:DATABASE_URL = 'postgres://postgres@127.0.0.1:5432/valopay'
-$env:VALOPAY_RUN_INTEGRATION = '1'
-$env:VALOPAY_RUN_PILOT_REHEARSAL = '1'
-$env:VALOPAY_PILOT_REHEARSAL_REPORT = 'C:/rehearsal-evidence/pilot-rehearsal.json'
+$env:DATABASE_URL = 'postgres://postgres@127.0.0.1:5432/valo-pay-1'
+$env:VALO_PAY_1_RUN_INTEGRATION = '1'
+$env:VALO_PAY_1_RUN_PILOT_REHEARSAL = '1'
+$env:VALO_PAY_1_PILOT_REHEARSAL_REPORT = 'C:/rehearsal-evidence/pilot-rehearsal.json'
 $env:NODE_ENV = 'development'
 node scripts/rehearse-pilot.mjs
 ```
 
-Use the local port/login actually provisioned for testing, and keep credentials out of saved command logs. The command refuses remote hosts, URL connection options, production mode and database names other than `valopay`, `valopay_test` or `valopay_pilot_rehearsal`. Both opt-ins are required. It removes inherited provider, identity, monitor and managed-key settings from its child processes, and holds the scheduler and Paystack ingress off. This safeguard does not turn an existing local business database into a disposable database: provision a separate test database first.
+Use the local port/login actually provisioned for testing, and keep credentials out of saved command logs. The command refuses remote hosts, URL connection options, production mode and database names other than `valo_pay_1_test` or `valo_pay_1_pilot_rehearsal`. Both opt-ins are required. It removes inherited provider, identity, monitor and managed-key settings from its child processes, and holds the scheduler and Paystack ingress off. This safeguard does not turn an existing local business database into a disposable database: provision a separate test database first.
 
 The JSON report contains the source commit, HEAD tree, dirty-checkout marker, a SHA-256 fingerprint of tracked and untracked source files, suite outcomes and durations. It contains no database URL, credentials, child process output or customer payloads. A failed suite does not suppress later results. If source changes while the command runs, its result is `source_changed_during_run`; finish editing and repeat before using that run as release evidence. Store the report outside the checkout: the command compares real paths, following links as the system does, so a report path that reaches the checkout through a linked directory, or is itself a link into it, is refused before anything runs. It also makes the report's directory first, so a directory that cannot be created, under a dangling link say, or a report path whose links loop, is refused before any suite rather than after them all. On Windows the comparison uses the system's own real path, which names the folder a subst or mapped drive letter points at; for a drive where that call is unavailable the letter is compared as written, so keep reports on an ordinary local folder. A non-passing run exits unsuccessfully; to diagnose a named suite, run that file directly with the test environment.
 
@@ -74,7 +74,7 @@ The JSON report contains the source commit, HEAD tree, dirty-checkout marker, a 
 | `source-close-controls.integration.test.ts` | Expected source files, controlled corrections, independent Finance review, late-arrival invalidation and frozen reviewed evidence. |
 | `export-jobs.integration.test.ts` | Queued exports and lost acknowledgements; worker interruption/retry; adoption of an already-written private object; lender isolation and audit continuity. |
 
-Run the existing real-database browser checks separately. Build the frontend, push the schema to a separate loopback database named **`valopay_browser_test`**, set `DATABASE_URL` to it, and run `pnpm --filter @workspace/valopay run test:browser:database`. The browser host refuses any other database name or a non-loopback address. These checks use the built frontend and real API, including a successful batch commit whose response is deliberately lost, a reload and recovery through Operations with exactly one imported customer. Browser traces/screenshots are diagnostic evidence; they are not an independent usability study.
+Run the existing real-database browser checks separately. Build the frontend, push the schema to a separate loopback database named **`valo_pay_1_browser_test`**, set `DATABASE_URL` to it, and run `pnpm --filter @workspace/valo-pay-1 run test:browser:database`. The browser host refuses any other database name or a non-loopback address. These checks use the built frontend and real API, including a successful batch commit whose response is deliberately lost, a reload and recovery through Operations with exactly one imported customer. Browser traces/screenshots are diagnostic evidence; they are not an independent usability study.
 
 The full database/object/key dump-and-restore exercise remains `recovery-rehearsal.integration.test.ts` with its separate opt-ins and measured report, documented in [Operational rehearsals](operational-rehearsals.md). That report must accompany any recovery claim. Neither the pilot command nor the local restore exercise commissions hosted backups, managed-key custody or alert delivery.
 

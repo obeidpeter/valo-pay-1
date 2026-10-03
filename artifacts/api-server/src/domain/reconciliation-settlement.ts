@@ -3,7 +3,7 @@ import { type DomainState, type Context, type TypedRecord, type ValopayRecord } 
 import { identityHeld, currencyOf, connectionOf, namedConnection, connectionKey } from "./reconciliation-values";
 import { recordsWhere, recordsOfKind } from "./record-index";
 import { lineSchedule, lineTotals, countLine, type PaymentOf, madeItsPayment, totalsFromLines, lineAdded, feesChecked, takeLineCurrency, settlementIdentity, batchIdentity } from "./reconciliation-settlement-totals";
-import { isKobo, providerFeeKobo, sumMoney, isOpenException, resolveExceptionType, counted, moneyText, conditionClearedCode, providerIdentityConfirmedCode, providerIdentityCondition, hasFeeSchedule, SETTLEMENT_BATCH_TOLERANCE_KOBO, otherCurrenciesText, valueWords } from "@workspace/valopay-schema";
+import { isKobo, providerFeeKobo, sumMoney, isOpenException, resolveExceptionType, counted, moneyText, conditionClearedCode, providerIdentityConfirmedCode, providerIdentityCondition, hasFeeSchedule, SETTLEMENT_BATCH_TOLERANCE_KOBO, otherCurrenciesText, valueWords } from "@workspace/valo-pay-1-schema";
 import { touch, makeRecord, recordsOf } from "./records";
 import { carriedReports, datedUpdate, noteUpdate, raiseException, carryReport, countedTwiceReports } from "./reconciliation-exceptions";
 import { IDENTITY_HOLD_EXPLANATION, stillReported, keepHoldException } from "./reconciliation-settlement-identity";

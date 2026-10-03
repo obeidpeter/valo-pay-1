@@ -1,5 +1,5 @@
-/** Internal repository export-cleanup. Import through valopay-store; external access is rejected by the boundary check. */
-import type { PoolClient } from "@workspace/db";
+/** Internal repository export-cleanup. Import through valo-pay-1-store; external access is rejected by the boundary check. */
+import type { PoolClient } from "@workspace/valo-pay-1-db";
 import { deleteRetainedExport, exportIdentityMismatch } from "../export-download";
 import { objectStorageClient } from "../objectStorage";
 import {

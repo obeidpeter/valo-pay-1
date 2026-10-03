@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { seedMerchant } from "../src/lib/valopay-seed";
+import { seedMerchant } from "../src/lib/valo-pay-1-seed";
 import { makeRecord } from "../src/domain/records";
 import { advanceRecordVersions } from "../src/lib/edit-versions";
 import { bindCloseReviewBasis, closeReviewBasis, closeReviewIssues, closeReviewCurrentProblem, closeReviewList, closeReviewHistory, closeReviewDetail, decideCloseReview, reassignCloseReview, pilotProgress, prepareCloseReview, reviewIsCurrent, summariseLoadedClose } from "../src/domain/close-review";

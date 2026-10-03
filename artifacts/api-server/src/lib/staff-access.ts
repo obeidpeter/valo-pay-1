@@ -2,6 +2,7 @@ import type { IncomingHttpHeaders } from "node:http";
 import type { Request } from "express";
 import { getAuth } from "@clerk/express";
 import { publishableKeyFromHost } from "@clerk/shared/keys";
+import { bindingRequired } from "./product-identity";
 import {
   authorizePilotAccess,
   type VerifiedClerkSession,
@@ -10,9 +11,9 @@ import {
 } from "./pilot-access";
 
 export function staffMode(): boolean {
-  const mode = process.env.VALOPAY_STAFF_ACCESS;
+  const mode = process.env.VALO_PAY_1_STAFF_ACCESS;
   if (mode && mode !== "off" && mode !== "staging")
-    throw Object.assign(new Error("Team member sign-in is not set up correctly. Contact the Valo Pay team."), {
+    throw Object.assign(new Error("Team member sign-in is not set up correctly. Contact the Valo Pay 1 team."), {
       status: 503,
     });
   return mode === "staging";
@@ -21,8 +22,8 @@ export function staffPolicy(write = false): PilotAccessPolicy {
   return {
     enabled: staffMode(),
     environment: "staging",
-    issuer: process.env.VALOPAY_STAFF_ISSUER || "",
-    authorisedParties: (process.env.VALOPAY_STAFF_ORIGINS || "")
+    issuer: process.env.VALO_PAY_1_STAFF_ISSUER || "",
+    authorisedParties: (process.env.VALO_PAY_1_STAFF_ORIGINS || "")
       .split(",")
       .map((v) => v.trim())
       .filter(Boolean),
@@ -56,22 +57,23 @@ const httpsOrigin = (value: string) => {
 };
 /**
  * The HTTPS origins this deployment's console is served at, outside staff
- * mode: VALOPAY_APP_ORIGINS, comma-separated, or, when that is unset, https://
+ * mode: VALO_PAY_1_APP_ORIGINS, comma-separated, or, when that is unset, https://
  * and each host Replit lists in REPLIT_DOMAINS. A listed value that is not an
- * HTTPS origin (such as https://valopay.example) is a configuration error.
+ * HTTPS origin (such as https://valo-pay-1.example) is a configuration error.
  */
 export function appOrigins(): string[] {
-  const listed = (process.env.VALOPAY_APP_ORIGINS || "").split(",").map((v) => v.trim()).filter(Boolean);
+  const listed = (process.env.VALO_PAY_1_APP_ORIGINS || "").split(",").map((v) => v.trim()).filter(Boolean);
   if (listed.length) {
-    if (!listed.every(httpsOrigin)) throw Object.assign(new Error("Sign-in is not set up correctly for this address. Contact the Valo Pay team."), { status: 503 });
+    if (!listed.every(httpsOrigin)) throw Object.assign(new Error("Sign-in is not set up correctly for this address. Contact the Valo Pay 1 team."), { status: 503 });
     return listed;
   }
+  if (bindingRequired(process.env)) return []; // Deployed origins must be explicitly reviewed in the resource binding.
   return (process.env.REPLIT_DOMAINS || "").split(",").map((host) => `https://${host.trim().toLowerCase()}`).filter(httpsOrigin);
 }
 /**
  * The origins Clerk sessions are accepted from (its authorizedParties), which
  * the Clerk proxy names itself by and publishable keys are derived for: the
- * staff policy's in staff mode (VALOPAY_STAFF_ORIGINS), otherwise appOrigins().
+ * staff policy's in staff mode (VALO_PAY_1_STAFF_ORIGINS), otherwise appOrigins().
  */
 export function signInOrigins(): string[] {
   return staffMode() ? [...staffPolicy().authorisedParties] : appOrigins();
@@ -113,7 +115,7 @@ export function originFor(req: { headers: IncomingHttpHeaders }, origins = signI
  */
 export function clerkOptions(req: { headers: IncomingHttpHeaders }): { publishableKey: string; authorizedParties: string[]; jwtKey?: string } {
   const origins = signInOrigins(), origin = originFor(req, origins), configured = process.env.CLERK_PUBLISHABLE_KEY, jwtKey = process.env.CLERK_JWT_KEY;
-  return { publishableKey: origin ? publishableKeyFromHost(origin.host, configured) : configured ?? "", authorizedParties: origins, ...(jwtKey ? { jwtKey } : {}) };
+  return { publishableKey: bindingRequired(process.env) ? configured ?? "" : origin ? publishableKeyFromHost(origin.host, configured) : configured ?? "", authorizedParties: origins, ...(jwtKey ? { jwtKey } : {}) };
 }
 /**
  * What the process says about sign-in before it listens: `warning` when it
@@ -123,9 +125,9 @@ export function clerkOptions(req: { headers: IncomingHttpHeaders }): { publishab
  * the start-up check (startup-config.ts).
  */
 export function signInConfiguration(): { warning?: string } {
-  // A staff host without Clerk, and a malformed VALOPAY_APP_ORIGINS, never get here: the start-up check refused them (startup-config.ts).
+  // A staff host without Clerk, and a malformed VALO_PAY_1_APP_ORIGINS, never get here: the start-up check refused them (startup-config.ts).
   let origins: string[];
   try { if (staffMode() || !clerkConfigured()) return {}; origins = appOrigins(); } catch { return {}; }
-  if (!origins.length) return { warning: "CLERK_SECRET_KEY is set but no application origin is (VALOPAY_APP_ORIGINS, or REPLIT_DOMAINS on Replit): sign-in is off and every request is an anonymous sandbox." };
+  if (!origins.length) return { warning: "CLERK_SECRET_KEY is set but no application origin is (VALO_PAY_1_APP_ORIGINS, or REPLIT_DOMAINS on Replit): sign-in is off and every request is an anonymous sandbox." };
   return {};
 }

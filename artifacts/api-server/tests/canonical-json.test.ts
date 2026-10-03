@@ -14,7 +14,7 @@ import path from "node:path";
 process.env.DATABASE_URL ||= "postgres://unused:unused@127.0.0.1:1/unused";
 const root = path.resolve(import.meta.dirname, "..", "..", "..");
 const tsx = path.join(root, "scripts", "node_modules", "tsx", "dist", "cli.mjs");
-const REPORT = process.env.VALOPAY_CANONICAL_JSON_REPORT === "1";
+const REPORT = process.env.VALO_PAY_1_CANONICAL_JSON_REPORT === "1";
 
 // Windows does not use LANG/LC_ALL for ICU's default locale. Simulate only
 // the default-locale entry points there; explicit locales still use the real
@@ -37,20 +37,20 @@ if (!REPORT && new Intl.Collator().resolvedOptions().locale !== "en-US") {
   process.exit(result.status ?? 1);
 }
 
-const { canonicalJson, canonicalJsonForms, legacyCollatedCompare, codeUnitCompare, sameJson, LEGACY_COLLATION_LOCALE } = await import("@workspace/valopay-schema");
+const { canonicalJson, canonicalJsonForms, legacyCollatedCompare, codeUnitCompare, sameJson, LEGACY_COLLATION_LOCALE } = await import("@workspace/valo-pay-1-schema");
 const { requestFingerprint, auditEntryData, verifyAuditChain, walkAuditChain, canonicalDigest, sha256Hex } = await import("../src/lib/digests.js");
 const { cashEvidenceHash } = await import("../src/domain/connected-cash.js");
-const { appendAudit, verifyAudit } = await import("../src/lib/valopay-store.js");
+const { appendAudit, verifyAudit } = await import("../src/lib/valo-pay-1-store.js");
 const { lifecyclePolicy, lifecycleHolds, lifecycleCandidates } = await import("../src/domain/lifecycle.js");
 const { personalWorkItems } = await import("../src/domain/personal-work.js");
 const { sourceFileId } = await import("../src/domain/source-completeness.js");
 const { decisionFingerprint } = await import("../src/domain/policy-engine.js");
-const { seedMerchant } = await import("../src/lib/valopay-seed.js");
+const { seedMerchant } = await import("../src/lib/valo-pay-1-seed.js");
 type DomainState = import("../src/domain/types.js").DomainState;
 
 // ---- The helpers this module replaced, verbatim (only renamed) ----
 /* eslint-disable */
-// artifacts/api-server/src/lib/valopay-store.ts (the audit chain, request fingerprints, save digests, guards)
+// artifacts/api-server/src/lib/valo-pay-1-store.ts (the audit chain, request fingerprints, save digests, guards)
 function storeCanonical(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(storeCanonical).join(",")}]`;
   // Preserve the historical byte format regardless of JSONB key order.
@@ -76,7 +76,7 @@ function stableJson(value: unknown): string {
 const paystackCanonical = (value: unknown) => JSON.stringify(value, (_key, item) => item && typeof item === "object" && !Array.isArray(item) ? Object.fromEntries(Object.entries(item).sort(([a], [b]) => a.localeCompare(b))) : item);
 // artifacts/api-server/src/lib/recovery-manifest.ts
 const recoveryCanonical = (value: unknown): string => JSON.stringify(value, (_key,item) => item && typeof item === "object" && !Array.isArray(item) ? Object.fromEntries(Object.entries(item).sort(([a],[b])=>a.localeCompare(b))) : item);
-// artifacts/api-server/src/lib/valopay-import.ts (inline, before hashing)
+// artifacts/api-server/src/lib/valo-pay-1-import.ts (inline, before hashing)
 const importRowJson = (record: unknown) => JSON.stringify(record, (_key, value) => value && typeof value === 'object' && !Array.isArray(value) ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b))) : value);
 // artifacts/api-server/src/domain/personal-work.ts
 function workCanonical(value: unknown): string { return JSON.stringify(value, (_key, item) => item && typeof item === 'object' && !Array.isArray(item) ? Object.fromEntries(Object.entries(item).sort(([a], [b]) => a.localeCompare(b))) : item); }
@@ -113,12 +113,12 @@ function creditCanonical(value: unknown): string {
     .map(([key, item]) => `${JSON.stringify(key)}:${creditCanonical(item)}`)
     .join(",")}}`;
 }
-// artifacts/valo-pay/src/lib/safe-mutations.ts
+// artifacts/valo-pay-1/src/lib/safe-mutations.ts
 function submissionFingerprint(value: unknown): string {
   return JSON.stringify(value, (_key, item) => item && typeof item === 'object' && !Array.isArray(item)
     ? Object.fromEntries(Object.entries(item).sort(([a], [b]) => a.localeCompare(b))) : item);
 }
-// artifacts/valo-pay/tests/fake-api.ts
+// artifacts/valo-pay-1/tests/fake-api.ts
 const fakeApiCanonical = (value: unknown): string => JSON.stringify(value, (_key, item) => (item && typeof item === "object" && !Array.isArray(item) ? Object.fromEntries(Object.entries(item as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b))) : item));
 /* eslint-enable */
 
@@ -333,7 +333,7 @@ const here = report();
 assert.equal(here.locale, "en-US");
 const hazards: string[] = [];
 for (const locale of ["sv_SE.UTF-8", "cs_CZ.UTF-8", "da_DK.UTF-8", "et_EE.UTF-8", "lt_LT.UTF-8", "tr_TR.UTF-8"]) {
-  const child = spawnSync(process.execPath, [tsx, import.meta.filename], { cwd: root, encoding: "utf8", env: { ...process.env, VALOPAY_CANONICAL_JSON_REPORT: "1", LC_ALL: locale, LANG: locale } });
+  const child = spawnSync(process.execPath, [tsx, import.meta.filename], { cwd: root, encoding: "utf8", env: { ...process.env, VALO_PAY_1_CANONICAL_JSON_REPORT: "1", LC_ALL: locale, LANG: locale } });
   assert.equal(child.status, 0, child.stderr);
   const there = JSON.parse(child.stdout.trim().split("\n").at(-1)!);
   if (there.locale === "en-US") continue; // This Node has no data for the locale: nothing to compare.
@@ -349,12 +349,12 @@ const walk = (dir: string): string[] => readdirSync(path.join(root, dir)).flatMa
   const file = `${dir}/${entry}`;
   return statSync(path.join(root, file)).isDirectory() ? walk(file) : /\.(?:ts|tsx|mjs)$/.test(file) ? [file] : [];
 });
-const sources = ["artifacts/api-server/src", "artifacts/valo-pay/src", "lib/valopay-schema/src", "scripts/src"].flatMap(walk);
+const sources = ["artifacts/api-server/src", "artifacts/valo-pay-1/src", "lib/valo-pay-1-schema/src", "scripts/src"].flatMap(walk);
 for (const file of sources) {
-  if (file === "lib/valopay-schema/src/canonical-json.ts") continue;
+  if (file === "lib/valo-pay-1-schema/src/canonical-json.ts") continue;
   const text = readFileSync(path.join(root, file), "utf8");
   checks += 1;
   // The two shapes every earlier helper had: a sorted key list written with JSON.stringify(key), or a replacer rebuilding sorted objects.
-  assert.doesNotMatch(text, /JSON\.stringify\((?:key|k|name)\)\s*\}?:\$\{|Object\.fromEntries\(\s*Object\.entries\([^)]*\)\s*\.sort\(/, `${file} has its own canonical JSON helper; use canonicalJson from @workspace/valopay-schema`);
+  assert.doesNotMatch(text, /JSON\.stringify\((?:key|k|name)\)\s*\}?:\$\{|Object\.fromEntries\(\s*Object\.entries\([^)]*\)\s*\.sort\(/, `${file} has its own canonical JSON helper; use canonicalJson from @workspace/valo-pay-1-schema`);
 }
 console.log(`Canonical JSON passed: ${checks} checks; every legacy helper byte-identical over ${exoticCorpus.length} values; the same stored digests under every other locale tried (the old helpers differed under ${hazards.join(", ")}).`);

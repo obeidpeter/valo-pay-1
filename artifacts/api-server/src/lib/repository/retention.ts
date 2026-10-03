@@ -1,12 +1,12 @@
-/** Internal repository retention. Import through valopay-store; external access is rejected by the boundary check. */
+/** Internal repository retention. Import through valo-pay-1-store; external access is rejected by the boundary check. */
 import { canonicalDigest } from "../digests";
 import { onlyRoles } from "../refusal-words";
-import type { PoolClient } from "@workspace/db";
+import type { PoolClient } from "@workspace/valo-pay-1-db";
 import type { DomainState } from "../../domain/types";
 import type {
   LifecycleExternalCandidate,
   LifecycleCandidate,
-} from "@workspace/valopay-schema";
+} from "@workspace/valo-pay-1-schema";
 import {
   lifecycleRunView,
   journalPayloadRule,

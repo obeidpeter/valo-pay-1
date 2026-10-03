@@ -175,15 +175,15 @@ importers:
       '@google-cloud/storage':
         specifier: ^8.1.0
         version: 8.1.0
-      '@workspace/api-zod':
+      '@workspace/valo-pay-1-api-zod':
         specifier: workspace:*
         version: link:../../lib/api-zod
-      '@workspace/db':
+      '@workspace/valo-pay-1-db':
         specifier: workspace:*
         version: link:../../lib/db
-      '@workspace/valopay-schema':
+      '@workspace/valo-pay-1-schema':
         specifier: workspace:*
-        version: link:../../lib/valopay-schema
+        version: link:../../lib/valo-pay-1-schema
       csv-parse:
         specifier: ^7.0.2
         version: 7.0.2
@@ -402,7 +402,7 @@ importers:
         specifier: 'catalog:'
         version: 7.3.6(@types/node@22.20.4)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.13)(yaml@2.9.0)
 
-  artifacts/valo-pay:
+  artifacts/valo-pay-1:
     devDependencies:
       '@clerk/react':
         specifier: ^6.16.1
@@ -539,15 +539,15 @@ importers:
       '@vitejs/plugin-react':
         specifier: 'catalog:'
         version: 5.2.0(vite@7.3.6(@types/node@22.20.4)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.13)(yaml@2.9.0))
-      '@workspace/api-client-react':
+      '@workspace/valo-pay-1-api-client-react':
         specifier: workspace:*
         version: link:../../lib/api-client-react
-      '@workspace/api-zod':
+      '@workspace/valo-pay-1-api-zod':
         specifier: workspace:*
         version: link:../../lib/api-zod
-      '@workspace/valopay-schema':
+      '@workspace/valo-pay-1-schema':
         specifier: workspace:*
-        version: link:../../lib/valopay-schema
+        version: link:../../lib/valo-pay-1-schema
       axe-core:
         specifier: 4.13.0
         version: 4.13.0
@@ -664,7 +664,7 @@ importers:
         specifier: ^0.31.10
         version: 0.31.10
 
-  lib/valopay-schema:
+  lib/valo-pay-1-schema:
     dependencies:
       zod:
         specifier: 'catalog:'

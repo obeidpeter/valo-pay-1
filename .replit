@@ -25,4 +25,4 @@ channel = "stable-25_05"
 [userenv]
 
 [userenv.development]
-VALOPAY_CLOSE_SCHEDULER = "off"
+VALO_PAY_1_CLOSE_SCHEDULER = "off"

@@ -1,5 +1,5 @@
 import { isDeepStrictEqual } from "node:util";
-import type { ConnectedActionResult } from "@workspace/valopay-schema";
+import type { ConnectedActionResult } from "@workspace/valo-pay-1-schema";
 import { boundWhenSaved, cashView, savedCashDisclosable } from "./connected-cash-service";
 import { creditView } from "./connected-credit-service";
 import type { Context, DomainState, ValopayRecord } from "./types";

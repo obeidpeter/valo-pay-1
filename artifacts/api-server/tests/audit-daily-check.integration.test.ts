@@ -1,3 +1,4 @@
+import { SANDBOX_COOKIE } from "../src/lib/sandbox-cookie";
 // Database-backed test for the daily check of each lender's whole audit chain
 // and the audit alert in every daily close (backlog item SWEEP-18, decisions 1
 // and 2 of the backlog round). A daily close lists a broken chain the lender
@@ -21,21 +22,21 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Worker } from "node:worker_threads";
 
-if (process.env.VALOPAY_RUN_INTEGRATION !== "1") {
-  console.log("Set VALOPAY_RUN_INTEGRATION=1 to check the daily audit check against a disposable PostgreSQL database.");
+if (process.env.VALO_PAY_1_RUN_INTEGRATION !== "1") {
+  console.log("Set VALO_PAY_1_RUN_INTEGRATION=1 to check the daily audit check against a disposable PostgreSQL database.");
   process.exit(0);
 }
 // A placeholder identity key: nothing here reaches the identity provider. The log goes to a file this test reads back.
 process.env.CLERK_SECRET_KEY ??= "sk_test_placeholder";
-const logFile = join(tmpdir(), `valopay-audit-check-${process.pid}.log`);
+const logFile = join(tmpdir(), `valo-pay-1-audit-check-${process.pid}.log`);
 process.env["LOG_FILE"] = logFile;
 process.env["LOG_LEVEL"] = "info";
-const { pool } = await import("@workspace/db");
-const { nextCloseInstant } = await import("@workspace/valopay-schema");
+const { pool } = await import("@workspace/valo-pay-1-db");
+const { nextCloseInstant } = await import("@workspace/valo-pay-1-schema");
 const { default: router } = await import("../src/routes/index");
 const { errorHandler } = await import("../src/lib/error-handler");
 const { runClosePassOnce, runDueCloses } = await import("../src/lib/close-scheduler");
-const { checkAuditChainDaily } = await import("../src/lib/valopay-store");
+const { checkAuditChainDaily } = await import("../src/lib/valo-pay-1-store");
 const { startBackgroundWorker } = await import("../src/lib/background-worker");
 const { logger } = await import("../src/lib/logger");
 const { watDate } = await import("../src/domain/calendar");
@@ -68,7 +69,7 @@ const setCursor = (lender: string, at: string) => pool.query("UPDATE valopay_mer
 const changeSummary = (id: string, summary: string) => pool.query("UPDATE valopay_records SET data=jsonb_set(data,'{summary}',to_jsonb($2::text)) WHERE id=$1", [id, summary]);
 /** A caller of its own sandbox, with the lender it opens on. */
 const sandbox = async () => {
-  const cookie = `valopay_sandbox=${randomBytes(32).toString("hex")}`;
+  const cookie = `${SANDBOX_COOKIE}=${randomBytes(32).toString("hex")}`;
   const call = async (path: string, method = "GET", body?: unknown, key?: string) => {
     const answer = await fetch(base + path, { method, headers: { "Content-Type": "application/json", Cookie: cookie, ...(key ? { "Idempotency-Key": key } : {}) }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
     return { status: answer.status, data: (await answer.json()) as any };

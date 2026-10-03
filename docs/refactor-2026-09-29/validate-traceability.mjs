@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { readFileSync, existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -6,7 +7,26 @@ import ts from 'typescript';
 
 const directory = dirname(fileURLToPath(import.meta.url));
 const root = resolve(directory, '../..');
-const text = readFileSync(resolve(directory, 'traceability.json'), 'utf8');
+// Match Git's canonical LF content on Linux and on a Windows CRLF checkout alike.
+const text = readFileSync(resolve(directory, 'traceability.json'), 'utf8').replaceAll('\r\n', '\n');
+// The matrix is historical evidence, so retain its original pointers and resolve only the approved rename.
+// A changed matrix must be reviewed and re-pinned explicitly; it cannot borrow historical exemptions silently.
+const retained = JSON.parse(readFileSync(resolve(root, 'docs/product-identity/historical-files.json'), 'utf8'));
+const matrixIdentity = retained.files.find(entry => entry.path === 'docs/refactor-2026-09-29/traceability.json');
+assert(matrixIdentity && /^[a-f0-9]{64}$/.test(matrixIdentity.sha256), 'Traceability matrix needs a retained-evidence digest');
+assert.equal(createHash('sha256').update(text).digest('hex'), matrixIdentity.sha256, 'Historical traceability bytes changed without a reviewed evidence digest');
+const identityMap = JSON.parse(readFileSync(resolve(root, 'docs/product-identity/path-map.json'), 'utf8'));
+const safePath = path => typeof path === 'string' && path.length > 0 && !path.startsWith('/') && !path.includes('\\') && !path.includes(':') && !path.split('/').some(part => !part || part === '.' || part === '..');
+const pathMappings = Object.entries(identityMap.paths).sort(([a], [b]) => b.length - a.length);
+for (const [before, after] of pathMappings) {
+  assert(safePath(before) && safePath(after) && before !== after, 'Identity path mappings must contain distinct safe repository paths');
+  assert(existsSync(resolve(root, after)), `Missing approved identity mapping target ${after}`);
+}
+const currentPath = path => {
+  assert(safePath(path), `Unsafe repository pointer ${path}`);
+  const entry = pathMappings.find(([before]) => path === before || path.startsWith(`${before}/`));
+  return entry ? entry[1] + path.slice(entry[0].length) : path;
+};
 const matrix = JSON.parse(text);
 const counts = {
   TEN: 10, CON: 11, MAN: 15, SCH: 8, DEB: 12, RET: 12, ING: 9,
@@ -68,12 +88,13 @@ function declares(path, symbol) {
 let symbols = 0;
 for (const component of Object.values(matrix.components)) {
   for (const pointer of [...component.implementation, ...component.contracts, ...component.test_sources]) {
-    assert(existsSync(resolve(root, pointer.path)), `Missing repository pointer ${pointer.path}`);
+    const path = currentPath(pointer.path);
+    assert(existsSync(resolve(root, path)), `Missing repository pointer ${pointer.path} (current path ${path})`);
     assert.match(pointer.sha256, digest);
     assert.equal(pointer.source_revision, matrix.baseline_revision);
     if (pointer.symbol === undefined) continue;
     assert(/\.[cm]?[jt]sx?$/.test(pointer.path), `Only a TypeScript or JavaScript file declares a symbol: ${pointer.path} names ${pointer.symbol}`);
-    assert(declares(pointer.path, pointer.symbol), `${pointer.path} no longer declares ${pointer.symbol}; point it at the current declaration`);
+    assert(declares(path, pointer.symbol), `${pointer.path} no longer declares ${pointer.symbol}; point it at the current declaration`);
     symbols += 1;
   }
 }

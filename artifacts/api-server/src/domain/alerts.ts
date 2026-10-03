@@ -1,11 +1,11 @@
-import { sumMoney } from "@workspace/valopay-schema";
+import { sumMoney } from "@workspace/valo-pay-1-schema";
 /**
  * NFR-OBS-02 alerts computed from the lender's state: the conditions the TRD
  * routes to the on-call phone that this sandbox can observe.  Alerts are
  * derived on every read and frozen into each daily close; they are never
  * stored on their own.
  */
-import { counted, alertRules, dayText, deadlinePassed, durationText, isBillableChannel, isOpenException, nairaText, paymentAwaitsAllocation, type AlertSeverity } from "@workspace/valopay-schema";
+import { counted, alertRules, dayText, deadlinePassed, durationText, isBillableChannel, isOpenException, nairaText, paymentAwaitsAllocation, type AlertSeverity } from "@workspace/valo-pay-1-schema";
 import { recordsOf } from "./records";
 import type { DomainState } from "./types";
 import { UNKNOWN_OUTCOME_AGE_MS, checkoutUnknownSince, paymentObservedAt } from "./reconciliation";
@@ -54,13 +54,13 @@ export function buildAlerts(state: DomainState, now: string, audit?: AuditVerifi
     const clears = audit.kept
       ? "This alert stays until a full check finds every entry intact: select Check audit log on the Audit log page, or wait for the daily check after the daily close."
       : "The next change, Check audit log or the daily check after the daily close will record this break. After that, the alert stays until a full check finds every entry intact. Until then, it clears if the log is repaired.";
-    alerts.push({ key: "audit_chain_broken", severity: "critical", title: "Audit log verification failed", detail: `Entry ${audit.verifiedSequence + 1} of the audit log is missing, out of order or changed. Contact the Valo Pay team. ${clears}`, count: audit.count });
+    alerts.push({ key: "audit_chain_broken", severity: "critical", title: "Audit log verification failed", detail: `Entry ${audit.verifiedSequence + 1} of the audit log is missing, out of order or changed. Contact the Valo Pay 1 team. ${clears}`, count: audit.count });
   }
   // An instruction dispatched in observation mode must never happen (NFR-OBS-02, DEB-10).
   if (state.merchant.mode !== "instruction") {
     const handedBack = recordsOf(state, "cutovers").filter((item) => item.status === "handed_back").map((item) => String(item.data.handedBackAt || item.createdAt)).sort().at(-1) ?? "";
     const dispatched = recordsOf(state, "attempts").filter((item) => item.data.source === "valo" && ["sent", "succeeded", "failed", "unknown", "reversed"].includes(item.status) && attemptTime(item) > handedBack);
-    if (dispatched.length) alerts.push({ key: "instruction_in_observation_mode", severity: "critical", title: "Collection attempt recorded in ‘Records payments only’ mode", detail: `${counted(dispatched.length, "Valo Pay collection attempt was", "Valo Pay collection attempts were")} recorded while this lender is set to ‘Records payments only’. In this mode Valo Pay must not send collection instructions. Ask an Admin to investigate before you continue.`, count: dispatched.length, linkedRecordId: dispatched[0]!.id, since: attemptTime(dispatched[0]!) });
+    if (dispatched.length) alerts.push({ key: "instruction_in_observation_mode", severity: "critical", title: "Collection attempt recorded in ‘Records payments only’ mode", detail: `${counted(dispatched.length, "Valo Pay 1 collection attempt was", "Valo Pay 1 collection attempts were")} recorded while this lender is set to ‘Records payments only’. In this mode Valo Pay 1 must not send collection instructions. Ask an Admin to investigate before you continue.`, count: dispatched.length, linkedRecordId: dispatched[0]!.id, since: attemptTime(dispatched[0]!) });
   }
   const drift = positionMismatches(state);
   if (drift.length) alerts.push({ key: "position_drift", severity: "high", title: "Saved balances do not match allocations", detail: `${counted(drift.length, "instalment has", "instalments have")} an unpaid amount that does not match the confirmed allocations. Open Reconciliation to investigate.`, count: drift.length, linkedRecordId: drift[0]!.dueItemId });

@@ -7,10 +7,10 @@ const { join } = require("node:path");
 
 async function main() {
   const [remote, url = ""] = process.argv.slice(2);
-  if (remote !== "origin" && !/github\.com[:/]obeidpeter\/valo-pay(?:\.git)?\/?$/.test(url)) return;
+  if (remote !== "origin" && !/github\.com[:/]obeidpeter\/valo-pay-1(?:\.git)?\/?$/.test(url)) return;
   const git = (...args) => execFileSync("git", args, { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 }).trim();
   const root = git("rev-parse", "--show-toplevel");
-  const anchor = git("config", "--get", "valopay.cleanGitAnchor");
+  const anchor = git("config", "--get", "valo-pay-1.cleanGitAnchor");
   if (!/^[a-f0-9]{40}$/.test(anchor)) throw new Error("Missing clean-history anchor.");
   const { allowedPath, assertSafeText } = await import(pathToFileURL(join(root, "scripts/github-snapshot.mjs")).href);
   const checked = new Set();

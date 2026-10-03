@@ -1,3 +1,4 @@
+import { SANDBOX_COOKIE } from "../src/lib/sandbox-cookie";
 import { pageCustomerHistory } from '../src/lib/customer-history';
 import { customerTimeline } from '../src/domain/timeline';
 import assert from "node:assert/strict";
@@ -7,11 +8,11 @@ import {
   pageCloseHistory,
   reconciliationQueues,
 } from "../src/lib/console-read-models";
-import { buildConsoleReports } from "../src/lib/valopay-close-views";
+import { buildConsoleReports } from "../src/lib/valo-pay-1-close-views";
 import { previousMonth } from "../src/domain/billing";
 import type { ValopayRecord } from "../src/domain/types";
-if (process.env.VALOPAY_RUN_INTEGRATION !== "1") process.exit(0);
-const { pool } = await import("@workspace/db");
+if (process.env.VALO_PAY_1_RUN_INTEGRATION !== "1") process.exit(0);
+const { pool } = await import("@workspace/valo-pay-1-db");
 const {
   inWorkspace,
   listMerchants,
@@ -21,14 +22,14 @@ const {
   getCloseDetail,
   getCustomerHistory,
   loadReportsView,
-} = await import("../src/lib/valopay-store");
+} = await import("../src/lib/valo-pay-1-store");
 const tokens = [
   randomBytes(32).toString("hex"),
   randomBytes(32).toString("hex"),
 ];
 const request = (token = tokens[0]) =>
   ({
-    headers: { cookie: `valopay_sandbox=${token}` },
+    headers: { cookie: `${SANDBOX_COOKIE}=${token}` },
     secure: false,
     auth: Object.assign(() => ({ userId: null }), {
       [Symbol.for("@clerk/express.auth")]: true,

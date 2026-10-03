@@ -6,9 +6,9 @@ import { workflowFixture, WORKFLOW_NOW } from "./workflow-fixture";
 import { positionFor, positionMismatches, positionSnapshot } from "../src/domain/close";
 
 process.env.DATABASE_URL ||= "postgres://unused:unused@127.0.0.1:1/unused";
-const { buildExportBytes } = await import("../src/lib/valopay-exports");
+const { buildExportBytes } = await import("../src/lib/valo-pay-1-exports");
 
-const count = Number(process.env.VALOPAY_BENCH_CUSTOMERS || 1_000);
+const count = Number(process.env.VALO_PAY_1_BENCH_CUSTOMERS || 1_000);
 const fixture = workflowFixture(count);
 const context = { now: WORKFLOW_NOW, actor: "Sandbox Finance", role: "Finance" };
 const timings: Record<string, number> = {};

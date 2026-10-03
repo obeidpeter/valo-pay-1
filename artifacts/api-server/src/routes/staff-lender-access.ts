@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { pathId, staffLenderAccessInputSchema, staffLenderAccessSchema } from "@workspace/valopay-schema";
-import { inWorkspace, updateStaffLenders } from "../lib/valopay-store";
+import { pathId, staffLenderAccessInputSchema, staffLenderAccessSchema } from "@workspace/valo-pay-1-schema";
+import { inWorkspace, updateStaffLenders } from "../lib/valo-pay-1-store";
 import { contractAnswer } from "../lib/contract";
 import { routerOptions } from "./router-options";
 

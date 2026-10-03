@@ -1,4 +1,4 @@
-/** Internal repository read-models. Import through valopay-store; external access is rejected by the boundary check. */
+/** Internal repository read-models. Import through valo-pay-1-store; external access is rejected by the boundary check. */
 import {
   allocatableOnly,
   allocationChoices,
@@ -9,11 +9,11 @@ import {
   matchesSearch,
   updatedSinceInstant,
   type ListQuery,
-} from "../valopay-list";
+} from "../valo-pay-1-list";
 import {
   allocationClosedStatuses,
   measurementRules,
-} from "@workspace/valopay-schema";
+} from "@workspace/valo-pay-1-schema";
 import { allocationPayer } from "../../domain/reconciliation";
 import type { DomainState, ValopayRecord } from "../../domain/types";
 import { publicExportRecord } from "../export-jobs";
@@ -23,7 +23,7 @@ import {
   queueViews,
   type QueueName,
   type QueueQuery,
-} from "../valopay-queues";
+} from "../valo-pay-1-queues";
 import {
   validateCloseRange,
   pageOffset,
@@ -40,7 +40,7 @@ import {
   type HistorySection,
 } from "../customer-history";
 import { databaseMoney } from "../database-money";
-import { sumMoney } from "@workspace/valopay-schema";
+import { sumMoney } from "@workspace/valo-pay-1-schema";
 import type { StoreContext, RecordRow } from "./types";
 type Dependencies = Pick<
   typeof import("./core"),

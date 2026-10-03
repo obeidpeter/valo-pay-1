@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import express from "express";
-import { seedMerchant } from "../src/lib/valopay-seed";
+import { seedMerchant } from "../src/lib/valo-pay-1-seed";
 process.env.DATABASE_URL ||= "postgres://unused:unused@127.0.0.1:1/unused";
 const { createPaystackIngress } = await import("../src/routes/sources");
 const key = ["sk", "test", "OFFLINE", "0".repeat(20)].join("_");
@@ -62,25 +62,25 @@ try {
 
 // The ingress settings, read from the process environment only: what the route and `pnpm run check:paystack` see.
 const { paystackIngressStatus, paystackTestSecretKey, paystackConnections } = await import("../src/providers/paystack-ingress-config");
-const names = ["VALOPAY_PAYSTACK_INGRESS", "PAYSTACK_TEST_SECRET_KEY", "VALOPAY_PAYSTACK_CONNECTIONS"] as const;
+const names = ["VALO_PAY_1_PAYSTACK_INGRESS", "PAYSTACK_TEST_SECRET_KEY", "VALO_PAY_1_PAYSTACK_CONNECTIONS"] as const;
 const saved = Object.fromEntries(names.map(name => [name, process.env[name]]));
 const refusedWith = (status: number, message: RegExp) => (error: any) => error.status === status && message.test(error.message);
 try {
   for (const name of names) delete process.env[name];
   assert.deepEqual(paystackIngressStatus(), { webhookIngestion: "disabled", mappedConnections: 0 });
   assert.throws(paystackTestSecretKey, refusedWith(503, /not configured/));
-  process.env.VALOPAY_PAYSTACK_INGRESS = "test"; process.env.PAYSTACK_TEST_SECRET_KEY = "not-a-key";
+  process.env.VALO_PAY_1_PAYSTACK_INGRESS = "test"; process.env.PAYSTACK_TEST_SECRET_KEY = "not-a-key";
   assert.deepEqual(paystackIngressStatus(), { webhookIngestion: "misconfigured", mappedConnections: 0 });
   assert.throws(paystackTestSecretKey, refusedWith(503, /test credential is required/));
   process.env.PAYSTACK_TEST_SECRET_KEY = key;
-  process.env.VALOPAY_PAYSTACK_CONNECTIONS = JSON.stringify({ [connectionId]: { workspaceId: "w1", merchantId: "m1" }, [wrongConnection]: { workspaceId: "w2", merchantId: "m2" } });
+  process.env.VALO_PAY_1_PAYSTACK_CONNECTIONS = JSON.stringify({ [connectionId]: { workspaceId: "w1", merchantId: "m1" }, [wrongConnection]: { workspaceId: "w2", merchantId: "m2" } });
   assert.deepEqual(paystackIngressStatus(), { webhookIngestion: "test_only", mappedConnections: 2 }, "the status counts mappings and never names them");
   assert.equal(paystackTestSecretKey(), key);
   assert.deepEqual(Object.keys(paystackConnections()).sort(), [connectionId, wrongConnection]);
-  process.env.VALOPAY_PAYSTACK_CONNECTIONS = "not json";
+  process.env.VALO_PAY_1_PAYSTACK_CONNECTIONS = "not json";
   assert.deepEqual(paystackIngressStatus(), { webhookIngestion: "misconfigured", mappedConnections: 0 });
   assert.throws(paystackConnections, refusedWith(503, /configuration is invalid/));
-  process.env.VALOPAY_PAYSTACK_CONNECTIONS = JSON.stringify({ short: { workspaceId: "w1", merchantId: "m1" } });
+  process.env.VALO_PAY_1_PAYSTACK_CONNECTIONS = JSON.stringify({ short: { workspaceId: "w1", merchantId: "m1" } });
   assert.throws(paystackConnections, refusedWith(503, /configuration is invalid/), "a connection ID must be 64 hexadecimal characters");
 } finally {
   for (const name of names) { const value = saved[name]; if (value === undefined) delete process.env[name]; else process.env[name] = value; }
@@ -103,8 +103,8 @@ await new Promise<void>(resolve => lookupServer.once("listening", resolve));
 const lookupAddress = lookupServer.address(); assert.ok(lookupAddress && typeof lookupAddress !== "string");
 const deliver = async (sig: string, id = goneConnection) => { const response = await fetch(`http://127.0.0.1:${lookupAddress.port}/v1/providers/paystack/${id}/events`, { method: "POST", headers: { "content-type": "application/json", "x-paystack-signature": sig }, body }); return { status: response.status, error: ((await response.json()) as { error: string }).error }; };
 try {
-  process.env.VALOPAY_PAYSTACK_INGRESS = "test"; process.env.PAYSTACK_TEST_SECRET_KEY = key;
-  process.env.VALOPAY_PAYSTACK_CONNECTIONS = JSON.stringify({ [goneConnection]: { workspaceId: "mapped-workspace", merchantId: "removed-lender" } });
+  process.env.VALO_PAY_1_PAYSTACK_INGRESS = "test"; process.env.PAYSTACK_TEST_SECRET_KEY = key;
+  process.env.VALO_PAY_1_PAYSTACK_CONNECTIONS = JSON.stringify({ [goneConnection]: { workspaceId: "mapped-workspace", merchantId: "removed-lender" } });
   assert.equal((await deliver(forged)).status, 401);
   assert.deepEqual([locks, lookups], [0, []], "a forged delivery never tries the lock or looks for the lender");
   assert.deepEqual(await deliver(signature), { status: 404, error: missingLender }, "a verified delivery to a lender that is not there names the mapping, not a busy lender");
@@ -127,8 +127,8 @@ limited.use((error: any, _req: express.Request, res: express.Response, _next: ex
 const limitedServer = limited.listen(0, "127.0.0.1");
 await new Promise<void>(resolve => limitedServer.once("listening", resolve));
 try {
-  process.env.VALOPAY_PAYSTACK_INGRESS = "test"; process.env.PAYSTACK_TEST_SECRET_KEY = key;
-  process.env.VALOPAY_PAYSTACK_CONNECTIONS = JSON.stringify({ [limitedConnection]: { workspaceId: "w1", merchantId: "m1" } });
+  process.env.VALO_PAY_1_PAYSTACK_INGRESS = "test"; process.env.PAYSTACK_TEST_SECRET_KEY = key;
+  process.env.VALO_PAY_1_PAYSTACK_CONNECTIONS = JSON.stringify({ [limitedConnection]: { workspaceId: "w1", merchantId: "m1" } });
   const statuses: number[] = [];
   for (let i = 0; i < 61; i++) { const response = await fetch(`http://127.0.0.1:${(limitedServer.address() as { port: number }).port}/v1/providers/paystack/${limitedConnection}/events`, { method: "POST", headers: { "content-type": "application/json", "x-paystack-signature": signature }, body }); statuses.push(response.status); await response.arrayBuffer(); }
   assert.deepEqual([statuses.filter(status => status === 503).length, statuses.at(-1)], [60, 429], "60 signed deliveries a minute per connection; the busy lender answers each of them 503");

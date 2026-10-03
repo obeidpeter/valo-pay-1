@@ -1,7 +1,7 @@
-import { foldForSearch } from './valopay-list';
+import { foldForSearch } from './valo-pay-1-list';
 import type { DomainState, ValopayRecord } from "../domain/types";
 import { precisionAudit } from "../domain/reports";
-import { paymentAwaitsAllocation } from "@workspace/valopay-schema";
+import { paymentAwaitsAllocation } from "@workspace/valo-pay-1-schema";
 
 export const reconciliationQueues = [
   "proposals",

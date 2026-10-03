@@ -1,28 +1,29 @@
+import { SANDBOX_COOKIE } from "../src/lib/sandbox-cookie";
 // Synthetic fixtures only, in the disposable PostgreSQL used by CI. Never
-// point VALOPAY_RUN_INTEGRATION at the deployed database.
+// point VALO_PAY_1_RUN_INTEGRATION at the deployed database.
 import assert from "node:assert/strict";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { performance } from "node:perf_hooks";
 import type { Server } from "node:http";
 import type { DomainState } from "../src/domain/types.js";
-import { allocationChoices, pageRecords, type ListQuery } from "../src/lib/valopay-list.js";
+import { allocationChoices, pageRecords, type ListQuery } from "../src/lib/valo-pay-1-list.js";
 import { allocationPayer } from "../src/domain/reconciliation.js";
-import { canTakeAllocation } from "@workspace/valopay-schema";
+import { canTakeAllocation } from "@workspace/valo-pay-1-schema";
 
-if (process.env.VALOPAY_RUN_INTEGRATION !== "1") {
-  console.log("Set VALOPAY_RUN_INTEGRATION=1 to run record list and stale-edit integration tests.");
+if (process.env.VALO_PAY_1_RUN_INTEGRATION !== "1") {
+  console.log("Set VALO_PAY_1_RUN_INTEGRATION=1 to run record list and stale-edit integration tests.");
   process.exit(0);
 }
-const { pool } = await import("@workspace/db");
-const { inWorkspace, listMerchants, loadState, saveState, listRecords, loadCustomerView, loadSettingsView } = await import("../src/lib/valopay-store.js");
+const { pool } = await import("@workspace/valo-pay-1-db");
+const { inWorkspace, listMerchants, loadState, saveState, listRecords, loadCustomerView, loadSettingsView } = await import("../src/lib/valo-pay-1-store.js");
 const { customerTimeline } = await import("../src/domain/timeline.js");
-const { buildConsoleSettings } = await import("../src/lib/valopay-close-views.js");
+const { buildConsoleSettings } = await import("../src/lib/valo-pay-1-close-views.js");
 const { default: express } = await import("express");
-const { default: router } = await import("../src/routes/valopay.js");
+const { default: router } = await import("../src/routes/valo-pay-1.js");
 const { errorHandler } = await import("../src/lib/error-handler.js");
 const auth = () => Object.assign(() => ({ userId: null }), { [Symbol.for("@clerk/express.auth")]: true });
 const token = randomBytes(32).toString("hex"), otherToken = randomBytes(32).toString("hex"), editingToken = randomBytes(32).toString("hex");
-const request = (value = token) => ({ headers: { cookie: `valopay_sandbox=${value}` }, secure: false, auth: auth() }) as any;
+const request = (value = token) => ({ headers: { cookie: `${SANDBOX_COOKIE}=${value}` }, secure: false, auth: auth() }) as any;
 const response = () => ({ cookie() {} }) as any;
 let server: Server | undefined;
 try {
@@ -172,7 +173,7 @@ try {
   const base = `http://127.0.0.1:${address.port}/api/v1`;
   const api = async (path: string, method = "GET", body?: unknown, key?: string) => {
     const result = await fetch(`${base}${path}?merchantId=${editingMerchant}`, { method,
-      headers: { Cookie: `valopay_sandbox=${editingToken}`, "Content-Type": "application/json", ...(key ? { "Idempotency-Key": key } : {}) },
+      headers: { Cookie: `${SANDBOX_COOKIE}=${editingToken}`, "Content-Type": "application/json", ...(key ? { "Idempotency-Key": key } : {}) },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
     return { status: result.status, body: await result.json() as any };
   };
@@ -207,7 +208,7 @@ try {
   assert.deepEqual([reduced.status, reduced.body.status, reduced.body.data.outstandingKobo], [200, "paid", 0], "reduced to what was paid, it is paid");
   const draftPolicy = editState.records.find(row => row.kind === "policies")!;
   const renumbered = await api(`/records/policies/${draftPolicy.id}`, "PATCH", { data: { version: 2 }, expectedUpdatedAt: draftPolicy.updatedAt });
-  assert.equal(renumbered.status, 400, JSON.stringify(renumbered.body)); assert.match(renumbered.body.error, /Valo Pay numbers each new draft version/);
+  assert.equal(renumbered.status, 400, JSON.stringify(renumbered.body)); assert.match(renumbered.body.error, /Valo Pay 1 numbers each new draft version/);
   const roleChange = { action: "set_role", data: { role: "Operations" } };
   const roleChanged = await api("/actions", "POST", roleChange, "role-switch-once");
   assert.equal(roleChanged.status, 200);

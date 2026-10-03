@@ -12,11 +12,11 @@ import { once } from "node:events";
 import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 
-if (process.env.VALOPAY_RUN_INTEGRATION !== "1") { console.log("Opt in on a disposable PostgreSQL database to test staff governance."); process.exit(0); }
+if (process.env.VALO_PAY_1_RUN_INTEGRATION !== "1") { console.log("Opt in on a disposable PostgreSQL database to test staff governance."); process.exit(0); }
 // Only Clerk's verified-email lookup is replaced below; no external call is made.
-const saved = Object.fromEntries(["CLERK_SECRET_KEY", "VALOPAY_STAFF_ACCESS", "VALOPAY_STAFF_ISSUER", "VALOPAY_STAFF_ORIGINS", "PRIVATE_OBJECT_DIR"].map(name => [name, process.env[name]]));
-Object.assign(process.env, { CLERK_SECRET_KEY: "sk_test_placeholder", VALOPAY_STAFF_ACCESS: "staging", VALOPAY_STAFF_ISSUER: "https://identity.example", VALOPAY_STAFF_ORIGINS: "https://pilot.example", PRIVATE_OBJECT_DIR: "/private-bucket/valopay" });
-const { pool } = await import("@workspace/db"), store = await import("../src/lib/valopay-store"), { default: router } = await import("../src/routes/index"), { errorHandler } = await import("../src/lib/error-handler");
+const saved = Object.fromEntries(["CLERK_SECRET_KEY", "VALO_PAY_1_STAFF_ACCESS", "VALO_PAY_1_STAFF_ISSUER", "VALO_PAY_1_STAFF_ORIGINS", "PRIVATE_OBJECT_DIR"].map(name => [name, process.env[name]]));
+Object.assign(process.env, { CLERK_SECRET_KEY: "sk_test_placeholder", VALO_PAY_1_STAFF_ACCESS: "staging", VALO_PAY_1_STAFF_ISSUER: "https://identity.example", VALO_PAY_1_STAFF_ORIGINS: "https://pilot.example", PRIVATE_OBJECT_DIR: "/private-bucket/valo-pay-1" });
+const { pool } = await import("@workspace/valo-pay-1-db"), store = await import("../src/lib/valo-pay-1-store"), { default: router } = await import("../src/routes/index"), { errorHandler } = await import("../src/lib/error-handler");
 const { clerkClient } = await import("@clerk/express"), savedGetUser = clerkClient.users.getUser;
 const identities = new Map<string, any>(), app = express();
 app.use(express.json());
@@ -44,10 +44,10 @@ try {
   // One administrator alone: the invitation is created, waits, and says how to get a second administrator.
   const financeInvite = ok(await call("/v1/team/invitations", "adminA", "POST", { email: "finance@example.test", role: "Finance" }));
   assert.equal(financeInvite.approval, "awaiting"); checks += 1;
-  assert.match(financeInvite.message, /A different Admin must approve it before it can be accepted/); assert.match(financeInvite.message, /Your pilot has only 1 Admin, so ask the Valo Pay team to add a second\./); assert.doesNotMatch(financeInvite.message, /--add-administrator/); checks += 3;
+  assert.match(financeInvite.message, /A different Admin must approve it before it can be accepted/); assert.match(financeInvite.message, /Your pilot has only 1 Admin, so ask the Valo Pay 1 team to add a second\./); assert.doesNotMatch(financeInvite.message, /--add-administrator/); checks += 3;
   verified("finance@example.test");
   refused(await call("/v1/team/accept", "finance", "POST", { token: financeInvite.token }), 403, /waiting for a second Admin’s approval/);
-  refused(await call(`/v1/team/invitations/${financeInvite.id}/approve`, "adminA", "POST"), 403, /^A different Admin must approve this invitation\. The Admin who sent it cannot approve it\. If your pilot has only one Admin, ask the Valo Pay team to add a second\.$/);
+  refused(await call(`/v1/team/invitations/${financeInvite.id}/approve`, "adminA", "POST"), 403, /^A different Admin must approve this invitation\. The Admin who sent it cannot approve it\. If your pilot has only one Admin, ask the Valo Pay 1 team to add a second\.$/);
   let directory = await team();
   assert.deepEqual(pick(directory.invitations.find((item: any) => item.id === financeInvite.id), ["approval", "invitedBy", "approvedBy"]), { approval: "awaiting", invitedBy: `Clerk:${people.adminA}`, approvedBy: null }); checks += 1;
   // The operator adds the second administrator (provision-pilot --add-administrator), who approves.
@@ -145,7 +145,7 @@ try {
   assert.equal(asked.data.releaseRequested, true); checks += 1;
   let settings = ok(await call(`/v1/settings${lender}`, "adminB"));
   assert.deepEqual([settings.merchant.killSwitch, settings.settings.emergencyStopReleases.lender.requestedBy], [true, `Clerk:${people.adminA}`]); checks += 1;
-  refused(await call(`/v1/actions${lender}`, "adminA", "POST", { action: "approve_kill_switch_off", reason: "Approving my own request.", data: {} }), 403, /^A different Admin must approve turning off the emergency stop\. If your pilot has only one Admin, ask the Valo Pay team to add a second\.$/);
+  refused(await call(`/v1/actions${lender}`, "adminA", "POST", { action: "approve_kill_switch_off", reason: "Approving my own request.", data: {} }), 403, /^A different Admin must approve turning off the emergency stop\. If your pilot has only one Admin, ask the Valo Pay 1 team to add a second\.$/);
   ok(await call(`/v1/actions${lender}`, "adminB", "POST", { action: "approve_kill_switch_off", reason: "Checked the incident notes.", data: {} }));
   settings = ok(await call(`/v1/settings${lender}`, "adminA"));
   assert.deepEqual([settings.merchant.killSwitch, settings.settings.emergencyStopReleases], [false, undefined]); checks += 1;
@@ -170,8 +170,8 @@ try {
   assert.equal(ok(await call(`/v1/lifecycle/runs/${run.id}/execute${lender}`, "adminA", "POST", { previewDigest: run.previewDigest })).status, "completed", "either administrator executes the approved run"); checks += 1;
 
   // ---- 6. Fortnightly reviews name their reviewer at the service's time; the calendar is Admin and Operations' ----
-  refused(await call(`/v1/records/reviews${lender}`, "finance", "POST", { name: "Fortnightly review", data: { reviewer: "Someone else", confirmedJobs: ["mandates", "retries", "reconciliation", "audit"], note: "Checked." } }), 400, /Valo Pay records you as the reviewer\. Leave the reviewer blank\./);
-  refused(await call(`/v1/records/reviews${lender}`, "finance", "POST", { name: "Fortnightly review", data: { reviewedAt: "2026-01-01", confirmedJobs: ["audit"], note: "Checked." } }), 400, /Valo Pay records the review time when you save\. Leave the review date blank\./);
+  refused(await call(`/v1/records/reviews${lender}`, "finance", "POST", { name: "Fortnightly review", data: { reviewer: "Someone else", confirmedJobs: ["mandates", "retries", "reconciliation", "audit"], note: "Checked." } }), 400, /Valo Pay 1 records you as the reviewer\. Leave the reviewer blank\./);
+  refused(await call(`/v1/records/reviews${lender}`, "finance", "POST", { name: "Fortnightly review", data: { reviewedAt: "2026-01-01", confirmedJobs: ["audit"], note: "Checked." } }), 400, /Valo Pay 1 records the review time when you save\. Leave the review date blank\./);
   const before = Date.now();
   const review = ok(await call(`/v1/records/reviews${lender}`, "finance", "POST", { name: "Fortnightly review", data: { confirmedJobs: ["mandates", "retries", "reconciliation", "audit"], note: "Checked the four tasks." } }));
   assert.equal(review.data.reviewer, `Clerk:${people.finance}`); assert.ok(Math.abs(Date.parse(review.data.reviewedAt) - before) < 60_000); checks += 2;

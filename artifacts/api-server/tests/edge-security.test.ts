@@ -1,3 +1,4 @@
+import { HOST_SANDBOX_COOKIE, SANDBOX_COOKIE } from "../src/lib/sandbox-cookie";
 // Offline checks of the API's edge (the 23 September 2026 audit, security items 1, 2, 6, 8 and 9 and
 // operations item 4, the review of its fixes, items 1, 5 and 6, and the second review, finding 2; see
 // docs/security-review.md): the request and sandbox limits by principal and network (an IPv6 client by
@@ -34,11 +35,11 @@ const database = createServer((socket) => { connections++; sockets.add(socket); 
 database.listen(0, "127.0.0.1");
 await once(database, "listening");
 const databasePort = (database.address() as { port: number }).port;
-process.env["DATABASE_URL"] = `postgres://postgres@127.0.0.1:${databasePort}/valopay-unused`;
+process.env["DATABASE_URL"] = `postgres://postgres@127.0.0.1:${databasePort}/valo-pay-1-unused`;
 process.env["LOG_LEVEL"] = "silent";
 // Clerk would otherwise report its development-instance use over the network.
 process.env["CLERK_TELEMETRY_DISABLED"] = "1";
-const edgeNames = ["CLERK_SECRET_KEY", "CLERK_PUBLISHABLE_KEY", "CLERK_JWT_KEY", "VALOPAY_STAFF_ACCESS", "VALOPAY_STAFF_ORIGINS", "VALOPAY_STAFF_ISSUER", "VALOPAY_APP_ORIGINS", "REPLIT_DOMAINS", "VALOPAY_EDGE_REQUEST_ID"] as const;
+const edgeNames = ["CLERK_SECRET_KEY", "CLERK_PUBLISHABLE_KEY", "CLERK_JWT_KEY", "VALO_PAY_1_STAFF_ACCESS", "VALO_PAY_1_STAFF_ORIGINS", "VALO_PAY_1_STAFF_ISSUER", "VALO_PAY_1_APP_ORIGINS", "REPLIT_DOMAINS", "VALO_PAY_1_EDGE_REQUEST_ID"] as const;
 for (const name of edgeNames) delete process.env[name];
 const { default: app, requestIdFor } = await import("../src/app.js");
 const server = app.listen(0, "127.0.0.1");
@@ -51,8 +52,8 @@ const tally = (statuses: number[]) => statuses.reduce<Record<number, number>>((a
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const token = (fill: string) => fill.repeat(64);
 // What the start-up check says of a staff host's Clerk settings.
-const secretKeyRequired = "CLERK_SECRET_KEY is required when VALOPAY_STAFF_ACCESS is staging: without it no one can sign in.";
-const jwtKeyRequired = "CLERK_JWT_KEY is required when VALOPAY_STAFF_ACCESS is staging: the Clerk instance's JWT public key, with which staff sessions are verified without a call to Clerk's Backend API.";
+const secretKeyRequired = "CLERK_SECRET_KEY is required when VALO_PAY_1_STAFF_ACCESS is staging: without it no one can sign in.";
+const jwtKeyRequired = "CLERK_JWT_KEY is required when VALO_PAY_1_STAFF_ACCESS is staging: the Clerk instance's JWT public key, with which staff sessions are verified without a call to Clerk's Backend API.";
 const jwtKeyEscaped = "CLERK_JWT_KEY holds \\n in place of its line breaks, which Clerk cannot read: give the PEM public key with real line breaks, as Clerk shows it, from -----BEGIN PUBLIC KEY----- to -----END PUBLIC KEY-----.";
 
 try {
@@ -67,7 +68,7 @@ try {
     const body = (await workspace.json()) as { error: string };
     assert.equal(workspace.status, 503, "without Clerk every request is an anonymous sandbox; here the database is unreachable");
     assert.doesNotMatch(body.error, /Clerk/);
-    assert.match(workspace.headers.get("set-cookie") ?? "", /^valopay_sandbox=[a-f0-9]{64};/, "an anonymous visitor is given a sandbox cookie");
+    assert.match(workspace.headers.get("set-cookie") ?? "", new RegExp(String.raw`^${SANDBOX_COOKIE}=[a-f0-9]{64};`), "an anonymous visitor is given a sandbox cookie");
     checks += 6;
   });
 
@@ -96,11 +97,11 @@ try {
     assert.match(quoted.headers.get("x-request-id") ?? "", /^[0-9a-f]{16}$/);
     assert.match(requestIdFor({ headers: { "x-request-id": "edge-7f3a9c2b" } }, false), /^[0-9a-f]{16}$/);
     assert.equal(requestIdFor({ headers: { "x-request-id": "edge-7f3a9c2b" } }, true), "edge-7f3a9c2b", "an edge that sets the id is believed");
-    process.env["VALOPAY_EDGE_REQUEST_ID"] = "on";
+    process.env["VALO_PAY_1_EDGE_REQUEST_ID"] = "on";
     try {
       const kept = await drain(await get("/api/healthz", "192.0.2.11", { "X-Request-Id": "edge-0123456789" }));
-      assert.equal(kept.headers.get("x-request-id"), "edge-0123456789", "with VALOPAY_EDGE_REQUEST_ID=on the edge's id is kept");
-    } finally { delete process.env["VALOPAY_EDGE_REQUEST_ID"]; }
+      assert.equal(kept.headers.get("x-request-id"), "edge-0123456789", "with VALO_PAY_1_EDGE_REQUEST_ID=on the edge's id is kept");
+    } finally { delete process.env["VALO_PAY_1_EDGE_REQUEST_ID"]; }
     checks += 5;
   });
 
@@ -126,7 +127,7 @@ try {
     });
     backend.listen(0, "127.0.0.1");
     await once(backend, "listening");
-    Object.assign(process.env, { CLERK_SECRET_KEY: "sk_test_placeholder", CLERK_PUBLISHABLE_KEY: `pk_test_${Buffer.from("clerk.example.test$").toString("base64")}`, CLERK_API_URL: `http://127.0.0.1:${(backend.address() as { port: number }).port}`, VALOPAY_APP_ORIGINS: "https://pilot.example" });
+    Object.assign(process.env, { CLERK_SECRET_KEY: "sk_test_placeholder", CLERK_PUBLISHABLE_KEY: `pk_test_${Buffer.from("clerk.example.test$").toString("base64")}`, CLERK_API_URL: `http://127.0.0.1:${(backend.address() as { port: number }).port}`, VALO_PAY_1_APP_ORIGINS: "https://pilot.example" });
     const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString("base64url");
     const now = Math.floor(Date.now() / 1000);
     const forged = () => ({ Authorization: `Bearer ${encode({ alg: "RS256", typ: "JWT", kid: `ins_${randomBytes(8).toString("hex")}` })}.${encode({ sub: "user_forged", sid: "sess_forged", azp: "https://pilot.example", iat: now - 5, nbf: now - 5, exp: now + 600 })}.${randomBytes(256).toString("base64url")}` });
@@ -143,7 +144,7 @@ try {
       assert.equal((await drain(await get("/api/v1/nowhere", "192.0.2.50", forged()))).status, 404);
       assert.equal(fetched, 1, "with CLERK_JWT_KEY a session is verified here, with no call to the Backend API");
     } finally {
-      delete process.env["CLERK_API_URL"]; delete process.env["CLERK_JWT_KEY"]; delete process.env["VALOPAY_APP_ORIGINS"];
+      delete process.env["CLERK_API_URL"]; delete process.env["CLERK_JWT_KEY"]; delete process.env["VALO_PAY_1_APP_ORIGINS"];
       backend.close();
     }
     checks += 13;
@@ -158,12 +159,12 @@ try {
   };
   Object.assign(process.env, {
     CLERK_SECRET_KEY: "sk_test_placeholder", CLERK_PUBLISHABLE_KEY: `pk_test_${Buffer.from("clerk.example.test$").toString("base64")}`,
-    CLERK_JWT_KEY: publicKey.export({ type: "spki", format: "pem" }).toString(), VALOPAY_APP_ORIGINS: "https://pilot.example",
+    CLERK_JWT_KEY: publicKey.export({ type: "spki", format: "pem" }).toString(), VALO_PAY_1_APP_ORIGINS: "https://pilot.example",
   });
   await section("Clerk sessions: configured origins and a quota per person", async () => {
     const session = (sub: string, azp: string) => ({ Authorization: `Bearer ${signed({ sub, sid: `sess_${sub}`, azp })}` });
     const foreign = await drain(await get("/api/v1/workspace", "192.0.2.20", session("user_foreign", "https://evil.example")));
-    assert.match(foreign.headers.get("set-cookie") ?? "", /valopay_sandbox=/, "a session minted for another origin is not accepted outside staff mode: the request is anonymous");
+    assert.match(foreign.headers.get("set-cookie") ?? "", new RegExp(String.raw`${SANDBOX_COOKIE}=`), "a session minted for another origin is not accepted outside staff mode: the request is anonymous");
     const own = await drain(await get("/api/v1/workspace", "192.0.2.20", session("user_pilot", "https://pilot.example")));
     assert.equal(own.status, 503);
     assert.equal(own.headers.get("set-cookie"), null, "a session for the configured origin is signed in: no sandbox cookie");
@@ -177,15 +178,15 @@ try {
 
   await section("a staff host without Clerk refuses, and still answers health", async () => {
     const savedKey = process.env["CLERK_SECRET_KEY"];
-    Object.assign(process.env, { VALOPAY_STAFF_ACCESS: "staging", VALOPAY_STAFF_ORIGINS: "https://pilot.example" });
+    Object.assign(process.env, { VALO_PAY_1_STAFF_ACCESS: "staging", VALO_PAY_1_STAFF_ORIGINS: "https://pilot.example" });
     delete process.env["CLERK_SECRET_KEY"];
     try {
       const refused = await get("/api/v1/workspace", "192.0.2.30");
-      assert.deepEqual([refused.status, ((await refused.json()) as { error: string }).error], [503, "Team member sign-in is not set up at this address. Contact the Valo Pay team."]);
+      assert.deepEqual([refused.status, ((await refused.json()) as { error: string }).error], [503, "Team member sign-in is not set up at this address. Contact the Valo Pay 1 team."]);
       assert.equal((await drain(await get("/api/healthz", "192.0.2.30"))).status, 200);
     } finally {
       process.env["CLERK_SECRET_KEY"] = savedKey;
-      delete process.env["VALOPAY_STAFF_ACCESS"]; delete process.env["VALOPAY_STAFF_ORIGINS"];
+      delete process.env["VALO_PAY_1_STAFF_ACCESS"]; delete process.env["VALO_PAY_1_STAFF_ORIGINS"];
     }
     checks += 2;
   });
@@ -196,22 +197,22 @@ try {
     const cookies = async (headers: Record<string, string>) => { const response = await drain(await get("/api/v1/workspace", "192.0.2.40", headers)); return { status: response.status, set: response.headers.getSetCookie() }; };
     const fresh = await cookies({ "X-Forwarded-Proto": "https" });
     assert.equal(fresh.set.length, 1);
-    assert.match(fresh.set[0]!, /^__Host-valopay_sandbox=[a-f0-9]{64}; Max-Age=2592000; Path=\/; Expires=[^;]+; HttpOnly; Secure; SameSite=Lax$/, "on HTTPS the cookie is __Host-: Secure, Path=/, no Domain");
-    const moved = await cookies({ "X-Forwarded-Proto": "https", Cookie: `valopay_sandbox=${token("a")}` });
-    assert.match(moved.set[0]!, /^__Host-valopay_sandbox=[a-f0-9]{64};/);
+    assert.match(fresh.set[0]!, new RegExp(`^${HOST_SANDBOX_COOKIE}=[a-f0-9]{64}; Max-Age=2592000; Path=/; Expires=[^;]+; HttpOnly; Secure; SameSite=Lax$`), "on HTTPS the cookie is __Host-: Secure, Path=/, no Domain");
+    const moved = await cookies({ "X-Forwarded-Proto": "https", Cookie: `${SANDBOX_COOKIE}=${token("a")}` });
+    assert.match(moved.set[0]!, new RegExp(String.raw`^${HOST_SANDBOX_COOKIE}=[a-f0-9]{64};`));
     assert.doesNotMatch(moved.set[0]!, new RegExp(token("a")), "a cookie planted under the plain name cannot select a fresh HTTPS visitor's sandbox");
-    assert.match(moved.set[1] ?? "", /^valopay_sandbox=; Path=\/; Expires=Thu, 01 Jan 1970 00:00:00 GMT;/, "and the plain cookie is cleared");
+    assert.match(moved.set[1] ?? "", new RegExp(`^${SANDBOX_COOKIE}=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT;`), "and the plain cookie is cleared");
     const legacy = await cookies({ Cookie: `valo_sandbox=${token("b")}` });
-    assert.match(legacy.set[0]!, /^valopay_sandbox=[a-f0-9]{64};/);
+    assert.match(legacy.set[0]!, new RegExp(String.raw`^${SANDBOX_COOKIE}=[a-f0-9]{64};`));
     assert.doesNotMatch(legacy.set[0]!, new RegExp(token("b")), "the retired name cannot select a sandbox on HTTP either");
     assert.match(legacy.set[1] ?? "", /^valo_sandbox=; Path=\/; Expires=Thu, 01 Jan 1970/, "and the legacy cookie is cleared");
-    const planted = await get("/api/v1/workspace", "192.0.2.40", { Cookie: `valopay_sandbox=${token("c")}; valopay_sandbox=${token("d")}` });
+    const planted = await get("/api/v1/workspace", "192.0.2.40", { Cookie: `${SANDBOX_COOKIE}=${token("c")}; ${SANDBOX_COOKIE}=${token("d")}` });
     assert.equal(planted.status, 400, "two different tokens under one name are refused, not guessed between");
     assert.match(((await planted.json()) as { error: string }).error, /two different sandbox cookies/);
     assert.equal(planted.headers.get("set-cookie"), null, "and nothing is issued");
-    const hostWins = await cookies({ "X-Forwarded-Proto": "https", Cookie: `valopay_sandbox=${token("e")}; __Host-valopay_sandbox=${token("f")}` });
-    assert.match(hostWins.set[0]!, new RegExp(`^__Host-valopay_sandbox=${token("f")};`), "the __Host- cookie, which only this host can set, wins over a plain one beside it");
-    assert.match(hostWins.set[1] ?? "", /^valopay_sandbox=;/, "which is cleared");
+    const hostWins = await cookies({ "X-Forwarded-Proto": "https", Cookie: `${SANDBOX_COOKIE}=${token("e")}; ${HOST_SANDBOX_COOKIE}=${token("f")}` });
+    assert.match(hostWins.set[0]!, new RegExp(`^${HOST_SANDBOX_COOKIE}=${token("f")};`), "the __Host- cookie, which only this host can set, wins over a plain one beside it");
+    assert.match(hostWins.set[1] ?? "", new RegExp(String.raw`^${SANDBOX_COOKIE}=;`), "which is cleared");
     checks += 11;
   });
   process.env["CLERK_SECRET_KEY"] = "sk_test_placeholder";
@@ -241,23 +242,23 @@ try {
     const proxied = `http://127.0.0.1:${(proxyServer.address() as { port: number }).port}${CLERK_PROXY_PATH}/v1/client/sign_ins`;
     const send = async (headers: Record<string, string>) => { const before = captured.length; const response = await fetch(proxied, { method: "POST", headers }).catch(() => undefined); await sleep(300); return { response, sent: captured.slice(before) }; };
     try {
-      process.env["VALOPAY_APP_ORIGINS"] = "https://pilot.example,https://valopay.example";
-      const { sent } = await send({ "X-Forwarded-For": "6.6.6.6, 198.51.100.20", "X-Forwarded-Host": "attacker.example, valopay.example", "X-Forwarded-Proto": "http", "X-Real-IP": "6.6.6.6" });
+      process.env["VALO_PAY_1_APP_ORIGINS"] = "https://pilot.example,https://valo-pay-1.example";
+      const { sent } = await send({ "X-Forwarded-For": "6.6.6.6, 198.51.100.20", "X-Forwarded-Host": "attacker.example, valo-pay-1.example", "X-Forwarded-Proto": "http", "X-Real-IP": "6.6.6.6" });
       assert.equal(sent.length, 1, "the request reached Clerk's address (captured, never sent)");
       assert.equal(sent[0]!["x-forwarded-for"], "198.51.100.20", "Clerk sees the address the edge saw, not the client's leftmost entry");
-      assert.equal(sent[0]!["clerk-proxy-url"], "https://valopay.example/api/__clerk", "the proxy URL is the configured origin the request's host names");
-      assert.equal(sent[0]!["x-forwarded-host"], "valopay.example");
+      assert.equal(sent[0]!["clerk-proxy-url"], "https://valo-pay-1.example/api/__clerk", "the proxy URL is the configured origin the request's host names");
+      assert.equal(sent[0]!["x-forwarded-host"], "valo-pay-1.example");
       assert.equal(sent[0]!["x-forwarded-proto"], "https", "and its scheme, never the client's");
       assert.equal(sent[0]!["x-real-ip"], undefined);
       assert.ok(sent[0]!["clerk-secret-key"], "with the secret key, as before");
       const unknown = await send({ "X-Forwarded-For": "198.51.100.21", "X-Forwarded-Host": "attacker.example" });
       assert.equal(unknown.sent[0]!["clerk-proxy-url"], "https://pilot.example/api/__clerk", "a host that is not configured gets the first configured origin");
       // The sandbox cookie is this API's bearer token: Clerk gets its own cookies and none of the sandbox's (the review of b9b10ef, finding 5).
-      const cookies = await send({ "X-Forwarded-For": "198.51.100.23", Cookie: `__client_uat=0; __Host-valopay_sandbox=${token("a")}; valopay_sandbox=${token("b")}; valo_sandbox=${token("c")}; __session=clerk-session` });
+      const cookies = await send({ "X-Forwarded-For": "198.51.100.23", Cookie: `__client_uat=0; ${HOST_SANDBOX_COOKIE}=${token("a")}; ${SANDBOX_COOKIE}=${token("b")}; valo_sandbox=${token("c")}; __session=clerk-session` });
       assert.equal(cookies.sent[0]!["cookie"], "__client_uat=0; __session=clerk-session", "the sandbox cookies are not forwarded, Clerk's are");
-      const sandboxOnly = await send({ "X-Forwarded-For": "198.51.100.24", Cookie: `__Host-valopay_sandbox=${token("a")}` });
+      const sandboxOnly = await send({ "X-Forwarded-For": "198.51.100.24", Cookie: `${HOST_SANDBOX_COOKIE}=${token("a")}` });
       assert.deepEqual([sandboxOnly.sent.length, sandboxOnly.sent[0]!["cookie"]], [1, undefined], "a request with only a sandbox cookie reaches Clerk with no Cookie header");
-      delete process.env["VALOPAY_APP_ORIGINS"];
+      delete process.env["VALO_PAY_1_APP_ORIGINS"];
       const off = await send({ "X-Forwarded-For": "198.51.100.22" });
       assert.deepEqual([off.response?.status, off.sent.length], [503, 0], "with no origin configured nothing is proxied");
     } finally {
@@ -276,44 +277,44 @@ try {
       catch (error) { if (error instanceof InvalidConfiguration) return error.problems; throw error; }
     };
     const live = `pk_live_${Buffer.from("clerk.pilot.example$").toString("base64").replace(/=+$/, "")}`;
-    Object.assign(process.env, { VALOPAY_APP_ORIGINS: "https://pilot.example,https://valopay.example", CLERK_PUBLISHABLE_KEY: live });
+    Object.assign(process.env, { VALO_PAY_1_APP_ORIGINS: "https://pilot.example,https://valo-pay-1.example", CLERK_PUBLISHABLE_KEY: live });
     const frontend = (key: string) => Buffer.from(key.split("_")[2]!, "base64").toString();
     const options = clerkOptions({ headers: { "x-forwarded-host": "attacker.example", host: "attacker.example" } });
-    assert.deepEqual(options.authorizedParties, ["https://pilot.example", "https://valopay.example"], "authorizedParties are set outside staff mode");
+    assert.deepEqual(options.authorizedParties, ["https://pilot.example", "https://valo-pay-1.example"], "authorizedParties are set outside staff mode");
     assert.equal(frontend(options.publishableKey), "clerk.pilot.example$", "the key is derived for a configured host, never the one a client names");
-    assert.equal(frontend(clerkOptions({ headers: { "x-forwarded-host": "attacker.example, valopay.example" } }).publishableKey), "clerk.valopay.example$");
-    Object.assign(process.env, { VALOPAY_STAFF_ACCESS: "staging", VALOPAY_STAFF_ORIGINS: "https://staff.example" });
+    assert.equal(frontend(clerkOptions({ headers: { "x-forwarded-host": "attacker.example, valo-pay-1.example" } }).publishableKey), "clerk.valo-pay-1.example$");
+    Object.assign(process.env, { VALO_PAY_1_STAFF_ACCESS: "staging", VALO_PAY_1_STAFF_ORIGINS: "https://staff.example" });
     assert.deepEqual(clerkOptions({ headers: {} }).authorizedParties, ["https://staff.example"], "in staff mode the staff policy's origins");
     delete process.env["CLERK_SECRET_KEY"];
     // A staff host needs Clerk's secret key and its JWT public key, a value Clerk can read (the review of 4edd897,
     // finding 2): without the key, forged tokens make Clerk fetch the instance's keys, and with one Clerk cannot read,
     // every staff request would be answered 401 while the host read as ready.
-    const staffHost = { VALOPAY_STAFF_ACCESS: "staging", VALOPAY_STAFF_ISSUER: "https://clerk.pilot.example", VALOPAY_STAFF_ORIGINS: "https://staff.example" };
+    const staffHost = { VALO_PAY_1_STAFF_ACCESS: "staging", VALO_PAY_1_STAFF_ISSUER: "https://clerk.pilot.example", VALO_PAY_1_STAFF_ORIGINS: "https://staff.example" };
     const jwtKey = publicKey.export({ type: "spki", format: "pem" }).toString();
     assert.deepEqual(refused(staffHost), [secretKeyRequired, jwtKeyRequired], "a staff host without Clerk must not start");
     assert.deepEqual(refused({ ...staffHost, CLERK_SECRET_KEY: "sk_test_placeholder" }), [jwtKeyRequired], "nor with the secret key alone");
     assert.deepEqual(refused({ ...staffHost, CLERK_SECRET_KEY: "sk_test_placeholder", CLERK_JWT_KEY: jwtKey.trim().replaceAll("\n", "\\n") }), [jwtKeyEscaped], "nor with the JWT key pasted on one line with \\n escapes");
     assert.deepEqual(refused({ ...staffHost, CLERK_SECRET_KEY: "sk_test_placeholder", CLERK_JWT_KEY: jwtKey }), [], "and with both it starts");
-    assert.deepEqual(refused({ CLERK_SECRET_KEY: "sk_test_placeholder", VALOPAY_APP_ORIGINS: "https://pilot.example" }), [], "outside staff mode the JWT key may be left unset");
-    assert.deepEqual(refused({ CLERK_SECRET_KEY: "sk_test_placeholder", VALOPAY_APP_ORIGINS: "https://pilot.example", CLERK_JWT_KEY: jwtKey.trim().replaceAll("\n", "\\n") }), [jwtKeyEscaped], "but one given must be one Clerk can read");
-    delete process.env["VALOPAY_STAFF_ACCESS"]; delete process.env["VALOPAY_STAFF_ORIGINS"];
+    assert.deepEqual(refused({ CLERK_SECRET_KEY: "sk_test_placeholder", VALO_PAY_1_APP_ORIGINS: "https://pilot.example" }), [], "outside staff mode the JWT key may be left unset");
+    assert.deepEqual(refused({ CLERK_SECRET_KEY: "sk_test_placeholder", VALO_PAY_1_APP_ORIGINS: "https://pilot.example", CLERK_JWT_KEY: jwtKey.trim().replaceAll("\n", "\\n") }), [jwtKeyEscaped], "but one given must be one Clerk can read");
+    delete process.env["VALO_PAY_1_STAFF_ACCESS"]; delete process.env["VALO_PAY_1_STAFF_ORIGINS"];
     assert.deepEqual([signInConfiguration(), signInEnabled()], [{}, false], "without Clerk the sandbox runs anonymously, which is fine");
     process.env["CLERK_SECRET_KEY"] = "sk_test_placeholder";
-    process.env["VALOPAY_APP_ORIGINS"] = "pilot.example";
-    assert.deepEqual(refused({ CLERK_SECRET_KEY: "sk_test_placeholder", VALOPAY_APP_ORIGINS: "pilot.example" }), ["VALOPAY_APP_ORIGINS must list HTTPS origins, separated by commas, such as https://valopay.example."], "a malformed origin list stops start-up");
+    process.env["VALO_PAY_1_APP_ORIGINS"] = "pilot.example";
+    assert.deepEqual(refused({ CLERK_SECRET_KEY: "sk_test_placeholder", VALO_PAY_1_APP_ORIGINS: "pilot.example" }), ["VALO_PAY_1_APP_ORIGINS must list HTTPS origins, separated by commas, such as https://valo-pay-1.example."], "a malformed origin list stops start-up");
     assert.throws(appOrigins, (error: { status?: number }) => error.status === 503, "and a request is refused, not served without the check");
-    delete process.env["VALOPAY_APP_ORIGINS"];
+    delete process.env["VALO_PAY_1_APP_ORIGINS"];
     assert.match(signInConfiguration().warning ?? "", /sign-in is off/, "Clerk with no origin to accept sessions from runs with sign-in off");
     assert.equal(signInEnabled(), false);
-    process.env["REPLIT_DOMAINS"] = "valopay.replit.app,Valopay.example";
-    assert.deepEqual([appOrigins(), signInEnabled(), signInConfiguration()], [["https://valopay.replit.app", "https://valopay.example"], true, {}], "on Replit the deployment's domains serve when nothing else is configured");
+    process.env["REPLIT_DOMAINS"] = "demo.valo-pay-1.example,Valo-Pay-1.example";
+    assert.deepEqual([appOrigins(), signInEnabled(), signInConfiguration()], [["https://demo.valo-pay-1.example", "https://valo-pay-1.example"], true, {}], "in local development the provider's domains serve when nothing else is configured");
     delete process.env["REPLIT_DOMAINS"];
     checks += 17;
   });
 
   // ---- Operations item 4: in staff mode a missing CLERK_SECRET_KEY, or a JWT key Clerk cannot read, stops startup with one fatal line ----
   await section("a staff host without Clerk does not start", () => {
-    const env: Record<string, string | undefined> = { ...process.env, NODE_ENV: "test", LOG_LEVEL: "info", PORT: "39217", VALOPAY_STAFF_ACCESS: "staging", VALOPAY_STAFF_ISSUER: "https://clerk.pilot.example", VALOPAY_STAFF_ORIGINS: "https://pilot.example", VALOPAY_CLOSE_SCHEDULER: "off", LOG_FILE: undefined, LOG_FORMAT: undefined };
+    const env: Record<string, string | undefined> = { ...process.env, NODE_ENV: "test", LOG_LEVEL: "info", PORT: "39217", VALO_PAY_1_STAFF_ACCESS: "staging", VALO_PAY_1_STAFF_ISSUER: "https://clerk.pilot.example", VALO_PAY_1_STAFF_ORIGINS: "https://pilot.example", VALO_PAY_1_CLOSE_SCHEDULER: "off", LOG_FILE: undefined, LOG_FORMAT: undefined };
     delete env["CLERK_SECRET_KEY"];
     env["CLERK_JWT_KEY"] = publicKey.export({ type: "spki", format: "pem" }).toString().trim().replaceAll("\n", "\\n");
     const tsx = join(import.meta.dirname, "..", "..", "..", "scripts", "node_modules", "tsx", "dist", "cli.mjs");
@@ -389,7 +390,7 @@ await section("new sandboxes per network, per /48 and per process", async () => 
   assert.deepEqual([many.filter((r) => r === undefined).length, firsts.take("2001:db8:10::1", 1)], [301, "instance"], "301 networks' first sandboxes all start, and with 300 counted a network's second is refused");
   assert.equal(firsts.take("2001:db8:10::1", 3_600_000), undefined, "the next hour starts afresh");
   assert.match(creationRefusalMessage("network"), /your network/);
-  assert.match(creationRefusalMessage("instance"), /started on Valo Pay in the last hour/);
+  assert.match(creationRefusalMessage("instance"), /started on Valo Pay 1 in the last hour/);
   const ipv4 = createSandboxCreationLimits();
   assert.equal(Array.from({ length: 21 }, () => ipv4.take("198.51.100.7", 0)).filter((r) => r === undefined).length, 20, "an IPv4 address keeps its 20");
   checks += 11;
@@ -410,9 +411,9 @@ await section("request limits per principal and per network", async () => {
   };
   const known = token("1"), unknown = token("2");
   sandboxes.add(sandboxPrincipal(known));
-  assert.deepEqual(Array.from({ length: 4 }, () => through(limits.principal, `valopay_sandbox=${known}`)), [200, 200, 200, 429], "a sandbox this process has served has its own quota");
+  assert.deepEqual(Array.from({ length: 4 }, () => through(limits.principal, `${SANDBOX_COOKIE}=${known}`)), [200, 200, 200, 429], "a sandbox this process has served has its own quota");
   assert.deepEqual(Array.from({ length: 4 }, () => through(limits.principal)), [200, 200, 200, 429], "a request with no principal counts as its network");
-  assert.equal(through(limits.principal, `valopay_sandbox=${unknown}`), 429, "an invented cookie is only a claim: it counts as the network too");
+  assert.equal(through(limits.principal, `${SANDBOX_COOKIE}=${unknown}`), 429, "an invented cookie is only a claim: it counts as the network too");
   assert.deepEqual(warned, [{ event: "request.refused", reason: "rate_limit", limit: "principal" }, { event: "request.refused", reason: "rate_limit", limit: "principal" }], "one warning per key and window");
   const ceiling = Array.from({ length: 13 }, (_, i) => through(limits.network, undefined, `2001:db8:44:1::${i + 10}`));
   assert.deepEqual([ceiling.filter((s) => s === 200).length, ceiling.at(-1)], [12, 429], "the network's ceiling holds whatever principals it rotates");
@@ -443,9 +444,9 @@ await section("readiness reused for a second, its warning once per check", async
 await section("legacy sandbox cookies never select a principal", async () => {
   const { readSandboxCookie } = await import("../src/lib/sandbox-cookie.js");
   const header = `valo_sandbox=${token("7")}; valopay_sandbox=${token("8")}`;
-  assert.deepEqual(readSandboxCookie(header, true), { name: "__Host-valopay_sandbox", stale: ["valopay_sandbox", "valo_sandbox"] }, "old names are ignored immediately, without a migration window");
-  assert.deepEqual(readSandboxCookie(`valopay_sandbox=${token("7")}; valopay_sandbox=${token("8")}`, true), { name: "__Host-valopay_sandbox", stale: ["valopay_sandbox"] }, "conflicting planted old cookies cannot prevent a new host cookie from being issued");
-  assert.deepEqual(readSandboxCookie(`valopay_sandbox=not-a-token; valopay_sandbox=${token("9")}`, false), { name: "valopay_sandbox", token: token("9"), stale: [] }, "a value that is not a token names no sandbox, so it is no conflict");
+  assert.deepEqual(readSandboxCookie(header, true), { name: HOST_SANDBOX_COOKIE, stale: ["valopay_sandbox", "valo_sandbox"] }, "old names are ignored immediately, without a migration window");
+  assert.deepEqual(readSandboxCookie(`valopay_sandbox=${token("7")}; valopay_sandbox=${token("8")}`, true), { name: HOST_SANDBOX_COOKIE, stale: ["valopay_sandbox"] }, "conflicting planted old cookies cannot prevent a new host cookie from being issued");
+  assert.deepEqual(readSandboxCookie(`${SANDBOX_COOKIE}=not-a-token; ${SANDBOX_COOKIE}=${token("9")}`, false), { name: SANDBOX_COOKIE, token: token("9"), stale: [] }, "a value that is not a token names no sandbox, so it is no conflict");
   checks += 3;
 });
 

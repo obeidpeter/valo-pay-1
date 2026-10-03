@@ -1,21 +1,22 @@
+import { SANDBOX_COOKIE } from "../src/lib/sandbox-cookie";
 import assert from "node:assert/strict";
 import { randomBytes, randomUUID } from "node:crypto";
 import { performance } from "node:perf_hooks";
 import type { Server } from "node:http";
 import { workflowFixture, WORKFLOW_NOW } from "./workflow-fixture";
 
-if (process.env.VALOPAY_RUN_INTEGRATION !== "1") {
-  console.log("Set VALOPAY_RUN_INTEGRATION=1 for complete-workflow database measurements.");
+if (process.env.VALO_PAY_1_RUN_INTEGRATION !== "1") {
+  console.log("Set VALO_PAY_1_RUN_INTEGRATION=1 for complete-workflow database measurements.");
   process.exit(0);
 }
-const { pool } = await import("@workspace/db");
-const { inWorkspace, listMerchants, loadState, assertFinalState, digest } = await import("../src/lib/valopay-store");
+const { pool } = await import("@workspace/valo-pay-1-db");
+const { inWorkspace, listMerchants, loadState, assertFinalState, digest } = await import("../src/lib/valo-pay-1-store");
 const { verifyAuditChain } = await import("../src/lib/digests");
-const { buildExportBytes } = await import("../src/lib/valopay-exports");
+const { buildExportBytes } = await import("../src/lib/valo-pay-1-exports");
 const { default: express } = await import("express");
-const { default: router } = await import("../src/routes/valopay");
+const { default: router } = await import("../src/routes/valo-pay-1");
 const token = randomBytes(32).toString("hex");
-const req = () => ({ headers: { cookie: `valopay_sandbox=${token}` }, secure: false, auth: Object.assign(() => ({ userId: null }), { [Symbol.for("@clerk/express.auth")]: true }) }) as any;
+const req = () => ({ headers: { cookie: `${SANDBOX_COOKIE}=${token}` }, secure: false, auth: Object.assign(() => ({ userId: null }), { [Symbol.for("@clerk/express.auth")]: true }) }) as any;
 const res = () => ({ cookie() {} }) as any;
 let server: Server | undefined;
 try {
@@ -53,7 +54,7 @@ try {
   const endpoint = `http://127.0.0.1:${address.port}/api/v1/actions`;
   const results: Record<string, unknown>[] = [];
   for (const [index, merchant] of merchants.entries()) {
-    const invoke = () => fetch(`${endpoint}?merchantId=${merchant.id}`, { method: "POST", headers: { Cookie: `valopay_sandbox=${token}`, "Content-Type": "application/json", "Idempotency-Key": `workflow-${merchant.id}` }, body: JSON.stringify({ action: index === 0 ? "daily_close" : "run_reconciliation" }) });
+    const invoke = () => fetch(`${endpoint}?merchantId=${merchant.id}`, { method: "POST", headers: { Cookie: `${SANDBOX_COOKIE}=${token}`, "Content-Type": "application/json", "Idempotency-Key": `workflow-${merchant.id}` }, body: JSON.stringify({ action: index === 0 ? "daily_close" : "run_reconciliation" }) });
     const started = performance.now();
     const response = await invoke(), result = await response.json() as any;
     assert.equal(response.status, 200, JSON.stringify(result));

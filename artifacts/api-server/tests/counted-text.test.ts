@@ -3,7 +3,7 @@
 // "1 source rows still need correction" (23 September 2026 audit, item 9).
 import assert from "node:assert/strict";
 import { ctxAt, liveFixture, wat } from "./helpers.js";
-import { seedMerchant } from "../src/lib/valopay-seed.js";
+import { seedMerchant } from "../src/lib/valo-pay-1-seed.js";
 import { makeRecord, recordsOf } from "../src/domain/records.js";
 import { executeAction } from "../src/domain/actions.js";
 import { saveSourceProfile, batchSourceQuality } from "../src/domain/source-quality.js";
@@ -11,7 +11,7 @@ import { saveImportBatch } from "../src/domain/pilot-workflow.js";
 import { closeReviewIssues, pilotProgress } from "../src/domain/close-review.js";
 import { evaluateRetry, policySummary } from "../src/domain/policy-engine.js";
 import { buildReports } from "../src/domain/reports.js";
-import { buildDisputePack } from "../src/lib/valopay-packs.js";
+import { buildDisputePack } from "../src/lib/valo-pay-1-packs.js";
 import { assessCredit, createSyntheticCreditInput, type CreditContext } from "../src/domain/connected-credit.js";
 import { consolidateCashPositions, type CashAccount } from "../src/domain/connected-cash.js";
 

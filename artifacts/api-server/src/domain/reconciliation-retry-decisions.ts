@@ -2,7 +2,7 @@
 import { type DomainState, type Context, type TypedRecord } from "./types";
 import { enrolEligibleFailures, approvedPolicyFor, evaluateRetry, recordRetryDecision } from "./policy-engine";
 import { recordsOf, touch } from "./records";
-import { type ExceptionType, instantText, nairaText, isOpenException, optionText } from "@workspace/valopay-schema";
+import { type ExceptionType, instantText, nairaText, isOpenException, optionText } from "@workspace/valo-pay-1-schema";
 import { raiseException } from "./reconciliation-exceptions";
 import { outstanding, UNKNOWN_OUTCOME_AGE_MS, identityCondition } from "./reconciliation-values";
 

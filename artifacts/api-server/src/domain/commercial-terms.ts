@@ -1,4 +1,4 @@
-import { DESIGN_PARTNER_DISCOUNT, demoRolesNote, discountDateProblem, discountProposedBy, discountTermsStatus, type DiscountConfirmationData } from '@workspace/valopay-schema';
+import { DESIGN_PARTNER_DISCOUNT, demoRolesNote, discountDateProblem, discountProposedBy, discountTermsStatus, type DiscountConfirmationData } from '@workspace/valo-pay-1-schema';
 import { touch } from './records';
 import type { Context, TypedRecord } from './types';
 

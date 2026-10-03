@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.json",
+  "include": ["src/**/*", "tests/**/*", "e2e/**/*", "playwright*.config.ts"],
+  "exclude": ["node_modules", "build", "dist"],
+  "compilerOptions": {
+    "noEmit": true,
+    "tsBuildInfoFile": "tests.tsbuildinfo",
+    "types": ["node", "vite/client"]
+  },
+  "references": [
+    { "path": "../../lib/api-client-react" },
+    { "path": "../../lib/valo-pay-1-schema" },
+    { "path": "../../lib/api-zod" }
+  ]
+}

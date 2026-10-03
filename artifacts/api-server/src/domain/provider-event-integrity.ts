@@ -1,4 +1,4 @@
-import { sameJson } from '@workspace/valopay-schema';
+import { sameJson } from '@workspace/valo-pay-1-schema';
 import type { ValopayRecord } from './types';
 
 /** An entry the saved-event verification recorded after asking Paystack; a replay's entry has no kind. */

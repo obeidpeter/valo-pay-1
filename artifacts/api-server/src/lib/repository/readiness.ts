@@ -1,11 +1,35 @@
-/** Internal repository readiness. Import through valopay-store; external access is rejected by the boundary check. */
-import * as tables from "@workspace/db/schema";
+/** Internal repository readiness. Import through valo-pay-1-store; external access is rejected by the boundary check. */
+import * as tables from "@workspace/valo-pay-1-db/schema";
 import { getTableConfig } from "drizzle-orm/pg-core";
 import {
   runtimeIsolationConfiguration,
   runtimeIsolationEnabled,
 } from "../runtime-isolation";
-import { pool, Pool } from "@workspace/db";
+import { pool, Pool, type PoolClient } from "@workspace/valo-pay-1-db";
+import { assertObservedDatabaseIdentity, assertOperatorConfiguration, readResourceBindings, type DatabaseIdentityObservation } from "../product-identity";
+
+/** Before listening or starting any worker, observe the connected target without changing any data. */
+export async function verifyProductDatabaseBinding(): Promise<void> {
+  assertOperatorConfiguration();
+  const binding = readResourceBindings(process.env);
+  if (!binding) return; // Pure/local tests use no deployed resource binding.
+  let client: PoolClient | undefined;
+  try {
+    client = await pool.connect();
+    await client.query("BEGIN READ ONLY");
+    await client.query("SET LOCAL statement_timeout = '5s'");
+    const observation = await client.query<DatabaseIdentityObservation>({
+      text: "SELECT current_database() AS database,current_user AS \"user\",current_schema() AS schema,to_regnamespace($1) IS NOT NULL AS bound_schema_exists",
+      values: [binding.database.schema],
+    });
+    assertObservedDatabaseIdentity(binding, observation.rows[0]);
+  } catch {
+    // Connection/query failures can include connection details. Never echo them in the binding refusal.
+    throw new Error("The connected database could not verify the reviewed Valo Pay 1 resource binding. No server or worker was started.");
+  } finally {
+    if (client) { await client.query("ROLLBACK").catch(() => undefined); client.release(); }
+  }
+}
 
 export type SchemaCatalogue = {
   columns: Array<{ table: string; column: string }>;

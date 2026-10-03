@@ -42,15 +42,15 @@ To inspect an existing test mandate without creating or charging one:
 pnpm run check:paystack --mandate-reference TEST_MANDATE_REFERENCE
 ```
 
-A `--` before the options is skipped, since pnpm passes one on to the script where npm would not. The checker prints only safe check results and states. It never prints the secret, transaction reference, amount, customer details, authorisation code or full provider response. `webhookIngestion` (`disabled`, `test_only` or `misconfigured`) and `mappedConnections` (a count, never the IDs) report the ingress setting of the process the check runs in, so run it with the API's environment to see what the API would do. Exit 0 means the requested read checks succeeded; it does not mark the Valo Pay integration connected. Missing or rejected credentials and failed/mismatched checks exit 1.
+A `--` before the options is skipped, since pnpm passes one on to the script where npm would not. The checker prints only safe check results and states. It never prints the secret, transaction reference, amount, customer details, authorisation code or full provider response. `webhookIngestion` (`disabled`, `test_only` or `misconfigured`) and `mappedConnections` (a count, never the IDs) report the ingress setting of the process the check runs in, so run it with the API's environment to see what the API would do. Exit 0 means the requested read checks succeeded; it does not mark the Valo Pay 1 integration connected. Missing or rejected credentials and failed/mismatched checks exit 1.
 
 ## Signed test ingress
 
 The API can save Paystack test events for a synthetic lender. The address is `POST /api/v1/providers/paystack/{connectionId}/events`, and it is off unless the API's environment has all three settings:
 
-- `VALOPAY_PAYSTACK_INGRESS=test` turns it on. Unset or any other value answers 503.
+- `VALO_PAY_1_PAYSTACK_INGRESS=test` turns it on. Unset or any other value answers 503.
 - `PAYSTACK_TEST_SECRET_KEY` is the `sk_test_` key of the Paystack test account. The running API reads it only to check signatures, never to call Paystack.
-- `VALOPAY_PAYSTACK_CONNECTIONS` maps each connection ID to one existing workspace and lender: `{"<connection ID>":{"workspaceId":"<workspace ID>","merchantId":"<lender ID>"}}`. A connection ID is 64 lower-case hexadecimal characters; make one with `openssl rand -hex 32`.
+- `VALO_PAY_1_PAYSTACK_CONNECTIONS` maps each connection ID to one existing workspace and lender: `{"<connection ID>":{"workspaceId":"<workspace ID>","merchantId":"<lender ID>"}}`. A connection ID is 64 lower-case hexadecimal characters; make one with `openssl rand -hex 32`.
 
 The mapped lender must be in sandbox or observation mode with its kill switch on. In the Paystack dashboard, under Settings, API Keys & Webhooks, register `https://<API host>/api/v1/providers/paystack/<connection ID>/events` as the test-mode webhook URL.
 

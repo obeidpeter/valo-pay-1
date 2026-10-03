@@ -1,6 +1,6 @@
-/** Internal repository types. Import through valopay-store; external access is rejected by the boundary check. */
+/** Internal repository types. Import through valo-pay-1-store; external access is rejected by the boundary check. */
 import type { Context, DomainState, ValopayRecord } from "../../domain/types";
-import type { PoolClient } from "@workspace/db";
+import type { PoolClient } from "@workspace/valo-pay-1-db";
 import type { AuditVerification } from "../../domain/alerts";
 import type { AuditPoint } from "../digests";
 

@@ -3,11 +3,11 @@
 // check instead of passing silently; and the console suggests a field for a
 // recognisable column name.
 import assert from "node:assert/strict";
-import { importFieldsOf, suggestImportField } from "@workspace/valopay-schema";
-import { seedMerchant } from "../src/lib/valopay-seed";
-import { importCsv } from "../src/lib/valopay-import";
+import { importFieldsOf, suggestImportField } from "@workspace/valo-pay-1-schema";
+import { seedMerchant } from "../src/lib/valo-pay-1-seed";
+import { importCsv } from "../src/lib/valo-pay-1-import";
 import { saveImportBatch, commitImportBatch } from "../src/domain/pilot-workflow";
-import type { BatchInput } from "@workspace/valopay-schema";
+import type { BatchInput } from "@workspace/valo-pay-1-schema";
 
 const ctx = { actor: "Sandbox Admin", role: "Admin", now: "2026-09-23T10:00:00.000Z" };
 let checks = 0;

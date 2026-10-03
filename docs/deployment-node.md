@@ -26,8 +26,8 @@ Local verification (does not publish or modify database data):
 
     bash scripts/deployment-node.sh build node --version
     bash scripts/deployment-node.sh run node --version
-    bash scripts/deployment-node.sh build pnpm --filter @workspace/api-server run build
-    bash scripts/deployment-node.sh build pnpm --filter @workspace/valopay run build
+    bash scripts/deployment-node.sh build pnpm --filter @workspace/valo-pay-1-api-server run build
+    bash scripts/deployment-node.sh build pnpm --filter @workspace/valo-pay-1 run build
 
 The published image's build/start log and readiness check remain the final
 confirmation after user-coordinated publication. No schema commands are part

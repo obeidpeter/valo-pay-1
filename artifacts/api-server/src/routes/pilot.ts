@@ -25,7 +25,7 @@ import {
   staffChangeResultSchema,
   staffDirectorySchema,
   valopayRecordSchema,
-} from "@workspace/valopay-schema";
+} from "@workspace/valo-pay-1-schema";
 import {
   inWorkspace,
   loadState,
@@ -46,8 +46,8 @@ import {
   createPilotLender,
   revealImportPayloads,
   fail,
-} from "../lib/valopay-store";
-import { withState } from "./valopay";
+} from "../lib/valo-pay-1-store";
+import { withState } from "./valo-pay-1";
 import { contractAnswer, lenderPage, lenderQuery, replayedAnswer, requiredKey } from "../lib/contract";
 import {
   batchView,

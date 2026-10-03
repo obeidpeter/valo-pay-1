@@ -14,7 +14,7 @@ let issued = 0;
 nodeCrypto.randomUUID = () => `00000000-0000-4000-8000-${String(++issued).padStart(12, "0")}`;
 syncBuiltinESMExports();
 
-const { seedMerchant } = await import("../src/lib/valopay-seed.js");
+const { seedMerchant } = await import("../src/lib/valo-pay-1-seed.js");
 const { makeRecord } = await import("../src/domain/records.js");
 const { saveImportBatch, commitImportBatch } = await import("../src/domain/pilot-workflow.js");
 const { saveSourceManifest, sourceCompleteness } = await import("../src/domain/source-completeness.js");
@@ -26,7 +26,7 @@ const { decisionFingerprint } = await import("../src/domain/policy-engine.js");
 const { cashEvidenceHash } = await import("../src/domain/connected-cash.js");
 const { assessCredit, createSyntheticCreditInput } = await import("../src/domain/connected-credit.js");
 const { connectedRevision } = await import("../src/domain/connected.js");
-const { appendAudit, verifyAudit } = await import("../src/lib/valopay-store.js");
+const { appendAudit, verifyAudit } = await import("../src/lib/valo-pay-1-store.js");
 const { canonicalDigest, requestFingerprint } = await import("../src/lib/digests.js");
 
 const date = "2026-09-22";
@@ -142,7 +142,7 @@ appendAudit(state, finance, "golden.second", exception.id, "Golden second entry"
 values.auditChain = state.records.filter((record) => record.kind === "audit").map((record) => [record.data.changeDigest, record.data.hash]);
 assert.equal(verifyAudit(state).valid, true);
 
-/** Computed by the code at 9fdfb59 for this scenario (VALOPAY_GOLDEN_PRINT=1 prints the current values). */
+/** Computed by the code at 9fdfb59 for this scenario (VALO_PAY_1_GOLDEN_PRINT=1 prints the current values). */
 const golden = {
   "importRowFingerprints": [
     "bb03698a5789dc2185bc008fe0ecdb7b9c205f0418eccd0bd2d6b10e850cfa31",
@@ -212,7 +212,7 @@ const golden = {
   ]
 };
 
-if (process.env.VALOPAY_GOLDEN_PRINT === "1") {
+if (process.env.VALO_PAY_1_GOLDEN_PRINT === "1") {
   console.log(JSON.stringify(values, null, 2));
 } else {
   assert.deepEqual(values, golden);

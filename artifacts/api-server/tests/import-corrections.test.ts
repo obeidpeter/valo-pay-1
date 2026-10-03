@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { seedMerchant } from "../src/lib/valopay-seed";
+import { seedMerchant } from "../src/lib/valo-pay-1-seed";
 import {
   saveImportBatch,
   commitImportBatch,

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { databaseMoney } from '../src/lib/database-money';
-import { MoneyArithmeticError } from '@workspace/valopay-schema';
+import { MoneyArithmeticError } from '@workspace/valo-pay-1-schema';
 
 for (const value of [0, 1, 123456, Number.MAX_SAFE_INTEGER, -Number.MAX_SAFE_INTEGER]) {
   assert.equal(databaseMoney(value), value);

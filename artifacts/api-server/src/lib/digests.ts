@@ -1,9 +1,9 @@
 import { createHash } from "node:crypto";
-import { canonicalJson, type CanonicalJsonForm } from "@workspace/valopay-schema";
+import { canonicalJson, type CanonicalJsonForm } from "@workspace/valo-pay-1-schema";
 
 /**
  * Every digest the API stores or compares across requests, and the canonical
- * JSON form it is written in (lib/valopay-schema/src/canonical-json.ts). A
+ * JSON form it is written in (lib/valo-pay-1-schema/src/canonical-json.ts). A
  * digest that is stored and computed again later keeps the form it was first
  * written in, so evidence saved by an earlier build still verifies:
  *

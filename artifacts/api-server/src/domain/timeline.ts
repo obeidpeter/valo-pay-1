@@ -1,4 +1,4 @@
-import { notFoundText } from "@workspace/valopay-schema";
+import { notFoundText } from "@workspace/valo-pay-1-schema";
 import { positionFor, unallocatedOtherCurrencies } from "./close";
 import { recordsOf } from "./records";
 import type { DomainState } from "./types";
@@ -15,7 +15,7 @@ export function customerTimeline(state: DomainState, id: string) {
   const unallocatedOther = unallocatedOtherCurrencies(payments);
   return {
     customer,
-    position: { obligationsKobo, allocatedKobo, outstandingKobo, unallocatedKobo, ...(unallocatedOther ? { unallocatedOtherCurrencies: unallocatedOther } : {}), note: "Calculated from instalments and payments. Valo Pay never holds money." },
+    position: { obligationsKobo, allocatedKobo, outstandingKobo, unallocatedKobo, ...(unallocatedOther ? { unallocatedOtherCurrencies: unallocatedOther } : {}), note: "Calculated from instalments and payments. Valo Pay 1 never holds money." },
     events: related.sort((a, b) => b.createdAt.localeCompare(a.createdAt)), mandates: related.filter((record) => record.kind === "mandates"), dueItems, payments,
   };
 }

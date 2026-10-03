@@ -7,7 +7,7 @@
 import assert from "node:assert/strict";
 import { answerErrors, contractErrors, contractOperations, loadContract } from "./contract-schema.js";
 
-process.env["DATABASE_URL"] ??= "postgres://postgres@127.0.0.1:1/valopay-unused";
+process.env["DATABASE_URL"] ??= "postgres://postgres@127.0.0.1:1/valo-pay-1-unused";
 process.env["LOG_LEVEL"] ??= "silent";
 process.env["CLERK_SECRET_KEY"] ??= "sk_test_placeholder";
 process.env["CLERK_PUBLISHABLE_KEY"] ??= `pk_test_${Buffer.from("clerk.example.test$").toString("base64")}`;
@@ -139,7 +139,7 @@ await section("parked cleanup files", async () => {
   const result = schemas.CleanupPassResult;
   assert.deepEqual(result.properties.parked, { type: "integer", minimum: 0 }, "the cleanup result counts files parked for an operator's review");
   assert.ok(!result.required.includes("parked"), "the count is optional: an older build's answer has none");
-  const { HealthCheckResponse } = await import("@workspace/api-zod");
+  const { HealthCheckResponse } = await import("@workspace/valo-pay-1-api-zod");
   const cleanup = (lastResult: object) => ({ status: "ok", build: "fixture", startedAt: "2026-09-29T10:00:00.000Z", uptimeSeconds: 1, scheduler: { state: "off", intervalMs: null, ticks: 0, lastTickAt: null, lastRun: null },
     background: { state: "running", jobs: { closes: false, backlog: false, exports: true, cleanup: true }, heartbeatIntervalMs: 10_000, staleAfterMs: 45_000, startedAt: null, lastHeartbeatAt: null, crashCount: 0, restartCount: 0, lastCrashAt: null,
       cleanup: { state: "failed", intervalMs: 60_000, staleAfterMs: 195_000, lastCheckedAt: null, lastSuccessAt: null, lastErrorAt: null, lastResult } } });

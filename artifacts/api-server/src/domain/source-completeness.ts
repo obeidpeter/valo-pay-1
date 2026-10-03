@@ -1,4 +1,4 @@
-import { sourceManifestInputSchema, businessDateSchema, sourceBatchQualitySchema, sameJson, legacyCollatedCompare, otherCurrenciesText, changedText, counted, dayText, nairaText, type SourceManifestInput } from "@workspace/valopay-schema";
+import { sourceManifestInputSchema, businessDateSchema, sourceBatchQualitySchema, sameJson, legacyCollatedCompare, otherCurrenciesText, changedText, counted, dayText, nairaText, type SourceManifestInput } from "@workspace/valo-pay-1-schema";
 import { roleRefusal } from "./validation";
 import type { Context, DomainState, ValopayRecord } from "./types";
 import { makeRecord, recordsOf } from "./records";

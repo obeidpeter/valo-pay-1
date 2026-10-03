@@ -1,4 +1,4 @@
-import { changedText, demoRolesNote, notFoundText, personalWorkQuerySchema, personalWorkViewSchema, workReceiptInputSchema, workReceiptSchema, type PersonalWorkItem, type PersonalWorkQuery, type WorkReceiptInput } from '@workspace/valopay-schema';
+import { changedText, demoRolesNote, notFoundText, personalWorkQuerySchema, personalWorkViewSchema, workReceiptInputSchema, workReceiptSchema, type PersonalWorkItem, type PersonalWorkQuery, type WorkReceiptInput } from '@workspace/valo-pay-1-schema';
 import { roleRefusal } from './validation';
 import type { Context, DomainState, ValopayRecord } from './types';
 import { makeRecord } from './records';
@@ -10,7 +10,7 @@ import { followImportCorrectionAssignment, importCorrectionView, inconsistentAss
 export type WorkAssignee = { actor: string; name: string; role: string };
 const workRoles = ['Admin', 'Operations', 'Finance', 'Compliance reviewer'];
 const DAY = 24 * 60 * 60 * 1000;
-const rule = 'Follow-ups are overdue at their saved due time. Follow-ups, handovers not yet acknowledged and reviews still waiting are escalated to this lender’s Admins after 24 hours. Escalation only flags the item in Valo Pay: it does not send a message or change financial records.';
+const rule = 'Follow-ups are overdue at their saved due time. Follow-ups, handovers not yet acknowledged and reviews still waiting are escalated to this lender’s Admins after 24 hours. Escalation only flags the item in Valo Pay 1: it does not send a message or change financial records.';
 function refuse(message: string, status = 409): never { throw Object.assign(new Error(message), { status }); }
 // A receipt stores the source digest it acknowledged and a repeated receipt is found by it: its first form.
 function digest(value: unknown): string { return canonicalDigest(value, 'legacy-en-us-replacer'); }

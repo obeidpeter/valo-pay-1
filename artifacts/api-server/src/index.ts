@@ -5,7 +5,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { BUILD } from "./lib/build-info";
 import { markSchedulerOff } from "./lib/close-scheduler";
-import { closeDatabase, watchDatabase } from "./lib/valopay-store";
+import { closeDatabase, watchDatabase, verifyProductDatabaseBinding } from "./lib/valo-pay-1-store";
 import { signInConfiguration } from "./lib/staff-access";
 import { startBackgroundWorker, type BackgroundWorker } from "./lib/background-worker";
 import { runtimeIsolationEnabled } from './lib/runtime-isolation';
@@ -19,6 +19,12 @@ if (signIn.warning) logger.warn({ event: "sign_in.off" }, signIn.warning);
 
 // A connection that fails while idle is a log line, not the end of the process.
 watchDatabase(logger);
+try { await verifyProductDatabaseBinding(); }
+catch (error) {
+  logger.fatal({ event: "identity.refused", err: error }, "Valo Pay 1 resource identity verification failed; no requests or workers were started");
+  await closeDatabase();
+  process.exit(1);
+}
 
 let background: BackgroundWorker | undefined;
 const server = app.listen(port, (err) => {
@@ -29,15 +35,15 @@ const server = app.listen(port, (err) => {
 
   logger.info({ event: "server.started", port, build: BUILD, node: process.version }, "Server listening");
   // REC-01: the daily close runs at each lender's configured time unless this process is told not to schedule it
-  // (VALOPAY_CLOSE_SCHEDULER=off, or external where a separate scheduled job runs the one-shot close pass, in any
+  // (VALO_PAY_1_CLOSE_SCHEDULER=off, or external where a separate scheduled job runs the one-shot close pass, in any
   // case; any other value was refused at startup). The scheduled closes and the export worker run on the background
   // worker thread, off the event loop that answers requests; with external the thread reads what is still owed instead.
   if (serverSettings.closeScheduler === "off") {
     markSchedulerOff();
-    logger.warn({ event: "scheduler.off" }, "VALOPAY_CLOSE_SCHEDULER=off: this process runs no scheduled close; run closes by hand or with the one-shot close pass.");
+    logger.warn({ event: "scheduler.off" }, "VALO_PAY_1_CLOSE_SCHEDULER=off: this process runs no scheduled close; run closes by hand or with the one-shot close pass.");
   } else if (serverSettings.closeScheduler === "external") {
     markSchedulerOff("external");
-    logger.info({ event: "scheduler.external" }, "VALOPAY_CLOSE_SCHEDULER=external: this process runs no scheduled close; a scheduled job runs them with the one-shot close pass. This process reads the lenders still owed a close every minute, which /api/healthz reports, and a close the job misses still raises the missed-close alert.");
+    logger.info({ event: "scheduler.external" }, "VALO_PAY_1_CLOSE_SCHEDULER=external: this process runs no scheduled close; a scheduled job runs them with the one-shot close pass. This process reads the lenders still owed a close every minute, which /api/healthz reports, and a close the job misses still raises the missed-close alert.");
   }
   background = startBackgroundWorker({ log: logger, closes: serverSettings.closeScheduler === "on" ? {} : null, backlog: serverSettings.closeScheduler === "external" ? {} : null, exports: {}, cleanup: runtimeIsolationEnabled() ? null : {} });
 });

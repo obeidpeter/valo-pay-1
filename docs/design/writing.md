@@ -1,6 +1,6 @@
-# Writing for Valo Pay
+# Writing for Valo Pay 1
 
-This guide sets how Valo Pay speaks. It covers every word a person reads: the landing page, sign-in, the console, help, notices, the service's messages, prepared files and the sample records. A change to visible text follows it. A change to a name or a term changes this guide first, in the same pull request.
+This guide sets how Valo Pay 1 speaks. It covers every word a person reads: the landing page, sign-in, the console, help, notices, the service's messages, prepared files and the sample records. A change to visible text follows it. A change to a name or a term changes this guide first, in the same pull request.
 
 ## Who reads it
 
@@ -23,7 +23,7 @@ Shorten these statements, but never weaken or drop one where it applies. Use the
 
 | Fact | Wording |
 | --- | --- |
-| Valo Pay never holds money | "Valo Pay never holds money." |
+| Valo Pay 1 never holds money | "Valo Pay 1 never holds money." |
 | Sample data only | "Sample data only." Explain once, where a visitor first meets it: "Sample data is made up. It is not real customers or money." |
 | Nothing real happens in the sandbox or your workspace | "Live payments and bank connections are switched off." |
 | Nothing moved | "No money moved." · "Nothing was sent to a bank." · "Nothing was posted to accounting software." · "No VAT return was filed and no tax was paid." · "No one has been paid." |
@@ -33,14 +33,14 @@ Shorten these statements, but never weaken or drop one where it applies. Use the
 
 ## Who speaks
 
-- **Valo Pay** for facts about the system: "Valo Pay has not received this request."
+- **Valo Pay 1** for facts about the system: "Valo Pay 1 has not received this request."
 - **We** only in the headings of failures: "We could not load your work."
 - Never "the service", "the server", "the console", "the application" or "the platform".
-- For problems a lender cannot fix, point to **the Valo Pay team**: "If this keeps happening, contact the Valo Pay team."
+- For problems a lender cannot fix, point to **the Valo Pay 1 team**: "If this keeps happening, contact the Valo Pay 1 team."
 
 ## Names
 
-A page has one name. The navigation label, the page heading, the browser title ("{name} · Valo Pay"), the help destination and every link to it use exactly that name, with its capital letter. Write "and", never "&".
+A page has one name. The navigation label, the page heading, the browser title ("{name} · Valo Pay 1"), the help destination and every link to it use exactly that name, with its capital letter. Write "and", never "&".
 
 ### Products
 
@@ -52,10 +52,10 @@ The landing page offers four **products**: **Collections**, **Pay by Bank**, **C
 | --- | --- |
 | **sandbox** | The practice workspace you can open without an account. It holds sample data, is kept in this browser and may be deleted after 30 days without changes. |
 | **your workspace** | The workspace linked to your account when you sign in. In this release it also holds sample data only. Work you do in the sandbox is not copied to it. |
-| **pilot** | A real trial with a lender's named staff, agreed with the Valo Pay team. |
+| **pilot** | A real trial with a lender's named staff, agreed with the Valo Pay 1 team. |
 | **lender** | The business whose records you are working on. The console shows it as **Active lender**. |
 
-Do not use "workspace" for a product or for Valo Pay as a whole. Do not use "console", "environment", "host", "tenant", "merchant" or "persona" in reader text.
+Do not use "workspace" for a product or for Valo Pay 1 as a whole. Do not use "console", "environment", "host", "tenant", "merchant" or "persona" in reader text.
 
 ### Pages
 
@@ -80,11 +80,11 @@ Sections named in the navigation of a page use the same words as the heading the
 | **customer** | A person or business that owes a lender money | borrower, obligor |
 | **applicant** | A customer being assessed, in Credit Desk only. Say once: "Applicants are your customers." | |
 | **payer** | Whoever sent a payment, before it is linked to a customer | |
-| **team member** | A person who uses Valo Pay for a lender | user, staff user, teammate, colleague, persona, operator |
+| **team member** | A person who uses Valo Pay 1 for a lender | user, staff user, teammate, colleague, persona, operator |
 | **Admin, Operations, Finance, Compliance reviewer, Read-only** | The five roles, always with a capital, exactly as the role chip shows them. In a sentence: "an Admin", "a Finance team member". | administrator (for the role), checker, maker, assessor |
 | **demo role** | The role you switch to in the sandbox, in Settings | workspace role selector, persona |
 | **preparer** and **reviewer** | The person who prepares work and the different person who reviews it | maker, checker, assessor |
-| **the Valo Pay team** | The people who run Valo Pay | operator, platform operator, support (unless a named route exists) |
+| **the Valo Pay 1 team** | The people who run Valo Pay 1 | operator, platform operator, support (unless a named route exists) |
 
 In a refusal, write role names exactly as listed, with no article: "Only Admin or Finance can …".
 
@@ -105,7 +105,7 @@ Use the word in the first column. Terms explained defines each one in plain word
 | **message template** | The reviewed wording of a customer message | notification template |
 | **mandate** | A customer's permission for recurring bank debits. Actions: suspend, resume, cancel, reissue | pause |
 | **payment evidence** | A record of a payment from a bank statement, a settlement report or a provider notification | observation, source record, webhook |
-| **match** | A pairing of a payment with an instalment that Valo Pay found. "Matches to review", "Confirm match", "Reject match" | |
+| **match** | A pairing of a payment with an instalment that Valo Pay 1 found. "Matches to review", "Confirm match", "Reject match" | |
 | **allocate** | Put a payment's money against an instalment yourself. "Allocate payment", "unallocated" | apply, assign, credit, unapplied, unmatched |
 | **outstanding** | The amount still owed on an instalment. "Unpaid" is a status | still due, residual |
 | **possible duplicate** | A payment that may have been counted twice | suspected duplicate |
@@ -113,9 +113,9 @@ Use the word in the first column. Terms explained defines each one in plain word
 | **case** | Who owns one exception, its next step and its handover history | |
 | **next step** | What happens next on a case | next action |
 | **handover** | Passing a case to another team member | (for collection transfer) |
-| **collection transfer** | The agreement that moves collection work to Valo Pay; **return collection** hands it back | cutover, hand-back, fallback owner |
+| **collection transfer** | The agreement that moves collection work to Valo Pay 1; **return collection** hands it back | cutover, hand-back, fallback owner |
 | **emergency stop** | The control that stops all collection instructions. Turn it **on** or **off** | kill switch, activate, deactivate |
-| **Resolved** / **Closed automatically** | A person chose an outcome / Valo Pay closed it because its cause went away | condition cleared |
+| **Resolved** / **Closed automatically** | A person chose an outcome / Valo Pay 1 closed it because its cause went away | condition cleared |
 | **daily close** | The saved record of the day's reconciliation results and open exceptions | snapshot, close snapshot, closing positions, close statement |
 | **close review** | A Finance team member's check of a daily close | Finance close review |
 | **difference** | An amount that must be explained | discrepancy, variance, issue |
@@ -127,13 +127,13 @@ Use the word in the first column. Terms explained defines each one in plain word
 | Use | Meaning | Do not use |
 | --- | --- | --- |
 | **import batch** | A saved file with its column mapping and row checks | source batch |
-| **import**, **imported** | Accept a checked batch into Valo Pay. "Import checked batch", "Imported", "Last imported" | commit, committed |
+| **import**, **imported** | Accept a checked batch into Valo Pay 1. "Import checked batch", "Imported", "Last imported" | commit, committed |
 | **data source** | A place files come from, such as a bank or Paystack | |
 | **source profile** | The saved settings for one data source | reusable mapping, saved mapping |
 | **expected files** | The files you expect from a source for a date | declaration, expectations, control totals, completeness |
 | **source row ID** | A row's own ID in the source file | row identity, source identity |
 | **version** | A saved version of something | revision |
-| **export** | A file Valo Pay prepares from your records; they are kept on Saved exports | job, prepared file, request (for an export) |
+| **export** | A file Valo Pay 1 prepares from your records; they are kept on Saved exports | job, prepared file, request (for an export) |
 | **deletion run** | An approved set of items to delete | retention run |
 | **deletion record** | The record that proves an item was deleted | receipt, deletion receipt |
 | **audit log** | The record of every change | audit trail, audit record |
@@ -205,7 +205,7 @@ The exception: where an auditor needs a checksum or a hash, show it inside a **T
 | Done | "{Thing} {done}": "Settings saved", "Batch imported" | Where to see it, if not on screen |
 | Problem | "{Thing} not {done}": "Settings not saved" | Why, in a few words, then what to do |
 | Could not load | "We could not load {thing}" | The reason if known, then "Try again" |
-| Request not confirmed | "Request not confirmed" | "We do not know yet whether Valo Pay saved this. Check the original request before you change anything." Buttons: "Check original request", "Open Request history" |
+| Request not confirmed | "Request not confirmed" | "We do not know yet whether Valo Pay 1 saved this. Check the original request before you change anything." Buttons: "Check original request", "Open Request history" |
 | Refusal | Say what the reader cannot do | "Only {roles} can {action}. Your role is {role}." In the sandbox add: "Change your demo role in Settings." |
 
 Under a disabled button, say only "Only {roles} can {action}." and any specific reason. The bar above every page shows the reader's role and, in the sandbox, a link to change it.
@@ -273,11 +273,11 @@ Record-specific words stay where they are clear: Active, Suspended, Signed, Conf
 - "·" only between short labels, never between sentences.
 - No arrows in running text: "Cash Desk, then Accounting".
 
-## Files Valo Pay prepares
+## Files Valo Pay 1 prepares
 
 - PDFs are written for people: plain headings, amounts as "₦25,000.00", dates as "29 Sept 2026" and times in WAT.
 - CSV and JSON files are also read by other systems. Keep their column headers, keys, codes and ISO timestamps as they are.
-- The name Valo Pay gives a saved export reads as words: "Dispute pack (PDF)", never "dispute-pack · pdf".
+- The name Valo Pay 1 gives a saved export reads as words: "Dispute pack (PDF)", never "dispute-pack · pdf".
 
 ## Names that code relies on
 
@@ -290,7 +290,7 @@ Some stored values are identifiers as well as text, such as the demo actor names
 - Steps start with the button's own words: "Select Import checked batch."
 - Terms explained lists each term **exactly as it appears on screen**, with one or two plain sentences. Old paraphrases may stay as hidden search words, never as headings.
 
-## Messages from Valo Pay
+## Messages from Valo Pay 1
 
 The console shows the service's messages as they are written, so they follow this guide too.
 
@@ -314,4 +314,4 @@ Before you finish a change to visible text:
 2. Check each sentence is 30 words or fewer, and most are 20 or fewer.
 3. Check names and terms against this guide.
 4. Check a boundary statement still says what it said.
-5. Run the console's tests and `node scripts/check-docs.mjs`. `artifacts/valo-pay/tests/language.test.tsx` checks the first view of every page, as Admin: one name per page in its navigation link, heading and browser title, and no "&", em dash, arrow, straight apostrophe, code such as `review_pending`, `REVIEW_PENDING` or `post.records.customers`, retired name or word kept from readers.
+5. Run the console's tests and `node scripts/check-docs.mjs`. `artifacts/valo-pay-1/tests/language.test.tsx` checks the first view of every page, as Admin: one name per page in its navigation link, heading and browser title, and no "&", em dash, arrow, straight apostrophe, code such as `review_pending`, `REVIEW_PENDING` or `post.records.customers`, retired name or word kept from readers.

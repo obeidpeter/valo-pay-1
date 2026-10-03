@@ -13,11 +13,11 @@ import { positionMismatches } from "../src/domain/close.js";
 import { buildAlerts } from "../src/domain/alerts.js";
 import { approvedPolicyFor, evaluateRetry } from "../src/domain/policy-engine.js";
 import { connectedRevision, runConnectedAction, runConnectedActionWithNote } from "../src/domain/connected.js";
-import { seedMerchant } from "../src/lib/valopay-seed.js";
-import { isOpenException, paymentRefundedKobo, paymentUnappliedKobo } from "@workspace/valopay-schema";
+import { seedMerchant } from "../src/lib/valo-pay-1-seed.js";
+import { isOpenException, paymentRefundedKobo, paymentUnappliedKobo } from "@workspace/valo-pay-1-schema";
 import type { Context, DomainState, TypedRecord, ValopayRecord } from "../src/domain/types.js";
 
-const { assertFinalState } = await import("../src/lib/valopay-store.js");
+const { assertFinalState } = await import("../src/lib/valo-pay-1-store.js");
 const finance = (now: string) => ctxAt(now, "Finance");
 const operations = (now: string) => ctxAt(now, "Operations");
 let checks = 0;
@@ -468,7 +468,7 @@ function propertyRun(seeds: number, steps: number) {
       close: () => { executeAction(state, finance(at()), { action: "daily_close" }); },
       confirm: () => { const p = pick(payments().filter((item) => item.status === "proposed")); const proposal = p && recordsOf(state, "allocations").find((item) => item.data.paymentId === p.id && item.status === "proposed"); if (p) executeAction(state, finance(at()), { action: "confirm_allocation", recordId: p.id, reason: "Checked the evidence.", data: proposal ? { proposalId: proposal.id, proposalUpdatedAt: proposal.updatedAt } : {} }); },
       manual: () => { const p = pick(payments()); if (!p) return; const due = pick(dues().filter((item) => !p.customerId || item.customerId === p.customerId)); if (!due) return; const left = paymentUnappliedKobo(p), owed = outstandingOf(due); executeAction(state, finance(at()), { action: "manual_allocate", recordId: p.id, reason: "Finance identified it.", data: { dueItemId: due.id, amountKobo: Math.max(1, Math.floor(Math.min(left, owed) * (rand() < 0.5 ? 1 : rand()))) } }); },
-      refund: () => { const p = pick(payments()); if (p) executeAction(state, finance(at()), { action: "record_refund", recordId: p.id, reason: "Refunded outside Valo Pay.", data: { reference: "RF-***1" } }); },
+      refund: () => { const p = pick(payments()); if (p) executeAction(state, finance(at()), { action: "record_refund", recordId: p.id, reason: "Refunded outside Valo Pay 1.", data: { reference: "RF-***1" } }); },
       review: () => { const a = pick(recordsOf(state, "allocations").filter((item) => item.status !== "proposed")); if (a) executeAction(state, finance(at()), { action: "review_allocation", recordId: a.id, reason: "Precision review.", data: { correct: rand() < 0.5 } }); },
       amend: () => { const due = pick(dues())!; const input = structuredClone(due); input.amountKobo = Math.max(1_000_000, Math.floor(due.amountKobo * (0.5 + rand()))); input.data.overrideReason ||= "Amended by the lender."; amendDueItem(state, ctxAt(at(), "Admin"), due, input); },
       resolveDispute: () => { const e = pick(openDisputes()); if (e) executeAction(state, operations(at()), { action: "resolve_exception", recordId: e.id, reason: "Reviewed the dispute.", data: { resolutionCode: pick(["not_upheld", "not_upheld", "upheld_refund", "mandate_cancelled"]) } }); },

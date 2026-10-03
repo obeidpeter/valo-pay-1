@@ -1,4 +1,4 @@
-import { retentionPolicySchema, retentionPolicyInputSchema, retentionHoldInputSchema, lifecycleCandidateSchema, lifecyclePreviewInputSchema, lifecycleApproveInputSchema, lifecycleRunViewSchema, lifecycleViewSchema, lifecycleReceiptStatusSchema, retentionMinimumDays, type LifecycleCandidate, type LifecycleEvidence, type LifecycleExternalCandidate, type RetentionMinimum, type RetentionPolicy, canonicalJson, sameJson, legacyCollatedCompare, storedInstant, changedText, notFoundText } from '@workspace/valopay-schema';
+import { retentionPolicySchema, retentionPolicyInputSchema, retentionHoldInputSchema, lifecycleCandidateSchema, lifecyclePreviewInputSchema, lifecycleApproveInputSchema, lifecycleRunViewSchema, lifecycleViewSchema, lifecycleReceiptStatusSchema, retentionMinimumDays, type LifecycleCandidate, type LifecycleEvidence, type LifecycleExternalCandidate, type RetentionMinimum, type RetentionPolicy, canonicalJson, sameJson, legacyCollatedCompare, storedInstant, changedText, notFoundText } from '@workspace/valo-pay-1-schema';
 import { roleRefusal } from './validation';
 import type { Context, DomainState, ValopayRecord } from './types';
 import { makeRecord, touch, assertSourceOpened } from './records';
@@ -184,7 +184,7 @@ export function approveLifecycleRun(state: DomainState, ctx: Context, id: string
   if (run.status !== 'preview' || input.expectedUpdatedAt !== run.updatedAt || input.previewDigest !== run.data.previewDigest) refuse('This deletion preview changed or has already been approved. Reload the page to see its status.');
   // A staff pilot needs a second person: its actor is the verified Clerk user the principal is derived from, so a different actor is a
   // different person. The anonymous sandbox has one person playing every role, so there the console explains the rule instead.
-  if (ctx.accessMode === 'staff' && run.data.preparedBy === ctx.actor) refuse('A different Admin must approve this deletion run. If your pilot has only one Admin, ask the Valo Pay team to add a second.', 403);
+  if (ctx.accessMode === 'staff' && run.data.preparedBy === ctx.actor) refuse('A different Admin must approve this deletion run. If your pilot has only one Admin, ask the Valo Pay 1 team to add a second.', 403);
   if (Date.parse(ctx.now) >= Date.parse(run.data.expiresAt)) refuse('This deletion preview has expired. Prepare a new preview and review its files.');
   const policy = lifecyclePolicy(state);
   if (policy.revision !== run.data.policyRevision) refuse('The retention policy changed. Prepare a new deletion preview.');

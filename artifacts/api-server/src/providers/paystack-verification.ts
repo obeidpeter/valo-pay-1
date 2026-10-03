@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { canonicalJson } from "@workspace/valopay-schema";
+import { canonicalJson } from "@workspace/valo-pay-1-schema";
 import { makeRecord, touch } from "../domain/records";
 import type { Context, DomainState, ValopayRecord } from "../domain/types";
 import type { ExpectedPayment, PaystackErrorCode, RecoveryResult } from "./paystack";
@@ -65,7 +65,7 @@ export const paystackTestConnectionIdentity = (connectionId: string) =>
 const inconclusive: Partial<Record<PaystackErrorCode, [PaystackVerificationOutcome, string, string]>> = {
   authentication: ["credentials_refused", "Paystack refused the test key.", "correct the test key, then check the same event again"],
   live_mode: ["live_mode", "Paystack answered with live data, which is never accepted and says nothing about this test payment.", "check the configured test key, then check the same event again, and report it to Paystack if it repeats"],
-  invalid_response: ["invalid_response", "Paystack’s answer could not be read as a test payment.", "check the same event later, and contact the Valo Pay team if this repeats"],
+  invalid_response: ["invalid_response", "Paystack’s answer could not be read as a test payment.", "check the same event later, and contact the Valo Pay 1 team if this repeats"],
   not_found: ["reference_not_found", "Paystack has not returned this test reference.", "check the same event later"],
 };
 const unavailable: [PaystackVerificationOutcome, string, string] = ["provider_unavailable", "Paystack did not complete the check: it was too slow, could not be reached, was busy or failed.", "check the same event later"];
@@ -170,7 +170,7 @@ function expectation(
 const checkLimit = (event: ValopayRecord) => {
   if ((event.data.replayHistory?.length ?? 0) >= 100)
     refuse(
-      "This event has been checked the maximum number of times. Ask the Valo Pay team to review it.",
+      "This event has been checked the maximum number of times. Ask the Valo Pay 1 team to review it.",
       409,
       "check_limit_reached",
     );

@@ -80,7 +80,7 @@ exports/
 /uv.lock
 /artifacts/api-server/src/lib/.gitkeep
 /artifacts/api-server/src/middlewares/.gitkeep
-/artifacts/valo-pay/public/robots.txt
+/artifacts/valo-pay-1/public/robots.txt
 
 # Ephemeral browser-test output
 **/playwright-report/

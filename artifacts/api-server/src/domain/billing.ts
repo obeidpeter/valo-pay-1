@@ -10,7 +10,7 @@ import {
   DEFAULT_REVERSAL_WINDOW_DAYS, DEFAULT_VAT_BPS, RECOVERY_FEE_KOBO, USAGE_FEE_BPS, USAGE_FEE_CAP_KOBO,
   billableChannels, experimentRules, isBillableChannel, isKobo, licenceTierFor, nairaText, paymentAppliedKobo, usageFeeKobo, vatKobo, type AdjustmentReason,
   latestTermsFirst, termsEffectiveAt, dayText, monthText,
-} from "@workspace/valopay-schema";
+} from "@workspace/valo-pay-1-schema";
 import { makeRecord, recordsOf } from "./records";
 import type { Context, DomainState, TypedRecord, ValopayRecord } from "./types";
 import { paymentObservedAt, paymentRefunded, paymentReversed } from "./reconciliation";
@@ -238,8 +238,8 @@ export interface RateComparisonCoverage {
 const rateText = (rate: number): string => rate > 0 ? `the ${Math.round(rate * 100)}% design-partner discount` : "the full public price";
 /** What Finance does about a discrepancy: there is no correction for an issued invoice's discount, so it is agreed outside the platform. */
 export const RATE_DISCREPANCY_GUIDANCE = [
-  "An issued invoice never changes, and Valo Pay cannot correct an issued invoice’s discount. The next invoice’s adjustment lines correct only collections that were reversed, refunded, confirmed as duplicates or re-allocated.",
-  "Agree any difference with the lender outside Valo Pay, and keep a record of what you agreed.",
+  "An issued invoice never changes, and Valo Pay 1 cannot correct an issued invoice’s discount. The next invoice’s adjustment lines correct only collections that were reversed, refunded, confirmed as duplicates or re-allocated.",
+  "Agree any difference with the lender outside Valo Pay 1, and keep a record of what you agreed.",
   "Adjustment lines on later invoices for a listed invoice’s collections, such as a re-allocation charge or a reversal credit, carry that invoice’s rate too. Include them in what you agree.",
   "Each invoice is compared with the terms in effect for its month now. A month uses the terms in effect at its end, and ordinary terms give the full public price. Invoices for a month whose design-partner terms are not confirmed yet are compared once their discount dates are confirmed. New invoices are priced from the confirmed dates.",
 ].join("\n");
@@ -299,7 +299,7 @@ export function recoveryFeeLines(state: DomainState, period: string) {
   const enabled = state.settings.recoveryFeeEnabled === true && state.settings.recoveryFeeDecision === "proven";
   const note = enabled
     ? `${nairaText(RECOVERY_FEE_KOBO)} for each failed debit the automated retry group recovers, billed once its ${experimentRules.outcomeWindowDays}-day window has closed, so a reversal inside the window never needs a credit.`
-    : "The recovery fee is off. It can be charged only after the recovery test is recorded as proven and the Valo Pay team switches the fee on.";
+    : "The recovery fee is off. It can be charged only after the recovery test is recorded as proven and the Valo Pay 1 team switches the fee on.";
   if (!enabled) return { enabled, lines: [] as RecoveryFeeLine[], kobo: 0, note };
   const end = Date.parse(periodEnd(period));
   const billed = new Set(issuedInvoices(state).flatMap((invoice) => ((invoice.data.recoveryFee?.lines || []) as Array<{ dueItemId: string }>).map((line) => line.dueItemId)));
@@ -470,7 +470,7 @@ export function issueInvoice(state: DomainState, ctx: Context, input: { period?:
       subtotals: { licenceKobo: contractedLicence, usageKobo, adjustmentsKobo, discountKobo, recoveryKobo: recoveryFee.kobo },
       totals: { netKobo, vatBps, vatKobo: vat, totalKobo, creditNote: totalKobo < 0 },
       statement: `${counted(usageLines.length, "collection")} counted at ${USAGE_FEE_BPS / 100}% capped at ${nairaText(USAGE_FEE_CAP_KOBO)}; ${counted(adjustments.length, "adjustment line")}; VAT at ${vatBps / 100}% shown separately.`,
-      disputeRoute: "To dispute a count, contact the Valo Pay team and quote the invoice reference and the collection reference. Counts come from recorded payments, so they can be checked again.",
+      disputeRoute: "To dispute a count, contact the Valo Pay 1 team and quote the invoice reference and the collection reference. Counts come from recorded payments, so they can be checked again.",
       synthetic: true,
     },
   });

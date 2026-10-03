@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { seedMerchant } from "../src/lib/valopay-seed";
+import { seedMerchant } from "../src/lib/valo-pay-1-seed";
 import {
   connectedView,
   connectedRevision,
@@ -14,7 +14,7 @@ import { pauseIdleSandboxClose } from "../src/domain/close";
 import type { Context, DomainState, ValopayRecord } from "../src/domain/types";
 import { workflowFixture } from "./workflow-fixture";
 process.env.DATABASE_URL ||= "postgres://unused:unused@127.0.0.1:1/unused";
-const { assertFinalState, appendAudit } = await import("../src/lib/valopay-store");
+const { assertFinalState, appendAudit } = await import("../src/lib/valo-pay-1-store");
 const ctx: Context = {
   now: "2026-09-21T10:00:00.000Z",
   role: "Admin",

@@ -1,3 +1,4 @@
+import { SANDBOX_COOKIE } from "../src/lib/sandbox-cookie";
 // What the API takes from a request and what it makes of it (audit 23
 // September, security item 3 and API items 3, 6, 8 and 11), against a real
 // database. An audit entry names the record the request is about and the
@@ -8,14 +9,14 @@ import express from "express";
 import { once } from "node:events";
 import { randomBytes, randomUUID } from "node:crypto";
 
-if (process.env.VALOPAY_RUN_INTEGRATION !== "1") {
-  console.log("Set VALOPAY_RUN_INTEGRATION=1 to check input semantics against a disposable PostgreSQL database.");
+if (process.env.VALO_PAY_1_RUN_INTEGRATION !== "1") {
+  console.log("Set VALO_PAY_1_RUN_INTEGRATION=1 to check input semantics against a disposable PostgreSQL database.");
   process.exit(0);
 }
 // Placeholder identity and storage settings: nothing here reaches the identity provider or object storage.
 process.env.CLERK_SECRET_KEY ??= "sk_test_placeholder";
 process.env.PRIVATE_OBJECT_DIR ||= "/input-semantics-bucket/private";
-const { pool } = await import("@workspace/db");
+const { pool } = await import("@workspace/valo-pay-1-db");
 const { default: router } = await import("../src/routes/index");
 const { errorHandler } = await import("../src/lib/error-handler");
 
@@ -33,7 +34,7 @@ app.use(errorHandler);
 const server = app.listen(0, "127.0.0.1");
 await once(server, "listening");
 const base = `http://127.0.0.1:${(server.address() as any).port}/api`;
-const cookie = `valopay_sandbox=${randomBytes(32).toString("hex")}`;
+const cookie = `${SANDBOX_COOKIE}=${randomBytes(32).toString("hex")}`;
 async function call(path: string, method = "GET", body?: unknown, key: string | null = randomUUID()) {
   const response = await fetch(base + path, { method, headers: { "Content-Type": "application/json", Cookie: cookie, ...(key && method !== "GET" ? { "Idempotency-Key": key } : {}) }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
   return { status: response.status, data: (await response.json()) as any };

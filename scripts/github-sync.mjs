@@ -94,7 +94,7 @@ if (!args.includes("--push")) {
       }
       throw error;
     }
-    const commit = await api(`${base}/git/commits`, "POST", { message: "Sync reviewed Valo Pay source snapshot", tree: tree.sha, parents: [head] });
+    const commit = await api(`${base}/git/commits`, "POST", { message: "Sync reviewed Valo Pay 1 source snapshot", tree: tree.sha, parents: [head] });
     await api(`${base}/git/refs/heads/${branch}`, "PATCH", { sha: commit.sha, force: false });
     const verifiedHead = (await api(`${base}/git/ref/heads/${branch}`)).object.sha;
     const verified = await api(`${base}/git/trees/${verifiedHead}?recursive=1`);

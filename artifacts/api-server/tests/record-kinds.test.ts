@@ -1,5 +1,5 @@
 // Typed record kinds (audit item 27): every kind the platform stores has a
-// typed data schema in lib/valopay-schema/src/records.ts and, where its
+// typed data schema in lib/valo-pay-1-schema/src/records.ts and, where its
 // workflow uses a fixed set, its statuses in kinds.ts. The record API still
 // addresses and edits exactly the kinds it did, and the schemas describe what
 // the workflows really write: each of the platform's own kinds is produced
@@ -9,9 +9,9 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 
 process.env.DATABASE_URL ||= "postgres://unused:unused@127.0.0.1:1/unused";
-const schema = await import("@workspace/valopay-schema");
+const schema = await import("@workspace/valo-pay-1-schema");
 const { domainRecordKinds, editableKinds, recordDataSchemas, recordKinds, recordStatuses, storedRecordKinds, describeIssues } = schema;
-const { seedMerchant } = await import("../src/lib/valopay-seed.js");
+const { seedMerchant } = await import("../src/lib/valo-pay-1-seed.js");
 const { makeRecord, recordsOf } = await import("../src/domain/records.js");
 const { validateRecord } = await import("../src/domain/validation.js");
 const { saveImportBatch, commitImportBatch, coordinateCase } = await import("../src/domain/pilot-workflow.js");
@@ -25,8 +25,8 @@ const { runPaystackFixture } = await import("../src/providers/paystack-inbox.js"
 const { runConnectedAction, connectedActionSchema, connectedRevision } = await import("../src/domain/connected.js");
 type Context = import("../src/domain/types.js").Context;
 type DomainState = import("../src/domain/types.js").DomainState;
-type TypedRecord<K extends import("@workspace/valopay-schema").RecordKind> = import("../src/domain/types.js").TypedRecord<K>;
-type RecordDataOf<K extends import("@workspace/valopay-schema").RecordKind> = import("@workspace/valopay-schema").RecordDataOf<K>;
+type TypedRecord<K extends import("@workspace/valo-pay-1-schema").RecordKind> = import("../src/domain/types.js").TypedRecord<K>;
+type RecordDataOf<K extends import("@workspace/valo-pay-1-schema").RecordKind> = import("@workspace/valo-pay-1-schema").RecordDataOf<K>;
 
 let checks = 0;
 const root = path.resolve(import.meta.dirname, "..", "..", "..");

@@ -11,7 +11,7 @@ import { paymentsToSettle, settlePaymentStatus } from "./reconciliation-payments
 import { derivedDueStatus, settleDueStatus } from "./reconciliation-instalments";
 import { MatchIndex } from "./reconciliation-matching-index";
 import { matchPayment } from "./reconciliation-matching";
-import { paymentUnappliedKobo, paymentAwaitsAllocation, moneyText, resolveExceptionType, isOpenException, normaliseFailureCode } from "@workspace/valopay-schema";
+import { paymentUnappliedKobo, paymentAwaitsAllocation, moneyText, resolveExceptionType, isOpenException, normaliseFailureCode } from "@workspace/valo-pay-1-schema";
 import { identityCondition, paymentReturned, paymentObservedAt, UNALLOCATED_AGE_MS, currencyOf, UNKNOWN_OUTCOME_AGE_MS } from "./reconciliation-values";
 import { applyDecisions, ageUnknownCheckouts } from "./reconciliation-retry-decisions";
 import { attemptTime } from "./policy-engine";
@@ -115,7 +115,7 @@ function reconcileRecords(state: DomainState, ctx: Context) {
   unknownOutcomes.forEach((attempt) => raiseException(state, ctx, "unknown_outcome", { linkedRecordId: attempt.id, customerId: attempt.customerId, amountKobo: attempt.amountKobo, notes: "The collection attempt’s outcome has been unknown for 24 hours. Ask the provider to confirm it, using the payment reference.", condition: identityCondition("unknown_outcome", attempt.id) }));
   const checkoutsUnknown = ageUnknownCheckouts(state, ctx, now);
   const mappingNeeded = recordsOf(state, "attempts").filter((attempt) => attempt.status === "failed" && normaliseFailureCode(attempt.data.failureCode) === "UNKNOWN" && attempt.data.rawFailureCode);
-  mappingNeeded.forEach((attempt) => raiseException(state, ctx, "mapping_needed", { linkedRecordId: attempt.id, customerId: attempt.customerId, amountKobo: attempt.amountKobo, notes: `The provider’s failure code “${attempt.data.rawFailureCode}” is not recognised. Classify it, so Valo Pay knows whether to retry.`, condition: `mapping_needed:${attempt.id}:${attempt.data.rawFailureCode}` }));
+  mappingNeeded.forEach((attempt) => raiseException(state, ctx, "mapping_needed", { linkedRecordId: attempt.id, customerId: attempt.customerId, amountKobo: attempt.amountKobo, notes: `The provider’s failure code “${attempt.data.rawFailureCode}” is not recognised. Classify it, so Valo Pay 1 knows whether to retry.`, condition: `mapping_needed:${attempt.id}:${attempt.data.rawFailureCode}` }));
   // Matching may have tied a payment a hold names to an instalment: the holds are re-derived as the payments now stand.
   refreshHeldEvidence(state, ctx);
   // Last, so nothing raised above is left open once its condition cleared.

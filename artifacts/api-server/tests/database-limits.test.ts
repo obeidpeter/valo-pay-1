@@ -105,9 +105,9 @@ const state = <T>(promise: Promise<T>) => { const seen: { value?: T; error?: unk
 {
   const failing = (error: Error) => () => Promise.reject(error);
   const timedOut = await checkOut(failing(new Error("timeout exceeded when trying to connect"))).then(() => undefined, (error: unknown) => error) as DatabaseLimitError;
-  eq([timedOut.limit, wasRolledBack(timedOut), timedOut.message], ["pool_timeout", true, "Valo Pay is busy. Nothing was saved. Try again in a moment."], "no free connection within the wait is pool_timeout, and nothing was saved");
+  eq([timedOut.limit, wasRolledBack(timedOut), timedOut.message], ["pool_timeout", true, "Valo Pay 1 is busy. Nothing was saved. Try again in a moment."], "no free connection within the wait is pool_timeout, and nothing was saved");
   const read = await checkOut(failing(new Error("timeout exceeded when trying to connect")), false).then(() => undefined, (error: unknown) => error) as DatabaseLimitError;
-  eq(read.message, "Valo Pay is busy. Try again in a moment.", "a read is not told about saving");
+  eq(read.message, "Valo Pay 1 is busy. Try again in a moment.", "a read is not told about saving");
   const refused = await checkOut(failing(Object.assign(new Error("connect ECONNREFUSED 127.0.0.1:1"), { code: "ECONNREFUSED" }))).then(() => undefined, (error: unknown) => error) as DatabaseLimitError;
   eq([refused.limit, refused.retryAfterSeconds], ["database_unavailable", 10], "an unreachable database is database_unavailable");
 

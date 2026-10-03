@@ -12,11 +12,11 @@ The scope settings are **scope controls, not authentication credentials**. A log
 
 ## Run the automated isolation test
 
-Use an ephemeral PostgreSQL 16 instance with administrative privileges and the ordinary Valo Pay schema already pushed. The GitHub database job is such an environment, and runs this test with the other database suites in `pnpm run test:integration`. Never use a production connection string.
+Use an ephemeral PostgreSQL 16 instance with administrative privileges and the ordinary Valo Pay 1 schema already pushed. The GitHub database job is such an environment, and runs this test with the other database suites in `pnpm run test:integration`. Never use a production connection string.
 
 ```sh
 # DATABASE_URL must already point to that disposable PostgreSQL instance.
-VALOPAY_RUN_INTEGRATION=1 \
+VALO_PAY_1_RUN_INTEGRATION=1 \
   scripts/node_modules/.bin/tsx artifacts/api-server/tests/runtime-isolation.integration.test.ts
 ```
 
@@ -56,10 +56,10 @@ target_objects=$(psql --dbname="$EMPTY_RESTORE_REHEARSAL_URL" -X -v ON_ERROR_STO
 [ "$target_objects" = 0 ] || { echo 'Restore target must be empty.' >&2; exit 1; }
 
 pg_dump --dbname="$SOURCE_REHEARSAL_URL" --format=custom --no-owner \
-  --file=valopay-synthetic-recovery.dump
+  --file=valo-pay-1-synthetic-recovery.dump
 
 pg_restore --dbname="$EMPTY_RESTORE_REHEARSAL_URL" --no-owner --no-acl \
-  --exit-on-error --single-transaction valopay-synthetic-recovery.dump
+  --exit-on-error --single-transaction valo-pay-1-synthetic-recovery.dump
 ```
 
 After restoring, compare row counts and IDs for all eleven application/service tables; compare lender settings, outstanding amounts, allocations, daily-close snapshots, and idempotency responses. Include `valopay_export_cleanup` even when its source lenders and exports no longer exist: preserve storage identities, checksums, retry history, next-attempt times and lease state so deletion work can resume. The full dump above includes this service-only queue; do not add it to the restricted tenant runtime schema. Verify the complete audit chain with the application verifier. Run the existing repository and scheduler integration suites against the restored target, then perform a UI smoke test using synthetic data. Record elapsed backup and restore time, the snapshot timestamp, verification results, operator and evidence references. Agree acceptable recovery time and data loss with the pilot owner; do not treat an unmeasured target as a successful recovery claim.

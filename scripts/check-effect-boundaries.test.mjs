@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { inspectEffectBoundaries } from './check-effect-boundaries.mjs';
 
-const fixture = mkdtempSync(join(tmpdir(), 'valopay-effect-boundary-'));
+const fixture = mkdtempSync(join(tmpdir(), 'valo-pay-1-effect-boundary-'));
 const prefix = 'artifacts/api-server/src/';
 const write = (path, text) => { const full = join(fixture, prefix, path); mkdirSync(dirname(full), { recursive: true }); writeFileSync(full, text); };
 const refused = (source, pattern) => { write('domain/example.ts', source); assert.match(inspectEffectBoundaries(fixture).issues.join('\n'), pattern); };
@@ -13,7 +13,7 @@ try {
   // A tree without domain modules fails rather than passing across none: a check that inspected nothing proves nothing.
   assert.match(inspectEffectBoundaries(fixture).issues.join('\n'), /No domain module found under artifacts\/api-server\/src\/domain\//);
   // So does the command started from a copy outside the repository, whose default root has no domain modules.
-  const copy = mkdtempSync(join(tmpdir(), 'valopay-effect-boundary-copy-')), parser = join(copy, 'node_modules');
+  const copy = mkdtempSync(join(tmpdir(), 'valo-pay-1-effect-boundary-copy-')), parser = join(copy, 'node_modules');
   mkdirSync(join(copy, 'scripts'));
   copyFileSync(join(import.meta.dirname, 'check-effect-boundaries.mjs'), join(copy, 'scripts', 'check-effect-boundaries.mjs'));
   symlinkSync(join(import.meta.dirname, '..', 'node_modules'), parser, 'junction');

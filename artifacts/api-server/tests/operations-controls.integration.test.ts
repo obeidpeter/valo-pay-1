@@ -1,16 +1,17 @@
+import { SANDBOX_COOKIE } from "../src/lib/sandbox-cookie";
 import assert from "node:assert/strict";
 import express from "express";
 import { once } from "node:events";
 import { randomBytes, randomUUID, createCipheriv, createDecipheriv, createHmac } from "node:crypto";
 import { readFile } from "node:fs/promises";
-if(process.env.VALOPAY_RUN_INTEGRATION!=="1"){console.log("Operations controls integration requires a disposable local PostgreSQL database.");process.exit(0);}
+if(process.env.VALO_PAY_1_RUN_INTEGRATION!=="1"){console.log("Operations controls integration requires a disposable local PostgreSQL database.");process.exit(0);}
 assert.ok(["localhost","127.0.0.1","[::1]"].includes(new URL(process.env.DATABASE_URL||"").hostname),"Refuse a non-local integration database.");
-const environmentNames=["VALOPAY_STAFF_ACCESS","VALOPAY_RUNTIME_ISOLATION","VALOPAY_PAYLOAD_ENCRYPTION","VALOPAY_KMS_KEY","VALOPAY_PAYSTACK_INGRESS","VALOPAY_PAYSTACK_CONNECTIONS","PAYSTACK_TEST_SECRET_KEY"] as const;
+const environmentNames=["VALO_PAY_1_STAFF_ACCESS","VALO_PAY_1_RUNTIME_ISOLATION","VALO_PAY_1_PAYLOAD_ENCRYPTION","VALO_PAY_1_KMS_KEY","VALO_PAY_1_PAYSTACK_INGRESS","VALO_PAY_1_PAYSTACK_CONNECTIONS","PAYSTACK_TEST_SECRET_KEY"] as const;
 const previousEnvironment=Object.fromEntries(environmentNames.map(name=>[name,process.env[name]]));
-process.env.VALOPAY_STAFF_ACCESS="off";process.env.VALOPAY_RUNTIME_ISOLATION="off";
-process.env.VALOPAY_PAYLOAD_ENCRYPTION="kms";
-process.env.VALOPAY_KMS_KEY="projects/synthetic-integration/locations/global/keyRings/fixture/cryptoKeys/v1";
-const {pool}=await import("@workspace/db");
+process.env.VALO_PAY_1_STAFF_ACCESS="off";process.env.VALO_PAY_1_RUNTIME_ISOLATION="off";
+process.env.VALO_PAY_1_PAYLOAD_ENCRYPTION="kms";
+process.env.VALO_PAY_1_KMS_KEY="projects/synthetic-integration/locations/global/keyRings/fixture/cryptoKeys/v1";
+const {pool}=await import("@workspace/valo-pay-1-db");
 const {managedWrappingKeys,openPayload}=await import("../src/lib/protected-payloads");
 const oldWrap=managedWrappingKeys.wrap,oldUnwrap=managedWrappingKeys.unwrap,master=randomBytes(32);
 // Fixture injection is restricted to this test module; runtime keeps its managed KMS adapter.
@@ -24,12 +25,12 @@ const {createPaystackIngress}=await import("../src/routes/sources");
 const {paystackConnectionTransaction,paystackIngress}=await import("../src/lib/paystack-connection");
 const {receivePaystackEvent}=await import("../src/providers/paystack-inbox");
 const {runDueCloses}=await import("../src/lib/close-scheduler");
-const {inMerchantAsSystem,loadState,revealImportPayloads,SYSTEM_ACTOR_PREFIX}=await import("../src/lib/valopay-store");
+const {inMerchantAsSystem,loadState,revealImportPayloads,SYSTEM_ACTOR_PREFIX}=await import("../src/lib/valo-pay-1-store");
 // The Paystack test ingress reads its own raw body, so it is mounted before JSON parsing, as in app.ts.
 const app=express();app.use((req,_res,next)=>{(req as any).log={info(){},warn(){},error(){}};next();});app.use("/api",createPaystackIngress(paystackIngress));
 app.use(express.json({limit:"2mb"}));app.use((req,_res,next)=>{(req as any).auth=Object.assign(()=>({userId:null}),{[Symbol.for("@clerk/express.auth")]:true});next();});app.use("/api",router);app.use(errorHandler);
 const server=app.listen(0,"127.0.0.1");await once(server,"listening");
-const base=`http://127.0.0.1:${(server.address() as any).port}/api`,cookie=`valopay_sandbox=${randomBytes(32).toString("hex")}`;
+const base=`http://127.0.0.1:${(server.address() as any).port}/api`,cookie=`${SANDBOX_COOKIE}=${randomBytes(32).toString("hex")}`;
 const workspaces=new Set<string>();
 async function call(path:string,method="GET",body?:unknown,key?:string){const response=await fetch(base+path,{method,headers:{"Content-Type":"application/json",Cookie:cookie,...(key?{"Idempotency-Key":key}:{})},...(body===undefined?{}:{body:JSON.stringify(body)})});return {status:response.status,data:await response.json()};}
 const ok=(result:{status:number;data:any})=>{assert.equal(result.status,200,JSON.stringify(result.data));return result.data;};
@@ -170,7 +171,7 @@ try{
   // Pending entries are limited per person and lender; closed ones do not count towards the limit.
   await pool.query("INSERT INTO valopay_operations(id,merchant_id,owner,actor,role,request_key,request_hash,request,label) SELECT 'cap-'||i,$1,$2,$3,$4,'cap-key-'||i,'cap-hash','{}','Cap fixture' FROM generate_series(1,99) i",[lender,pending.owner,pending.actor,pending.role]);
   const capped=await post(customerPath,{name:"Beyond the pending limit"});
-  assert.equal(capped.status,409);assert.match(String((capped.data as {error?:string}).error),/^You have 100 requests that Valo Pay has not confirmed\. Check them in Request history before you send more\.$/);
+  assert.equal(capped.status,409);assert.match(String((capped.data as {error?:string}).error),/^You have 100 requests that Valo Pay 1 has not confirmed\. Check them in Request history before you send more\.$/);
   await pool.query("UPDATE valopay_operations SET status='cancelled' WHERE merchant_id=$1 AND id LIKE 'cap-%'",[lender]);
   assert.equal((await post(customerPath,{name:"Beyond the pending limit"})).status,400,"Closed entries free the limit; the request is then refused on its own merits.");
   await pool.query("DELETE FROM valopay_operations WHERE merchant_id=$1 AND (id LIKE 'cap-%' OR label IN ('Save records customers','Add a record') AND status='cancelled' AND id<>$2)",[lender,cancelled.id]);
@@ -227,9 +228,9 @@ try{
   // One more protected batch, so that loading the lender has payloads to open.
   ok(await post(`/v1/pilot/batches?merchantId=${lender}`,{...batchInput,name:"Protected batch for the ingress",sourceBatchId:"controls-002"}));
   await pool.query("UPDATE valopay_merchants SET info=jsonb_set(jsonb_set(info,'{killSwitch}','true'::jsonb),'{mode}','\"observation\"'::jsonb) WHERE id=$1",[lender]);
-  process.env.VALOPAY_PAYSTACK_INGRESS="test";process.env.PAYSTACK_TEST_SECRET_KEY=["sk","test","OFFLINE","0".repeat(20)].join("_");
+  process.env.VALO_PAY_1_PAYSTACK_INGRESS="test";process.env.PAYSTACK_TEST_SECRET_KEY=["sk","test","OFFLINE","0".repeat(20)].join("_");
   const connectionId=randomBytes(32).toString("hex");
-  process.env.VALOPAY_PAYSTACK_CONNECTIONS=JSON.stringify({[connectionId]:{workspaceId,merchantId:lender}});
+  process.env.VALO_PAY_1_PAYSTACK_CONNECTIONS=JSON.stringify({[connectionId]:{workspaceId,merchantId:lender}});
   const event={kind:"payment" as const,event:"charge.success" as const,dedupeKey:"paystack:test:charge.success:90210",payment:{provider:"paystack" as const,domain:"test" as const,transactionId:"90210",reference:"SYNTHETIC-MAPPED-001",amountKobo:2500,currency:"NGN" as const,state:"succeeded" as const,channel:"direct_debit"}};
   const ingest=()=>paystackConnectionTransaction(connectionId,({state,context})=>receivePaystackEvent(state,context,event,{connectionId,mode:"test"}));
   // A test delivery loads the lender without opening its protected source rows, so it is received while the key service is down.
@@ -270,24 +271,24 @@ try{
     const busy=await answer(await deliver(signed));
     assert.equal(busy.status,503);assert.match(busy.error,/The test lender is busy/);
     // A lender that cannot be locked is looked for without the lock, in the mapped workspace only (docs/paystack.md).
-    process.env.VALOPAY_PAYSTACK_CONNECTIONS=JSON.stringify({[connectionId]:{workspaceId:"wrong-workspace",merchantId:lender}});
+    process.env.VALO_PAY_1_PAYSTACK_CONNECTIONS=JSON.stringify({[connectionId]:{workspaceId:"wrong-workspace",merchantId:lender}});
     assert.deepEqual(await answer(await deliver(signed)),{status:404,error:missingLender},"a busy lender is not found in another workspace, so the mapping is named for correction");
-  }finally{await holder.query("ROLLBACK");holder.release();process.env.VALOPAY_PAYSTACK_CONNECTIONS=JSON.stringify({[connectionId]:{workspaceId,merchantId:lender}});}
+  }finally{await holder.query("ROLLBACK");holder.release();process.env.VALO_PAY_1_PAYSTACK_CONNECTIONS=JSON.stringify({[connectionId]:{workspaceId,merchantId:lender}});}
   // A mapping whose lender no longer exists matches no row to lock either: after the signature, and only then, it answers 404, not busy.
-  process.env.VALOPAY_PAYSTACK_CONNECTIONS=JSON.stringify({[connectionId]:{workspaceId,merchantId:`gone-${randomUUID()}`}});
+  process.env.VALO_PAY_1_PAYSTACK_CONNECTIONS=JSON.stringify({[connectionId]:{workspaceId,merchantId:`gone-${randomUUID()}`}});
   checkouts=0;
   assert.equal((await deliver(forged)).status,401);
   assert.equal(checkouts,0,"a forged delivery to a missing lender takes no database connection");
   assert.deepEqual(await answer(await deliver(signed)),{status:404,error:missingLender},"a signed delivery to a missing lender is told to correct the mapping, not to retry");
   pool.off("acquire",countCheckout);
-  process.env.VALOPAY_PAYSTACK_CONNECTIONS=JSON.stringify({[connectionId]:{workspaceId,merchantId:lender}});
+  process.env.VALO_PAY_1_PAYSTACK_CONNECTIONS=JSON.stringify({[connectionId]:{workspaceId,merchantId:lender}});
   assert.equal(unwraps,0);assert.equal(await providerEvents(),1,"refused deliveries save nothing");
   const accepted=await deliver(signed);
   assert.equal(accepted.status,200);assert.deepEqual(await accepted.json(),{accepted:true,duplicate:false});
   assert.equal(await providerEvents(),2,"a verified delivery is saved in the mapped lender's inbox");
   assert.deepEqual(await (await deliver(signed)).json(),{accepted:true,duplicate:true});
   assert.equal(await providerEvents(),2);
-  process.env.VALOPAY_PAYSTACK_CONNECTIONS=JSON.stringify({[connectionId]:{workspaceId:"wrong-workspace",merchantId:lender}});
+  process.env.VALO_PAY_1_PAYSTACK_CONNECTIONS=JSON.stringify({[connectionId]:{workspaceId:"wrong-workspace",merchantId:lender}});
   await assert.rejects(ingest,/unavailable/);
   assert.equal((await deliver(signed)).status,403,"a free lender mapped to another workspace is refused");
   assert.equal(Number((await pool.query("SELECT count(*) AS n FROM valopay_records WHERE merchant_id=$1 AND kind='provider-events'",[other])).rows[0].n),0);

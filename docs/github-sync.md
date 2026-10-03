@@ -2,9 +2,7 @@
 
 How source leaves the Replit workspace for the public repository, and the guards around it. The README's Source repository section says what the repository is; this document says how it is fed.
 
-This Replit workspace uses a clean `main` branch linked to `origin/main` at
-`https://github.com/obeidpeter/valo-pay`. In the Git panel, use **main** and
-**origin** for normal commits, pulls and pushes.
+The canonical repository is now `https://github.com/obeidpeter/valo-pay-1`, renamed in place with GitHub repository ID `1374783064` retained. The migration checkout and inspected Replit checkout both use that canonical remote; Replit retained its app UUID, clean **main** branch and publication checkpoint. Before using the Replit Git panel, verify its current branch and **origin** target this same repository, then use them for normal commits, pulls and pushes. A verified remote does not establish Git panel authentication, external deployment trust or a new publication. Do not rely on the old path redirect: it stops working if that name is reused by the future product.
 
 The original Replit checkpoint history is preserved separately on the local
 `replit-history-local` branch. **Never push that branch, all branches, or a
@@ -16,6 +14,8 @@ branch. Review staged files before committing: this is a public repository.
 A local Git pre-push guard checks outgoing commit ancestry and source files.
 Do not disable it or bypass it with `--no-verify`. The guard does not replace
 reviewing content for private information.
+
+The guard now reads the local `valo-pay-1.cleanGitAnchor` configuration key. When upgrading an existing clean-source checkout, read its already reviewed `valopay.cleanGitAnchor` value locally, verify that commit exists and is the approved clean-history anchor, then set **the same full commit ID** under the new key with `git config --local valo-pay-1.cleanGitAnchor "$reviewed_anchor"`. Here `$reviewed_anchor` is that verified existing value, not the latest commit or a newly chosen root. Check `git config --local --get valo-pay-1.cleanGitAnchor` and run the guard before removing the obsolete key. There is no fallback to the old key, no history rewrite, and no permission to push private checkpoint history. If the old approved value is unavailable, stop the push and recover its approval record instead of inventing an anchor. The migration checkout's key was updated; other clones, including the Replit clean checkout, require their own verification.
 
 ## Legacy source-only upload utility
 
@@ -35,7 +35,7 @@ node scripts/github-sync.mjs
 node scripts/github-sync.mjs --push
 ```
 
-Its connector client, `@replit/connectors-sdk`, is a development dependency of the scripts package (`scripts/package.json`), not of the application, so it is installed with the workspace but never reaches the API or the console. The utility targets only the public `obeidpeter/valo-pay` repository, as approved by its owner. Public means anyone can read the uploaded source. It sends reviewed source contents, never Git history or credentials, through the Replit GitHub connector. It checks common secret patterns but cannot prove arbitrary content is safe: review new files before uploading.
+Its connector client, `@replit/connectors-sdk`, is a development dependency of the scripts package (`scripts/package.json`), not of the application, so it is installed with the workspace but never reaches the API or the console. The utility targets only the public `obeidpeter/valo-pay-1` repository, as approved by its owner. Public means anyone can read the uploaded source. It sends reviewed source contents, never Git history or credentials, through the Replit GitHub connector. It checks common secret patterns but cannot prove arbitrary content is safe: review new files before uploading.
 
 The Git panel and this script use different authentication paths. A working
 GitHub connector does not by itself verify Git panel authentication. Check

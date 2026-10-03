@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
-import type { ConnectedActionResult } from "@workspace/valopay-schema";
+import type { ConnectedActionResult } from "@workspace/valo-pay-1-schema";
 import { assertConnectedReplayAllowed } from "../src/domain/connected-replay.js";
 import { cashView, runCashAction } from "../src/domain/connected-cash-service.js";
 import { runCreditAction } from "../src/domain/connected-credit-service.js";
 import { makeRecord, recordsOf } from "../src/domain/records.js";
-import { seedMerchant } from "../src/lib/valopay-seed.js";
+import { seedMerchant } from "../src/lib/valo-pay-1-seed.js";
 import type { Context } from "../src/domain/types.js";
 
 const now = "2026-09-26T10:00:00.000Z";

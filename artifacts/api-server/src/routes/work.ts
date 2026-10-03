@@ -1,8 +1,8 @@
 import { Router, type IRouter, type RequestHandler } from 'express';
 import { z } from 'zod';
-import { personalWorkQuerySchema, personalWorkViewSchema, workReceiptInputSchema, workReceiptSchema } from '@workspace/valopay-schema';
-import { inWorkspace, loadState, caseAssignees } from '../lib/valopay-store';
-import { withState } from './valopay';
+import { personalWorkQuerySchema, personalWorkViewSchema, workReceiptInputSchema, workReceiptSchema } from '@workspace/valo-pay-1-schema';
+import { inWorkspace, loadState, caseAssignees } from '../lib/valo-pay-1-store';
+import { withState } from './valo-pay-1';
 import { contractAnswer, lenderQuery, requiredKey } from '../lib/contract';
 import { derivePersonalWork, recordWorkReceipt } from '../domain/personal-work';
 import { routerOptions } from './router-options';

@@ -3,8 +3,8 @@
 // blocked or its deletion fails, or its time budget is spent; each source is
 // checked again just before it goes and gets its own receipt.
 import assert from 'node:assert/strict';
-import type { LifecycleCandidate, LifecycleExternalCandidate } from '@workspace/valopay-schema';
-import { seedMerchant } from '../src/lib/valopay-seed';
+import type { LifecycleCandidate, LifecycleExternalCandidate } from '@workspace/valo-pay-1-schema';
+import { seedMerchant } from '../src/lib/valo-pay-1-seed';
 import { makeRecord } from '../src/domain/records';
 import { approveLifecycleRun, lifecycleHolds, lifecyclePolicy, lifecyclePreview, saveLifecyclePolicy, setLifecycleHold } from '../src/domain/lifecycle';
 import { executeApprovedRun, LIFECYCLE_STEP_BUDGET_MS } from '../src/domain/lifecycle-run';

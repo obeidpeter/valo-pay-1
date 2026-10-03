@@ -1,7 +1,7 @@
 /** Settlement identities, fee schedules and line totals shared by batch handling and provider-identity review. */
 import { type DomainState, type ValopayRecord, type TypedRecord } from "./types";
 import { connectionKey, connectionOf, currencyOf } from "./reconciliation-values";
-import { type ProviderFeeSchedule, validMoneyBps, nonnegativeMoney, DEFAULT_PROVIDER_FEE, hasFeeSchedule, isKobo, providerFeeKobo, sumMoney, SETTLEMENT_ITEM_TOLERANCE_KOBO } from "@workspace/valopay-schema";
+import { type ProviderFeeSchedule, validMoneyBps, nonnegativeMoney, DEFAULT_PROVIDER_FEE, hasFeeSchedule, isKobo, providerFeeKobo, sumMoney, SETTLEMENT_ITEM_TOLERANCE_KOBO } from "@workspace/valo-pay-1-schema";
 
 export const settlementIdentity = (state: DomainState, record: ValopayRecord, reference = record.reference): string => JSON.stringify([connectionKey(connectionOf(state, record)), reference]);
 

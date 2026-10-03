@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
-import { seedMerchant } from "../src/lib/valopay-seed";
+import { seedMerchant } from "../src/lib/valo-pay-1-seed";
 import { makeRecord } from "../src/domain/records";
 import { saveSourceManifest, sourceCompleteness, sourceFileId, watBusinessDate } from "../src/domain/source-completeness";
 import { saveImportBatch, commitImportBatch } from "../src/domain/pilot-workflow";
 import { bindCloseReviewBasis, prepareCloseReview, closeReviewIssues, decideCloseReview, reviewIsCurrent, closeReviewCurrentProblem } from "../src/domain/close-review";
 import type { DomainState } from "../src/domain/types";
-import { sourceCompletenessSchema } from "@workspace/valopay-schema";
+import { sourceCompletenessSchema } from "@workspace/valo-pay-1-schema";
 
 const ctx = { actor:"Clerk:operator",principalId:"operator",role:"Operations",now:"2026-09-23T09:00:00.000Z" }, finance={...ctx,actor:"Clerk:finance",principalId:"finance",role:"Finance"};
 const date="2026-09-22", file={source:"loan-system",sourceBatchId:"customers-2026-09-22",kind:"customers" as const,expectedRows:1,expectedAmountKobo:0};

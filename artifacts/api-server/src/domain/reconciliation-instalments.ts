@@ -4,7 +4,7 @@ import { recordsWhere } from "./record-index";
 import { touch, recordsOf } from "./records";
 import { outstanding } from "./reconciliation-values";
 import { attemptsFor } from "./policy-engine";
-import { nairaText, sumMoney } from "@workspace/valopay-schema";
+import { nairaText, sumMoney } from "@workspace/valo-pay-1-schema";
 import { isDeepStrictEqual } from "node:util";
 import { validateRecord } from "./validation";
 

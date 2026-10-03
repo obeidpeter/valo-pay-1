@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { seedMerchant } from '../src/lib/valopay-seed';
+import { seedMerchant } from '../src/lib/valo-pay-1-seed';
 import { FINANCIAL_PROJECTION_LIMIT, financialProjectionSchema, projectFinancialState } from '../src/lib/financial-projection';
 
 const state=seedMerchant('projection-unit');

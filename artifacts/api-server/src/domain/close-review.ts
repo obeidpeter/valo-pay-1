@@ -1,4 +1,4 @@
-import { counted, dayText, demoRolesNote, hasFeeSchedule, moneyText, notFoundText, otherCurrenciesText, valueLabel, prepareCloseReviewSchema, decideCloseReviewSchema, reassignCloseReviewSchema, closeReviewHistoryQuerySchema, legacyCollatedCompare, sameJson, type PrepareCloseReviewInput, type DecideCloseReviewInput, type ReassignCloseReviewInput, type CloseReviewHistoryQuery, type PilotProgressStep } from "@workspace/valopay-schema";
+import { counted, dayText, demoRolesNote, hasFeeSchedule, moneyText, notFoundText, otherCurrenciesText, valueLabel, prepareCloseReviewSchema, decideCloseReviewSchema, reassignCloseReviewSchema, closeReviewHistoryQuerySchema, legacyCollatedCompare, sameJson, type PrepareCloseReviewInput, type DecideCloseReviewInput, type ReassignCloseReviewInput, type CloseReviewHistoryQuery, type PilotProgressStep } from "@workspace/valo-pay-1-schema";
 import type { Context, DomainState, ValopayRecord } from "./types";
 import { makeRecord, touch } from "./records";
 import { assertRecordVersion } from "../lib/edit-versions";
@@ -184,7 +184,7 @@ export function reviewedCloseEvidence(state: DomainState, id: string, requireCur
   const review = ofKind(state, 'close-reviews').find(r => r.id === id);
   if (!review) refuse(notFoundText("close review"), 404);
   if (review.status !== 'approved') refuse('Choose an approved close review for this lender.', 409);
-  if (!review.data.snapshot || digest(review.data.snapshot) !== review.data.snapshotDigest) refuse('The saved copy of this reviewed close has changed, so it cannot be exported. Ask the Valo Pay team to check it.', 409);
+  if (!review.data.snapshot || digest(review.data.snapshot) !== review.data.snapshotDigest) refuse('The saved copy of this reviewed close has changed, so it cannot be exported. Ask the Valo Pay 1 team to check it.', 409);
   if (requireCurrent && !reviewIsCurrent(state, review)) refuse('This review is no longer current. Prepare and approve the latest close before exporting its evidence.', 409);
   return structuredClone(review);
 }

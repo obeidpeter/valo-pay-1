@@ -1,0 +1,195 @@
+// Backlog item UX-B02-X2 and decision 2: recovery stays manual, through Request history (the Operations page), and every
+// notice about a change the operations journal records says so. A request Valo Pay 1 received stays in Request history
+// after its dialog is closed or the page reloaded, and the notice links there; the demo role switch, which the journal
+// does not record, does not.
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { installFakeApi, type FakeApi } from "./fake-api";
+import { renderApp, screen, userEvent, waitFor, within } from "./harness";
+import { queueExport } from "../../api-server/src/lib/export-jobs";
+import { cancelInterrupted, unreceivedRecovery } from './unreceived-recovery';
+
+let api: FakeApi;
+beforeEach(() => { api = installFakeApi(); unreceivedRecovery(api); });
+afterEach(() => api.uninstall());
+
+const KEPT = "If Valo Pay 1 received the request, you can check it in Request history, even after you close this form or reload the page.";
+/** Whether `notice` says the request stays in Request history and links there. */
+function keptInOperations(notice: HTMLElement) {
+  expect(notice.textContent).toContain(KEPT);
+  expect(within(notice).getByRole("link", { name: "Open Request history" }).getAttribute("href")).toBe("/operations");
+  return notice;
+}
+/** The export control's notice about a request whose outcome is unconfirmed. */
+const exportNotice = () => screen.getByText(/^Other export requests wait until this one is confirmed/).parentElement as HTMLElement;
+/** The alert holding `text`, which says the request stays in Request history and links there. */
+const pointsToOperations = (text: string | RegExp) => keptInOperations(screen.getByText(text).closest('[role="alert"]') as HTMLElement);
+
+describe("unconfirmed changes the journal records point to Request history", () => {
+  it("in the record dialog, whose close confirmation says so too", async () => {
+    const user = userEvent.setup();
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    renderApp("/customers");
+    await screen.findByText("Ada Okonkwo");
+    await user.click(screen.getByRole("button", { name: "Add customer" }));
+    const dialog = await screen.findByRole("dialog", { name: "Add customer" });
+    await user.type(within(dialog).getByLabelText(/^Full name/), "Lost answer customer");
+    await user.type(within(dialog).getByLabelText(/^Loan software reference/), "LOST-ANSWER-1");
+    await user.type(within(dialog).getByLabelText(/^Consent source or reference/), "Synthetic consent");
+    api.failNext(/^\/v1\/records\/customers$/, "offline", "POST");
+    await user.click(within(dialog).getByRole("button", { name: "Add customer" }));
+    await within(dialog).findByText("Request not confirmed");
+    const notice = pointsToOperations("Request not confirmed");
+    expect(notice.textContent).not.toMatch(/not saved after closing or reloading/);
+    await user.click(within(dialog).getAllByRole("button", { name: "Close" }).find((button) => button.textContent === "Close")!);
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining("If Valo Pay 1 received it, you can check it in Request history."));
+    expect(screen.getByRole("dialog", { name: "Add customer" })).toBe(dialog);
+  });
+
+  it("in the review dialog, whose close confirmation says so too", async () => {
+    const user = userEvent.setup();
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    renderApp("/evidence");
+    await user.click(await screen.findByRole("button", { name: "Record review" }));
+    const dialog = screen.getByRole("dialog");
+    await user.type(within(dialog).getByRole("textbox", { name: "Review notes" }), "Checked the sample mandates this fortnight.");
+    api.failNext(/^\/v1\/records\/reviews$/, "offline", "POST");
+    await user.click(within(dialog).getByRole("button", { name: "Record review" }));
+    await within(dialog).findByText("Request not confirmed");
+    pointsToOperations("Request not confirmed");
+    await user.click(within(dialog).getAllByRole("button", { name: "Close" }).find((button) => button.textContent === "Close")!);
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining("If it arrived, it is listed in Request history."));
+  });
+
+  it("in the mandate dialog", async () => {
+    const user = userEvent.setup();
+    renderApp("/mandates");
+    await user.click(await screen.findByRole("button", { name: "Add mandate" }));
+    const dialog = await screen.findByRole("dialog", { name: "Add mandate" });
+    await user.type(within(dialog).getByLabelText(/Mandate name/), "Lost answer mandate");
+    await user.selectOptions(within(dialog).getByLabelText(/Customer/), api.state().records.find((r) => r.kind === "customers")!.id);
+    await user.type(within(dialog).getByLabelText(/Debit limit/), "2000");
+    await user.type(within(dialog).getByLabelText(/Provider reference/), "SYN-LOST-MANDATE");
+    await user.type(within(dialog).getByLabelText(/Consent evidence reference/), "SYN-CONSENT-LOST");
+    await user.selectOptions(within(dialog).getByLabelText(/^Retry policy/), api.state().records.find((r) => r.kind === "policies")!.id);
+    api.failNext(/^\/v1\/records\/mandates$/, "offline", "POST");
+    await user.click(within(dialog).getByRole("button", { name: "Add mandate" }));
+    await screen.findByText("Request not confirmed");
+    pointsToOperations("Request not confirmed");
+  });
+
+  it("in the export control, for a new export", async () => {
+    const user = userEvent.setup();
+    renderApp("/reports?view=billing");
+    api.failNext(/^\/v1\/exports$/, "offline", "POST");
+    await user.click(await screen.findByRole("button", { name: "Export billing statement (CSV)" }));
+    await screen.findByRole("button", { name: "Check original request" });
+    keptInOperations(exportNotice());
+  });
+
+  it("in the export control, for a retry of a saved export", async () => {
+    const user = userEvent.setup();
+    const id = api.mutate((state, ctx) => {
+      const job = queueExport(state, ctx, { kind: "gate-pack", format: "pdf" }, "sample/private");
+      const record = state.records.find((candidate) => candidate.id === job.id)!;
+      record.status = "failed";
+      record.data.lastError = "Generation could not finish.";
+      return job.id;
+    });
+    renderApp(`/exports?job=${id}`);
+    api.failNext(new RegExp(`^/v1/exports/${id}/retry$`), "offline", "POST");
+    await user.click(await screen.findByRole("button", { name: "Retry export" }));
+    await screen.findByRole("button", { name: "Check original request" });
+    keptInOperations(exportNotice());
+  });
+
+  it("in the quick import", async () => {
+    const user = userEvent.setup();
+    renderApp("/collections");
+    await user.click(await screen.findByRole("button", { name: "Import sample data" }));
+    await user.selectOptions(screen.getByLabelText("Import as"), "customers");
+    await user.click(screen.getByLabelText("CSV content"));
+    await user.paste("row_id,name,consentProvenance\nr1,Lost answer import,Synthetic");
+    await user.click(screen.getByRole("button", { name: "Check data" }));
+    await screen.findByRole("heading", { name: "Check results" });
+    api.failNext(/^\/v1\/imports$/, "offline", "POST");
+    await user.click(screen.getByRole("button", { name: "Import data" }));
+    await screen.findByText("Request not confirmed");
+    pointsToOperations("Request not confirmed");
+  });
+
+  it("on Reports, for a daily close, but not for its refusal", async () => {
+    const user = userEvent.setup();
+    renderApp("/reports");
+    api.failNext(/^\/v1\/actions$/, { status: 403, error: "Daily close requires the Operations role." }, "POST");
+    await user.click(await screen.findByRole("button", { name: "Run daily close" }));
+    const refused = (await screen.findByText("Daily close requires the Operations role.")).closest('[role="alert"]') as HTMLElement;
+    expect(refused.textContent).not.toContain(KEPT);
+    expect(within(refused).queryByRole("link", { name: "Open Request history" })).toBeNull();
+    api.failNext(/^\/v1\/actions$/, "offline", "POST");
+    await user.click(screen.getByRole("button", { name: "Run daily close" }));
+    await screen.findByText(/We do not know yet whether Valo Pay 1 ran this close/);
+    pointsToOperations("Request not confirmed");
+  });
+
+  it("on Reconciliation, for a run", async () => {
+    const user = userEvent.setup();
+    renderApp("/reconciliation");
+    api.failNext(/^\/v1\/actions$/, "offline", "POST");
+    await user.click(await screen.findByRole("button", { name: "Run reconciliation" }));
+    await screen.findByText("Reconciliation not completed");
+    pointsToOperations("Reconciliation not completed");
+  });
+
+  it("on the audit log, for a check", async () => {
+    const user = userEvent.setup();
+    renderApp("/audit");
+    api.failNext(/^\/v1\/actions$/, "offline", "POST");
+    await user.click(await screen.findByRole("button", { name: "Check audit log" }));
+    const toast = (await screen.findAllByText("Audit log could not be checked")).map((title) => title.closest("li")).find(Boolean) as HTMLElement;
+    keptInOperations(toast);
+    // The notice store outlives a render, so the notice is dismissed here rather than left for the next case.
+    await user.click(within(toast).getByRole("button", { name: "Dismiss" }));
+    await waitFor(() => expect(screen.queryByText("Audit log could not be checked")).toBeNull());
+  });
+
+  it("in the settings notices for journaled actions, but not the demo role switch", async () => {
+    const user = userEvent.setup();
+    renderApp("/settings");
+    await screen.findByText("07:00 WAT");
+    // A settings save.
+    await user.click(screen.getByRole("button", { name: "Edit" }));
+    const amount = screen.getByLabelText("Notification cost alert (₦ per collection)");
+    await user.clear(amount);
+    await user.type(amount, "10.29");
+    api.failNext(/^\/v1\/settings$/, "offline", "PATCH");
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+    await screen.findByText(/We do not know yet whether Valo Pay 1 saved your settings/);
+    pointsToOperations(/We do not know yet whether Valo Pay 1 saved your settings/);
+    // The live-instruction block test and the emergency stop.
+    api.failNext(/^\/v1\/actions$/, "offline", "POST");
+    await user.click(screen.getByRole("button", { name: "Test live-instruction block" }));
+    await screen.findByText(/We do not know yet whether Valo Pay 1 received the block test/);
+    pointsToOperations(/We do not know yet whether Valo Pay 1 received the block test/);
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    for (const notice of [/We do not know yet whether Valo Pay 1 received the block test/, /We do not know yet whether Valo Pay 1 saved your settings/]) {
+      const alert = screen.getByText(notice).closest('[role="alert"]') as HTMLElement;
+      await user.click(within(alert).getByRole("button", { name: "Discard original request" }));
+      await waitFor(() => expect(screen.queryByText(notice)).toBeNull());
+    }
+    await cancelInterrupted(user);
+    await user.type(screen.getByLabelText("Reason for changing the emergency stop"), "Stop sample operations for a review");
+    api.failNext(/^\/v1\/actions$/, "offline", "POST");
+    await user.click(screen.getByRole("button", { name: "Turn on emergency stop" }));
+    await screen.findByText(/We do not know yet whether Valo Pay 1 changed the emergency stop/);
+    const stop = pointsToOperations(/We do not know yet whether Valo Pay 1 changed the emergency stop/);
+    await user.click(within(stop).getByRole("button", { name: "Discard original request" }));
+    await waitFor(() => expect(screen.queryByText(/We do not know yet whether Valo Pay 1 changed the emergency stop/)).toBeNull());
+    // The role switch is not journaled: its notice keeps the retry and names no Request history.
+    await user.selectOptions(screen.getByLabelText("Demo role"), "Finance");
+    api.failNext(/^\/v1\/actions$/, "offline", "POST");
+    await user.click(screen.getByRole("button", { name: "Switch role" }));
+    const role = (await screen.findByText(/We do not know yet whether Valo Pay 1 changed your role/)).closest('[role="alert"]') as HTMLElement;
+    expect(role.textContent).not.toMatch(/Request history|Operations/);
+    expect(within(role).queryByRole("link", { name: "Open Request history" })).toBeNull();
+  });
+});

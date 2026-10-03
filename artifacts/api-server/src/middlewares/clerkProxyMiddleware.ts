@@ -62,12 +62,12 @@ const SLICE_BYTES = 16 * 1024;
 
 /**
  * The limits with the rate and concurrency an operator set
- * (VALOPAY_CLERK_PROXY_RATE, VALOPAY_CLERK_PROXY_NETWORK_CONCURRENCY and
- * VALOPAY_CLERK_PROXY_CONCURRENCY), read by the start-up check's rule, which
+ * (VALO_PAY_1_CLERK_PROXY_RATE, VALO_PAY_1_CLERK_PROXY_NETWORK_CONCURRENCY and
+ * VALO_PAY_1_CLERK_PROXY_CONCURRENCY), read by the start-up check's rule, which
  * has already refused a value outside it (startup-config.ts).
  */
 export function clerkProxyLimits(): typeof CLERK_PROXY_LIMITS {
-  const tuned = clerkProxyTuning({ rate: process.env.VALOPAY_CLERK_PROXY_RATE, networkConcurrency: process.env.VALOPAY_CLERK_PROXY_NETWORK_CONCURRENCY, concurrency: process.env.VALOPAY_CLERK_PROXY_CONCURRENCY });
+  const tuned = clerkProxyTuning({ rate: process.env.VALO_PAY_1_CLERK_PROXY_RATE, networkConcurrency: process.env.VALO_PAY_1_CLERK_PROXY_NETWORK_CONCURRENCY, concurrency: process.env.VALO_PAY_1_CLERK_PROXY_CONCURRENCY });
   if (tuned.problems.length) throw new Error(tuned.problems.join(' '));
   return { ...CLERK_PROXY_LIMITS, ...tuned.limits };
 }
@@ -248,7 +248,7 @@ export function createBoundedClerkProxy(secretKey: string, options: { target?: s
   }) as RequestHandler;
   return (req, res, next) => {
     if (!originFor(req)) {
-      res.status(503).json({ error: 'Sign-in is not available at this address. Contact the Valo Pay team.', requestId: req.id });
+      res.status(503).json({ error: 'Sign-in is not available at this address. Contact the Valo Pay 1 team.', requestId: req.id });
       return;
     }
     // httpxy skips its proxyReq event for Expect requests. That would bypass

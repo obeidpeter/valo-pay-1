@@ -34,7 +34,7 @@ export const suites = [
   "artifacts/api-server/tests/pilot-workflow-migration.integration.test.ts",
   "artifacts/api-server/tests/schema-push.integration.test.ts",
   "artifacts/api-server/tests/integrity-guards.integration.test.ts",
-  "artifacts/api-server/tests/valopay-store.integration.test.ts",
+  "artifacts/api-server/tests/valo-pay-1-store.integration.test.ts",
   "artifacts/api-server/tests/close-scheduler.integration.test.ts",
   "artifacts/api-server/tests/background-worker.integration.test.ts",
   "artifacts/api-server/tests/pilot-administrators.integration.test.ts",
@@ -70,8 +70,8 @@ export function runSuites(list, run, say = console) {
 const startedDirectly = () => { try { return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)); } catch { return false; } };
 if (startedDirectly()) {
   if (!existsSync(tsx)) throw new Error("tsx is missing; run pnpm install first.");
-  if (process.env.VALOPAY_RUN_INTEGRATION !== "1") {
-    throw new Error("Set VALOPAY_RUN_INTEGRATION=1 to run the database-backed suites; they write synthetic fixtures to DATABASE_URL.");
+  if (process.env.VALO_PAY_1_RUN_INTEGRATION !== "1") {
+    throw new Error("Set VALO_PAY_1_RUN_INTEGRATION=1 to run the database-backed suites; they write synthetic fixtures to DATABASE_URL.");
   }
   if (!process.env.DATABASE_URL) {
     throw new Error("DATABASE_URL must point at a disposable development database that carries the pushed schema.");

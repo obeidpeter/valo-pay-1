@@ -2,6 +2,7 @@
 import { readFile } from 'node:fs/promises';
 import { financialProjectionSchema, FINANCIAL_PROJECTION_LIMIT, syncFinancialProjection } from '../../artifacts/api-server/src/lib/financial-projection';
 import type { DomainState } from '../../artifacts/api-server/src/domain/types';
+import { assertPublicOperatorSchema } from '../../artifacts/api-server/src/lib/product-identity';
 
 const args = process.argv.slice(2);
 const value = (flag: string) => { const i=args.indexOf(flag); return i<0 ? undefined : args[i+1]; };
@@ -11,11 +12,15 @@ for (let i=0;i<args.length;i++) {
   if (['--schema','--workspace','--lender'].includes(args[i]!)) { if (!args[i+1] || args[i+1]!.startsWith('--')) throw new Error('Missing argument value.'); i++; }
 }
 const schema = financialProjectionSchema(value('--schema') || '');
-if (process.env.VALOPAY_FINANCIAL_PROJECTION !== 'staging') throw new Error('Set VALOPAY_FINANCIAL_PROJECTION=staging for this synthetic-only operator command.');
+if (process.env.VALO_PAY_1_FINANCIAL_PROJECTION !== 'staging') throw new Error('Set VALO_PAY_1_FINANCIAL_PROJECTION=staging for this synthetic-only operator command.');
 if (args.includes('--initialise') && (args.includes('--apply') || value('--workspace') || value('--lender'))) throw new Error('Initialise the isolated schema separately from a lender backfill.');
 const workspace = value('--workspace'), lender = value('--lender');
 if (!args.includes('--initialise') && (!workspace || !lender)) throw new Error('Name the exact workspace and lender; bulk backfills are intentionally not supported.');
+assertPublicOperatorSchema();
 const { pool } = await import('../../lib/db/src/index');
+const { verifyProductDatabaseBinding } = await import('../../artifacts/api-server/src/lib/valo-pay-1-store');
+try { await verifyProductDatabaseBinding(); }
+catch { await pool.end(); console.error('Financial staging refused: Valo Pay 1 resource identity is not verified. Review VALO_PAY_1_ENVIRONMENT and VALO_PAY_1_RESOURCE_BINDINGS. No database changes were made.'); process.exit(1); }
 const client = await pool.connect();
 try {
   if (args.includes('--initialise')) {

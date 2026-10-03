@@ -1,5 +1,5 @@
-/** Internal repository payload-rewrap. Import through valopay-store; external access is rejected by the boundary check. */
-import type { PoolClient } from "@workspace/db";
+/** Internal repository payload-rewrap. Import through valo-pay-1-store; external access is rejected by the boundary check. */
+import type { PoolClient } from "@workspace/valo-pay-1-db";
 import {
   protectStored,
   revealStored,
@@ -100,7 +100,7 @@ export function createPayloadRewrapRepository(dependencies: Dependencies) {
     if (scope.tables !== Object.keys(tables).length)
       fail(
         named
-          ? `VALOPAY_RUNTIME_SCHEMA names ${named}, which does not hold the application's tables; nothing was read.`
+          ? `VALO_PAY_1_RUNTIME_SCHEMA names ${named}, which does not hold the application's tables; nothing was read.`
           : "The connection's search path does not reach the application's tables; nothing was read.",
         503,
       );
@@ -118,12 +118,12 @@ export function createPayloadRewrapRepository(dependencies: Dependencies) {
   }
   /**
    * Operator-only (scripts/rewrap-payloads.ts); never called by an HTTP route.
-   * After the payload wrapping key changes name (VALOPAY_KMS_KEY), re-seals at
+   * After the payload wrapping key changes name (VALO_PAY_1_KMS_KEY), re-seals at
    * most `limit` protected payloads that still name an earlier key: each is
    * opened with the key it names, which must still be listed in
-   * VALOPAY_KMS_PREVIOUS_KEYS, and sealed again under the current key with a
+   * VALO_PAY_1_KMS_PREVIOUS_KEYS, and sealed again under the current key with a
    * fresh data key, in the scope it was sealed in. It reads one schema: the
-   * restricted runtime's that VALOPAY_RUNTIME_SCHEMA names, whose tables it
+   * restricted runtime's that VALO_PAY_1_RUNTIME_SCHEMA names, whose tables it
    * names in full, or else the one the connection's search path reaches, and
    * only through a connection that sees every row there (rewrapScope). Nothing
    * is locked while the key service works: a payload is read, re-sealed, then
@@ -141,17 +141,17 @@ export function createPayloadRewrapRepository(dependencies: Dependencies) {
     const key = payloadEncryptionKey();
     if (!key)
       fail(
-        "Set VALOPAY_PAYLOAD_ENCRYPTION=kms and VALOPAY_KMS_KEY to the key payloads should be sealed under.",
+        "Set VALO_PAY_1_PAYLOAD_ENCRYPTION=kms and VALO_PAY_1_KMS_KEY to the key payloads should be sealed under.",
         503,
       );
     const limit = options.limit ?? 100,
       workspaces = options.workspaces ? [...options.workspaces] : null;
     if (!Number.isSafeInteger(limit) || limit < 1 || limit > 1000)
       fail("Re-wrap between 1 and 1000 payloads at a time.");
-    const named = process.env.VALOPAY_RUNTIME_SCHEMA || undefined;
+    const named = process.env.VALO_PAY_1_RUNTIME_SCHEMA || undefined;
     if (named && !RUNTIME_SCHEMA_NAME.test(named))
       fail(
-        "VALOPAY_RUNTIME_SCHEMA must name a restricted runtime's schema (valopay_runtime_staging_<suffix>), or be unset for the tables the connection's search path reaches.",
+        "VALO_PAY_1_RUNTIME_SCHEMA must name a restricted runtime's schema (valopay_runtime_staging_<suffix>), or be unset for the tables the connection's search path reaches.",
         503,
       );
     const tables = rewrapTables(named),
@@ -190,7 +190,7 @@ export function createPayloadRewrapRepository(dependencies: Dependencies) {
       } catch (error) {
         if ((error as { status?: unknown }).status !== 503) throw error;
         fail(
-          `A payload sealed under ${String(payload.value.key)} could not be opened, so the run stopped after re-sealing ${rewrapped}. Keep that key in VALOPAY_KMS_PREVIOUS_KEYS and check this service may decrypt with it, then run the command again.`,
+          `A payload sealed under ${String(payload.value.key)} could not be opened, so the run stopped after re-sealing ${rewrapped}. Keep that key in VALO_PAY_1_KMS_PREVIOUS_KEYS and check this service may decrypt with it, then run the command again.`,
           503,
         );
       }
@@ -235,7 +235,7 @@ export function createPayloadRewrapRepository(dependencies: Dependencies) {
       remainingByKey,
       otherSchemas,
       message: remaining
-        ? `${moved} ${remaining} in ${schema} still name an earlier key: run the command again until none remain, and keep the earlier keys in VALOPAY_KMS_PREVIOUS_KEYS until then.`
+        ? `${moved} ${remaining} in ${schema} still name an earlier key: run the command again until none remain, and keep the earlier keys in VALO_PAY_1_KMS_PREVIOUS_KEYS until then.`
         : otherSchemas.length
           ? `${moved} No protected payload in ${schema} names an earlier key, but ${otherSchemas.join(", ")} also ${otherSchemas.length === 1 ? "holds" : "hold"} the application's tables: re-wrap ${otherSchemas.length === 1 ? "it" : "each"} too (docs/pilot-security.md, "Key rotation"), and retire an earlier key only once every schema reports none and no backup you may restore still needs it.`
           : `${moved} No protected payload in ${schema} names an earlier key: an earlier key may be retired once no backup you may restore still needs it.`,

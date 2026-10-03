@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
-import { Pool } from '@workspace/db';
-import { SyntheticInstructionRecovery, type InstructionScope, type SyntheticInstruction } from '@workspace/db/synthetic-instruction-recovery';
+import { Pool } from '@workspace/valo-pay-1-db';
+import { SyntheticInstructionRecovery, type InstructionScope, type SyntheticInstruction } from '@workspace/valo-pay-1-db/synthetic-instruction-recovery';
 import { requireLoopback } from './throwaway-database';
 
-if (process.env.VALOPAY_RUN_INTEGRATION !== '1') {
+if (process.env.VALO_PAY_1_RUN_INTEGRATION !== '1') {
   if (process.env.CI) throw Error('Instruction recovery requires explicit synthetic database opt-in');
-  console.log('Set VALOPAY_RUN_INTEGRATION=1 for the isolated synthetic instruction recovery rehearsal.'); process.exit(0);
+  console.log('Set VALO_PAY_1_RUN_INTEGRATION=1 for the isolated synthetic instruction recovery rehearsal.'); process.exit(0);
 }
 const base = new URL(process.env.DATABASE_URL!);
 requireLoopback('Instruction recovery',base);

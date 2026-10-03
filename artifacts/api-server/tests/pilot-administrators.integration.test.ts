@@ -11,13 +11,13 @@ import { randomBytes } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 
-if (process.env.VALOPAY_RUN_INTEGRATION !== "1") {
-  console.log("Set VALOPAY_RUN_INTEGRATION=1 to run the pilot administrator integration test.");
+if (process.env.VALO_PAY_1_RUN_INTEGRATION !== "1") {
+  console.log("Set VALO_PAY_1_RUN_INTEGRATION=1 to run the pilot administrator integration test.");
   process.exit(0);
 }
-process.env.VALOPAY_STAFF_ACCESS = "staging";
-const { pool } = await import("@workspace/db");
-const { provisionStaffWorkspace, addStaffAdministrator, renewStaffAdministrator } = await import("../src/lib/valopay-store.js");
+process.env.VALO_PAY_1_STAFF_ACCESS = "staging";
+const { pool } = await import("@workspace/valo-pay-1-db");
+const { provisionStaffWorkspace, addStaffAdministrator, renewStaffAdministrator } = await import("../src/lib/valo-pay-1-store.js");
 
 const id = () => randomBytes(6).toString("hex");
 const organisation = `org_Synthetic${id()}`, first = `user_First${id()}`, second = `user_Second${id()}`;
@@ -107,7 +107,7 @@ try {
   // The command, as an operator runs it, twice: the second run says where things stand and exits 0, with no stack.
   const root = path.resolve(import.meta.dirname, "..", "..", "..");
   const commandOrganisation = `org_Command${id()}`, commandUser = `user_Command${id()}`;
-  const provision = () => spawnSync(process.execPath, [path.join(root, "scripts", "node_modules", "tsx", "dist", "cli.mjs"), "scripts/provision-pilot.ts", "--synthetic-staging", commandOrganisation, commandUser, "Command workspace"], { cwd: root, env: { ...process.env, VALOPAY_STAFF_ACCESS: "staging" }, encoding: "utf8", timeout: 60_000 });
+  const provision = () => spawnSync(process.execPath, [path.join(root, "scripts", "node_modules", "tsx", "dist", "cli.mjs"), "scripts/provision-pilot.ts", "--synthetic-staging", commandOrganisation, commandUser, "Command workspace"], { cwd: root, env: { ...process.env, VALO_PAY_1_STAFF_ACCESS: "staging" }, encoding: "utf8", timeout: 60_000 });
   for (const outcome of ["provisioned", "unchanged"]) {
     const run = provision();
     assert.equal(run.status, 0, run.stderr);

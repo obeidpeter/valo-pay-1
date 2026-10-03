@@ -1,6 +1,6 @@
 import type { RequestHandler } from "express";
 import { parse } from "csv-parse/sync";
-import { definitiveRefusalStatuses, pathId, recoverableOperation } from "@workspace/valopay-schema";
+import { definitiveRefusalStatuses, pathId, recoverableOperation } from "@workspace/valo-pay-1-schema";
 import { lenderQuery, optionalKey } from "./contract";
 import { assertNoRealBankDetails } from "../domain/records";
 import { markKeyed, markKeyUnused, registerRefusalCloser, type OperationState } from "./refused-operations";
@@ -12,7 +12,7 @@ import {
   readOperation,
   rejectOperation,
   type StoredRequest,
-} from "./valopay-store";
+} from "./valo-pay-1-store";
 
 // Only routes whose writes and receipt commit in one workspace transaction.
 // No URLs, headers, provider calls, team invitations or arbitrary HTTP replay.

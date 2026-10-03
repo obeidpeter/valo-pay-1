@@ -4,13 +4,13 @@ import { once } from 'node:events';
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 
-if (process.env.VALOPAY_RUN_INTEGRATION !== '1') { console.log('Source-close controls require a disposable local PostgreSQL database.'); process.exit(0); }
+if (process.env.VALO_PAY_1_RUN_INTEGRATION !== '1') { console.log('Source-close controls require a disposable local PostgreSQL database.'); process.exit(0); }
 assert.ok(['localhost', '127.0.0.1', '[::1]'].includes(new URL(process.env.DATABASE_URL || '').hostname), 'Refuse a non-local integration database.');
-const names = ['VALOPAY_STAFF_ACCESS', 'VALOPAY_STAFF_ISSUER', 'VALOPAY_STAFF_ORIGINS', 'VALOPAY_RUNTIME_ISOLATION', 'VALOPAY_PAYLOAD_ENCRYPTION', 'PRIVATE_OBJECT_DIR'] as const;
+const names = ['VALO_PAY_1_STAFF_ACCESS', 'VALO_PAY_1_STAFF_ISSUER', 'VALO_PAY_1_STAFF_ORIGINS', 'VALO_PAY_1_RUNTIME_ISOLATION', 'VALO_PAY_1_PAYLOAD_ENCRYPTION', 'PRIVATE_OBJECT_DIR'] as const;
 const saved = Object.fromEntries(names.map(name => [name, process.env[name]]));
-Object.assign(process.env, { VALOPAY_STAFF_ACCESS: 'staging', VALOPAY_STAFF_ISSUER: 'https://identity.example', VALOPAY_STAFF_ORIGINS: 'https://pilot.example', VALOPAY_RUNTIME_ISOLATION: 'off', VALOPAY_PAYLOAD_ENCRYPTION: 'off', PRIVATE_OBJECT_DIR: '/private/synthetic' });
-const { pool } = await import('@workspace/db');
-const store = await import('../src/lib/valopay-store');
+Object.assign(process.env, { VALO_PAY_1_STAFF_ACCESS: 'staging', VALO_PAY_1_STAFF_ISSUER: 'https://identity.example', VALO_PAY_1_STAFF_ORIGINS: 'https://pilot.example', VALO_PAY_1_RUNTIME_ISOLATION: 'off', VALO_PAY_1_PAYLOAD_ENCRYPTION: 'off', PRIVATE_OBJECT_DIR: '/private/synthetic' });
+const { pool } = await import('@workspace/valo-pay-1-db');
+const store = await import('../src/lib/valo-pay-1-store');
 const { default: router } = await import('../src/routes/index');
 const { errorHandler } = await import('../src/lib/error-handler');
 const identities = new Map<string, any>();

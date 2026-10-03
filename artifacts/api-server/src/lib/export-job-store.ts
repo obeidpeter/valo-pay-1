@@ -1,7 +1,7 @@
-import { pool, type PoolClient } from '@workspace/db';
+import { pool, type PoolClient } from '@workspace/valo-pay-1-db';
 import { randomUUID } from 'node:crypto';
 import type { Context, DomainState, ValopayRecord } from '../domain/types';
-import { SYSTEM_ACTOR_PREFIX, chainSequenceSql } from './valopay-store';
+import { SYSTEM_ACTOR_PREFIX, chainSequenceSql } from './valo-pay-1-store';
 import { auditEntryData, chainSequence } from './digests';
 import { EXPORT_LEASE_MS, EXPORT_CONFIRM_LEASE_MS, exportIsClaimable, returnExportToQueue, type ClaimedExport, type ExportArtifact, type ExportJobRepository, type ExportWriteResult, type ExportQueueCursor } from './export-jobs';
 import { bindRuntimeService, runtimeExportRequesterAllowed } from './runtime-isolation';
@@ -92,7 +92,7 @@ function highest(entries: ReadonlyArray<{ data: Record<string, any> }>): { seque
  * whole-number entry in that hour, it reads the whole chain.
  *
  * The lender's settings keep the head its requests last appended (auditChain,
- * lib/valopay-store.ts), which this worker's own entries do not move. When
+ * lib/valo-pay-1-store.ts), which this worker's own entries do not move. When
  * that head is further on than any entry, an entry has gone missing: the next
  * entry follows the stored head, as a request's does, so the missing sequence
  * is never issued again. The gap then stays in the chain: the overview

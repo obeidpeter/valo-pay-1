@@ -7,12 +7,12 @@
 // reports and the daily close.
 process.env.DATABASE_URL ||= "postgres://unused:unused@127.0.0.1:1/unused";
 import assert from "node:assert/strict";
-import { deadlineEnds, deadlinePassed, instantInputSchema, isoDateOrTimestamp, isoDay, isRealDate } from "@workspace/valopay-schema";
+import { deadlineEnds, deadlinePassed, instantInputSchema, isoDateOrTimestamp, isoDay, isRealDate } from "@workspace/valo-pay-1-schema";
 import { ctxAt, wat } from "./helpers.js";
-import { seedMerchant } from "../src/lib/valopay-seed.js";
+import { seedMerchant } from "../src/lib/valo-pay-1-seed.js";
 import { validateRecord } from "../src/domain/validation.js";
-import { pageQueue } from "../src/lib/valopay-queues.js";
-import { pageRecords } from "../src/lib/valopay-list.js";
+import { pageQueue } from "../src/lib/valo-pay-1-queues.js";
+import { pageRecords } from "../src/lib/valo-pay-1-list.js";
 import { buildAlerts } from "../src/domain/alerts.js";
 import { buildOverview, buildReports } from "../src/domain/reports.js";
 import { buildCloseReport, openingSnapshot } from "../src/domain/close.js";

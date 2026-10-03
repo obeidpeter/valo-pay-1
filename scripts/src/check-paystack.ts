@@ -1,5 +1,6 @@
 import { createPaystackTestAdapter, PaystackError, type ExpectedPayment } from '../../artifacts/api-server/src/providers/paystack.js';
 import { paystackIngressStatus } from '../../artifacts/api-server/src/providers/paystack-ingress-config.js';
+import { assertOperatorConfiguration } from '../../artifacts/api-server/src/lib/product-identity';
 
 // Operator-only, read-only check. Never accept a key as a command-line argument.
 const usage = 'Use: check-paystack [--reference TEST_REFERENCE --amount-kobo POSITIVE_INTEGER] [--direct-debit] [--mandate-reference TEST_MANDATE_REFERENCE]';
@@ -23,6 +24,8 @@ try {
   const amountText = flags.get('--amount-kobo');
   if (Boolean(paymentReference) !== Boolean(amountText) || (flags.has('--direct-debit') && !paymentReference)) throw new PaystackError('invalid_input', usage);
   if (amountText && (!/^[1-9]\d*$/.test(amountText) || BigInt(amountText) > BigInt(Number.MAX_SAFE_INTEGER))) throw new PaystackError('invalid_input', 'The expected amount must be a positive, safe integer in kobo.');
+  try { assertOperatorConfiguration(); }
+  catch { throw new PaystackError('configuration', 'The Valo Pay 1 resource identity is not configured correctly. Review VALO_PAY_1_RESOURCE_BINDINGS before checking the provider.'); }
   const adapter = createPaystackTestAdapter({ secretKey: process.env.PAYSTACK_TEST_SECRET_KEY || '' });
   const connection = await adapter.checkConnection();
   // The ingress setting of the process this check runs in: a count of mapped connections, never their IDs.

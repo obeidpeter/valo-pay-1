@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
-import { sameJson } from "@workspace/valopay-schema";
+import { sameJson } from "@workspace/valo-pay-1-schema";
 
 const hash = z.string().regex(/^[a-f0-9]{64}$/);
 const keyId = z.string().regex(/^projects\/[a-zA-Z0-9_-]+\/locations\/[a-zA-Z0-9_-]+\/keyRings\/[a-zA-Z0-9_-]+\/cryptoKeys\/[a-zA-Z0-9_-]+$/);

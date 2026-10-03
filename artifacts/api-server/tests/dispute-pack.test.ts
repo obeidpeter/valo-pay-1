@@ -7,8 +7,8 @@ import { addNotice, addObservation, ctxAt, decodePdfText, liveFixture, wat } fro
 import { reconcile } from "../src/domain/reconciliation.js";
 import { executeAction } from "../src/domain/actions.js";
 import { makeRecord, recordsOf } from "../src/domain/records.js";
-import { buildDisputePack, disputePackCsv, renderDisputePackPdf } from "../src/lib/valopay-packs.js";
-import { buildExportBytes } from "../src/lib/valopay-exports.js";
+import { buildDisputePack, disputePackCsv, renderDisputePackPdf } from "../src/lib/valo-pay-1-packs.js";
+import { buildExportBytes } from "../src/lib/valo-pay-1-exports.js";
 import { positionFor } from "../src/domain/close.js";
 
 let checks = 0;
@@ -72,7 +72,7 @@ const decoded = decodePdfText(pdf);
 assert.equal(pdf.subarray(0, 5).toString(), "%PDF-");
 const pages = Number(body.match(/\/Count (\d+)/)?.[1]);
 assert.ok(pages >= 3, `summary, timeline and documents pages: ${pages}`);
-for (const needle of ["Valo Pay dispute pack", `Timeline: ${pack.timeline.length} events`, "Documents in effect at the time", `Page 1 of ${pages}`, `Page ${pages} of ${pages}`, "₦25,000.00", customer.name, "Retry policy version 1", "Message template version 2"]) assert.ok(decoded.includes(needle), `PDF text contains "${needle}"`);
+for (const needle of ["Valo Pay 1 dispute pack", `Timeline: ${pack.timeline.length} events`, "Documents in effect at the time", `Page 1 of ${pages}`, `Page ${pages} of ${pages}`, "₦25,000.00", customer.name, "Retry policy version 1", "Message template version 2"]) assert.ok(decoded.includes(needle), `PDF text contains "${needle}"`);
 assert.ok(!/NGN [0-9]/.test(decoded), "naira amounts are printed with the naira sign, as the console shows them");
 // The lender's mode is printed by the name Settings gives it, never as its code ("observation mode").
 assert.ok(decoded.includes(`mode: ${pack.merchant.mode === "observation" ? "Records payments only" : "Instructions after go-live"}`) && !decoded.includes(`${pack.merchant.mode} mode`), "the PDF names the lender's mode"); checks += 1;

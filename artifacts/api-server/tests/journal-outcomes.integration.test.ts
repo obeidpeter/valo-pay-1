@@ -1,3 +1,4 @@
+import { SANDBOX_COOKIE } from "../src/lib/sandbox-cookie";
 // What a keyed request is told when it cannot be answered at once (audit 23
 // September, items 1, 2 and 7), against a real database: an answer is decided
 // for the request's Idempotency-Key, not for one attempt. A repeat of a saved
@@ -14,16 +15,16 @@ import express from "express";
 import { once } from "node:events";
 import { randomBytes, randomUUID } from "node:crypto";
 
-if (process.env.VALOPAY_RUN_INTEGRATION !== "1") {
-  console.log("Set VALOPAY_RUN_INTEGRATION=1 to check the operations journal's answers against a disposable PostgreSQL database.");
+if (process.env.VALO_PAY_1_RUN_INTEGRATION !== "1") {
+  console.log("Set VALO_PAY_1_RUN_INTEGRATION=1 to check the operations journal's answers against a disposable PostgreSQL database.");
   process.exit(0);
 }
 // A placeholder identity key: nothing here reaches the identity provider.
 process.env.CLERK_SECRET_KEY ??= "sk_test_placeholder";
-const { pool } = await import("@workspace/db");
+const { pool } = await import("@workspace/valo-pay-1-db");
 const { default: router } = await import("../src/routes/index");
 const { errorHandler } = await import("../src/lib/error-handler");
-const store = await import("../src/lib/valopay-store");
+const store = await import("../src/lib/valo-pay-1-store");
 const { overrideDatabaseLimits } = await import("../src/lib/database-limits");
 const { requestFingerprint } = await import("../src/lib/digests");
 const { makeRecord } = await import("../src/domain/records");
@@ -42,7 +43,7 @@ app.use(errorHandler);
 const server = app.listen(0, "127.0.0.1");
 await once(server, "listening");
 const base = `http://127.0.0.1:${(server.address() as any).port}/api`;
-const cookie = `valopay_sandbox=${randomBytes(32).toString("hex")}`;
+const cookie = `${SANDBOX_COOKIE}=${randomBytes(32).toString("hex")}`;
 async function call(path: string, method = "GET", body?: unknown, key?: string) {
   const response = await fetch(base + path, { method, headers: { "Content-Type": "application/json", Cookie: cookie, ...(key ? { "Idempotency-Key": key } : {}) }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
   return { status: response.status, data: (await response.json()) as any, headers: response.headers };
@@ -109,7 +110,7 @@ try {
     await pool.query("UPDATE valopay_idempotency SET response=$3 WHERE merchant_id=$1 AND id=ANY($2::text[])", [lender, [entry!.id, store.digest(`${lender}:${key}`)], unopenable]);
     const repeat = await call(q("/v1/records/customers"), "POST", body, key);
     assert.equal(repeat.status, 503, JSON.stringify(repeat.data));
-    assert.deepEqual([repeat.data.committed, repeat.data.operation, repeat.data.error], [undefined, "completed", "Protected data cannot be opened. Contact the Valo Pay team. This request was saved."], "a saved request whose answer cannot be opened says it was saved");
+    assert.deepEqual([repeat.data.committed, repeat.data.operation, repeat.data.error], [undefined, "completed", "Protected data cannot be opened. Contact the Valo Pay 1 team. This request was saved."], "a saved request whose answer cannot be opened says it was saved");
     assert.deepEqual([(await entryOf(key))[0]!.status, await saved(body.reference)], ["completed", 1]);
     // A retry from Operations whose stored request cannot be opened says the same.
     await pool.query("UPDATE valopay_operations SET request=$3 WHERE merchant_id=$1 AND id=$2", [lender, entry!.id, unopenable]);
@@ -253,10 +254,10 @@ try {
     assert.equal(ok(await call(inOther("/v1/operations/pending"))).pending, 0, "nothing waits for confirmation or counts towards the pending limit");
     const listed = ok(await call(inOther("/v1/operations"))).items.find((item: { id: string }) => item.id === id);
     assert.equal(listed?.status, "cancelled");
-    assert.match(listed.message, /^Valo Pay refused this request: Valo Pay cannot complete this calculation because an amount or rate is outside the supported limits\./);
+    assert.match(listed.message, /^Valo Pay 1 refused this request: Valo Pay 1 cannot complete this calculation because an amount or rate is outside the supported limits\./);
     const again = await call(inOther("/v1/actions"), "POST", body, key);
     assert.deepEqual([again.status, again.data.operation], [409, "cancelled"], "the same key cannot run again");
-    assert.match(again.data.error, /^Valo Pay refused this request and saved nothing: Valo Pay cannot complete this calculation/);
+    assert.match(again.data.error, /^Valo Pay 1 refused this request and saved nothing: Valo Pay 1 cannot complete this calculation/);
     assert.equal(await closes(), before, "and nothing was saved");
     checks += 9;
   }

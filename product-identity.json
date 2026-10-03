@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "applicationId": "valo-pay-1",
+  "displayName": "Valo Pay 1",
+  "generation": 1,
+  "identifiers": {
+    "pascalCase": "ValoPay1",
+    "camelCase": "valoPay1",
+    "snakeCase": "valo_pay_1",
+    "environmentPrefix": "VALO_PAY_1_",
+    "browserPrefix": "valo-pay-1:<environment>:"
+  },
+  "environments": [
+    "development",
+    "test",
+    "staging",
+    "production"
+  ],
+  "repository": {
+    "id": "1374783064",
+    "owner": "obeidpeter",
+    "canonicalName": "valo-pay-1",
+    "observedName": "valo-pay-1",
+    "renameStatus": "verified-same-repository-id",
+    "baselineCommit": "5acfb5b1743afc9a30c6b5294de7c1b23088e79f"
+  },
+  "hosting": {
+    "provider": "replit",
+    "applicationId": "da98915e-a44c-4f6e-af96-a37614f3a217",
+    "observedTitle": "Valo Pay 1",
+    "canonicalTitle": "Valo Pay 1",
+    "publishedOrigin": "https://valo-pay.replit.app",
+    "originStatus": "retained-exclusively-for-generation-1",
+    "replacementOrigin": null,
+    "cutoverStatus": "not-authorised",
+    "titleStatus": "verified-in-project-settings",
+    "repositoryRemote": "https://github.com/obeidpeter/valo-pay-1.git"
+  },
+  "ports": {
+    "developmentWeb": 21601,
+    "developmentApi": 8181,
+    "componentPreview": 8182,
+    "browserTest": 4174,
+    "databaseBrowserTest": 4175
+  },
+  "resources": {
+    "productionDatabase": {
+      "status": "must-verify-before-cutover",
+      "binding": "VALO_PAY_1_RESOURCE_BINDINGS.database",
+      "retainExistingData": true
+    },
+    "objectStorage": {
+      "status": "must-verify-before-cutover",
+      "binding": "PRIVATE_OBJECT_DIR",
+      "retainExistingObjects": true
+    },
+    "authentication": {
+      "status": "managed-clerk-instance-unverified",
+      "requiresIndependentFutureInstance": true
+    },
+    "scheduler": {
+      "observedState": "off",
+      "mustNotDuplicateWorkers": true
+    },
+    "externalPayments": {
+      "status": "not-configured",
+      "liveTransactionsPermitted": false
+    }
+  },
+  "futureProduct": {
+    "displayName": "Valo Pay",
+    "applicationId": "valo-pay",
+    "repositoryNameReuse": "not-yet-safe",
+    "legacyHostnameReuse": "not-yet-safe",
+    "provisionIndependentResources": true
+  }
+}

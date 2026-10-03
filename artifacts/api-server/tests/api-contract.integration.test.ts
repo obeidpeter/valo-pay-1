@@ -1,3 +1,4 @@
+import { SANDBOX_COOKIE } from "../src/lib/sandbox-cookie";
 // Database-backed checks of the API contract (audit item 24). Every answer in
 // this suite, success or refusal, is checked against lib/api-spec/openapi.json:
 // its status must be one the contract lists for the operation, and its body
@@ -17,19 +18,19 @@ import { once } from "node:events";
 import { randomBytes, randomUUID } from "node:crypto";
 import { answerErrors, contractOperations, loadContract, operationFor } from "./contract-schema";
 
-if (process.env.VALOPAY_RUN_INTEGRATION !== "1") {
-  console.log("Set VALOPAY_RUN_INTEGRATION=1 to check the API contract against a disposable PostgreSQL database.");
+if (process.env.VALO_PAY_1_RUN_INTEGRATION !== "1") {
+  console.log("Set VALO_PAY_1_RUN_INTEGRATION=1 to check the API contract against a disposable PostgreSQL database.");
   process.exit(0);
 }
 // Placeholder identity and storage settings: nothing here reaches Clerk or object storage.
 process.env.CLERK_SECRET_KEY = "sk_test_placeholder";
 process.env.PRIVATE_OBJECT_DIR ||= "/contract-test-bucket/private";
-const { pool } = await import("@workspace/db");
+const { pool } = await import("@workspace/valo-pay-1-db");
 const { default: router } = await import("../src/routes/index");
 const { errorHandler } = await import("../src/lib/error-handler");
-const { withState } = await import("../src/routes/valopay");
-const { CreateRecordResponse } = await import("@workspace/api-zod");
-const store = await import("../src/lib/valopay-store");
+const { withState } = await import("../src/routes/valo-pay-1");
+const { CreateRecordResponse } = await import("@workspace/valo-pay-1-api-zod");
+const store = await import("../src/lib/valo-pay-1-store");
 const { makeRecord } = await import("../src/domain/records");
 const { recoverableRequest } = await import("../src/lib/operation-recovery");
 const { clerkClient } = await import("@clerk/express");
@@ -56,7 +57,7 @@ app.use(errorHandler);
 const server = app.listen(0, "127.0.0.1");
 await once(server, "listening");
 const base = `http://127.0.0.1:${(server.address() as any).port}/api`;
-const cookie = `valopay_sandbox=${randomBytes(32).toString("hex")}`;
+const cookie = `${SANDBOX_COOKIE}=${randomBytes(32).toString("hex")}`;
 
 /** Operation → statuses it answered in this run. */
 const answered = new Map<string, Set<number>>();
@@ -88,7 +89,7 @@ const withOffset = (iso: string) => new Date(Date.parse(iso) + 3_600_000).toISOS
 const key = () => randomUUID();
 const cleanupWorkspaces = new Set<string>();
 const workspaceOf = async (merchantId: string) => (await pool.query("SELECT workspace_id FROM valopay_merchants WHERE id=$1", [merchantId])).rows[0].workspace_id as string;
-const savedEnv = { mode: process.env.VALOPAY_STAFF_ACCESS, issuer: process.env.VALOPAY_STAFF_ISSUER, origins: process.env.VALOPAY_STAFF_ORIGINS };
+const savedEnv = { mode: process.env.VALO_PAY_1_STAFF_ACCESS, issuer: process.env.VALO_PAY_1_STAFF_ISSUER, origins: process.env.VALO_PAY_1_STAFF_ORIGINS };
 const oldGetUser = clerkClient.users.getUser;
 
 try {
@@ -102,7 +103,7 @@ try {
   // Separate synthetic workspace: these requests must not alter the contract journey's retained-request fixtures below.
   // All answers still pass the OpenAPI assertions in call(). A second person confirms, and invoices are priced, on the staff host below.
   {
-    const billingCookie = `valopay_sandbox=${randomBytes(32).toString("hex")}`;
+    const billingCookie = `${SANDBOX_COOKIE}=${randomBytes(32).toString("hex")}`;
     const billingWorkspace = ok(await call("/v1/workspace", "GET", undefined, { cookie: billingCookie }));
     const billingLender = billingWorkspace.merchants[0].id as string;
     cleanupWorkspaces.add(await workspaceOf(billingLender));
@@ -141,7 +142,7 @@ try {
     ]) {
       const forged = await billingCall(`/v1/records/commercial/${terms.id}`, "PATCH", { expectedUpdatedAt: terms.updatedAt, data: { ...dates, discountReview } });
       assert.equal(forged.status, 400, JSON.stringify(forged.data));
-      assert.match(forged.data.error, /Valo Pay records who proposed and who confirmed the discount dates\. Leave those details out\./);
+      assert.match(forged.data.error, /Valo Pay 1 records who proposed and who confirmed the discount dates\. Leave those details out\./);
     }
     // Dates saved without ticking the full-price terms: saved, not proposed, and the refusal and the report name the flag.
     terms = ok(await billingCall(`/v1/records/commercial/${terms.id}`, "PATCH", { expectedUpdatedAt: terms.updatedAt, data: { ...dates, signedFullPriceTerms: false } }));
@@ -441,7 +442,7 @@ try {
   await pool.query(`UPDATE valopay_idempotency SET response=response #- '{record,kind}' WHERE merchant_id=$1 AND id=$2`, [lender, receiptId]);
   logged.length = 0;
   const unanswerable = await call(q("/v1/connected/actions"), "POST", replayGrant, { key: replayKey });
-  assert.deepEqual([unanswerable.status, unanswerable.data.error, unanswerable.data.committed, unanswerable.data.operation], [500, "Valo Pay saved this request but could not send its answer. Check the original request in Request history to see the saved result.", undefined, "completed"], "a saved request is never answered as saving nothing: the answer says it was saved");
+  assert.deepEqual([unanswerable.status, unanswerable.data.error, unanswerable.data.committed, unanswerable.data.operation], [500, "Valo Pay 1 saved this request but could not send its answer. Check the original request in Request history to see the saved result.", undefined, "completed"], "a saved request is never answered as saving nothing: the answer says it was saved");
   assert.deepEqual(events("response.invalid").map((line) => [line.level, line.fields.replayed]), [["error", true]]);
   assert.equal(await consents(), consentCount, "the consent was saved once");
   assert.equal((await pool.query("SELECT status FROM valopay_operations WHERE merchant_id=$1 AND request_key=$2", [lender, replayKey])).rows[0].status, "completed", "and its journal entry stays completed");
@@ -464,7 +465,7 @@ try {
   await pool.query(`UPDATE valopay_records SET data=jsonb_set(data,'{expiresAt}','"next Tuesday"') WHERE merchant_id=$1 AND id=$2`, [lender, storedRun]);
   logged.length = 0;
   const unreadable = await call(q("/v1/lifecycle"));
-  assert.deepEqual([unreadable.status, unreadable.data], [500, { error: "Valo Pay could not load this. Try again, and quote this reference if it happens again.", requestId: unreadable.data.requestId }], "a read's failure, without committed");
+  assert.deepEqual([unreadable.status, unreadable.data], [500, { error: "Valo Pay 1 could not load this. Try again, and quote this reference if it happens again.", requestId: unreadable.data.requestId }], "a read's failure, without committed");
   assert.deepEqual([events("response.invalid").map((line) => line.level), events("request.rejected").length], [["error"], 0], "logged as an invalid answer, never as a rejected request");
   await pool.query("DELETE FROM valopay_records WHERE merchant_id=$1 AND id=$2", [lender, storedRun]);
 
@@ -487,13 +488,13 @@ try {
   const otherState = await store.inWorkspace(sandboxRequest(), response, async (ctx) => { const state = await store.loadState(ctx, other); makeRecord(state, "connected-credit-assessments", { name: "Malformed assessment", status: "blocked", createdAt: ctx.now, data: { result: { evidence: { grantVersions: [], issues: [] }, policy: {}, score: "not a score" }, scenario: "ready", createdBy: "Sandbox Operations" } }); store.appendAudit(state, ctx, "test.contract.malformed", other, "Stored a malformed synthetic forecast."); await store.saveState(ctx, state); return state.merchant.id; });
   const malformed = await call(q("/v1/connected", otherState));
   assert.equal(malformed.status, 500, "a malformed stored assessment fails the read");
-  assert.deepEqual([malformed.data.error, malformed.data.committed], ["Valo Pay could not load this. Try again, and quote this reference if it happens again.", undefined], "in a read's words: a read saves nothing either way");
+  assert.deepEqual([malformed.data.error, malformed.data.committed], ["Valo Pay 1 could not load this. Try again, and quote this reference if it happens again.", undefined], "in a read's words: a read saves nothing either way");
 
   // ---- New sandboxes from one address are limited, and the refusal says when to retry (429, Retry-After an hour) ----
   // Last of this suite's sandboxes: the limit is per process and address, and the staff host below needs none.
   let crowded: Awaited<ReturnType<typeof call>> | undefined;
   for (let visit = 0; visit < 25 && !crowded; visit++) {
-    const answer = await call("/v1/workspace", "GET", undefined, { cookie: `valopay_sandbox=${randomBytes(32).toString("hex")}` });
+    const answer = await call("/v1/workspace", "GET", undefined, { cookie: `${SANDBOX_COOKIE}=${randomBytes(32).toString("hex")}` });
     if (answer.status === 429) crowded = answer;
     else cleanupWorkspaces.add(await workspaceOf(ok(answer).merchants[0].id));
   }
@@ -501,9 +502,9 @@ try {
   assert.equal(crowded!.headers.get("Retry-After"), "3600", "and said to try again in an hour");
 
   // ---- A staff host: the team directory, invitations, memberships, lender access and readiness ----
-  process.env.VALOPAY_STAFF_ACCESS = "staging";
-  process.env.VALOPAY_STAFF_ISSUER = "https://identity.example";
-  process.env.VALOPAY_STAFF_ORIGINS = "https://pilot.example";
+  process.env.VALO_PAY_1_STAFF_ACCESS = "staging";
+  process.env.VALO_PAY_1_STAFF_ISSUER = "https://identity.example";
+  process.env.VALO_PAY_1_STAFF_ORIGINS = "https://pilot.example";
   const organisation = `org_${randomUUID().replaceAll("-", "")}`, admin = `user_${randomUUID().replaceAll("-", "")}`, finance = `user_${randomUUID().replaceAll("-", "")}`;
   const staffAuth = (userId: string) => {
     const now = Math.floor(Date.now() / 1000);
@@ -618,7 +619,7 @@ try {
     ok(await staffAct("finance", "confirm_discount_terms", corrected, terms.id));
     const differences = (await billing()).rateDiscrepancies.map((line: any) => [line.invoiceId, line.period, line.chargedRate, line.agreedRate]);
     assert.deepEqual(differences, [[firstInvoice.id, first, 0.5, 0], [secondInvoice.id, second, 0, 0.5]], "each issued month the confirmed agreement prices differently is reported");
-    assert.match((await billing()).rateDiscrepancyGuidance, /Valo Pay cannot correct an issued invoice’s discount/);
+    assert.match((await billing()).rateDiscrepancyGuidance, /Valo Pay 1 cannot correct an issued invoice’s discount/);
     const thirdInvoice = ok(await staffAct("finance", "issue_invoice", { period: third })).record;
     assert.equal(thirdInvoice.data.designPartnerDiscount.rate, 0.5, "new invoices are priced from the confirmed dates");
     assert.equal((await billing()).rateDiscrepancies.length, 2, "the new invoice agrees with the agreement");
@@ -646,7 +647,7 @@ try {
   console.log(`API contract checks passed against PostgreSQL: ${answered.size} operations answered as documented, the sandbox directory's lenders, one 400 for a missing merchantId, offset date-times, optional and required keys, an invalid answer that saves nothing, ${repeatable.length} keyed writes gone (410) after a retention run, an export whose file expired, the export queue's and the new-sandbox limit's Retry-After, replayed receipts that never claim nothing was saved and a stored retention run's timestamps.`);
 } finally {
   (clerkClient.users as any).getUser = oldGetUser;
-  for (const [name, value] of Object.entries({ VALOPAY_STAFF_ACCESS: savedEnv.mode, VALOPAY_STAFF_ISSUER: savedEnv.issuer, VALOPAY_STAFF_ORIGINS: savedEnv.origins })) {
+  for (const [name, value] of Object.entries({ VALO_PAY_1_STAFF_ACCESS: savedEnv.mode, VALO_PAY_1_STAFF_ISSUER: savedEnv.issuer, VALO_PAY_1_STAFF_ORIGINS: savedEnv.origins })) {
     if (value === undefined) delete process.env[name];
     else process.env[name] = value;
   }

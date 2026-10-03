@@ -1,4 +1,4 @@
-import { WAT_OFFSET_MS } from "@workspace/valopay-schema";
+import { WAT_OFFSET_MS } from "@workspace/valo-pay-1-schema";
 import type { DomainState } from "./types";
 import { recordsOfKind } from "./record-index";
 

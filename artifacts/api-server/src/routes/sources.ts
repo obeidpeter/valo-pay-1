@@ -1,10 +1,10 @@
 import { Router, raw, type IRouter } from "express";
 import { z } from "zod";
-import { ReceivePaystackTestEventResponse } from "@workspace/api-zod";
-import { sourceProfileInputSchema, paystackFixtureInputSchema, providerReplayInputSchema, sourceManifestInputSchema, businessDateSchema, sourcesViewSchema, paystackFixtureResultSchema, providerEventViewSchema, valopayRecordSchema, pathId } from "@workspace/valopay-schema";
-import { withState } from "./valopay";
+import { ReceivePaystackTestEventResponse } from "@workspace/valo-pay-1-api-zod";
+import { sourceProfileInputSchema, paystackFixtureInputSchema, providerReplayInputSchema, sourceManifestInputSchema, businessDateSchema, sourcesViewSchema, paystackFixtureResultSchema, providerEventViewSchema, valopayRecordSchema, pathId } from "@workspace/valo-pay-1-schema";
+import { withState } from "./valo-pay-1";
 import { contractAnswer, lenderQuery, requiredKey } from "../lib/contract";
-import { revealImportPayloads } from "../lib/valopay-store";
+import { revealImportPayloads } from "../lib/valo-pay-1-store";
 import { saveSourceProfile, sourceQuality } from "../domain/source-quality";
 import { saveSourceManifest } from "../domain/source-completeness";
 import { providerEventView, receivePaystackEvent, replayProviderEvent, runPaystackFixture } from "../providers/paystack-inbox";
@@ -20,7 +20,7 @@ router.get("/v1/sources", async (req, res) => {
     // Quality is checked against the source rows of batches not yet committed, and of older committed batches with no stored quality.
     await revealImportPayloads(ctx, state, r => !(r.status === "committed" && r.data.sourceQuality));
     const events = state.records.filter(r => r.kind === "provider-events").sort((a,b) => b.createdAt.localeCompare(a.createdAt));
-    return { ...sourceQuality(state, ctx.now, businessDate), paystack: { mode: "test_only", externalConnectionVerified: false, canRunFixtures: ["Admin", "Operations", "Finance"].includes(ctx.role), state: "configuration_required", message: "An external test needs a Paystack account, test keys and a connection set up by the Valo Pay team. Practice messages on this page do not check a real Paystack connection.", events: events.slice(0,50).map(providerEventView), total: events.length, quarantined: events.filter(e => e.status === "quarantined").length, duplicates: events.reduce((sum,e) => sum + Math.max(0, Number(e.data.deliveryCount || 0) - 1), 0) } };
+    return { ...sourceQuality(state, ctx.now, businessDate), paystack: { mode: "test_only", externalConnectionVerified: false, canRunFixtures: ["Admin", "Operations", "Finance"].includes(ctx.role), state: "configuration_required", message: "An external test needs a Paystack account, test keys and a connection set up by the Valo Pay 1 team. Practice messages on this page do not check a real Paystack connection.", events: events.slice(0,50).map(providerEventView), total: events.length, quarantined: events.filter(e => e.status === "quarantined").length, duplicates: events.reduce((sum,e) => sum + Math.max(0, Number(e.data.deliveryCount || 0) - 1), 0) } };
   }, false, sourcesViewSchema);
   res.json(result);
 });

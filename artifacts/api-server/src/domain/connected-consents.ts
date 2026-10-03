@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { connectedConsentPurposes, type ConnectedActionInput } from "@workspace/valopay-schema";
+import { connectedConsentPurposes, type ConnectedActionInput } from "@workspace/valo-pay-1-schema";
 import type { Context, DomainState, ValopayRecord } from "./types";
 import { makeRecord, touch } from "./records";
 import { allow, owned, reject } from "./connected-context";

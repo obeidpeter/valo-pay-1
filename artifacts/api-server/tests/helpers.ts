@@ -2,9 +2,9 @@
 // and pure: no database, no network, fixed instants in West Africa Time.
 process.env.DATABASE_URL ||= "postgres://unused:unused@127.0.0.1:1/unused";
 import { makeRecord, recordsOf } from "../src/domain/records.js";
-import type { AttemptSource, ObservationSource } from "@workspace/valopay-schema";
+import type { AttemptSource, ObservationSource } from "@workspace/valo-pay-1-schema";
 import type { Context, DomainState, TypedRecord, ValopayRecord } from "../src/domain/types.js";
-import { seedMerchant } from "../src/lib/valopay-seed.js";
+import { seedMerchant } from "../src/lib/valo-pay-1-seed.js";
 
 export const HOUR = 60 * 60 * 1000;
 export const DAY = 24 * HOUR;

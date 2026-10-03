@@ -1,3 +1,4 @@
+import { SANDBOX_COOKIE } from "../src/lib/sandbox-cookie";
 // Database-backed test for the background worker thread (decision 1 of the 23
 // September 2026 audit): the first scheduled close of a pilot-sized lender runs
 // on the thread, so /api/healthz, answered on the main thread, stays prompt all
@@ -16,32 +17,32 @@ import { join } from "node:path";
 import { monitorEventLoopDelay } from "node:perf_hooks";
 import { setTimeout as delay } from "node:timers/promises";
 
-if (process.env.VALOPAY_RUN_INTEGRATION !== "1") {
-  console.log("Set VALOPAY_RUN_INTEGRATION=1 to run the background worker integration test.");
+if (process.env.VALO_PAY_1_RUN_INTEGRATION !== "1") {
+  console.log("Set VALO_PAY_1_RUN_INTEGRATION=1 to run the background worker integration test.");
   process.exit(0);
 }
 // The log goes to a file this test reads back; exports are queued to a synthetic private location.
-const logFile = join(tmpdir(), `valopay-background-${process.pid}.log`);
+const logFile = join(tmpdir(), `valo-pay-1-background-${process.pid}.log`);
 process.env["LOG_FILE"] = logFile;
 process.env["LOG_LEVEL"] = "info";
 const oldDirectory = process.env["PRIVATE_OBJECT_DIR"];
 process.env["PRIVATE_OBJECT_DIR"] = "/private/synthetic-export-tests";
 
-const { pool } = await import("@workspace/db");
-const { inWorkspace, listMerchants } = await import("../src/lib/valopay-store");
+const { pool } = await import("@workspace/valo-pay-1-db");
+const { inWorkspace, listMerchants } = await import("../src/lib/valo-pay-1-store");
 const { verifyAuditChain } = await import("../src/lib/digests");
 const { startBackgroundWorker } = await import("../src/lib/background-worker");
 const { logger } = await import("../src/lib/logger");
 const { workflowFixture, WORKFLOW_NOW } = await import("./workflow-fixture");
 const { default: express } = await import("express");
 const { default: health } = await import("../src/routes/health");
-const { default: valopay } = await import("../src/routes/valopay");
+const { default: valoPay1 } = await import("../src/routes/valo-pay-1");
 
 /** Customers in the lender whose first close the probes run beside: about 40,000 records, so a close lasts long enough for probes a tenth of a second apart. */
 const CUSTOMERS = 1600;
 const token = randomBytes(32).toString("hex");
 const auth = () => Object.assign(() => ({ userId: null }), { [Symbol.for("@clerk/express.auth")]: true });
-const request = () => ({ headers: { cookie: `valopay_sandbox=${token}` }, secure: false, auth: auth() }) as any;
+const request = () => ({ headers: { cookie: `${SANDBOX_COOKIE}=${token}` }, secure: false, auth: auth() }) as any;
 const response = () => ({ cookie() { /* a valid test cookie is already supplied */ } }) as any;
 const lines = (): Array<Record<string, any>> => readFileSync(logFile, "utf8").split("\n").filter(Boolean).map((line) => JSON.parse(line));
 const closesOf = async (merchantId: string) => (await pool.query<{ data: Record<string, any> }>("SELECT data FROM valopay_records WHERE merchant_id=$1 AND kind='closes' ORDER BY created_at", [merchantId])).rows;
@@ -113,13 +114,13 @@ try {
   app.use(express.json());
   app.use((req, _res, next) => { (req as any).auth = auth(); (req as any).log = { info() {}, warn() {}, error() {} }; next(); });
   app.use("/api", health);
-  app.use("/api", valopay);
+  app.use("/api", valoPay1);
   server = await new Promise<Server>((resolve) => { const running = app.listen(0, "127.0.0.1", () => resolve(running)); });
   const address = server.address();
   assert.ok(address && typeof address !== "string");
   const base = `http://127.0.0.1:${address.port}/api`;
   const api = async (path: string, init: { method?: string; body?: unknown; key?: string } = {}) => {
-    const answer = await fetch(`${base}/v1${path}?merchantId=${other}`, { method: init.method ?? "GET", headers: { Cookie: `valopay_sandbox=${token}`, "Content-Type": "application/json", ...(init.key ? { "Idempotency-Key": init.key } : {}) }, ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }) });
+    const answer = await fetch(`${base}/v1${path}?merchantId=${other}`, { method: init.method ?? "GET", headers: { Cookie: `${SANDBOX_COOKIE}=${token}`, "Content-Type": "application/json", ...(init.key ? { "Idempotency-Key": init.key } : {}) }, ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }) });
     return { status: answer.status, body: await answer.json() as any };
   };
 

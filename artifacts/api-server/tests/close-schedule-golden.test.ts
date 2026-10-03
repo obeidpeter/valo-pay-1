@@ -4,7 +4,7 @@
 // missed-close alert (NFR-OBS-02), the backoff after a failed scheduled attempt
 // and the pause of an idle sandbox's automatic close.
 import assert from "node:assert/strict";
-import { closeRules, closeTimeOf, isCloseTime, nextCloseInstant } from "@workspace/valopay-schema";
+import { closeRules, closeTimeOf, isCloseTime, nextCloseInstant } from "@workspace/valo-pay-1-schema";
 import { ctxAt, liveFixture, wat } from "./helpers.js";
 import { executeAction, runDailyClose } from "../src/domain/actions.js";
 import { closeRetryOf, closeSchedule, nextCloseRetry, owedCloseDates, pauseIdleSandboxClose, rescheduleAfterSettings, scheduledCloseDue, storedCloseCursor } from "../src/domain/close.js";
@@ -12,10 +12,10 @@ import { bindCloseReviewBasis, closeReviewCurrentProblem } from "../src/domain/c
 import { buildAlerts } from "../src/domain/alerts.js";
 import { buildOverview, buildReports } from "../src/domain/reports.js";
 import { recordsOf } from "../src/domain/records.js";
-import { seedMerchant } from "../src/lib/valopay-seed.js";
+import { seedMerchant } from "../src/lib/valo-pay-1-seed.js";
 import { effectiveCloseSchedule, type CloseRuntime } from "../src/domain/effective-close-schedule.js";
-import { buildConsoleOverview, buildConsoleReports, buildConsoleSettings } from "../src/lib/valopay-close-views.js";
-import * as S from "@workspace/api-zod";
+import { buildConsoleOverview, buildConsoleReports, buildConsoleSettings } from "../src/lib/valo-pay-1-close-views.js";
+import * as S from "@workspace/valo-pay-1-api-zod";
 
 let checks = 0;
 
@@ -38,7 +38,7 @@ let checks = 0;
     assert.equal(settings.closeSchedule?.nextAt, null);
     checks += 5;
   }
-  // external: a separate scheduled job runs the closes (VALOPAY_CLOSE_SCHEDULER=external). This process promises no
+  // external: a separate scheduled job runs the closes (VALO_PAY_1_CLOSE_SCHEDULER=external). This process promises no
   // automatic run it cannot see, but a close that job has not run is still missed: the overview raises close_missed
   // and names the date still owed, where scheduling deliberately off does neither.
   {

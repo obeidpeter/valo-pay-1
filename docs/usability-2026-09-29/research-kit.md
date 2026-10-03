@@ -4,7 +4,7 @@ Status: **prepared; human usability acceptance not yet tested**. This protocol c
 
 ## Purpose and study design
 
-Evaluate whether a first-time user can explain where they are, what the page is for, what their actual role permits, what to do next, whether work was saved/submitted and how to recover or get help. Unfamiliarity with Valo Pay does not mean a participant is qualified or authorised to make every financial decision.
+Evaluate whether a first-time user can explain where they are, what the page is for, what their actual role permits, what to do next, whether work was saved/submitted and how to recover or get help. Unfamiliarity with Valo Pay 1 does not mean a participant is qualified or authorised to make every financial decision.
 
 Recruit independently from each materially different user group below. Begin with a small formative round planned by the research owner, then size later benchmark rounds for the precision needed. Do not claim a small convenience sample represents all lenders or SMEs. Record the invited, eligible, consented, completed and withdrawn counts for each cohort, including any missing sessions. People who designed this release can preflight the study but are not independent first-time participants.
 
@@ -22,7 +22,7 @@ Recruit independently from each materially different user group below. Begin wit
 
 These cohorts do not assign roles or create Credit analyst, Cash operator or Payroll checker capabilities. Read the current effective role/action matrix and purpose scope before the session. Some real staff routes differ from sandbox personas; for example, the baseline Credit Desk is a sandbox-persona workflow. Mark an unavailable staff, invitation, MFA, public bank hand-off or applicant route **setup blocked**, then assess its truthful blocked explanation separately. Switching personas demonstrates a control; it is not evidence of genuine independent-person approval.
 
-Screen for task/domain experience, previous Valo Pay exposure, usual device/input, connection constraints and optional accessibility requirements. Collect only what affects study interpretation. Recruit keyboard and assistive-technology users for those conditions; do not infer their experience from automated tests or disability assumptions.
+Screen for task/domain experience, previous Valo Pay 1 exposure, usual device/input, connection constraints and optional accessibility requirements. Collect only what affects study interpretation. Recruit keyboard and assistive-technology users for those conditions; do not infer their experience from automated tests or disability assumptions.
 
 ## Preparation and privacy
 

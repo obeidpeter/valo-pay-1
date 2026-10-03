@@ -1,4 +1,4 @@
-// Offline checks that the shared answer schemas (lib/valopay-schema) describe
+// Offline checks that the shared answer schemas (lib/valo-pay-1-schema) describe
 // what the views and actions really produce (audit item 24): every connected
 // action, Credit Desk scenario and review, Cash Desk step and permission state,
 // and the pilot progress and close review views, both as the server builds them
@@ -6,8 +6,8 @@
 // against these schemas before it is sent, so a gap here would be a 500 there.
 import assert from "node:assert/strict";
 import type { ZodTypeAny } from "zod";
-import { closeReviewListSchema, connectedActionResultFor, connectedActionResultSchema, connectedViewSchema, pilotProgressSchema } from "@workspace/valopay-schema";
-import { seedMerchant } from "../src/lib/valopay-seed";
+import { closeReviewListSchema, connectedActionResultFor, connectedActionResultSchema, connectedViewSchema, pilotProgressSchema } from "@workspace/valo-pay-1-schema";
+import { seedMerchant } from "../src/lib/valo-pay-1-seed";
 import { connectedActionSchema, connectedRevision, connectedView, runConnectedAction } from "../src/domain/connected";
 import { executeAction } from "../src/domain";
 import { bindCloseReviewBasis, closeReviewList, pilotProgress } from "../src/domain/close-review";

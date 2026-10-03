@@ -6,7 +6,7 @@ import path from "node:path";
 import { inspectDatabaseBoundaries } from "./check-db-boundary.mjs";
 
 const temporary = await mkdtemp(
-  path.join(os.tmpdir(), "valopay-repository-boundary-"),
+  path.join(os.tmpdir(), "valo-pay-1-repository-boundary-"),
 );
 // Each fixture is refused by the rule it exercises and by no other, so a rule
 // that stopped firing cannot hide behind another one.
@@ -17,7 +17,7 @@ const rule = {
     "An internal repository capability cannot be exposed by the public facade.",
   facadeStatement:
     "The public repository facade must contain explicit re-exports only.",
-  internal: "Repository internals are private; use the valopay-store facade.",
+  internal: "Repository internals are private; use the valo-pay-1-store facade.",
   unreviewed:
     "This repository module has not been reviewed for database access.",
   cycle:
@@ -80,32 +80,32 @@ const cases = [
   ],
   [
     "facade wildcard",
-    "lib/valopay-store.ts",
+    "lib/valo-pay-1-store.ts",
     "export * from './repository/core';",
     [rule.facadeWildcard],
   ],
   [
     "facade raw capability",
-    "lib/valopay-store.ts",
+    "lib/valo-pay-1-store.ts",
     "export { sessionFor } from './repository/core';",
     [rule.facadeCapability],
   ],
   [
     "facade renamed capability",
-    "lib/valopay-store.ts",
+    "lib/valo-pay-1-store.ts",
     "export { sessionFor as saveState } from './repository/core';",
     [rule.facadeCapability],
   ],
   [
     "facade client construction",
-    "lib/valopay-store.ts",
+    "lib/valo-pay-1-store.ts",
     "export const rawClient = {};",
     [rule.facadeStatement],
   ],
   [
     "unreviewed internal module",
     "lib/repository/unreviewed.ts",
-    "import { pool } from '@workspace/db'; pool.query('SELECT 1');",
+    "import { pool } from '@workspace/valo-pay-1-db'; pool.query('SELECT 1');",
     [rule.databaseImport, rule.rawQuery],
   ],
   [
@@ -116,7 +116,7 @@ const cases = [
   ],
   [
     "facade re-exporting an unreviewed module",
-    "lib/valopay-store.ts",
+    "lib/valo-pay-1-store.ts",
     "export { loadState } from './repository/unreviewed';",
     [rule.unreviewed],
   ],
@@ -129,19 +129,19 @@ const cases = [
   [
     "direct external database",
     "routes/probe.ts",
-    "import { pool } from '@workspace/db';",
+    "import { pool } from '@workspace/valo-pay-1-db';",
     [rule.databaseImport],
   ],
   [
     "external database import equals",
     "routes/probe.ts",
-    "import database = require('@workspace/db');",
+    "import database = require('@workspace/valo-pay-1-db');",
     [rule.databaseImportEquals],
   ],
   [
     "dynamic external database",
     "routes/probe.ts",
-    "void import('@workspace/db');",
+    "void import('@workspace/valo-pay-1-db');",
     [rule.dynamicDatabase],
   ],
   [
@@ -175,15 +175,15 @@ try {
   }
   const permitted = path.join(temporary, "permitted");
   const files = {
-    "lib/valopay-store.ts":
+    "lib/valo-pay-1-store.ts":
       "export { loadState, saveState } from './repository/core'; export type { StoreContext } from './repository/types';",
     "lib/repository/core.ts":
-      "import { pool } from '@workspace/db'; import { createJournalRepository } from './journal'; pool.query('SELECT 1');",
+      "import { pool } from '@workspace/valo-pay-1-db'; import { createJournalRepository } from './journal'; pool.query('SELECT 1');",
     "lib/repository/journal.ts":
       "type Core = Pick<typeof import('./core'), 'sessionFor'>; export function createJournalRepository(core: Core) { return core; }",
     "lib/startup-config.ts":
       "export const configured = Boolean(process.env.DATABASE_URL);",
-    "routes/probe.ts": "import { loadState } from '../lib/valopay-store';",
+    "routes/probe.ts": "import { loadState } from '../lib/valo-pay-1-store';",
   };
   for (const [file, source] of Object.entries(files)) {
     const filename = path.join(permitted, "artifacts/api-server/src", file);

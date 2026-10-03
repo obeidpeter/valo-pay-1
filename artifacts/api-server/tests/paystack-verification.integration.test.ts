@@ -1,3 +1,4 @@
+import { SANDBOX_COOKIE } from "../src/lib/sandbox-cookie";
 // The saved-event verification against PostgreSQL: the mapped lender's lock, the store's final-state guard
 // and the audit trail, with Paystack's answers faked in this process as the offline tests fake them. No
 // request leaves the process, and nothing but synthetic records is written.
@@ -5,17 +6,17 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHmac, randomBytes } from "node:crypto";
 import path from "node:path";
-if (process.env.VALOPAY_RUN_INTEGRATION !== "1") {
-  console.log("Set VALOPAY_RUN_INTEGRATION=1 to run the Paystack verification against a disposable PostgreSQL database.");
+if (process.env.VALO_PAY_1_RUN_INTEGRATION !== "1") {
+  console.log("Set VALO_PAY_1_RUN_INTEGRATION=1 to run the Paystack verification against a disposable PostgreSQL database.");
   process.exit(0);
 }
 assert.ok(["localhost", "127.0.0.1", "[::1]"].includes(new URL(process.env.DATABASE_URL || "").hostname), "Refuse a non-local integration database.");
-const names = ["VALOPAY_STAFF_ACCESS", "VALOPAY_RUNTIME_ISOLATION", "VALOPAY_PAYSTACK_INGRESS", "VALOPAY_PAYSTACK_CONNECTIONS", "PAYSTACK_TEST_SECRET_KEY"] as const;
+const names = ["VALO_PAY_1_STAFF_ACCESS", "VALO_PAY_1_RUNTIME_ISOLATION", "VALO_PAY_1_PAYSTACK_INGRESS", "VALO_PAY_1_PAYSTACK_CONNECTIONS", "PAYSTACK_TEST_SECRET_KEY"] as const;
 const previous = Object.fromEntries(names.map((name) => [name, process.env[name]]));
-process.env.VALOPAY_STAFF_ACCESS = "off";
-process.env.VALOPAY_RUNTIME_ISOLATION = "off";
-const { pool } = await import("@workspace/db");
-const { inWorkspace, inMerchantAsSystem, listMerchants, loadState, saveState, appendAudit, digest, SYSTEM_ACTOR_PREFIX } = await import("../src/lib/valopay-store");
+process.env.VALO_PAY_1_STAFF_ACCESS = "off";
+process.env.VALO_PAY_1_RUNTIME_ISOLATION = "off";
+const { pool } = await import("@workspace/valo-pay-1-db");
+const { inWorkspace, inMerchantAsSystem, listMerchants, loadState, saveState, appendAudit, digest, SYSTEM_ACTOR_PREFIX } = await import("../src/lib/valo-pay-1-store");
 const { makeRecord, touch } = await import("../src/domain/records");
 const { parsePaystackTestWebhook } = await import("../src/providers/paystack");
 const { receivePaystackEvent } = await import("../src/providers/paystack-inbox");
@@ -24,7 +25,7 @@ const { verifyStoredPaystackTestEvent, paystackVerificationReport } = await impo
 
 const token = randomBytes(32).toString("hex"), connectionId = randomBytes(32).toString("hex");
 const key = ["sk", "test", "OFFLINE", "INTEGRATION", "0".repeat(20)].join("_");
-const request = { headers: { cookie: `valopay_sandbox=${token}` }, secure: false, auth: Object.assign(() => ({ userId: null }), { [Symbol.for("@clerk/express.auth")]: true }) } as any;
+const request = { headers: { cookie: `${SANDBOX_COOKIE}=${token}` }, secure: false, auth: Object.assign(() => ({ userId: null }), { [Symbol.for("@clerk/express.auth")]: true }) } as any;
 const response = { cookie() {} } as any;
 const realFetch = globalThis.fetch;
 let reply: (payment: Record<string, unknown>) => Response = () => { throw new Error("No Paystack answer was arranged."); };
@@ -48,7 +49,7 @@ try {
   const lender = (await inWorkspace(request, response, listMerchants))[0]!.id;
   const workspaceId = (await pool.query("SELECT workspace_id FROM valopay_merchants WHERE id=$1", [lender])).rows[0].workspace_id as string;
   await pool.query("UPDATE valopay_merchants SET info=jsonb_set(jsonb_set(info,'{killSwitch}','true'::jsonb),'{mode}','\"observation\"'::jsonb) WHERE id=$1", [lender]);
-  Object.assign(process.env, { VALOPAY_PAYSTACK_INGRESS: "test", PAYSTACK_TEST_SECRET_KEY: key, VALOPAY_PAYSTACK_CONNECTIONS: JSON.stringify({ [connectionId]: { workspaceId, merchantId: lender } }) });
+  Object.assign(process.env, { VALO_PAY_1_PAYSTACK_INGRESS: "test", PAYSTACK_TEST_SECRET_KEY: key, VALO_PAY_1_PAYSTACK_CONNECTIONS: JSON.stringify({ [connectionId]: { workspaceId, merchantId: lender } }) });
   // Two saved expectations and their signed test events, received under the lender lock as the ingress saves them.
   const [refused, earlier, disagreeing] = (await inMerchantAsSystem(lender, `${SYSTEM_ACTOR_PREFIX}Paystack verification rehearsal`, async (ctx) => {
     const state = await loadState(ctx, lender, "update");
@@ -119,11 +120,11 @@ try {
 
   // A mapping to a lender that is not in its workspace is put right, not waited for, as the ingress tells it;
   // a busy lender is checked again later.
-  const mapped = process.env.VALOPAY_PAYSTACK_CONNECTIONS;
-  process.env.VALOPAY_PAYSTACK_CONNECTIONS = JSON.stringify({ [connectionId]: { workspaceId, merchantId: `gone-${randomBytes(8).toString("hex")}` } });
+  const mapped = process.env.VALO_PAY_1_PAYSTACK_CONNECTIONS;
+  process.env.VALO_PAY_1_PAYSTACK_CONNECTIONS = JSON.stringify({ [connectionId]: { workspaceId, merchantId: `gone-${randomBytes(8).toString("hex")}` } });
   report = await run(earlier!);
   assert.deepEqual([report.result, report.exitCode], ["lender_not_found", 1], "a mapping to a lender that does not exist is corrected, not retried");
-  process.env.VALOPAY_PAYSTACK_CONNECTIONS = mapped;
+  process.env.VALO_PAY_1_PAYSTACK_CONNECTIONS = mapped;
   const holder = await pool.connect();
   try {
     await holder.query("BEGIN");

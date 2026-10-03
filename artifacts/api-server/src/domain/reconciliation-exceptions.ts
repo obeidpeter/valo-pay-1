@@ -3,7 +3,7 @@
  * These functions mutate only the supplied domain records; persistence and
  * audit publication remain at the caller's transaction boundary.
  */
-import { conditionClearedCode, counted, dayText, exceptionCatalogue, valueWords, hasFeeSchedule, isOpenException, paymentRefundedKobo, paymentUnappliedKobo, providerIdentityConfirmedCode, providerIdentityOf, resolveExceptionType, unseenReversalCondition, type ExceptionType } from "@workspace/valopay-schema";
+import { conditionClearedCode, counted, dayText, exceptionCatalogue, valueWords, hasFeeSchedule, isOpenException, paymentRefundedKobo, paymentUnappliedKobo, providerIdentityConfirmedCode, providerIdentityOf, resolveExceptionType, unseenReversalCondition, type ExceptionType } from "@workspace/valo-pay-1-schema";
 import { makeRecord, recordsOf, touch } from "./records";
 import { recordsOfKind, recordsWhere } from "./record-index";
 import { addBusinessDays } from "./calendar";

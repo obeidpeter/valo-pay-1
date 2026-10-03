@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
-import { MoneyArithmeticError, integerMoney, legacyDiscountMoney, multiplyDivideMoney, providerFeeKobo, sumMoney, usageFeeKobo, validMoneyBps, vatKobo } from "@workspace/valopay-schema";
+import { MoneyArithmeticError, integerMoney, legacyDiscountMoney, multiplyDivideMoney, providerFeeKobo, sumMoney, usageFeeKobo, validMoneyBps, vatKobo } from "@workspace/valo-pay-1-schema";
 import { billedLedger, chargedAtRate, issueInvoice, vatBpsFor } from "../src/domain/billing.js";
 import { inNaira, positionFor } from "../src/domain/close.js";
 import { feeScheduleFor } from "../src/domain/reconciliation.js";
 import { consolidateCashPositions, ConnectedCashError, forecastCash, type CashAccount } from "../src/domain/connected-cash.js";
 import { makeRecord, recordsOf } from "../src/domain/records.js";
-import { seedMerchant } from "../src/lib/valopay-seed.js";
+import { seedMerchant } from "../src/lib/valo-pay-1-seed.js";
 import type { ValopayRecord } from "../src/domain/types.js";
 
 const MAX = Number.MAX_SAFE_INTEGER;

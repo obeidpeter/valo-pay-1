@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "paths": {
+    "artifacts/valo-pay": "artifacts/valo-pay-1",
+    "lib/valopay-schema": "lib/valo-pay-1-schema",
+    "artifacts/api-server/src/lib/valopay-close-views.ts": "artifacts/api-server/src/lib/valo-pay-1-close-views.ts",
+    "artifacts/api-server/src/lib/valopay-exports.ts": "artifacts/api-server/src/lib/valo-pay-1-exports.ts",
+    "artifacts/api-server/src/lib/valopay-import.ts": "artifacts/api-server/src/lib/valo-pay-1-import.ts",
+    "artifacts/api-server/src/lib/valopay-list.ts": "artifacts/api-server/src/lib/valo-pay-1-list.ts",
+    "artifacts/api-server/src/lib/valopay-packs.ts": "artifacts/api-server/src/lib/valo-pay-1-packs.ts",
+    "artifacts/api-server/src/lib/valopay-queues.ts": "artifacts/api-server/src/lib/valo-pay-1-queues.ts",
+    "artifacts/api-server/src/lib/valopay-readiness.ts": "artifacts/api-server/src/lib/valo-pay-1-readiness.ts",
+    "artifacts/api-server/src/lib/valopay-seed.ts": "artifacts/api-server/src/lib/valo-pay-1-seed.ts",
+    "artifacts/api-server/src/lib/valopay-store.ts": "artifacts/api-server/src/lib/valo-pay-1-store.ts",
+    "artifacts/api-server/src/routes/valopay.ts": "artifacts/api-server/src/routes/valo-pay-1.ts",
+    "artifacts/api-server/tests/valopay-store-guards.test.ts": "artifacts/api-server/tests/valo-pay-1-store-guards.test.ts",
+    "artifacts/api-server/tests/valopay-store.integration.test.ts": "artifacts/api-server/tests/valo-pay-1-store.integration.test.ts",
+    "lib/db/src/schema/valopay.ts": "lib/db/src/schema/valo-pay-1.ts",
+    "scripts/create-valopay-spec.cjs": "scripts/create-valo-pay-1-spec.cjs",
+    "scripts/monitor-valopay.mjs": "scripts/monitor-valo-pay-1.mjs",
+    "scripts/monitor-valopay.test.mjs": "scripts/monitor-valo-pay-1.test.mjs",
+    "scripts/security-valopay.mjs": "scripts/security-valo-pay-1.mjs",
+    "scripts/smoke-valopay.mjs": "scripts/smoke-valo-pay-1.mjs"
+  },
+  "packages": {
+    "@workspace/api-server": "@workspace/valo-pay-1-api-server",
+    "@workspace/mockup-sandbox": "@workspace/valo-pay-1-mockup-sandbox",
+    "@workspace/valopay": "@workspace/valo-pay-1",
+    "@workspace/api-client-react": "@workspace/valo-pay-1-api-client-react",
+    "@workspace/api-spec": "@workspace/valo-pay-1-api-spec",
+    "@workspace/api-zod": "@workspace/valo-pay-1-api-zod",
+    "@workspace/db": "@workspace/valo-pay-1-db",
+    "@workspace/valopay-schema": "@workspace/valo-pay-1-schema",
+    "@workspace/scripts": "@workspace/valo-pay-1-scripts"
+  }
+}

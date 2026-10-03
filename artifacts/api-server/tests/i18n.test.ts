@@ -5,13 +5,13 @@
 import assert from "node:assert/strict";
 
 // The store and export modules reach the database module, which insists on an address before anything here runs; nothing in this file touches a database.
-process.env["DATABASE_URL"] ??= "postgres://postgres@127.0.0.1:1/valopay-unused";
-const { counted, dayText, instantText, monthText, nairaText } = await import("@workspace/valopay-schema");
-const { foldForSearch, pageRecords } = await import("../src/lib/valopay-list.js");
-const { seedMerchant } = await import("../src/lib/valopay-seed.js");
-const { buildDisputePack, packFonts, renderDisputePackPdf } = await import("../src/lib/valopay-packs.js");
-const { buildExportBytes } = await import("../src/lib/valopay-exports.js");
-const { importCsv } = await import("../src/lib/valopay-import.js");
+process.env["DATABASE_URL"] ??= "postgres://postgres@127.0.0.1:1/valo-pay-1-unused";
+const { counted, dayText, instantText, monthText, nairaText } = await import("@workspace/valo-pay-1-schema");
+const { foldForSearch, pageRecords } = await import("../src/lib/valo-pay-1-list.js");
+const { seedMerchant } = await import("../src/lib/valo-pay-1-seed.js");
+const { buildDisputePack, packFonts, renderDisputePackPdf } = await import("../src/lib/valo-pay-1-packs.js");
+const { buildExportBytes } = await import("../src/lib/valo-pay-1-exports.js");
+const { importCsv } = await import("../src/lib/valo-pay-1-import.js");
 const { ctxAt, decodePdfText } = await import("./helpers.js");
 
 let checks = 0;
@@ -62,7 +62,7 @@ assert.equal(dayText("2026-02-30"), "2026-02-30", "a day that does not exist is 
 assert.equal(instantText("not a date"), "not a date");
 checks += 8;
 
-// ---- A rule without words of its own is refused in Valo Pay's words, never zod's ----
+// ---- A rule without words of its own is refused in Valo Pay 1's words, never zod's ----
 {
   const { z } = await import("zod");
   const said = (schema: { safeParse: (value: unknown) => { success: boolean; error?: { issues: Array<{ message: string }> } } }, value: unknown) => schema.safeParse(value).error?.issues.map((issue) => issue.message);
@@ -71,7 +71,7 @@ checks += 8;
   assert.deepEqual(said(z.number().max(31), 40), ["Enter 31 or less."]);
   assert.deepEqual(said(z.number().int(), 1.5), ["Enter a whole number."]);
   assert.deepEqual(said(z.enum(["approve", "return"]), "maybe"), ["Choose Approve or Return."], "the choices by their labels");
-  assert.deepEqual(said(z.object({ note: z.string() }).strict(), { note: "x", extra: 1 }), ["This request has details Valo Pay does not use. Reload the page and try again."]);
+  assert.deepEqual(said(z.object({ note: z.string() }).strict(), { note: "x", extra: 1 }), ["This request has details Valo Pay 1 does not use. Reload the page and try again."]);
   assert.deepEqual(said(z.string().min(3, "Enter the next step (at least 3 characters)."), "x"), ["Enter the next step (at least 3 characters)."], "a rule's own words win");
   checks += 7;
 }
@@ -99,4 +99,4 @@ const preview = importCsv(state, ctx, { kind: "customers", syntheticOnly: true, 
 assert.equal((preview as { valid: number }).valid, 1, "a file saved by a spreadsheet program, mark and all, is read");
 checks += 4;
 
-console.log(`Internationalisation tests passed (${checks} checks): accent-insensitive search, counts with nouns, money in messages exact to the kobo and dates in words, Valo Pay's words for rules without their own, the pack's own typeface spelling Yoruba and Igbo names, CSV byte order mark in and out.`);
+console.log(`Internationalisation tests passed (${checks} checks): accent-insensitive search, counts with nouns, money in messages exact to the kobo and dates in words, Valo Pay 1's words for rules without their own, the pack's own typeface spelling Yoruba and Igbo names, CSV byte order mark in and out.`);

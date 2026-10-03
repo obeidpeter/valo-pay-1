@@ -1,5 +1,5 @@
 import type { Request } from "express";
-import type { operationStates } from "@workspace/valopay-schema";
+import type { operationStates } from "@workspace/valo-pay-1-schema";
 
 /**
  * Where a request's Idempotency-Key stands once the request was refused or

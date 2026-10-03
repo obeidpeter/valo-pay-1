@@ -17,28 +17,28 @@ export const rehearsalSuites = [
 /** All guards run before loading any application or database module. */
 export function validateRehearsalEnvironment(env, args = []) {
   if (args.length) throw new Error('No command arguments are accepted. Configure the rehearsal through its documented environment variables.');
-  if (env.VALOPAY_RUN_INTEGRATION !== '1' || env.VALOPAY_RUN_PILOT_REHEARSAL !== '1') {
-    throw new Error('Set VALOPAY_RUN_INTEGRATION=1 and VALOPAY_RUN_PILOT_REHEARSAL=1 for a disposable local synthetic database.');
+  if (env.VALO_PAY_1_RUN_INTEGRATION !== '1' || env.VALO_PAY_1_RUN_PILOT_REHEARSAL !== '1') {
+    throw new Error('Set VALO_PAY_1_RUN_INTEGRATION=1 and VALO_PAY_1_RUN_PILOT_REHEARSAL=1 for a disposable local synthetic database.');
   }
   let database;
   try { database = new URL(env.DATABASE_URL); } catch { throw new Error('DATABASE_URL must identify a disposable local PostgreSQL database.'); }
   if (!['postgres:', 'postgresql:'].includes(database.protocol) || !['127.0.0.1', 'localhost', '[::1]'].includes(database.hostname)
-    || !/^\/valopay(?:_test|_pilot_rehearsal)?$/.test(database.pathname) || database.search || database.hash) {
-    throw new Error('Refusing the database: use a loopback PostgreSQL database named valopay, valopay_test or valopay_pilot_rehearsal, without URL options.');
+    || !['/valo_pay_1_test', '/valo_pay_1_pilot_rehearsal'].includes(database.pathname) || database.search || database.hash) {
+    throw new Error('Refusing the database: use a loopback PostgreSQL database named valo_pay_1_test or valo_pay_1_pilot_rehearsal, without URL options.');
   }
   if (env.NODE_ENV === 'production') throw new Error('Refusing production mode. Use a disposable local development environment.');
 }
 
 /** Do not pass host provider/identity/monitor/key-service settings into the suites. */
 export function rehearsalEnvironment(env) {
-  const cleaned = Object.fromEntries(Object.entries(env).filter(([name]) => !/^(?:VALOPAY_|CLERK_|PAYSTACK_|VITE_|GOOGLE_|AWS_|AZURE_|REPLIT_|PRIVATE_OBJECT_DIR$|PUBLIC_OBJECT_SEARCH_PATHS$|NODE_OPTIONS$)/i.test(name)));
+  const cleaned = Object.fromEntries(Object.entries(env).filter(([name]) => !/^(?:VALO_PAY_1_|CLERK_|PAYSTACK_|VITE_|GOOGLE_|AWS_|AZURE_|REPLIT_|PRIVATE_OBJECT_DIR$|PUBLIC_OBJECT_SEARCH_PATHS$|NODE_OPTIONS$)/i.test(name)));
   return {
     ...cleaned,
     NODE_ENV: 'development', CI: 'true',
-    VALOPAY_RUN_INTEGRATION: '1', VALOPAY_STAFF_ACCESS: 'off',
-    VALOPAY_RUNTIME_ISOLATION: 'off', VALOPAY_PAYLOAD_ENCRYPTION: 'off',
-    VALOPAY_CLOSE_SCHEDULER: 'off', VALOPAY_PAYSTACK_INGRESS: 'off',
-    VALOPAY_PAYSTACK_CONNECTIONS: 'off', LOG_LEVEL: 'silent',
+    VALO_PAY_1_RUN_INTEGRATION: '1', VALO_PAY_1_STAFF_ACCESS: 'off',
+    VALO_PAY_1_RUNTIME_ISOLATION: 'off', VALO_PAY_1_PAYLOAD_ENCRYPTION: 'off',
+    VALO_PAY_1_CLOSE_SCHEDULER: 'off', VALO_PAY_1_PAYSTACK_INGRESS: 'off',
+    VALO_PAY_1_PAYSTACK_CONNECTIONS: 'off', LOG_LEVEL: 'silent',
   };
 }
 
@@ -117,8 +117,8 @@ const startedDirectly = () => { try { return realpathSync(process.argv[1]) === r
 if (startedDirectly()) {
   try {
     validateRehearsalEnvironment(process.env, process.argv.slice(2));
-    const output = process.env.VALOPAY_PILOT_REHEARSAL_REPORT;
-    if (!output) throw new Error('Set VALOPAY_PILOT_REHEARSAL_REPORT to an evidence file outside this checkout.');
+    const output = process.env.VALO_PAY_1_PILOT_REHEARSAL_REPORT;
+    if (!output) throw new Error('Set VALO_PAY_1_PILOT_REHEARSAL_REPORT to an evidence file outside this checkout.');
     // Real paths on both sides, so a link in a directory above the report, or at the report itself, cannot lead it into the checkout.
     const reportPath = path.resolve(output), checkout = realPath(root);
     const refuseInside = () => {

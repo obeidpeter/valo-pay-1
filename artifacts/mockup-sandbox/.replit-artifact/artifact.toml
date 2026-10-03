@@ -5,13 +5,13 @@ version = "1.0.0"
 id = "XegfDyZt7HqfW2Bb8Ghoy"
 
 [[services]]
-localPort = 8081
+localPort = 8182
 name = "Component Preview Server"
 paths = ["/__mockup"]
 
 [services.env]
-PORT = "8081"
+PORT = "8182"
 BASE_PATH = "/__mockup"
 
 [services.development]
-run = "pnpm --filter @workspace/mockup-sandbox run dev"
+run = "pnpm --filter @workspace/valo-pay-1-mockup-sandbox run dev"

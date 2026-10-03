@@ -1,8 +1,8 @@
 import { Router, type IRouter } from "express";
-import { prepareCloseReviewSchema, decideCloseReviewSchema, reassignCloseReviewSchema, closeReviewHistoryQuerySchema, closeReviewHistorySchema, closeReviewDetailSchema, pilotProgressSchema, valopayRecordSchema, pathId } from "@workspace/valopay-schema";
-import { caseAssignees, getCloseDetail } from "../lib/valopay-store";
+import { prepareCloseReviewSchema, decideCloseReviewSchema, reassignCloseReviewSchema, closeReviewHistoryQuerySchema, closeReviewHistorySchema, closeReviewDetailSchema, pilotProgressSchema, valopayRecordSchema, pathId } from "@workspace/valo-pay-1-schema";
+import { caseAssignees, getCloseDetail } from "../lib/valo-pay-1-store";
 import { requiredKey } from "../lib/contract";
-import { withState } from "./valopay";
+import { withState } from "./valo-pay-1";
 import { closeReviewHistory, closeReviewDetail, pilotProgress, prepareCloseReview, decideCloseReview, reassignCloseReview } from "../domain/close-review";
 import { routerOptions } from "./router-options";
 

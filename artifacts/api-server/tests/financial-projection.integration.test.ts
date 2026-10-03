@@ -4,11 +4,11 @@ import { readFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { requireLoopback } from './throwaway-database';
-import { seedMerchant } from '../src/lib/valopay-seed';
+import { seedMerchant } from '../src/lib/valo-pay-1-seed';
 import { syncFinancialProjection, verifyFinancialProjectionSchema } from '../src/lib/financial-projection';
-if(process.env.VALOPAY_RUN_INTEGRATION!=='1'){console.log('Financial projection rehearsal requires disposable local PostgreSQL.');process.exit(0);}
+if(process.env.VALO_PAY_1_RUN_INTEGRATION!=='1'){console.log('Financial projection rehearsal requires disposable local PostgreSQL.');process.exit(0);}
 requireLoopback('Financial projection rehearsal',new URL(process.env.DATABASE_URL || ''));
-const {pool}=await import('@workspace/db');
+const {pool}=await import('@workspace/valo-pay-1-db');
 const schema=`valopay_finance_staging_${randomBytes(6).toString('hex')}`,workspace=randomUUID(),lender=randomUUID();
 const client=await pool.connect(),state=seedMerchant(lender),q=(table:string)=>`"${schema}".${table}`;
 let checks=0;
@@ -31,7 +31,7 @@ try {
  await sync();checks++;
  const rows=async()=>JSON.stringify((await pool.query(`SELECT * FROM ${q('financial_receipts')} ORDER BY id`)).rows);
  const baseline=await rows();await sync();assert.equal(await rows(),baseline);checks++;
- const command=spawnSync(process.execPath,[fileURLToPath(new URL('../../../scripts/node_modules/tsx/dist/cli.mjs',import.meta.url)),fileURLToPath(new URL('../../../scripts/src/financial-projection.ts',import.meta.url)),'--schema',schema,'--workspace',workspace,'--lender',lender],{encoding:'utf8',env:{...process.env,VALOPAY_FINANCIAL_PROJECTION:'staging'},timeout:30_000});
+ const command=spawnSync(process.execPath,[fileURLToPath(new URL('../../../scripts/node_modules/tsx/dist/cli.mjs',import.meta.url)),fileURLToPath(new URL('../../../scripts/src/financial-projection.ts',import.meta.url)),'--schema',schema,'--workspace',workspace,'--lender',lender],{encoding:'utf8',env:{...process.env,VALO_PAY_1_FINANCIAL_PROJECTION:'staging'},timeout:30_000});
  assert.equal(command.status,0,command.stderr);const report=JSON.parse(command.stdout.trim());assert.equal(report.status,'review_passed_rolled_back');assert.deepEqual([report.receipts,report.obligations,report.allocations],[4,8,2]);assert.equal(await rows(),baseline);checks+=2;
  const receipt=state.records.find(r=>r.kind==='payments'&&r.data.allocatedKobo>0)!,allocation=state.records.find(r=>r.kind==='allocations'&&r.data.paymentId===receipt.id)!,obligation=state.records.find(r=>r.id===allocation.data.dueItemId)!;
  await assert.rejects(insertAllocation('over-receipt',receipt.id,obligation.id,'1',receipt.customerId),(error:any)=>error.code==='23514');checks++;
@@ -73,15 +73,15 @@ try {
  await pool.query(`ALTER TABLE ${q('financial_allocations')} ENABLE TRIGGER financial_allocations_conservation`);
  await client.query('BEGIN');await verifyFinancialProjectionSchema(client,schema);await client.query('ROLLBACK');checks++;
  // The production repository's explicit staging hook, through its normal scoped system transaction.
- const oldMode=process.env.VALOPAY_FINANCIAL_PROJECTION,oldSchema=process.env.VALOPAY_FINANCIAL_PROJECTION_SCHEMA;
- process.env.VALOPAY_FINANCIAL_PROJECTION='staging';process.env.VALOPAY_FINANCIAL_PROJECTION_SCHEMA=schema;
+ const oldMode=process.env.VALO_PAY_1_FINANCIAL_PROJECTION,oldSchema=process.env.VALO_PAY_1_FINANCIAL_PROJECTION_SCHEMA;
+ process.env.VALO_PAY_1_FINANCIAL_PROJECTION='staging';process.env.VALO_PAY_1_FINANCIAL_PROJECTION_SCHEMA=schema;
  try {
-   const store=await import('../src/lib/valopay-store');
+   const store=await import('../src/lib/valo-pay-1-store');
    await store.inMerchantAsSystem(lender,`${store.SYSTEM_ACTOR_PREFIX}financial rehearsal`,async context=>{const current=await store.loadState(context,lender);current.settings.projectionHookVerified=true;await store.saveState(context,current);});
    assert.equal((await pool.query('SELECT settings FROM valopay_merchants WHERE id=$1',[lender])).rows[0].settings.projectionHookVerified,true);assert.equal(await rows(),baseline);checks++;
    await assert.rejects(store.inMerchantAsSystem(lender,`${store.SYSTEM_ACTOR_PREFIX}financial rehearsal`,async context=>{const current=await store.loadState(context,lender);current.settings.mustNotCommit=true;current.records.find(r=>r.id===receipt.id)!.data.allocatedKobo=0;await store.saveState(context,current);}),/counter differs/);
    assert.equal((await pool.query('SELECT settings FROM valopay_merchants WHERE id=$1',[lender])).rows[0].settings.mustNotCommit,undefined);assert.equal(await rows(),baseline);checks++;
- } finally {if(oldMode===undefined)delete process.env.VALOPAY_FINANCIAL_PROJECTION;else process.env.VALOPAY_FINANCIAL_PROJECTION=oldMode;if(oldSchema===undefined)delete process.env.VALOPAY_FINANCIAL_PROJECTION_SCHEMA;else process.env.VALOPAY_FINANCIAL_PROJECTION_SCHEMA=oldSchema;}
+ } finally {if(oldMode===undefined)delete process.env.VALO_PAY_1_FINANCIAL_PROJECTION;else process.env.VALO_PAY_1_FINANCIAL_PROJECTION=oldMode;if(oldSchema===undefined)delete process.env.VALO_PAY_1_FINANCIAL_PROJECTION_SCHEMA;else process.env.VALO_PAY_1_FINANCIAL_PROJECTION_SCHEMA=oldSchema;}
  // 100 direct SQL contenders share a one-kobo receipt: database enforcement, no application lock.
  await pool.query(`INSERT INTO ${q('financial_receipts')} VALUES($1,$2,'contended-receipt','contended-customer','NGN',1,0,$3)`,[...scope,'b'.repeat(64)]);
  await pool.query(`INSERT INTO ${q('financial_obligations')} VALUES($1,$2,'contended-obligation','contended-customer','NGN',100,$3)`,[...scope,'b'.repeat(64)]);

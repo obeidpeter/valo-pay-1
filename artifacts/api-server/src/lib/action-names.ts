@@ -1,4 +1,4 @@
-import { exportKindName, recordTypeTitle, valueLabel } from "@workspace/valopay-schema";
+import { exportKindName, recordTypeTitle, valueLabel } from "@workspace/valo-pay-1-schema";
 
 /**
  * Actions and routes in plain words: what Request history calls a request, and what the audit log calls an entry.

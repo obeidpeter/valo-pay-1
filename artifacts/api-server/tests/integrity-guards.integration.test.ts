@@ -1,6 +1,6 @@
 // The guard query in docs/database-migrations.md, which the database owner runs before publishing a build: a build
 // that serves now may not check integrity guards at all, so its readiness cannot show a guard the new build needs.
-// The query must name exactly the unique indexes and check constraints of integrityGuards (lib/valopay-store.ts)
+// The query must name exactly the unique indexes and check constraints of integrityGuards (lib/valo-pay-1-store.ts)
 // that the database lacks, and any superseded guard (supersededGuards) it still holds, as the new build's readiness
 // does. It runs against this suite's pushed database, then against a copy of the eleven service tables in a scratch schema, read
 // through the search path as the document says for a runtime schema, from which guards are taken away: dropped,
@@ -11,12 +11,12 @@ import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import { readFile } from "node:fs/promises";
 
-if (process.env.VALOPAY_RUN_INTEGRATION !== "1") {
-  console.log("Set VALOPAY_RUN_INTEGRATION=1 to run the integrity guard query rehearsal.");
+if (process.env.VALO_PAY_1_RUN_INTEGRATION !== "1") {
+  console.log("Set VALO_PAY_1_RUN_INTEGRATION=1 to run the integrity guard query rehearsal.");
   process.exit(0);
 }
-const { pool } = await import("@workspace/db");
-const { closeDatabase, integrityGuards, pingDatabase } = await import("../src/lib/valopay-store");
+const { pool } = await import("@workspace/valo-pay-1-db");
+const { closeDatabase, integrityGuards, pingDatabase } = await import("../src/lib/valo-pay-1-store");
 type Guard = (typeof integrityGuards)[number];
 
 const documented = await readFile(new URL("../../../docs/database-migrations.md", import.meta.url), "utf8");

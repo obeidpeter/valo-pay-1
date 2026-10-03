@@ -1,3 +1,19 @@
+# Valo Pay 1 — current migration status
+
+## Identity isolation candidate · 3 October 2026
+
+The canonical repository is now **obeidpeter/valo-pay-1**, renamed in place with GitHub repository ID **1374783064**, permissions and history retained. The migration checkout and inspected Replit checkout both use that canonical remote. Replit's display title **Valo Pay 1** was saved and verified. Its app UUID, workspace slug and PR #83 source/publication checkpoint remain unchanged.
+
+The live sandbox was observed healthy on PR #83 (`5acfb5b1 2026-10-03T06:22:11.222Z`) at the retained generation-1 address, with automatic daily closes off. **The rename candidate has not been deployed.** It updates product labels, packages, source paths, tooling and documentation; introduces environment-specific browser state and cookies; and requires reviewed application, database, storage and authentication bindings before a hosted process starts. Existing SQL identifiers, applied migrations, encrypted-data inputs, API contracts and historical evidence remain compatible. No production data or provider resource is renamed or recreated.
+
+Focused backend identity, security and startup checks and API typecheck have passed. Historical traceability still verifies 251 requirements, 18 features, 14 gates and 32 symbol pointers; its validator regression checks pass. Final combined candidate checks and canonical-repository CI remain to be recorded. Private provider bindings, backup/restore evidence, real authentication and post-deployment continuity are not established by these local tests.
+
+Follow the [migration report](product-identity/migration-report.md), [resource map](product-identity/naming-resource-map.md) and [cutover/recovery procedure](product-identity/cutover-recovery.md). Publication requires separate authorisation and coordinated configuration. The legacy repository name and public hostname are not cleared for reuse by the future product. No future application is created here.
+
+The following dated records are preserved as historical evidence. Their names, commands and deployment statements describe their recorded revisions; use the current guidance above for this candidate.
+
+---
+
 # Valo Pay — build status
 
 ## Presentation preparation · 2 October 2026

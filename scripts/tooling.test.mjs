@@ -9,8 +9,9 @@
 // refusals instead of exiting silently. Nothing here reaches a database: the
 // suites and commands stop at their checks before they connect.
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { execFileSync, spawnSync } from "node:child_process";
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -20,11 +21,11 @@ import { runSuites, suites } from "./run-integration-tests.mjs";
 const root = resolve(import.meta.dirname, "..");
 const tsx = join(root, "scripts", "node_modules", "tsx", "dist", "cli.mjs");
 const loader = pathToFileURL(join(root, "scripts", "node_modules", "tsx", "dist", "loader.mjs")).href;
-const clean = Object.fromEntries(Object.entries(process.env).filter(([name]) => !/^(?:VALOPAY_|DATABASE_URL$|CI$)/.test(name)));
+const clean = Object.fromEntries(Object.entries(process.env).filter(([name]) => !/^(?:VALO_PAY_1_|DATABASE_URL$|CI$)/.test(name)));
 let checks = 0;
 
 // ---- The build stamp: the commit, marked -dirty when a tracked file differs from it ----
-const checkout = mkdtempSync(join(tmpdir(), "valopay-stamp-"));
+const checkout = mkdtempSync(join(tmpdir(), "valo-pay-1-stamp-"));
 try {
   const git = (...args) => execFileSync("git", ["-c", "user.name=Stamp test", "-c", "user.email=stamp@example.test", "-c", "commit.gpgsign=false", ...args], { cwd: checkout, stdio: "ignore" });
   const at = new Date("2026-09-23T07:00:00.000Z");
@@ -55,7 +56,7 @@ checks += 4;
 
 // ---- The migration rehearsals: a loopback server whose login can create databases, or a skip that says why ----
 const suite = (file, env) => spawnSync(process.execPath, [tsx, `artifacts/api-server/tests/${file}`], { cwd: root, env: { ...clean, ...env }, encoding: "utf8", timeout: 60_000 });
-const remote = { VALOPAY_RUN_INTEGRATION: "1", DATABASE_URL: "postgres://synthetic@db.example.test:5432/valopay" };
+const remote = { VALO_PAY_1_RUN_INTEGRATION: "1", DATABASE_URL: "postgres://synthetic@db.example.test:5432/valo-pay-1" };
 for (const [file, name] of [["record-index-migration.integration.test.ts", "Record index migration rehearsal"], ["pilot-workflow-migration.integration.test.ts", "Pilot workflow migration rehearsal"], ["schema-push.integration.test.ts", "Schema push rehearsal"]]) {
   let result = suite(file, remote);
   assert.equal(result.status, 0, result.stderr);
@@ -78,9 +79,9 @@ assert.equal(result.status, 1);
 checks += 4;
 
 // ---- The recovery rehearsal: never green in CI without its opt-ins ----
-result = suite("recovery-rehearsal.integration.test.ts", { CI: "true", VALOPAY_RUN_INTEGRATION: "1" });
-assert.equal(result.status, 1, "CI without VALOPAY_RUN_RECOVERY fails");
-assert.match(result.stderr, /^Recovery rehearsal cannot run: CI needs VALOPAY_RUN_INTEGRATION=1 and VALOPAY_RUN_RECOVERY=1/m);
+result = suite("recovery-rehearsal.integration.test.ts", { CI: "true", VALO_PAY_1_RUN_INTEGRATION: "1" });
+assert.equal(result.status, 1, "CI without VALO_PAY_1_RUN_RECOVERY fails");
+assert.match(result.stderr, /^Recovery rehearsal cannot run: CI needs VALO_PAY_1_RUN_INTEGRATION=1 and VALO_PAY_1_RUN_RECOVERY=1/m);
 result = suite("recovery-rehearsal.integration.test.ts", {});
 assert.equal(result.status, 0, "outside CI it is opt-in, as before");
 checks += 3;
@@ -89,20 +90,34 @@ checks += 3;
 // A scratch copy of the validator, its matrix and every file a pointer names, edited case by case.
 const matrixFile = "docs/refactor-2026-09-29/traceability.json", validator = "docs/refactor-2026-09-29/validate-traceability.mjs";
 const matrix = JSON.parse(readFileSync(join(root, matrixFile), "utf8"));
+const evidenceFile = "docs/product-identity/historical-files.json", mapFile = "docs/product-identity/path-map.json";
+const historicalEvidence = JSON.parse(readFileSync(join(root, evidenceFile), "utf8")), identityMap = JSON.parse(readFileSync(join(root, mapFile), "utf8"));
+const mapped = (path) => {
+  const entry = Object.entries(identityMap.paths).sort(([a], [b]) => b.length - a.length).find(([before]) => path === before || path.startsWith(`${before}/`));
+  return entry ? entry[1] + path.slice(entry[0].length) : path;
+};
 const pointers = Object.values(matrix.components).flatMap((component) => [...component.implementation, ...component.contracts, ...component.test_sources]);
-const scratch = mkdtempSync(join(tmpdir(), "valopay-traceability-")), parser = join(scratch, "node_modules");
+const scratch = mkdtempSync(join(tmpdir(), "valo-pay-1-traceability-")), parser = join(scratch, "node_modules");
 let linked = false;
 try {
-  for (const path of new Set([validator, ...pointers.map((pointer) => pointer.path)])) {
+  for (const path of new Set([validator, evidenceFile, mapFile, ...pointers.map((pointer) => mapped(pointer.path)), ...Object.values(identityMap.paths)])) {
+    if (statSync(join(root, path)).isDirectory()) { mkdirSync(join(scratch, path), { recursive: true }); continue; }
     mkdirSync(dirname(join(scratch, path)), { recursive: true });
     copyFileSync(join(root, path), join(scratch, path));
   }
   symlinkSync(join(root, "node_modules"), parser, "junction"); // the validator's TypeScript parser
   linked = true;
-  const validate = (edit = () => {}) => {
+  const validate = (edit = () => {}, { pinEvidence = true, map = identityMap, crlf = false } = {}) => {
     const copy = structuredClone(matrix);
     edit(copy);
-    writeFileSync(join(scratch, matrixFile), `${JSON.stringify(copy, null, 2)}\n`);
+    const serialized = `${JSON.stringify(copy, null, 2)}\n`;
+    writeFileSync(join(scratch, matrixFile), crlf ? serialized.replaceAll("\n", "\r\n") : serialized);
+    const evidence = structuredClone(historicalEvidence);
+    // Pointer-negative fixtures simulate a reviewed matrix update, so the declaration checks still run.
+    // The separate unpinned case below verifies an unreviewed edit never acquires historical mappings.
+    if (pinEvidence) evidence.files.find(entry => entry.path === matrixFile).sha256 = createHash("sha256").update(serialized).digest("hex");
+    writeFileSync(join(scratch, evidenceFile), JSON.stringify(evidence));
+    writeFileSync(join(scratch, mapFile), JSON.stringify(map));
     return spawnSync(process.execPath, [join(scratch, validator)], { encoding: "utf8", timeout: 60_000 });
   };
   const repoint = (component, symbol, change) => (copy) => Object.assign(copy.components[component].implementation.find((pointer) => pointer.symbol === symbol), change);
@@ -116,6 +131,23 @@ try {
   };
   const accepted = (edit) => { const run = validate(edit); assert.equal(run.status, 0, run.stderr); };
   accepted();
+  const windowsCheckout = validate(undefined, { crlf: true });
+  assert.equal(windowsCheckout.status, 0, `Windows checkout line endings preserve the canonical evidence digest: ${windowsCheckout.stderr}`);
+  const unpinned = validate(copy => { copy.requirements[0].summary = "An unreviewed historical edit."; }, { pinEvidence: false });
+  assert.equal(unpinned.status, 1, "changed historical bytes cannot silently use compatibility mappings");
+  assert.match(unpinned.stderr, /Historical traceability bytes changed without a reviewed evidence digest/);
+  refused(repoint("BIL", "designPartnerDiscount", { path: "artifacts/valo-pay/src/no-such-module.ts" }),
+    /Missing repository pointer artifacts\/valo-pay\/src\/no-such-module\.ts \(current path artifacts\/valo-pay-1\/src\/no-such-module\.ts\)/,
+    "an approved directory mapping does not excuse a missing child file");
+  refused(repoint("BIL", "designPartnerDiscount", { path: "artifacts/valo-pay-shadow/src/no-such-module.ts" }),
+    /current path artifacts\/valo-pay-shadow\/src\/no-such-module\.ts/,
+    "a mapping applies only at an exact directory boundary, not a matching name prefix");
+  const missingTarget = validate(undefined, { map: { ...identityMap, paths: { ...identityMap.paths, "scripts/old-probe.mjs": "scripts/missing-probe.mjs" } } });
+  assert.equal(missingTarget.status, 1, "every approved mapping target must exist even when no matrix pointer uses it");
+  assert.match(missingTarget.stderr, /Missing approved identity mapping target scripts\/missing-probe\.mjs/);
+  const escaping = validate(undefined, { map: { ...identityMap, paths: { ...identityMap.paths, "scripts/old-probe.mjs": "../outside.mjs" } } });
+  assert.equal(escaping.status, 1, "a map cannot resolve a repository pointer outside the repository");
+  assert.match(escaping.stderr, /Identity path mappings must contain distinct safe repository paths/);
   // After PR #78 removed discountRateFor from billing.ts, the matrix still pointed at it and the validator passed.
   refused(repoint("BIL", "designPartnerDiscount", { path: "artifacts/api-server/src/domain/billing.ts", symbol: "discountRateFor" }),
     /artifacts\/api-server\/src\/domain\/billing\.ts no longer declares discountRateFor/, "a pointer to a symbol its file no longer declares fails the validator");
@@ -144,7 +176,7 @@ try {
   accepted(probing(`export const before = 1;\n\n\n/** Moved down and wrapped. */\nexport function\n  designPartnerDiscount (\n    data: unknown,\n  ) {\n  return data;\n}\n`));
   accepted(probing("export const designPartnerDiscount = (data: unknown) => data;\n"));
   accepted(probing("const rules = { designPartnerDiscount: (data: unknown) => data };\nexport const { designPartnerDiscount } = rules;\n"));
-  checks += 16;
+  checks += 22;
 } finally {
   if (linked) unlinkSync(parser); // the link alone, never the dependencies it names
   rmSync(scratch, { recursive: true, force: true });
@@ -153,13 +185,13 @@ try {
 // ---- Started through a symlinked path, the integration runner and the read-index command still run ----
 // Node gives a module its real path; a guard comparing that with the path the command was started by once made both
 // exit 0 without a word. Without their opt-ins and DATABASE_URL they reach their refusals, never a database.
-const links = mkdtempSync(join(tmpdir(), "valopay-linked-scripts-")), linkedScripts = join(links, "scripts");
+const links = mkdtempSync(join(tmpdir(), "valo-pay-1-linked-scripts-")), linkedScripts = join(links, "scripts");
 symlinkSync(join(root, "scripts"), linkedScripts, "junction");
 try {
   const linkedRun = (script) => spawnSync(process.execPath, [join(linkedScripts, script)], { cwd: root, env: clean, encoding: "utf8", timeout: 60_000 });
   result = linkedRun("run-integration-tests.mjs");
-  assert.equal(result.status, 1, "started through a symlinked path, the integration runner still refuses without VALOPAY_RUN_INTEGRATION=1");
-  assert.match(result.stderr, /Set VALOPAY_RUN_INTEGRATION=1 to run the database-backed suites/);
+  assert.equal(result.status, 1, "started through a symlinked path, the integration runner still refuses without VALO_PAY_1_RUN_INTEGRATION=1");
+  assert.match(result.stderr, /Set VALO_PAY_1_RUN_INTEGRATION=1 to run the database-backed suites/);
   result = linkedRun("apply-record-list-indexes.mjs");
   assert.equal(result.status, 1, "started through a symlinked path, the read-index command still refuses without DATABASE_URL");
   assert.match(result.stderr, /^DATABASE_URL must be supplied by the deployment environment/m);

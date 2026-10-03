@@ -10,10 +10,10 @@ import { makeRecord, recordsOf } from "../src/domain/records.js";
 import { addBusinessDays } from "../src/domain/calendar.js";
 import { bindCloseReviewBasis, closeReviewIssues } from "../src/domain/close-review.js";
 import { validateRecord } from "../src/domain/validation.js";
-import { seedMerchant } from "../src/lib/valopay-seed.js";
+import { seedMerchant } from "../src/lib/valo-pay-1-seed.js";
 import type { DomainState, ValopayRecord } from "../src/domain/types.js";
 
-const { assertFinalState } = await import("../src/lib/valopay-store.js");
+const { assertFinalState } = await import("../src/lib/valo-pay-1-store.js");
 let checks = 0;
 const invariant = (state: DomainState) => { assert.doesNotThrow(() => assertFinalState({ merchant: structuredClone(state.merchant), settings: {}, records: [] }, state, state.merchant.id)); checks += 1; };
 const finance = (now: string) => ctxAt(now, "Finance");
@@ -149,7 +149,7 @@ function assertOnePayment(state: DomainState, due: ValopayRecord, label: string)
   assert.equal(okBatch.data.expectedFeeKobo, 30_000);
   assert.equal(okBatch.status, "reconciled");
   const capped = { ...state, settings: { ...state.settings } };
-  const { providerFeeKobo } = await import("@workspace/valopay-schema");
+  const { providerFeeKobo } = await import("@workspace/valo-pay-1-schema");
   assert.equal(providerFeeKobo(30_000_000, { bps: 50, capKobo: 100_000 }), 100_000, "₦300,000 gross is capped at ₦1,000");
   void capped;
   invariant(state);

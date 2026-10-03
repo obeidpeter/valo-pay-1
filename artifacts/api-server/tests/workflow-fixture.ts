@@ -1,4 +1,4 @@
-import { seedMerchant } from "../src/lib/valopay-seed";
+import { seedMerchant } from "../src/lib/valo-pay-1-seed";
 import type { DomainState, ValopayRecord } from "../src/domain/types";
 
 export const WORKFLOW_NOW = "2027-07-01T06:00:00.000Z";

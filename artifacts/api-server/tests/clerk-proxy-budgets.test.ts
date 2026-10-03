@@ -7,8 +7,8 @@ import { runInNewContext } from 'node:vm';
 import express from 'express';
 import { createBoundedClerkProxy, clerkProxyLimits, CLERK_PROXY_LIMITS, CLERK_PROXY_PATH } from '../src/middlewares/clerkProxyMiddleware';
 
-process.env.VALOPAY_APP_ORIGINS = 'https://pilot.example';
-delete process.env.VALOPAY_STAFF_ACCESS;
+process.env.VALO_PAY_1_APP_ORIGINS = 'https://pilot.example';
+delete process.env.VALO_PAY_1_STAFF_ACCESS;
 let received = 0, cancelled = 0;
 /** Sends `total` bytes, `size` at a time, one every `everyMs`: a slow download that keeps progressing. */
 const trickle = (res: ServerResponse, total: number, size: number, everyMs: number) => {
@@ -213,13 +213,13 @@ try {
   // An operator may set the rate and the concurrency, by the start-up check's rule (startup-config.ts).
   const pick = ({ requestsPerMinute, networkConcurrency, concurrency }: typeof CLERK_PROXY_LIMITS) => ({ requestsPerMinute, networkConcurrency, concurrency });
   assert.deepEqual(pick(clerkProxyLimits()), { requestsPerMinute: 240, networkConcurrency: 8, concurrency: 64 });
-  Object.assign(process.env, { VALOPAY_CLERK_PROXY_RATE: '600', VALOPAY_CLERK_PROXY_NETWORK_CONCURRENCY: '2' });
+  Object.assign(process.env, { VALO_PAY_1_CLERK_PROXY_RATE: '600', VALO_PAY_1_CLERK_PROXY_NETWORK_CONCURRENCY: '2' });
   assert.deepEqual(pick(clerkProxyLimits()), { requestsPerMinute: 600, networkConcurrency: 2, concurrency: 16 }, 'the process has room for eight networks at a limit an operator set');
-  process.env.VALOPAY_CLERK_PROXY_CONCURRENCY = '12';
-  assert.throws(() => clerkProxyLimits(), /VALOPAY_CLERK_PROXY_CONCURRENCY must be a whole number from 16/, 'a process too small for eight networks is refused');
-  process.env.VALOPAY_CLERK_PROXY_CONCURRENCY = '20';
+  process.env.VALO_PAY_1_CLERK_PROXY_CONCURRENCY = '12';
+  assert.throws(() => clerkProxyLimits(), /VALO_PAY_1_CLERK_PROXY_CONCURRENCY must be a whole number from 16/, 'a process too small for eight networks is refused');
+  process.env.VALO_PAY_1_CLERK_PROXY_CONCURRENCY = '20';
   const tuned = await serve({limits:{...clerkProxyLimits(),headerDeadlineMs:2000}});
-  for (const key of ['VALOPAY_CLERK_PROXY_RATE', 'VALOPAY_CLERK_PROXY_NETWORK_CONCURRENCY', 'VALOPAY_CLERK_PROXY_CONCURRENCY']) delete process.env[key];
+  for (const key of ['VALO_PAY_1_CLERK_PROXY_RATE', 'VALO_PAY_1_CLERK_PROXY_NETWORK_CONCURRENCY', 'VALO_PAY_1_CLERK_PROXY_CONCURRENCY']) delete process.env[key];
   const tunedAbort = new AbortController(), tunedSeen = received, tunedClosed = cancelled;
   const pair = [0, 1].map(() => fetch(`${tuned}/hang`, { headers, signal: tunedAbort.signal }).catch(() => undefined));
   await waitFor(() => received - tunedSeen === 2);

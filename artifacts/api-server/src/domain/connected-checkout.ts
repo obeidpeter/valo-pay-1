@@ -1,6 +1,6 @@
 /** Synthetic checkout transitions and their narrow Core outcome-resolution interface. */
 import { z } from "zod";
-import type { ConnectedActionInput as ConnectedAction } from "@workspace/valopay-schema";
+import type { ConnectedActionInput as ConnectedAction } from "@workspace/valo-pay-1-schema";
 import type { Context, DomainState, RecordOf } from "./types";
 import { makeRecord, recordsOf, touch } from "./records";
 import {
@@ -312,7 +312,7 @@ export function paymentAction(
       reject("You can simulate the return from the bank only after the payment is authorised.", 409);
     return event(
       "pending",
-      "The customer returned from their bank. The payment is not confirmed yet; Valo Pay is waiting for the provider.",
+      "The customer returned from their bank. The payment is not confirmed yet; Valo Pay 1 is waiting for the provider.",
     );
   }
   if (input.action === "payment.outcome") {

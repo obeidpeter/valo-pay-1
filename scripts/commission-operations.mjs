@@ -3,13 +3,13 @@ import { mkdir, rename, unlink, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
-import { deliveryConfiguration, MissingSetting, probeService, schedulerExpectation } from './monitor-valopay.mjs';
+import { deliveryConfiguration, MissingSetting, probeService, schedulerExpectation } from './monitor-valo-pay-1.mjs';
 
 /** Read-only commissioning evidence. Presence, HTTP observations and operational acceptance stay separate. */
 export function commissioningReport(probe, env) {
-  const expected = schedulerExpectation(env.VALOPAY_MONITOR_EXPECT_SCHEDULER);
-  const hostMode = env.VALOPAY_OPERATIONS_HOST_MODE || 'unverified';
-  if (!['unverified', 'reserved-vm', 'autoscale', 'other'].includes(hostMode)) throw new MissingSetting('VALOPAY_OPERATIONS_HOST_MODE must be reserved-vm, autoscale or other when set.');
+  const expected = schedulerExpectation(env.VALO_PAY_1_MONITOR_EXPECT_SCHEDULER);
+  const hostMode = env.VALO_PAY_1_OPERATIONS_HOST_MODE || 'unverified';
+  if (!['unverified', 'reserved-vm', 'autoscale', 'other'].includes(hostMode)) throw new MissingSetting('VALO_PAY_1_OPERATIONS_HOST_MODE must be reserved-vm, autoscale or other when set.');
   const delivery = deliveryConfiguration(env);
   const blockers = [...probe.codes];
   if (!expected) blockers.push('scheduler_expectation_not_configured');
@@ -27,7 +27,7 @@ export function commissioningReport(probe, env) {
   for (const warning of ['background_starting', 'background_cleanup_pending']) if (probe.warnings?.includes(warning)) blockers.push(warning);
   if (hostMode === 'unverified') blockers.push('host_operating_mode_unverified');
   if (delivery.status !== 'configured') blockers.push('alert_configuration_incomplete');
-  if (!env.VALOPAY_MONITOR_STATE_FILE?.trim()) blockers.push('monitor_state_not_configured');
+  if (!env.VALO_PAY_1_MONITOR_STATE_FILE?.trim()) blockers.push('monitor_state_not_configured');
   const pendingAcceptance = [
     'independent_monitor_schedule_and_state_durability',
     'test_alert_received_and_acknowledged',
@@ -42,7 +42,7 @@ export function commissioningReport(probe, env) {
       hostMode: { value: hostMode, evidence: 'operator_setting_not_host_verification' },
       expectedScheduler: expected || 'not_configured',
       notification: delivery,
-      incidentState: env.VALOPAY_MONITOR_STATE_FILE?.trim() ? 'path_configured_durability_unverified' : 'not_configured',
+      incidentState: env.VALO_PAY_1_MONITOR_STATE_FILE?.trim() ? 'path_configured_durability_unverified' : 'not_configured',
     },
     observations: probe.observations,
     blockers: [...new Set(blockers)].sort(), warnings: probe.warnings || [],
@@ -67,11 +67,11 @@ export async function writeCommissioningReport(path, report) {
 async function main() {
   const args = process.argv.slice(2).filter((arg, index) => !(index === 0 && arg === '--'));
   if (args.length) throw new Error('This command takes no arguments.');
-  if (!process.env.VALOPAY_MONITOR_ORIGIN) throw new MissingSetting('VALOPAY_MONITOR_ORIGIN is required for the read-only commissioning check.');
-  const expected = schedulerExpectation(process.env.VALOPAY_MONITOR_EXPECT_SCHEDULER);
-  const probe = await probeService({ origin: process.env.VALOPAY_MONITOR_ORIGIN, expectScheduler: expected });
+  if (!process.env.VALO_PAY_1_MONITOR_ORIGIN) throw new MissingSetting('VALO_PAY_1_MONITOR_ORIGIN is required for the read-only commissioning check.');
+  const expected = schedulerExpectation(process.env.VALO_PAY_1_MONITOR_EXPECT_SCHEDULER);
+  const probe = await probeService({ origin: process.env.VALO_PAY_1_MONITOR_ORIGIN, expectScheduler: expected });
   const report = commissioningReport(probe, process.env);
-  if (process.env.VALOPAY_OPERATIONS_REPORT) await writeCommissioningReport(process.env.VALOPAY_OPERATIONS_REPORT, report);
+  if (process.env.VALO_PAY_1_OPERATIONS_REPORT) await writeCommissioningReport(process.env.VALO_PAY_1_OPERATIONS_REPORT, report);
   console.log(JSON.stringify(report));
   // 2 is a completed check that found work to do; 1 means no usable report could be produced.
   process.exitCode = report.blockers.length ? 2 : 0;

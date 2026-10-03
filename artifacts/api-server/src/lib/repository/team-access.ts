@@ -1,14 +1,14 @@
-/** Internal repository team-access. Import through valopay-store; external access is rejected by the boundary check. */
-import { pool, type PoolClient } from "@workspace/db";
+/** Internal repository team-access. Import through valo-pay-1-store; external access is rejected by the boundary check. */
+import { pool, type PoolClient } from "@workspace/valo-pay-1-db";
 import {
   approvalRoles,
   grantNeedsApproval,
   invitationAcceptedSchema,
   sameJson,
   valueLabel,
-} from "@workspace/valopay-schema";
+} from "@workspace/valo-pay-1-schema";
 import { randomBytes, randomUUID } from "node:crypto";
-import type { StaffLenderAccessInput } from "@workspace/valopay-schema";
+import type { StaffLenderAccessInput } from "@workspace/valo-pay-1-schema";
 import { validateLenderAccessChange } from "../staff-lender-access";
 import type { Request } from "express";
 import { staffMode, verifyStaff } from "../staff-access";
@@ -30,7 +30,7 @@ import { markRolledBack } from "../transaction-outcome";
 import type { DomainState } from "../../domain/types";
 import { requestFingerprint } from "../digests";
 import { ONE_ADMIN, onlyRoles } from "../refusal-words";
-import { seedMerchant } from "../valopay-seed";
+import { seedMerchant } from "../valo-pay-1-seed";
 import type { StaffRow, StoreContext, Session, MerchantRow } from "./types";
 type Dependencies = Pick<
   typeof import("./core"),
@@ -386,7 +386,7 @@ export function createTeamAccessRepository(dependencies: Dependencies) {
       id,
       token,
       approval,
-      message: `Invitation created. A different Admin must approve it before it can be accepted, because Admin, Finance and Compliance reviewer access needs 2 Admins.${administrators < 2 ? " Your pilot has only 1 Admin, so ask the Valo Pay team to add a second." : ""} No email has been sent, so share the link yourself. It expires in 7 days.`,
+      message: `Invitation created. A different Admin must approve it before it can be accepted, because Admin, Finance and Compliance reviewer access needs 2 Admins.${administrators < 2 ? " Your pilot has only 1 Admin, so ask the Valo Pay 1 team to add a second." : ""} No email has been sent, so share the link yourself. It expires in 7 days.`,
     };
   }
   /** A second administrator's approval of an invitation to Admin, Finance or Compliance reviewer, recorded in the access history; the invitee can accept it afterwards. */

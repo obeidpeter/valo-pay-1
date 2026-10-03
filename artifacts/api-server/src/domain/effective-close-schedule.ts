@@ -3,7 +3,7 @@ import type { DomainState } from "./types";
 
 /**
  * Only process health is exposed here; no other lender's runs or errors. `external`: this process runs no scheduled
- * close because a separate scheduled job does (VALOPAY_CLOSE_SCHEDULER=external), which it cannot observe.
+ * close because a separate scheduled job does (VALO_PAY_1_CLOSE_SCHEDULER=external), which it cannot observe.
  */
 export interface CloseRuntime {
   state: "not_started" | "running" | "off" | "external" | "stopped";

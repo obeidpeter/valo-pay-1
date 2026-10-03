@@ -14,7 +14,7 @@ import path from "node:path";
 const root = path.resolve(import.meta.dirname, "..");
 const tsx = path.join(root, "scripts", "node_modules", "tsx", "dist", "cli.mjs");
 // Nothing the operator's shell holds reaches the scripts: each case sets what it needs.
-const clean = Object.fromEntries(Object.entries(process.env).filter(([name]) => !/^(?:VALOPAY_|PAYSTACK_|DATABASE_URL$|REPLIT_DEV_DOMAIN$|PRIVATE_OBJECT_DIR$|LOG_LEVEL$)/.test(name)));
+const clean = Object.fromEntries(Object.entries(process.env).filter(([name]) => !/^(?:VALO_PAY_1_|PAYSTACK_|DATABASE_URL$|REPLIT_DEV_DOMAIN$|PRIVATE_OBJECT_DIR$|LOG_LEVEL$)/.test(name)));
 const unusableDatabase = "postgres://unused:unused@127.0.0.1:1/unused";
 
 function run(script, args, env = {}, limitMs = 60_000) {
@@ -95,21 +95,21 @@ for (const args of [['--requeue', 'synthetic-export'], ['--release', 'synthetic-
   assert.equal(noDatabase.status, 1, args.join(' ')); assert.match(noDatabase.stderr, /DATABASE_URL is required/, args.join(' '));
 }
 
-const monitor = "scripts/monitor-valopay.mjs";
-let result = await run(monitor, ["--"], { VALOPAY_MONITOR_ORIGIN: "https://127.0.0.1:1" });
+const monitor = "scripts/monitor-valo-pay-1.mjs";
+let result = await run(monitor, ["--"], { VALO_PAY_1_MONITOR_ORIGIN: "https://127.0.0.1:1" });
 assert.equal(result.status, 0, result.output);
 const probe = JSON.parse(result.stdout);
 assert.equal(probe.mode, "dry-run");
 assert.deepEqual(probe.codes, ["database_unready", "service_unavailable"], "a dry run reports an unreachable service by its codes");
 // `--deliver` after the `--` is accepted; with no receiver it stops at the configuration, in the general words, and prints no key.
-result = await run(monitor, ["--", "--deliver"], { VALOPAY_MONITOR_ORIGIN: "https://127.0.0.1:1", VALOPAY_ALERT_RESEND_KEY: "synthetic-provider-key" });
+result = await run(monitor, ["--", "--deliver"], { VALO_PAY_1_MONITOR_ORIGIN: "https://127.0.0.1:1", VALO_PAY_1_ALERT_RESEND_KEY: "synthetic-provider-key" });
 assert.equal(result.status, 1);
 assert.match(result.stderr, /^Operational monitoring failed\. Check configuration/);
 assert.ok(!result.output.includes("synthetic-provider-key"));
 // Without its origin the monitor says which setting is missing, rather than the general failure.
 result = await run(monitor, []);
 assert.equal(result.status, 1);
-assert.equal(result.stderr.trim(), "VALOPAY_MONITOR_ORIGIN is not set: set it to the HTTPS origin of the service to probe (docs/operational-rehearsals.md).");
+assert.equal(result.stderr.trim(), "VALO_PAY_1_MONITOR_ORIGIN is not set: set it to the HTTPS origin of the service to probe (docs/operational-rehearsals.md).");
 result = await run(monitor, ["--", "--delivr"]);
 assert.equal(result.status, 1);
 assert.match(result.stderr, /^Unknown option --delivr\. Use: pnpm run check:operations \[--deliver\]/, "a mistyped option is named, with the usage");
@@ -121,16 +121,16 @@ result = await run(monitor, ["--token=synthetic-secret-value"]);
 assert.match(result.stderr, /^Unknown option --token \(its value is not repeated here\)\./);
 assert.ok(!result.output.includes("synthetic-secret-value"));
 // A word that is not an option is counted, not repeated: it could be a receiver address or a key.
-result = await run(monitor, ["https://alerts.example/synthetic-receiver-token"], { VALOPAY_MONITOR_ORIGIN: "https://127.0.0.1:1" });
+result = await run(monitor, ["https://alerts.example/synthetic-receiver-token"], { VALO_PAY_1_MONITOR_ORIGIN: "https://127.0.0.1:1" });
 assert.equal(result.status, 1);
 assert.match(result.stderr, /^Argument 1 is not an option/);
 assert.ok(!result.output.includes("synthetic-receiver-token"));
 // A scheduler expectation the monitor does not know stops it, named without its value, rather than checking nothing.
-result = await run(monitor, [], { VALOPAY_MONITOR_ORIGIN: "https://127.0.0.1:1", VALOPAY_MONITOR_EXPECT_SCHEDULER: "synthetic-typo" });
+result = await run(monitor, [], { VALO_PAY_1_MONITOR_ORIGIN: "https://127.0.0.1:1", VALO_PAY_1_MONITOR_EXPECT_SCHEDULER: "synthetic-typo" });
 assert.equal(result.status, 1);
-assert.equal(result.stderr.trim(), "VALOPAY_MONITOR_EXPECT_SCHEDULER must be on or external when it is set (docs/operational-rehearsals.md).");
+assert.equal(result.stderr.trim(), "VALO_PAY_1_MONITOR_EXPECT_SCHEDULER must be on or external when it is set (docs/operational-rehearsals.md).");
 assert.ok(!result.output.includes("synthetic-typo"));
-result = await run(monitor, ["--"], { VALOPAY_MONITOR_ORIGIN: "https://127.0.0.1:1", VALOPAY_MONITOR_EXPECT_SCHEDULER: "External" });
+result = await run(monitor, ["--"], { VALO_PAY_1_MONITOR_ORIGIN: "https://127.0.0.1:1", VALO_PAY_1_MONITOR_EXPECT_SCHEDULER: "External" });
 assert.equal(result.status, 0, result.output);
 assert.deepEqual(JSON.parse(result.stdout).codes, ["database_unready", "service_unavailable"], "external, in any case, is taken");
 
@@ -163,21 +163,21 @@ for (const args of [[], ["--synthetic-staging", "org_Synthetic", "user_Synthetic
   ["--synthetic-staging", "--add-administrator", "org_Synthetic", "user_Synthetic"], ["--synthetic-staging", "--add-administrator", "--renew", "org_Synthetic", "user_Synthetic"], ["--synthetic-staging", "--rennew", "org_Synthetic", "user_Synthetic"]]) {
   result = await run(provision, args);
   assert.equal(result.status, 1, args.join(" "));
-  assert.match(result.stderr, /^Usage: VALOPAY_STAFF_ACCESS=staging pnpm --filter @workspace\/scripts exec tsx \.\/provision-pilot\.ts --synthetic-staging/);
+  assert.match(result.stderr, /^Usage: VALO_PAY_1_STAFF_ACCESS=staging pnpm --filter @workspace\/valo-pay-1-scripts exec tsx \.\/provision-pilot\.ts --synthetic-staging/);
   assert.match(result.stderr, /--add-administrator org_ID user_ID "Display name"\n.*--renew org_ID user_ID$/m, "the usage names all three modes");
 }
 // Right arguments without staff access stop before the store loads, in every mode: there is no DATABASE_URL, which loading it would need.
 for (const args of [["--", "--synthetic-staging", "org_Synthetic", "user_Synthetic", "Synthetic workspace"], ["--synthetic-staging", "--renew", "org_Synthetic", "user_Synthetic"], ["--synthetic-staging", "--add-administrator", "org_Synthetic", "user_Synthetic", "Second administrator"]]) {
   result = await run(provision, args);
   assert.equal(result.status, 1, args.join(" "));
-  assert.match(result.stderr, /^Set VALOPAY_STAFF_ACCESS=staging/);
+  assert.match(result.stderr, /^Set VALO_PAY_1_STAFF_ACCESS=staging/);
 }
 // With staff access, the store loads (the import that once failed to resolve) and refuses a malformed organisation before it opens a connection,
 // in its own words: no stack, no connection error.
 for (const [args, refusal] of [[["--synthetic-staging", "organisation", "user_Synthetic", "Synthetic workspace"], "Provide a staging organisation, administrator user ID and workspace name."],
   [["--synthetic-staging", "--renew", "org_Synthetic", "user"], "Provide a staging organisation and administrator user ID."],
   [["--synthetic-staging", "--add-administrator", "org_Synthetic", "user_Synthetic", " "], "Provide a staging organisation, administrator user ID and display name."]]) {
-  result = await run(provision, args, { VALOPAY_STAFF_ACCESS: "staging", DATABASE_URL: unusableDatabase });
+  result = await run(provision, args, { VALO_PAY_1_STAFF_ACCESS: "staging", DATABASE_URL: unusableDatabase });
   assert.equal(result.status, 1, args.join(" "));
   assert.equal(result.stderr.split("\n").filter((line) => line && !/DEP0040|trace-deprecation/.test(line)).join("\n"), refusal);
   assert.doesNotMatch(result.output, /ERR_MODULE_NOT_FOUND|ECONNREFUSED|\n\s+at /);
@@ -188,19 +188,19 @@ const rewrap = "scripts/rewrap-payloads.ts";
 for (const args of [["--limit"], ["--limit", "0"], ["--limit", "1001"], ["--limit", "ten"], ["--limt", "10"], ["10"], ["--limit", "5", "--limit", "6"]]) {
   result = await run(rewrap, args);
   assert.equal(result.status, 1, args.join(" "));
-  assert.match(result.stderr, /^Usage: pnpm --filter @workspace\/scripts exec tsx \.\/rewrap-payloads\.ts \[--limit N\]/);
+  assert.match(result.stderr, /^Usage: pnpm --filter @workspace\/valo-pay-1-scripts exec tsx \.\/rewrap-payloads\.ts \[--limit N\]/);
 }
 // Right arguments without the key settings stop before the store loads: there is no DATABASE_URL, which loading it would need.
-for (const [args, env] of [[[], {}], [["--", "--limit", "5"], { VALOPAY_PAYLOAD_ENCRYPTION: "kms" }], [["--limit", "5"], { VALOPAY_KMS_KEY: "projects/p/locations/l/keyRings/r/cryptoKeys/k" }]]) {
+for (const [args, env] of [[[], {}], [["--", "--limit", "5"], { VALO_PAY_1_PAYLOAD_ENCRYPTION: "kms" }], [["--limit", "5"], { VALO_PAY_1_KMS_KEY: "projects/p/locations/l/keyRings/r/cryptoKeys/k" }]]) {
   result = await run(rewrap, args, env);
   assert.equal(result.status, 1, args.join(" "));
-  assert.match(result.stderr, /^Set VALOPAY_PAYLOAD_ENCRYPTION=kms and VALOPAY_KMS_KEY to the key payloads move to/);
+  assert.match(result.stderr, /^Set VALO_PAY_1_PAYLOAD_ENCRYPTION=kms and VALO_PAY_1_KMS_KEY to the key payloads move to/);
 }
 // With the key settings the store loads, and refuses a schema that is not a restricted runtime's before it opens a
 // connection, in its own words. The connection itself is checked on PostgreSQL (tests/payload-rewrap.integration.test.ts).
-result = await run(rewrap, ["--limit", "5"], { VALOPAY_PAYLOAD_ENCRYPTION: "kms", VALOPAY_KMS_KEY: "projects/p/locations/l/keyRings/r/cryptoKeys/k", VALOPAY_RUNTIME_SCHEMA: "public", DATABASE_URL: unusableDatabase });
+result = await run(rewrap, ["--limit", "5"], { VALO_PAY_1_PAYLOAD_ENCRYPTION: "kms", VALO_PAY_1_KMS_KEY: "projects/p/locations/l/keyRings/r/cryptoKeys/k", VALO_PAY_1_RUNTIME_SCHEMA: "public", DATABASE_URL: unusableDatabase });
 assert.equal(result.status, 1);
-assert.equal(result.stderr.split("\n").filter((line) => line && !/DEP0040|trace-deprecation/.test(line)).join("\n"), "VALOPAY_RUNTIME_SCHEMA must name a restricted runtime's schema (valopay_runtime_staging_<suffix>), or be unset for the tables the connection's search path reaches.");
+assert.equal(result.stderr.split("\n").filter((line) => line && !/DEP0040|trace-deprecation/.test(line)).join("\n"), "VALO_PAY_1_RUNTIME_SCHEMA must name a restricted runtime's schema (valopay_runtime_staging_<suffix>), or be unset for the tables the connection's search path reaches.");
 assert.doesNotMatch(result.output, /ERR_MODULE_NOT_FOUND|ECONNREFUSED|\n\s+at /);
 
 // ---- pnpm run test:smoke and test:security-api ----
@@ -211,7 +211,7 @@ listener.listen(0, "127.0.0.1");
 await once(listener, "listening");
 const local = `127.0.0.1:${listener.address().port}`;
 try {
-  for (const script of ["scripts/smoke-valopay.mjs", "scripts/security-valopay.mjs"]) {
+  for (const script of ["scripts/smoke-valo-pay-1.mjs", "scripts/security-valo-pay-1.mjs"]) {
     for (const domain of [undefined, local, `${local}/sandbox.replit.dev`]) {
       result = await run(script, [], domain === undefined ? {} : { REPLIT_DEV_DOMAIN: domain });
       assert.notEqual(result.status, 0, `${script} with ${domain}`);

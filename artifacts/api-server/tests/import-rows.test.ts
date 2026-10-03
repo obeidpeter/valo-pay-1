@@ -2,15 +2,15 @@
 // the quick import (POST /v1/imports) requires a source row ID on every row and recognises its rows across imports,
 // and each row error names the operator's column in plain words, lists every failing rule and keeps the raw detail.
 import assert from "node:assert/strict";
-import { fromImportBatch, importFieldLabel, importFieldsOf, suggestImportField, suggestRowIdColumn, csvHeader } from "@workspace/valopay-schema";
-import { seedMerchant } from "../src/lib/valopay-seed";
-import { importCsv, QUICK_IMPORT_SOURCE } from "../src/lib/valopay-import";
+import { fromImportBatch, importFieldLabel, importFieldsOf, suggestImportField, suggestRowIdColumn, csvHeader } from "@workspace/valo-pay-1-schema";
+import { seedMerchant } from "../src/lib/valo-pay-1-seed";
+import { importCsv, QUICK_IMPORT_SOURCE } from "../src/lib/valo-pay-1-import";
 import { validateRecord } from "../src/domain/validation";
 import { assertNoDirectImportedCorrection } from "../src/domain/import-corrections";
 import { saveImportBatch } from "../src/domain/pilot-workflow";
 
 process.env.DATABASE_URL ||= "postgres://unused:unused@127.0.0.1:1/unused";
-const { buildDisputePack } = await import("../src/lib/valopay-packs");
+const { buildDisputePack } = await import("../src/lib/valo-pay-1-packs");
 const admin = { actor: "Sandbox Admin", role: "Admin", now: "2026-09-25T10:00:00.000Z" };
 let checks = 0;
 const check = (condition: unknown, message: string) => { assert.ok(condition, message); checks += 1; };
@@ -83,7 +83,7 @@ const quick = (state: ReturnType<typeof seedMerchant>, kind: string, csv: string
   assert.equal(quick(state, "due-items", dueFile, { commit: false, amountUnit: "naira" }).rows[0]!.message, "Amount: Enter an amount above ₦0 in naira, for example 1,000.50."); checks += 1;
   assert.equal(quick(state, "due-items", dueFile, { commit: false }).rows[0]!.message, "Amount: Enter a whole number of kobo above 0, for example 100000 for ₦1,000."); checks += 1;
   const undated = quick(state, "due-items", "row_id,name,customerId,amount,owner,status,mandate\nr1,Undated,DEMO-C1001,1000000,someone,paid,NOPE-M", { commit: false, mapping: { mandate: "mandateId" } });
-  assert.equal(undated.rows[0]!.message, "Status: Paid (paid) is set by Valo Pay later, so a new instalment cannot start with it. Leave the column blank or use Scheduled (scheduled). No column is mapped to Due date. Map the column that holds it. Collection owner (column owner): “someone” is not one of the choices. Use Valo Pay (valopay), Loan management system (lms), Lender team (merchant_manual) or Provider automatic collection (provider_auto). Mandate reference or ID (column mandate): No mandate has the reference or ID “NOPE-M” in this lender."); checks += 1;
+  assert.equal(undated.rows[0]!.message, "Status: Paid (paid) is set by Valo Pay 1 later, so a new instalment cannot start with it. Leave the column blank or use Scheduled (scheduled). No column is mapped to Due date. Map the column that holds it. Collection owner (column owner): “someone” is not one of the choices. Use Valo Pay 1 (valopay), Loan management system (lms), Lender team (merchant_manual) or Provider automatic collection (provider_auto). Mandate reference or ID (column mandate): No mandate has the reference or ID “NOPE-M” in this lender."); checks += 1;
 
   const status = quick(state, "customers", "row_id,name,consentProvenance,status\nr1,Archived,Synthetic consent,archived", { commit: false });
   assert.equal(status.rows[0]!.message, "Status: “archived” is not one of the choices. Use Active (active) or Inactive (inactive)."); checks += 1;
@@ -175,7 +175,7 @@ const quick = (state: ReturnType<typeof seedMerchant>, kind: string, csv: string
 }
 
 {
-  // A field a CSV cell cannot fill, such as one Valo Pay sets, is named in plain words, never by its path or zod's text.
+  // A field a CSV cell cannot fill, such as one Valo Pay 1 sets, is named in plain words, never by its path or zod's text.
   const state = seedMerchant("platform-fields");
   const history = quick(state, "mandates", "row_id,name,customerId,amount,workflow,consentEvidence,history\nr1,History,DEMO-C1001,5000000,hosted_consent,SYNTHETIC-CONSENT,v1", { commit: false, mapping: { history: "policyVersionHistory" } });
   assert.equal(history.rows[0]!.message, "Policy version history (column history): A CSV column cannot fill this field. Choose Skip column for it."); checks += 1;

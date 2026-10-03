@@ -6,7 +6,7 @@ import { executeAction } from "../src/domain/actions.js";
 import { buildOverview, buildReports, precisionAudit, test5Report, unitEconomics } from "../src/domain/reports.js";
 import { seededSample, wilsonInterval } from "../src/domain/stats.js";
 import { makeRecord, recordsOf } from "../src/domain/records.js";
-import { seedMerchant } from "../src/lib/valopay-seed.js";
+import { seedMerchant } from "../src/lib/valo-pay-1-seed.js";
 
 let checks = 0;
 const finance = (now: string) => ctxAt(now, "Finance");

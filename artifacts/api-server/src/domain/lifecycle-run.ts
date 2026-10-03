@@ -1,4 +1,4 @@
-import { notFoundText, type LifecycleCandidate, type LifecycleExternalCandidate } from '@workspace/valopay-schema';
+import { notFoundText, type LifecycleCandidate, type LifecycleExternalCandidate } from '@workspace/valo-pay-1-schema';
 import type { Context, DomainState } from './types';
 import { eraseLifecycleRawCsv, lifecycleCandidateCheck, lifecycleRunView, recordLifecycleReceipt } from './lifecycle';
 
@@ -50,7 +50,7 @@ export async function executeApprovedRun(state: DomainState, ctx: Context, runId
       else result = await remove(candidate);
     } catch (error) {
       if (fatal(error)) throw error;
-      recordLifecycleReceipt(state, ctx, runId, candidate, 'failed', 'Valo Pay could not confirm the deletion. Resume this saved run to check the same file again. Do not start a new run.');
+      recordLifecycleReceipt(state, ctx, runId, candidate, 'failed', 'Valo Pay 1 could not confirm the deletion. Resume this saved run to check the same file again. Do not start a new run.');
       break;
     }
     recordLifecycleReceipt(state, ctx, runId, candidate, result, 'Deletion completed. Financial records, their import details, request records and the audit log were kept.');

@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
-import { seedMerchant } from "../src/lib/valopay-seed";
+import { seedMerchant } from "../src/lib/valo-pay-1-seed";
 import { saveSourceProfile, batchSourceQuality, assertSourceBatchReady, sourceDelivery } from "../src/domain/source-quality";
 import { saveImportBatch, commitImportBatch } from "../src/domain/pilot-workflow";
 import { advanceRecordVersions } from "../src/lib/edit-versions";
 import { makeRecord } from "../src/domain/records";
 import { receivePaystackEvent, replayProviderEvent, runPaystackFixture, providerEventView, assertProviderEventChange } from "../src/providers/paystack-inbox";
 import { parsePaystackTestWebhook } from "../src/providers/paystack";
-import type { SourceProfileInput } from "@workspace/valopay-schema";
+import type { SourceProfileInput } from "@workspace/valo-pay-1-schema";
 
 const ctx = { actor: "Clerk:source_operator", role: "Admin", now: "2026-09-22T08:00:00.000Z" };
 const fresh = (id = "source-quality-test") => { const state = seedMerchant(id, true); state.records = []; return state; };
@@ -55,7 +55,7 @@ assert.equal(batchSourceQuality(state, amountBatch).sourceAmountKobo, 30);
 amountBatch.data.csv = "row,amount\n1,9007199254740991\n2,1"; amountBatch.data.amountUnit = "kobo";
 assert.equal(batchSourceQuality(state, amountBatch).status, "unavailable");
 assert.equal(batchSourceQuality(state, amountBatch).sourceAmountKobo, null);
-assert.throws(() => assertSourceBatchReady(state, amountBatch), /larger than Valo Pay supports/);
+assert.throws(() => assertSourceBatchReady(state, amountBatch), /larger than Valo Pay 1 supports/);
 amountBatch.data.csv = "row,amount\n1,not-money";
 assert.equal(batchSourceQuality(state, amountBatch).status, "unavailable");
 // As in the import, a blank amount counts for nothing on a customer row, and stays an error where the kind needs an amount.

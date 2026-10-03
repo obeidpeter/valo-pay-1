@@ -1,13 +1,14 @@
+import { SANDBOX_COOKIE } from "../src/lib/sandbox-cookie";
 import assert from "node:assert/strict";
 import { randomBytes, createHash } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 
-if (process.env.VALOPAY_RUN_INTEGRATION !== "1" || process.env.NODE_ENV !== "development") {
+if (process.env.VALO_PAY_1_RUN_INTEGRATION !== "1" || process.env.NODE_ENV !== "development") {
   throw new Error("Export integration checks require explicit development opt-in.");
 }
-const { pool } = await import("@workspace/db");
-const { inWorkspace, listMerchants, loadState, saveState, appendAudit } = await import("../src/lib/valopay-store.js");
-const { downloadExport, generateExportArtifact, exportJobStorage } = await import("../src/lib/valopay-exports.js");
+const { pool } = await import("@workspace/valo-pay-1-db");
+const { inWorkspace, listMerchants, loadState, saveState, appendAudit } = await import("../src/lib/valo-pay-1-store.js");
+const { downloadExport, generateExportArtifact, exportJobStorage } = await import("../src/lib/valo-pay-1-exports.js");
 const { queueExport, processExportJob } = await import('../src/lib/export-jobs');
 const { exportJobRepository } = await import('../src/lib/export-job-store');
 const warnings: Array<{ type?: string; count?: number; stack?: string }> = [];
@@ -30,10 +31,10 @@ const onWarning = (warning: Error & { type?: string; count?: number }) => {
 };
 process.on("warning", onWarning);
 const auth = Object.assign(() => ({ userId: null }), { [Symbol.for("@clerk/express.auth")]: true });
-const req = { auth, headers: { cookie: `valopay_sandbox=${randomBytes(32).toString("hex")}` }, secure: false } as any;
+const req = { auth, headers: { cookie: `${SANDBOX_COOKIE}=${randomBytes(32).toString("hex")}` }, secure: false } as any;
 const res = { cookie() {} } as any;
 const hash = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
-const repetitions = Number(process.env.VALOPAY_EXPORT_REPETITIONS || 16);
+const repetitions = Number(process.env.VALO_PAY_1_EXPORT_REPETITIONS || 16);
 
 try {
   const queued = await inWorkspace(req, res, async (context) => {

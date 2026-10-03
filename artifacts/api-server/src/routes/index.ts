@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import healthRouter from "./health";
-import valopayRouter from "./valopay";
+import valoPay1Router from "./valo-pay-1";
 import connectedRouter from './connected';
 import { recoveryMiddleware } from '../lib/operation-recovery';
 import pilotRouter from './pilot';
@@ -23,7 +23,7 @@ router.use((req, _res, next) => {
 });
 router.use(healthRouter);
 router.use(recoveryMiddleware);
-router.use(valopayRouter);
+router.use(valoPay1Router);
 router.use(connectedRouter);
 router.use(pilotRouter);
 router.use(closeReviewRouter);

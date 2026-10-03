@@ -17,7 +17,7 @@ import { markKeyed, markKeyUnused, markOperationClosed, operationClosed, registe
 import { parsePublishableKey } from "@clerk/shared/keys";
 import { ClerkAPIResponseError, ClerkRuntimeError } from "@clerk/shared/error";
 import { ResponseContractError, replayedAnswer } from "../src/lib/contract.js";
-import { connectedActionResultFor, MoneyArithmeticError } from "@workspace/valopay-schema";
+import { connectedActionResultFor, MoneyArithmeticError } from "@workspace/valo-pay-1-schema";
 
 let checks = 0;
 type Answer = { status?: number; body?: unknown; headers?: Record<string, string> };
@@ -38,7 +38,7 @@ function answer(error: unknown): Answer {
   assert.equal(answer(new Error("Unsupported domain action: open_gate.")).status, 400, "words from the request never choose the status");
   const typeError = answer(new TypeError("Cannot read properties of undefined (reading 'merchant')"));
   assert.equal(typeError.status, 500, "a programming error is a 500");
-  assert.equal((typeError.body as { error: string }).error, "We do not know yet whether Valo Pay saved this. Check the original request in Request history before you change anything.", "a programming error's message stays out of the response and does not claim an unconfirmed write was rolled back");
+  assert.equal((typeError.body as { error: string }).error, "We do not know yet whether Valo Pay 1 saved this. Check the original request in Request history before you change anything.", "a programming error's message stays out of the response and does not claim an unconfirmed write was rolled back");
   assert.equal(answer(new ReferenceError("x is not defined")).status, 500);
   const moneyRefusal = answer(new MoneyArithmeticError("MONEY_OUT_OF_RANGE", "private calculation context must not escape"));
   assert.equal(moneyRefusal.status, 422);
@@ -77,7 +77,7 @@ function answer(error: unknown): Answer {
   // A database limit (a busy lender, a lock or statement past its limit, a lost connection) is a 503 that says when to retry.
   assert.deepEqual(answer(markRolledBack(new DatabaseLimitError("lock_timeout", { write: true }))), { status: 503, headers: { "Retry-After": "2" }, body: { error: "This lender is busy with another change. Nothing was saved. Try again in a moment.", committed: false, requestId: "test-request" } }, "a lock wait past its limit is a 503 with Retry-After, and nothing was saved");
   assert.equal(answer(markRolledBack(new DatabaseLimitError("statement_timeout"))).headers?.["Retry-After"], "5", "a stopped statement waits longer before a retry");
-  assert.deepEqual(answer(new DatabaseLimitError("pool_timeout", { write: false })), { status: 503, headers: { "Retry-After": "2" }, body: { error: "Valo Pay is busy. Try again in a moment.", requestId: "test-request" } }, "committed: false only when the store says nothing was saved");
+  assert.deepEqual(answer(new DatabaseLimitError("pool_timeout", { write: false })), { status: 503, headers: { "Retry-After": "2" }, body: { error: "Valo Pay 1 is busy. Try again in a moment.", requestId: "test-request" } }, "committed: false only when the store says nothing was saved");
   assert.equal(answer(Object.assign(new Error("canceling statement due to lock timeout"), { code: "55P03" })).status, 500, "a raw PostgreSQL code is translated by the store, never guessed here");
   assert.equal((unconfigured as Answer).headers, undefined, "an application 503 sets no Retry-After");
   checks += 34;
@@ -120,10 +120,10 @@ function answer(error: unknown): Answer {
   const write = answerTo(markRolledBack(new ResponseContractError(mismatch())), "POST");
   assert.deepEqual([write.status, write.body], [500, { error: "This action failed and nothing was saved. Try again, and quote this reference if it happens again.", committed: false, requestId: "test-request" }], "a write's invalid answer, checked before COMMIT, saved nothing");
   const read = answerTo(markRolledBack(new ResponseContractError(mismatch())), "GET");
-  assert.deepEqual([read.status, read.body], [500, { error: "Valo Pay could not load this. Try again, and quote this reference if it happens again.", requestId: "test-request" }], "a read's invalid answer is a read's failure: no action, nothing to save");
-  assert.deepEqual(answerTo(markRolledBack(new TypeError("x is undefined")), "GET").body, { error: "Valo Pay could not load this. Try again, and quote this reference if it happens again.", requestId: "test-request" }, "so is a read's programming error");
+  assert.deepEqual([read.status, read.body], [500, { error: "Valo Pay 1 could not load this. Try again, and quote this reference if it happens again.", requestId: "test-request" }], "a read's invalid answer is a read's failure: no action, nothing to save");
+  assert.deepEqual(answerTo(markRolledBack(new TypeError("x is undefined")), "GET").body, { error: "Valo Pay 1 could not load this. Try again, and quote this reference if it happens again.", requestId: "test-request" }, "so is a read's programming error");
   const replay = answerTo(markRolledBack(new ResponseContractError(mismatch(), { saved: true })), "POST");
-  assert.deepEqual([replay.status, replay.body], [500, { error: "We do not know yet whether Valo Pay saved this. Check the original request in Request history before you change anything.", requestId: "test-request" }], "a saved request's stored answer that cannot be given never says nothing was saved, though the repeat's transaction rolled back");
+  assert.deepEqual([replay.status, replay.body], [500, { error: "We do not know yet whether Valo Pay 1 saved this. Check the original request in Request history before you change anything.", requestId: "test-request" }], "a saved request's stored answer that cannot be given never says nothing was saved, though the repeat's transaction rolled back");
   assert.deepEqual(replay.logged.map((line) => [line.level, line.fields["event"], line.fields["replayed"]]), [["error", "response.invalid", true]], "and the log says which answer failed");
   // A 429 says when to try again: the refusal's own wait, or a minute.
   const queue = answerTo(Object.assign(new Error("Ten exports are already waiting or running for this lender."), { status: 429, retryAfterSeconds: 30 }), "POST");
@@ -187,7 +187,7 @@ function answer(error: unknown): Answer {
 
   // A service the request depends on that could not be reached is an outage: 503 with Retry-After, never a general 500.
   const unreachable = handled(Object.assign(new Error("request to http://127.0.0.1:1106/credential failed, reason: connect ECONNREFUSED 127.0.0.1:1106"), { name: "GaxiosError", code: "ECONNREFUSED" }), "GET");
-  assert.deepEqual([unreachable.status, unreachable.headers, unreachable.body], [503, { "Retry-After": "10" }, { error: "Valo Pay could not reach a system this request needs. Try again shortly.", requestId: "test-request" }], "object storage out of reach is a 503 that says when to try again");
+  assert.deepEqual([unreachable.status, unreachable.headers, unreachable.body], [503, { "Retry-After": "10" }, { error: "Valo Pay 1 could not reach a system this request needs. Try again shortly.", requestId: "test-request" }], "object storage out of reach is a 503 that says when to try again");
   assert.deepEqual(levels(unreachable), [["error", "request.unavailable"]], "and an error line: the outage needs attention");
   const fetchFailed = handled(new TypeError("fetch failed", { cause: Object.assign(new Error("connect ECONNREFUSED 127.0.0.1:443"), { code: "ECONNREFUSED" }) }));
   assert.deepEqual([fetchFailed.status, fetchFailed.headers?.["Retry-After"]], [503, "10"], "so is a fetch that failed on the network, though it is a TypeError");
@@ -205,7 +205,7 @@ function answer(error: unknown): Answer {
   try { parsePublishableKey("", { fatal: true }); } catch (error) { missingKey = error; }
   assert.ok(missingKey instanceof Error && !("status" in missingKey) && !("code" in missingKey), "a real dependency error: a plain Error without a status or code");
   const dependency = handled(missingKey, "GET");
-  assert.deepEqual([dependency.status, (dependency.body as { error: string }).error], [500, "Valo Pay could not load this. Try again, and quote this reference if it happens again."], "it is the service's 500 in general words, never a 400 that blames the request");
+  assert.deepEqual([dependency.status, (dependency.body as { error: string }).error], [500, "Valo Pay 1 could not load this. Try again, and quote this reference if it happens again."], "it is the service's 500 in general words, never a 400 that blames the request");
   assert.deepEqual(levels(dependency), [["error", "request.failed"]], "logged at error level with its stack, not as a rejection at info");
   const rule = handled(new Error("A reason is required for this business or destructive action."));
   assert.deepEqual([rule.status, levels(rule)], [400, [["info", "request.rejected"]]], "while the application's own rule without a status stays a 400");
@@ -238,7 +238,7 @@ function answer(error: unknown): Answer {
   const unopened = await keyedAnswer(markRolledBack(Object.assign(new Error("Protected data cannot be opened. Ask the administrator to check the configured encryption key."), { status: 503 })), { closer: async () => "completed" });
   assert.deepEqual([unopened.status, unopened.body], [503, { error: "Protected data cannot be opened. Ask the administrator to check the configured encryption key. This request was saved.", operation: "completed", requestId: "test-request" }], "a saved request whose stored answer cannot be opened says it was saved");
   const failed = await keyedAnswer(markRolledBack(new TypeError("x is undefined")), { closer: async () => "completed" });
-  assert.deepEqual([failed.status, failed.body], [500, { error: "Valo Pay saved this request but could not send its answer. Check the original request in Request history to see the saved result.", operation: "completed", requestId: "test-request" }], "so does a general failure of a repeat of a saved request");
+  assert.deepEqual([failed.status, failed.body], [500, { error: "Valo Pay 1 saved this request but could not send its answer. Check the original request in Request history to see the saved result.", operation: "completed", requestId: "test-request" }], "so does a general failure of a repeat of a saved request");
   // A repeat turned away because its request is still running leaves the entry to the attempt running it.
   const stillRunning = await keyedAnswer(markRolledBack(new DatabaseLimitError("operation_running")), { closer: async () => "cancelled" });
   assert.deepEqual([stillRunning.status, stillRunning.headers, stillRunning.body, stillRunning.closed], [503, { "Retry-After": "2" }, { error: "This request is still running. Wait a moment, then check the original request to see its result.", operation: "running", requestId: "test-request" }, 0], "a duplicate of a running request is a non-definitive 503 with Retry-After that never touches the entry");
@@ -250,14 +250,14 @@ function answer(error: unknown): Answer {
   // A record's data cannot smuggle a key that names an object's own machinery.
   for (const key of ["__proto__", "constructor", "prototype"]) {
     const data = JSON.parse(`{"${key}": {"polluted": true}, "note": "x"}`) as Record<string, unknown>;
-    assert.throws(() => validateRecord({} as never, { role: "Admin" } as never, "customers", { data }), /^Error: This request has a field Valo Pay does not accept\. Reload the page and try again\.$/, `${key} is refused before anything else looks at the data`);
+    assert.throws(() => validateRecord({} as never, { role: "Admin" } as never, "customers", { data }), /^Error: This request has a field Valo Pay 1 does not accept\. Reload the page and try again\.$/, `${key} is refused before anything else looks at the data`);
   }
   checks += 3;
 }
 
 // The shell over HTTP: placeholder Clerk keys make the middleware compute "signed out" locally, and a
 // placeholder database address satisfies the store's start-up check; no query is ever made here.
-process.env["DATABASE_URL"] ??= "postgres://postgres@127.0.0.1:1/valopay-unused";
+process.env["DATABASE_URL"] ??= "postgres://postgres@127.0.0.1:1/valo-pay-1-unused";
 // The log is not this test's subject; the observability test reads it back.
 process.env["LOG_LEVEL"] ??= "silent";
 process.env["CLERK_SECRET_KEY"] ??= "sk_test_placeholder";
@@ -451,15 +451,15 @@ try {
   }
 
   // In staff mode a change must come from a configured pilot origin: without one, or from another, it is refused first.
-  const staffNames = ["VALOPAY_STAFF_ACCESS", "VALOPAY_STAFF_ORIGINS"] as const;
+  const staffNames = ["VALO_PAY_1_STAFF_ACCESS", "VALO_PAY_1_STAFF_ORIGINS"] as const;
   const staffSaved = Object.fromEntries(staffNames.map((name) => [name, process.env[name]]));
   try {
-    process.env["VALOPAY_STAFF_ACCESS"] = "staging";
-    process.env["VALOPAY_STAFF_ORIGINS"] = base;
+    process.env["VALO_PAY_1_STAFF_ACCESS"] = "staging";
+    process.env["VALO_PAY_1_STAFF_ORIGINS"] = base;
     for (const origin of [undefined, "https://pilot.example"]) {
       const refused = await fetch(`${base}/api/v1/webhooks/test`, { method: "POST", headers: { "Content-Type": "application/json", ...(origin ? { Origin: origin } : {}) }, body: "{}" });
       assert.equal(refused.status, 403);
-      assert.equal(await errorOf(refused), "Open Valo Pay from your pilot’s usual address to make changes.", `refused from ${origin ?? "no origin"}`);
+      assert.equal(await errorOf(refused), "Open Valo Pay 1 from your pilot’s usual address to make changes.", `refused from ${origin ?? "no origin"}`);
     }
     const configured = await fetch(`${base}/api/v1/webhooks/test`, { method: "POST", headers: { "Content-Type": "application/json", Origin: base }, body: "{}" });
     assert.match(await errorOf(configured), /ingress is disabled/, "a change from the configured origin reaches its route");
@@ -470,13 +470,13 @@ try {
 
   // The Paystack test ingress checks a delivery's signature on its raw bytes before it touches a lender:
   // with the database unreachable, a forged delivery to a mapped connection is still a 401, not a 500.
-  const paystackNames = ["VALOPAY_PAYSTACK_INGRESS", "PAYSTACK_TEST_SECRET_KEY", "VALOPAY_PAYSTACK_CONNECTIONS"] as const;
+  const paystackNames = ["VALO_PAY_1_PAYSTACK_INGRESS", "PAYSTACK_TEST_SECRET_KEY", "VALO_PAY_1_PAYSTACK_CONNECTIONS"] as const;
   const paystackSaved = Object.fromEntries(paystackNames.map((name) => [name, process.env[name]]));
   try {
     const key = ["sk", "test", "OFFLINE", "0".repeat(20)].join("_"), connection = "c".repeat(64);
-    process.env["VALOPAY_PAYSTACK_INGRESS"] = "test";
+    process.env["VALO_PAY_1_PAYSTACK_INGRESS"] = "test";
     process.env["PAYSTACK_TEST_SECRET_KEY"] = key;
-    process.env["VALOPAY_PAYSTACK_CONNECTIONS"] = JSON.stringify({ [connection]: { workspaceId: "unreachable-workspace", merchantId: "unreachable-lender" } });
+    process.env["VALO_PAY_1_PAYSTACK_CONNECTIONS"] = JSON.stringify({ [connection]: { workspaceId: "unreachable-workspace", merchantId: "unreachable-lender" } });
     const event = JSON.stringify({ event: "charge.success", data: { domain: "test", id: "800001", status: "success", amount: 10000, currency: "NGN", reference: "OFFLINE-INGRESS-001", channel: "direct_debit" } });
     const deliver = (bytes: string, signature: string) => fetch(`${base}/api/v1/providers/paystack/${connection}/events`, { method: "POST", headers: { "Content-Type": "application/json", "X-Paystack-Signature": signature }, body: bytes });
     const forged = await deliver(event, "f".repeat(128));

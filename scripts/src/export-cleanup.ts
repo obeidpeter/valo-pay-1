@@ -29,6 +29,10 @@ let refusal = dashedReason ? 'The reason after --reason begins with --, so it re
 if (!refusal && options.has('--release') && !(await import('../../artifacts/api-server/src/lib/logger').then(({ logger }) => logger.isLevelEnabled('warn'), () => false))) {
   refusal = "The release was refused: its record, a warning line in this command's log output, or the file LOG_FILE names, would not be written with LOG_LEVEL as set. Unset LOG_LEVEL, or set it to warn, info or debug, and run the command again. Nothing was changed.";
 }
+if (!refusal) {
+  try { (await import('../../artifacts/api-server/src/lib/product-identity')).assertOperatorConfiguration(); }
+  catch { refusal = 'Valo Pay 1 resource identity is not verified. Review VALO_PAY_1_ENVIRONMENT and VALO_PAY_1_RESOURCE_BINDINGS; no cleanup or storage request was started.'; }
+}
 // A retry obtains storage credentials first, as every storage request does, so one that cannot reach storage claims nothing.
 if (!refusal && options.has('--retry') && !(await (await import('../../artifacts/api-server/src/lib/export-download')).storageCredentialsAvailable())) {
   refusal = "Private storage credentials could not be obtained here within 5 seconds, so --retry was refused and no file was claimed: a retry that cannot reach storage would push every due file into backoff. Run it where the service's storage credentials are, such as the service's own shell, or leave the files to the service's background worker.";
@@ -39,9 +43,10 @@ if (refusal) {
   process.exitCode = 1;
   process.stderr.write(`${refusal}\n`, () => process.exit());
 } else {
-  const { closeDatabase, exportCleanupStatus, runExportCleanupPass, parkedExportFiles, requeueParkedExportFile, releaseParkedExportFile } = await import('../../artifacts/api-server/src/lib/valopay-store');
+  const { closeDatabase, exportCleanupStatus, runExportCleanupPass, parkedExportFiles, requeueParkedExportFile, releaseParkedExportFile, verifyProductDatabaseBinding } = await import('../../artifacts/api-server/src/lib/valo-pay-1-store');
   const { logger } = await import('../../artifacts/api-server/src/lib/logger');
   try {
+    await verifyProductDatabaseBinding();
     // Re-queueing and releasing a parked file change only the queue: neither ever deletes a stored object.
     const retry = options.has('--retry') ? await runExportCleanupPass() : undefined;
     const requeued = options.has('--requeue') ? await requeueParkedExportFile(exportId) : undefined;

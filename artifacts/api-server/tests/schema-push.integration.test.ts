@@ -11,14 +11,14 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { requireCreateDatabase, requireLoopback, throwawayDatabaseName } from './throwaway-database';
 
-if (process.env.VALOPAY_RUN_INTEGRATION !== '1') {
+if (process.env.VALO_PAY_1_RUN_INTEGRATION !== '1') {
   console.log('Schema push rehearsal requires a disposable local PostgreSQL instance.'); process.exit(0);
 }
 // Any loopback database whose login can create databases: the rehearsal builds its own throwaway one beside it.
 const suite = 'Schema push rehearsal';
 const connection = new URL(process.env.DATABASE_URL || '');
 requireLoopback(suite, connection);
-const { pool, Pool } = await import('@workspace/db');
+const { pool, Pool } = await import('@workspace/valo-pay-1-db');
 await requireCreateDatabase(suite, pool);
 const database = throwawayDatabaseName(connection, 'push_rehearsal');
 const targetUrl = new URL(connection); targetUrl.pathname = `/${database}`;
@@ -34,7 +34,7 @@ const earlierNames = [
   ['valopay_staff_lender_access', 'valopay_staff_lender_access_membership_id_fk', 'valopay_staff_lender_access_membership_id_valopay_staff_members'],
 ] as const;
 /**
- * `pnpm --filter @workspace/db run push-force` with --verbose into the throwaway database: the statements it planned
+ * `pnpm --filter @workspace/valo-pay-1-db run push-force` with --verbose into the throwaway database: the statements it planned
  * and ran, as it printed them. drizzle-kit prints a statement that failed and still exits 0, so an error is a failure.
  */
 function push(): string[] {

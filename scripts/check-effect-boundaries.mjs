@@ -8,8 +8,8 @@ import ts from 'typescript';
 const defaultRoot = resolve(import.meta.dirname, '..');
 const api = 'artifacts/api-server/src/';
 const domain = `${api}domain/`;
-const dangerousModule = /^(?:node:)?(?:https?|http2|net|tls|dns|dgram|child_process|worker_threads|fs)(?:\/|$)|^(?:axios|undici|got|pg|postgres|drizzle-orm|@workspace\/db|@google-cloud|@aws-sdk|@replit\/object-storage)(?:\/|$)/;
-const permittedExternal = new Set(['@workspace/valopay-schema', 'zod', 'csv-parse/sync', 'node:crypto', 'node:util', 'node:timers/promises']);
+const dangerousModule = /^(?:node:)?(?:https?|http2|net|tls|dns|dgram|child_process|worker_threads|fs)(?:\/|$)|^(?:axios|undici|got|pg|postgres|drizzle-orm|@workspace\/valo-pay-1-db|@google-cloud|@aws-sdk|@replit\/object-storage)(?:\/|$)/;
+const permittedExternal = new Set(['@workspace/valo-pay-1-schema', 'zod', 'csv-parse/sync', 'node:crypto', 'node:util', 'node:timers/promises']);
 const networkNames = new Set(['fetch', 'WebSocket', 'XMLHttpRequest', 'EventSource']);
 
 function sourceFiles(root, directory) {
@@ -22,7 +22,7 @@ function sourceFiles(root, directory) {
 }
 
 export function inspectEffectBoundaries(root = defaultRoot) {
-  const files = [...sourceFiles(root, api.slice(0, -1)), ...sourceFiles(root, 'lib/valopay-schema/src')];
+  const files = [...sourceFiles(root, api.slice(0, -1)), ...sourceFiles(root, 'lib/valo-pay-1-schema/src')];
   const contents = new Map(files.map(file => [file, readFileSync(resolve(root, file), 'utf8')]));
   const issues = [], visited = new Set(), active = new Set(), checkedFiles = new Set();
   function resolveImport(from, specifier) {
@@ -74,8 +74,8 @@ export function inspectEffectBoundaries(root = defaultRoot) {
           report(node, 'Core workflows cannot import the connected coordinator, Credit or Cash workflows; use the narrow checkout outcome interface.');
         }
         inspectDependency(node, target);
-      } else if (specifier === '@workspace/valopay-schema' && contents.has('lib/valopay-schema/src/index.ts')) {
-        inspectDependency(node, 'lib/valopay-schema/src/index.ts');
+      } else if (specifier === '@workspace/valo-pay-1-schema' && contents.has('lib/valo-pay-1-schema/src/index.ts')) {
+        inspectDependency(node, 'lib/valo-pay-1-schema/src/index.ts');
       } else if (dangerousModule.test(specifier) || !permittedExternal.has(specifier)) {
         report(node, `Effect-capable or unreviewed external dependency ${specifier}`);
       }

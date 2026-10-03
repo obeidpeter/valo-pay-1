@@ -2,13 +2,13 @@ import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { authorizePilotAccess, PilotAccessError, pilotRoles, rolePermits, type PilotAccessPolicy, type PilotAccessFailure, type ProvisionedMembership, type VerifiedClerkSession } from '../src/lib/pilot-access.js';
 import { decryptField, encryptField, FieldEncryptionError, rotateField, type FieldKeyRing, type FieldScope } from '../src/lib/field-encryption.js';
-import { seedMerchant } from '../src/lib/valopay-seed.js';
+import { seedMerchant } from '../src/lib/valo-pay-1-seed.js';
 import { validateRecord } from '../src/domain/validation.js';
 import type { Context } from '../src/domain/types.js';
 import { recordsOf } from '../src/domain/records.js';
 import { queueExport, retryExport } from '../src/lib/export-jobs.js';
 import { executeAction } from '../src/domain/actions.js';
-import { exportPermitted } from '@workspace/valopay-schema';
+import { exportPermitted } from '@workspace/valo-pay-1-schema';
 
 let checks = 0;
 const now = Date.parse('2026-09-18T10:00:00Z');
@@ -110,8 +110,8 @@ const refusedWith = (fn: () => unknown, status: number, message: RegExp) => { as
   const named = review({ reviewer: 'Clerk:user_finance' });
   validateRecord(state, finance, 'reviews', named);
   assert.equal(named.data.reviewer, 'Clerk:user_finance', 'naming oneself is accepted'); checks++;
-  refusedWith(() => validateRecord(state, finance, 'reviews', review({ reviewer: 'Someone else' })), 400, /Valo Pay records you as the reviewer\. Leave the reviewer blank\./);
-  refusedWith(() => validateRecord(state, finance, 'reviews', review({ reviewedAt: '2026-09-01' })), 400, /Valo Pay records the review time when you save\. Leave the review date blank\./);
+  refusedWith(() => validateRecord(state, finance, 'reviews', review({ reviewer: 'Someone else' })), 400, /Valo Pay 1 records you as the reviewer\. Leave the reviewer blank\./);
+  refusedWith(() => validateRecord(state, finance, 'reviews', review({ reviewedAt: '2026-09-01' })), 400, /Valo Pay 1 records the review time when you save\. Leave the review date blank\./);
   // The business calendar (SCH-04) decides when collections run: only Admin and Operations maintain it.
   const holiday = () => ({ name: 'Public holiday', status: 'active', data: { date: '2027-12-24' } });
   for (const role of ['Finance', 'Compliance reviewer', 'Read-only']) refusedWith(() => validateRecord(state, staffAt(role, 'user_other'), 'calendar', holiday()), 403, /Only Admin or Operations can add or edit calendar days\.|Your role is Read-only, so you can view records but not change them\./);
@@ -126,7 +126,7 @@ const refusedWith = (fn: () => unknown, status: number, message: RegExp) => { as
   const state = seedMerchant('governance-exports'), customerId = recordsOf(state, 'customers')[0]!.id;
   const request = (kind: string) => ({ kind, format: 'pdf' as const, ...(kind.endsWith('-pack') && kind !== 'gate-pack' ? { customerId } : {}) });
   // Each queued job is marked finished at once, so the lender's queue limit of ten never refuses one here.
-  const queue = (ctx: Context, kind: string) => { const job = queueExport(state, ctx, request(kind), '/private-bucket/valopay'); state.records.find(record => record.id === job.id)!.status = 'ready'; return job; };
+  const queue = (ctx: Context, kind: string) => { const job = queueExport(state, ctx, request(kind), '/private-bucket/valo-pay-1'); state.records.find(record => record.id === job.id)!.status = 'ready'; return job; };
   for (const kind of ['dispute-pack', 'customer-pack', 'customers', 'audit']) {
     for (const role of ['Operations', 'Read-only']) refusedWith(() => queue(staffAt(role, `user_${role}`), kind), 403, /Only Admin, Finance or Compliance reviewer can export or download/);
     for (const role of sensitiveRoles) { assert.doesNotThrow(() => queue(staffAt(role, `user_${role.replace(' ', '_')}`), kind), `${role} ${kind}`); checks++; }

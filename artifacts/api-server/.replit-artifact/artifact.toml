@@ -5,17 +5,17 @@ version = "1.0.0"
 id = "3B4_FFSkEVBkAeYMFRJ2e"
 
 [[services]]
-localPort = 8080
+localPort = 8181
 name = "API Server"
 paths = ["/api"]
 
 [services.development]
-run = "pnpm --filter @workspace/api-server run dev"
+run = "pnpm --filter @workspace/valo-pay-1-api-server run dev"
 
 [services.production]
 
 [services.production.build]
-args = ["bash", "scripts/deployment-node.sh", "build", "pnpm", "--filter", "@workspace/api-server", "run", "build"]
+args = ["bash", "scripts/deployment-node.sh", "build", "pnpm", "--filter", "@workspace/valo-pay-1-api-server", "run", "build"]
 
 [services.production.build.env]
 NODE_ENV = "production"
@@ -25,10 +25,10 @@ NODE_ENV = "production"
 args = ["bash", "scripts/deployment-node.sh", "run", "node", "--enable-source-maps", "artifacts/api-server/dist/index.mjs"]
 
 [services.production.run.env]
-PORT = "8080"
+PORT = "8181"
 NODE_ENV = "production"
 # Anonymous sandboxes nobody has changed for 30 days are deleted as new ones are created (docs/deployment.md).
-VALOPAY_EXPIRED_WORKSPACE_CLEANUP = "on"
+VALO_PAY_1_EXPIRED_WORKSPACE_CLEANUP = "on"
 # No Clerk SDK telemetry, and no telemetry notice among the log lines.
 CLERK_TELEMETRY_DISABLED = "1"
 
