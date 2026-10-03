@@ -67,6 +67,28 @@ assert.throws(() => publicKeyFingerprint(publicKey.replaceAll("\n", "\\n")), /CL
 assert.ok(productIdentityProblems({ ...auth, CLERK_SECRET_KEY: "sk_test_other-instance" }).some(problem => /credential binding/.test(problem))); checks++;
 assert.ok(productIdentityProblems({ ...auth, CLERK_PUBLISHABLE_KEY: `pk_test_${Buffer.from("future.clerk.accounts.dev$").toString("base64")}` }).some(problem => /authentication instance/.test(problem))); checks++;
 assert.ok(productIdentityProblems({ ...auth, CLERK_JWT_KEY: generateKeyPairSync("rsa", { modulusLength: 2048 }).publicKey.export({ type: "spki", format: "pem" }).toString() }).some(problem => /public key/.test(problem))); checks++;
+const managedAuthentication = { ...authentication, jwtPublicKeySha256: null };
+const managedAuth = { ...auth, CLERK_JWT_KEY: undefined, VALO_PAY_1_RESOURCE_BINDINGS: JSON.stringify({ ...binding, authentication: managedAuthentication }) };
+assert.deepEqual(productIdentityProblems(managedAuth), [], "an explicitly bound absence preserves non-staff managed Clerk verification"); checks++;
+assert.doesNotThrow(() => assertOperatorConfiguration(managedAuth)); checks++;
+assert.deepEqual(productIdentityProblems({ ...managedAuth, CLERK_JWT_KEY: "" }), [], "an empty environment value is absent, as in the startup configuration"); checks++;
+for (const key of [publicKey, "invalid-public-key"]) {
+  assert.ok(productIdentityProblems({ ...managedAuth, CLERK_JWT_KEY: key }).some(problem => /declares it absent/.test(problem)), "a configured key requires an explicit reviewed fingerprint"); checks++;
+}
+for (const key of [undefined, ""]) {
+  assert.ok(productIdentityProblems({ ...auth, CLERK_JWT_KEY: key }).some(problem => /required by the reviewed authentication binding/.test(problem)), "a bound key cannot be silently removed"); checks++;
+}
+assert.ok(productIdentityProblems({ ...managedAuth, VALO_PAY_1_RESOURCE_BINDINGS: JSON.stringify({ ...binding, authentication: { ...authentication, jwtPublicKeySha256: undefined } }) }).some(problem => /incomplete bindings/.test(problem)), "missing is not an explicit null binding"); checks++;
+const staff = { VALO_PAY_1_STAFF_ACCESS: "staging", VALO_PAY_1_STAFF_ISSUER: issuer, VALO_PAY_1_STAFF_ORIGINS: RETAINED_ORIGIN };
+assert.ok(productIdentityProblems({ ...managedAuth, ...staff }).some(problem => /public-key fingerprint are required/.test(problem)), "staff access still requires the instance public key"); checks++;
+assert.throws(() => assertOperatorConfiguration({ ...managedAuth, ...staff }), /public-key fingerprint are required/); checks++;
+assert.deepEqual(productIdentityProblems({ ...auth, ...staff }), []); checks++;
+assert.ok(productIdentityProblems({ ...managedAuth, CLERK_SECRET_KEY: "sk_test_other-instance" }).some(problem => /credential binding/.test(problem))); checks++;
+assert.ok(productIdentityProblems({ ...managedAuth, CLERK_PUBLISHABLE_KEY: `pk_test_${Buffer.from("future.clerk.accounts.dev$").toString("base64")}` }).some(problem => /authentication instance/.test(problem))); checks++;
+assert.ok(productIdentityProblems({ ...managedAuth, VALO_PAY_1_RESOURCE_BINDINGS: JSON.stringify({ ...binding, authentication: { ...managedAuthentication, issuer: "https://future.clerk.accounts.dev" } }) }).some(problem => /authentication instance/.test(problem))); checks++;
+for (const changes of [{ CLERK_SECRET_KEY: undefined }, { CLERK_PUBLISHABLE_KEY: undefined }]) {
+  assert.ok(productIdentityProblems({ ...managedAuth, ...changes }).some(problem => /required for the reviewed authentication binding/.test(problem))); checks++;
+}
 const paymentKey = "sk_test_synthetic-paystack-only";
 const payments = { ...base, PAYSTACK_TEST_SECRET_KEY: paymentKey, VALO_PAY_1_PAYSTACK_INGRESS: "test", VALO_PAY_1_RESOURCE_BINDINGS: JSON.stringify({ ...binding, paystackTestKeySha256: credentialFingerprint(paymentKey) }) };
 assert.deepEqual(productIdentityProblems(payments), []); checks++;

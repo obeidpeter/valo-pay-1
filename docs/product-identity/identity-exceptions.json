@@ -6371,7 +6371,7 @@
     {
       "kind": "content",
       "path": "artifacts/api-server/tests/clerk-proxy-budgets.test.ts",
-      "lineSha256": "0d38c459c59dbf788abc5816a97f05a633fa407621c8db7672ebb27630990d47",
+      "lineSha256": "e3bac461a54cfb81c3784d0859b2be1ff43ae99f96338d1d599d65577a1df1d6",
       "token": "valopay_sandbox",
       "count": 2,
       "reason": "Exact former identity used by bounded state migration or an isolation/refusal regression fixture."
@@ -17172,7 +17172,7 @@
     {
       "kind": "content",
       "path": "docs/product-identity/naming-resource-map.md",
-      "lineSha256": "ac7a3ba379a2f37de50f488b47366ff75c8241a6a876869531442776440f08d1",
+      "lineSha256": "5afd9cb69c7b3519a4dd271a67fba506d44627821ed694661e1961b6074b568f",
       "token": "Valo Pay",
       "count": 1,
       "reason": "Reviewed migration inventory or future setup reference, not an active consumer of the former product identity."

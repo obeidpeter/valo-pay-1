@@ -23,6 +23,10 @@ const upstream = createServer((req, res) => {
   received++;
   assert.equal(req.headers['clerk-secret-key'], 'synthetic-offline-key');
   assert.equal(req.headers.cookie, '__session=example');
+  if (req.url?.startsWith('/echo/')) { res.end(req.url); return; }
+  if (req.url === '/redirect') { res.writeHead(302, { location: `${url(upstream)}/must-not-follow` }); res.end(); return; }
+  if (req.url === '/not-modified') { res.writeHead(304, { 'content-length': '120' }); res.end(); return; }
+  if (req.url === '/reset-before-headers') { req.socket.destroy(); return; }
   if (req.url === '/hang') { res.once('close', () => { cancelled++; }); return; }
   if (req.url === '/stream-hang') { res.writeHead(200, { 'content-length': '12' }); res.write('x'); return; }
   if (req.url === '/slow-known') { res.writeHead(200, { 'content-length': '2048' }); trickle(res, 2048, 128, 50); return; }
@@ -45,7 +49,7 @@ const upstream = createServer((req, res) => {
 });
 upstream.listen(0, '127.0.0.1'); await once(upstream, 'listening');
 const url = (server: Server) => `http://127.0.0.1:${(server.address() as {port:number}).port}`;
-const headers = { Cookie: `__session=example; __Host-valopay_sandbox=${'a'.repeat(64)}; valopay_sandbox=${'b'.repeat(64)}; valo_sandbox=${'c'.repeat(64)}` };
+const headers = { Cookie: `__session=example; __Host-valopay_sandbox=${'a'.repeat(64)}; valopay_sandbox=${'b'.repeat(64)}; valo_sandbox=${'c'.repeat(64)}; __Host-valo-pay-1_test_sandbox=${'d'.repeat(64)}; valo-pay-1_development_sandbox=${'e'.repeat(64)}; __Host-valo-pay-1_production_sandbox=${'f'.repeat(64)}` };
 const servers: Server[] = [];
 async function serve(limits: Parameters<typeof createBoundedClerkProxy>[1] = {}) {
   const app = express(); app.set('trust proxy', 1);
@@ -115,9 +119,20 @@ try {
   assert.deepEqual(dynamic.headers.getSetCookie(),['a=b; Secure','c=d; Secure']);
   assert.equal(await dynamic.text(),'{"ok":true}');
   assert.equal(await (await fetch(`${base}/known`, {headers})).text(),'asset');
+  const exactPath = '/echo/%2F?return=%2Fconsole%3Ftab%3D1&brace=%7Bdeep%7D';
+  assert.equal(await (await fetch(`${base}${exactPath}`, { headers })).text(), exactPath, 'the mounted path and encoded query are forwarded exactly');
+  const beforeRedirect = received;
+  const redirected = await fetch(`${base}/redirect`, { headers, redirect: 'manual' });
+  assert.equal(redirected.status, 302);
+  assert.equal(redirected.headers.get('location'), `${url(upstream)}/must-not-follow`);
+  await redirected.text();
+  assert.equal(received, beforeRedirect + 1, 'the transport never follows a redirect with the Clerk instance key');
+  const notModified = await fetch(`${base}/not-modified`, { headers });
+  assert.equal(notModified.status, 304); assert.equal(notModified.headers.get('content-length'), '120');
+  assert.equal(await notModified.text(), '', '304 preserves metadata without a response body');
   assert.equal((await fetch(`${base}/empty`, {headers})).status,204);
   assert.equal(await (await fetch(`${base}/known`, {headers,method:'HEAD'})).text(),'');
-  for(const path of ['/large','/large-known','/reset','/hang']) {
+  for(const path of ['/large','/large-known','/reset','/reset-before-headers','/hang']) {
     const reply = await fetch(`${base}${path}`, {headers});
     assert.equal(reply.status,path==='/hang'?504:502,path);
     assert.doesNotMatch(await reply.text(),/synthetic-offline-key|__session|127\.0\.0\.1/);
@@ -193,6 +208,27 @@ try {
   assert.equal((await fetch(`${constrained}/dynamic`,{headers:{...headers,'X-Forwarded-For':'192.0.2.7'}})).status,200,'another network has its own slot');
   controller.abort();await first;await waitFor(()=>cancelled>closed);
   assert.equal((await fetch(`${constrained}/dynamic`,{headers})).status,200,'disconnect cancels upstream and releases concurrency');
+
+  // A refused connection cannot strand the only quota slot. A restarted target is usable immediately.
+  const restarting = createServer((_req, res) => res.end('restored'));
+  restarting.listen(0, '127.0.0.1'); await once(restarting, 'listening');
+  const restartPort = (restarting.address() as { port: number }).port;
+  const restartBase = await serve({ target: url(restarting), limits: { networkConcurrency: 1 } });
+  await new Promise<void>(resolve => restarting.close(() => resolve()));
+  const unavailable = await fetch(`${restartBase}/known`, { headers });
+  assert.equal(unavailable.status, 502); assert.doesNotMatch(await unavailable.text(), /ECONNREFUSED|127\.0\.0\.1|synthetic-offline-key/);
+  restarting.listen(restartPort, '127.0.0.1'); servers.push(restarting); await once(restarting, 'listening');
+  assert.equal(await (await fetch(`${restartBase}/known`, { headers })).text(), 'restored');
+
+  // The host's forced connection shutdown also cancels an upstream waiting for headers and frees its slot.
+  const shutdownBase = await serve({ limits: { networkConcurrency: 1, headerDeadlineMs: 2_000 } });
+  const shutdownServer = servers.at(-1)!;
+  const beforeShutdown = received, cancelledBeforeShutdown = cancelled;
+  const pendingShutdown = fetch(`${shutdownBase}/hang`, { headers }).catch(() => undefined);
+  await waitFor(() => received > beforeShutdown);
+  shutdownServer.closeAllConnections(); await pendingShutdown;
+  await waitFor(() => cancelled > cancelledBeforeShutdown);
+  assert.equal((await fetch(`${shutdownBase}/known`, { headers })).status, 200, 'forced connection shutdown releases the flight');
 
   // With the default limits, eight networks at their own limit fit in the process at once; a ninth network, or a
   // network past its limit, is refused until they finish, and their disconnects release every slot.

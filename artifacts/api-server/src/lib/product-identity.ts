@@ -17,7 +17,7 @@ export interface ResourceBindings {
   origins: string[];
   database: { targetSha256: string; database: string; user: string; schema: string };
   storagePrivateDirectory: string | null;
-  authentication: { issuer: string; jwtPublicKeySha256: string; publishableKeySha256: string; secretKeySha256: string } | null;
+  authentication: { issuer: string; jwtPublicKeySha256: string | null; publishableKeySha256: string; secretKeySha256: string } | null;
   kms: { activeKey: string; previousKeys: string[] } | null;
   paystackTestKeySha256: string | null;
 }
@@ -71,7 +71,7 @@ export function readResourceBindings(env: Environment): ResourceBindings | undef
     || !strings(value.origins) || !value.origins.length || !value.origins.every(origin) || !object(value.database) || !hash(value.database.targetSha256)
     || !nonempty(value.database.database) || !nonempty(value.database.user) || !nonempty(value.database.schema)
     || !(value.storagePrivateDirectory === null || nonempty(value.storagePrivateDirectory))
-    || !(value.authentication === null || (object(value.authentication) && origin(value.authentication.issuer) && hash(value.authentication.jwtPublicKeySha256) && hash(value.authentication.publishableKeySha256) && hash(value.authentication.secretKeySha256)))
+    || !(value.authentication === null || (object(value.authentication) && origin(value.authentication.issuer) && (value.authentication.jwtPublicKeySha256 === null || hash(value.authentication.jwtPublicKeySha256)) && hash(value.authentication.publishableKeySha256) && hash(value.authentication.secretKeySha256)))
     || !(value.kms === null || (object(value.kms) && nonempty(value.kms.activeKey) && strings(value.kms.previousKeys)))
     || !(value.paystackTestKeySha256 === null || hash(value.paystackTestKeySha256))) {
     throw new Error("VALO_PAY_1_RESOURCE_BINDINGS must identify Valo Pay 1 and every reviewed deployment resource; placeholders and incomplete bindings are refused.");
@@ -111,10 +111,18 @@ export function productIdentityProblems(env: Environment): string[] {
   if ((env.PRIVATE_OBJECT_DIR || null) !== expected.storagePrivateDirectory) problems.push("PRIVATE_OBJECT_DIR differs from the reviewed Valo Pay 1 storage binding.");
   if (expected.authentication) {
     const auth = expected.authentication;
-    if (!env.CLERK_SECRET_KEY || !env.CLERK_PUBLISHABLE_KEY || !env.CLERK_JWT_KEY) problems.push("CLERK_SECRET_KEY, CLERK_PUBLISHABLE_KEY and CLERK_JWT_KEY are required for the reviewed authentication binding.");
+    if (!env.CLERK_SECRET_KEY || !env.CLERK_PUBLISHABLE_KEY) problems.push("CLERK_SECRET_KEY and CLERK_PUBLISHABLE_KEY are required for the reviewed authentication binding.");
     else {
       if (credentialFingerprint(env.CLERK_PUBLISHABLE_KEY) !== auth.publishableKeySha256 || clerkIssuer(env.CLERK_PUBLISHABLE_KEY) !== auth.issuer) problems.push("CLERK_PUBLISHABLE_KEY does not identify the reviewed authentication instance.");
       if (credentialFingerprint(env.CLERK_SECRET_KEY) !== auth.secretKeySha256) problems.push("CLERK_SECRET_KEY differs from the reviewed authentication credential binding.");
+    }
+    // An explicit absence preserves the existing non-staff managed Clerk/JWKS path.
+    // It never permits a configured key to bypass its fingerprint or a staff host to omit one.
+    if (auth.jwtPublicKeySha256 === null) {
+      if (env.CLERK_JWT_KEY) problems.push("CLERK_JWT_KEY is present but the reviewed authentication binding declares it absent.");
+      if (env.VALO_PAY_1_STAFF_ACCESS === "staging") problems.push("CLERK_JWT_KEY and its reviewed public-key fingerprint are required when VALO_PAY_1_STAFF_ACCESS is staging.");
+    } else if (!env.CLERK_JWT_KEY) problems.push("CLERK_JWT_KEY is required by the reviewed authentication binding.");
+    else {
       try { if (publicKeyFingerprint(env.CLERK_JWT_KEY) !== auth.jwtPublicKeySha256) problems.push("CLERK_JWT_KEY does not match the reviewed authentication instance's public key."); } catch (error) { problems.push((error as Error).message); }
     }
     if (env.VALO_PAY_1_STAFF_ACCESS === "staging" && env.VALO_PAY_1_STAFF_ISSUER !== auth.issuer) problems.push("VALO_PAY_1_STAFF_ISSUER differs from the reviewed authentication issuer.");

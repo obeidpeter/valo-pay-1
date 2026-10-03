@@ -29,10 +29,12 @@
     "applicationId": "da98915e-a44c-4f6e-af96-a37614f3a217",
     "observedTitle": "Valo Pay 1",
     "canonicalTitle": "Valo Pay 1",
+    "workspaceUrl": "https://replit.com/@obeidpeter1/Valo-Pay-1",
+    "workspaceUrlStatus": "verified-canonical-with-previous-address-redirect",
     "publishedOrigin": "https://valo-pay.replit.app",
     "originStatus": "retained-exclusively-for-generation-1",
     "replacementOrigin": null,
-    "cutoverStatus": "not-authorised",
+    "cutoverStatus": "authorised-preparation-in-progress-not-deployed",
     "titleStatus": "verified-in-project-settings",
     "repositoryRemote": "https://github.com/obeidpeter/valo-pay-1.git"
   },

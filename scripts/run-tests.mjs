@@ -10,6 +10,7 @@ const vitest = path.join(root, "artifacts", "valo-pay-1", "node_modules", "vites
 if (!existsSync(tsx) || !existsSync(vitest)) throw new Error("tsx or vitest is missing; run pnpm install first.");
 const env = { ...process.env, DATABASE_URL: process.env.DATABASE_URL || "postgres://unused:unused@127.0.0.1:1/unused" };
 const steps = [
+  [tsx, ["artifacts/mockup-sandbox/mockupPreviewPlugin.test.ts"]],
   ["node", ["scripts/check-product-identity.test.mjs"]],
   ["node", ["scripts/sandbox-cookie-name.test.mjs"]],
   ["node", ["scripts/operator-identity.test.mjs"]],
