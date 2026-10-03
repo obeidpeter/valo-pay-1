@@ -1,9 +1,9 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "Valo Pay sandbox API",
+    "title": "Valo Pay 1 sandbox API",
     "version": "1.1.0",
-    "description": "Valo Pay collections and connected banking sandbox API. All monetary fields are integer minor units (NGN kobo). Real data and all outbound provider instructions are disabled in connected modules."
+    "description": "Valo Pay 1 collections and connected banking sandbox API. All monetary fields are integer minor units (NGN kobo). Real data and all outbound provider instructions are disabled in connected modules."
   },
   "servers": [
     {
@@ -13263,7 +13263,7 @@
               "type": "string",
               "pattern": "^[a-f0-9]{64}$"
             },
-            "description": "The opaque ID an operator mapped to one synthetic lender in VALOPAY_PAYSTACK_CONNECTIONS; it alone selects the lender, and it is not a credential."
+            "description": "The opaque ID an operator mapped to one synthetic lender in VALO_PAY_1_PAYSTACK_CONNECTIONS; it alone selects the lender, and it is not a credential."
           },
           {
             "name": "x-paystack-signature",
@@ -13407,7 +13407,7 @@
           }
         },
         "summary": "Receive a signed Paystack test event",
-        "description": "The address to register as the webhook URL of a Paystack test account. Off unless the host sets VALOPAY_PAYSTACK_INGRESS to test. The signature is checked on the body's bytes, decompressed first when its Content-Encoding is gzip, deflate or br, before any lender is locked or read, so a forged or tampered delivery gets 401 and nothing else. A verified event is saved as test-mode evidence only: it creates no payment, allocation, debit or mandate authority, and still needs independent verification. Not a console call: no sandbox, sign-in or Idempotency-Key. At most 120 deliveries a minute per client network and, once signed, 60 a minute per connection. A repeat of a saved event is acknowledged without an audit entry, and its delivery count is written at most once a minute."
+        "description": "The address to register as the webhook URL of a Paystack test account. Off unless the host sets VALO_PAY_1_PAYSTACK_INGRESS to test. The signature is checked on the body's bytes, decompressed first when its Content-Encoding is gzip, deflate or br, before any lender is locked or read, so a forged or tampered delivery gets 401 and nothing else. A verified event is saved as test-mode evidence only: it creates no payment, allocation, debit or mandate authority, and still needs independent verification. Not a console call: no sandbox, sign-in or Idempotency-Key. At most 120 deliveries a minute per client network and, once signed, 60 a minute per connection. A repeat of a saved event is acknowledged without an audit entry, and its delivery count is written at most once a minute."
       }
     },
     "/v1/work": {
@@ -15974,7 +15974,7 @@
               "external",
               "stopped"
             ],
-            "description": "running: this process schedules the daily closes. off: it schedules none (VALOPAY_CLOSE_SCHEDULER=off). external: it schedules none because a separate scheduled job runs them with the one-shot close pass (VALOPAY_CLOSE_SCHEDULER=external), whose runs this process cannot observe; it reads the lenders still owed a close itself instead, every intervalMs (backlog). not_started and stopped: the scheduler has not started yet, or has stopped."
+            "description": "running: this process schedules the daily closes. off: it schedules none (VALO_PAY_1_CLOSE_SCHEDULER=off). external: it schedules none because a separate scheduled job runs them with the one-shot close pass (VALO_PAY_1_CLOSE_SCHEDULER=external), whose runs this process cannot observe; it reads the lenders still owed a close itself instead, every intervalMs (backlog). not_started and stopped: the scheduler has not started yet, or has stopped."
           },
           "intervalMs": {
             "type": [
@@ -20366,7 +20366,7 @@
           "externalInstructionPerformed"
         ],
         "additionalProperties": false,
-        "description": "Committed sample operation, in the shape its action gives (connectedActionResultFor in lib/valopay-schema): a cash.* action answers its outcome with the Cash Desk record it saved or changed (absent only when the Cash Desk was already set up) and, for an export, the manifest it prepared; every other action answers the record it produced or changed, of the lender the request named: a consent for consent.*, a checkout for payment.*, an assessment for credit.assess and a review for credit.review. A receipt is evidence from the server simulator only."
+        "description": "Committed sample operation, in the shape its action gives (connectedActionResultFor in lib/valo-pay-1-schema): a cash.* action answers its outcome with the Cash Desk record it saved or changed (absent only when the Cash Desk was already set up) and, for an export, the manifest it prepared; every other action answers the record it produced or changed, of the lender the request named: a consent for consent.*, a checkout for payment.*, an assessment for credit.assess and a review for credit.review. A receipt is evidence from the server simulator only."
       },
       "Message": {
         "type": "object",
@@ -25304,8 +25304,8 @@
       "sandboxCookie": {
         "type": "apiKey",
         "in": "cookie",
-        "name": "__Host-valopay_sandbox",
-        "description": "The anonymous sandbox's cookie: a 32-byte random token in hexadecimal that the service sets on the first visit (GET /v1/workspace) and renews on every answer, HttpOnly, SameSite=Lax and lasting 30 days from the last visit. Behind TLS it is __Host-valopay_sandbox (Secure, Path=/, no Domain); on a plain-HTTP local run it is valopay_sandbox. A missing or malformed token starts a new sandbox; two different tokens are refused (400). The sandbox is found by the token's digest, never by the token, which is never stored or logged. A staff host identifies a signed-in session instead."
+        "name": "__Host-valo-pay-1_production_sandbox",
+        "description": "The anonymous sandbox's cookie: a 32-byte random token in hexadecimal that the service sets on the first visit (GET /v1/workspace) and renews on every answer, HttpOnly, SameSite=Lax and lasting 30 days from the last visit. Behind TLS it is __Host-valo-pay-1_<environment>_sandbox (Secure, Path=/, no Domain), where environment is the explicitly configured development, test, staging or production environment; this scheme names production. Plain HTTP local runs omit __Host-. A missing or malformed token starts a new sandbox; two different current tokens are refused (400). Only during an explicitly enabled, bounded transition on the exact retained HTTPS origin can the former host-only secure cookie transfer its token; the old name is then expired. Plain legacy cookies and cookies for another generation or environment never select a sandbox. The sandbox is found by the token's digest, never by the token, which is never stored or logged. A staff host identifies a signed-in session instead."
       }
     }
   }

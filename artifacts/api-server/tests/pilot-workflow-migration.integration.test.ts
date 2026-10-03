@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { requireCreateDatabase, requireLoopback, throwawayDatabaseName } from './throwaway-database';
 
-if (process.env.VALOPAY_RUN_INTEGRATION !== '1') {
+if (process.env.VALO_PAY_1_RUN_INTEGRATION !== '1') {
   console.log('Pilot workflow migration rehearsal requires a disposable local PostgreSQL instance.'); process.exit(0);
 }
 // Any loopback database whose login can create databases, carrying the pushed schema to compare with: the
@@ -18,7 +18,7 @@ if (process.env.VALOPAY_RUN_INTEGRATION !== '1') {
 const suite = 'Pilot workflow migration rehearsal';
 const connection = new URL(process.env.DATABASE_URL || '');
 requireLoopback(suite, connection);
-const { pool, Pool } = await import('@workspace/db');
+const { pool, Pool } = await import('@workspace/valo-pay-1-db');
 await requireCreateDatabase(suite, pool);
 const database = throwawayDatabaseName(connection, 'pilot_rehearsal');
 const targetUrl = new URL(connection); targetUrl.pathname = `/${database}`;

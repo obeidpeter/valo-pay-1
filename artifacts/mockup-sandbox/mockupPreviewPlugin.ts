@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from "fs";
+import { readdir, realpath, stat } from "node:fs/promises";
 import path from "path";
-import glob from "fast-glob";
 import chokidar from "chokidar";
 import type { FSWatcher } from "chokidar";
 import type { Plugin } from "vite";
@@ -40,12 +40,35 @@ export function mockupPreviewPlugin(): Plugin {
   }
 
   async function discoverComponents(): Promise<Array<DiscoveredComponent>> {
-    const files = await glob(`${MOCKUPS_DIR}/**/*.tsx`, {
-      cwd: root,
-      ignore: ["**/_*/**", "**/_*.tsx"],
-    });
+    const files: string[] = [];
+    // This fixed directory needs no pattern parser. Preserve files-only discovery,
+    // hidden/helper exclusions and linked directories, without following a link cycle.
+    async function visit(relative: string, ancestors: Set<string>): Promise<void> {
+      try {
+        const absolute = path.join(root, relative);
+        const canonical = await realpath(absolute);
+        if (ancestors.has(canonical)) return;
+        const branch = new Set(ancestors).add(canonical);
+        const entries = await readdir(absolute, { withFileTypes: true });
+        for (const entry of entries) {
+          if (entry.name.startsWith(".") || entry.name.startsWith("_")) continue;
+          const file = path.posix.join(relative, entry.name);
+          try {
+            const kind = entry.isSymbolicLink() ? await stat(path.join(root, file)) : entry;
+            if (kind.isDirectory()) await visit(file, branch);
+            else if (kind.isFile() && entry.name.endsWith(".tsx")) files.push(file);
+          } catch (error) {
+            if (!["ENOENT", "ENOTDIR", "ELOOP"].includes((error as NodeJS.ErrnoException).code || "")) throw error;
+          }
+        }
+      } catch (error) {
+        // A new or concurrently removed mockup directory simply has no previews.
+        if (!["ENOENT", "ENOTDIR", "ELOOP"].includes((error as NodeJS.ErrnoException).code || "")) throw error;
+      }
+    }
+    await visit(MOCKUPS_DIR, new Set());
 
-    return files.map((f) => ({
+    return files.sort().map((f) => ({
       globKey: "./" + f.slice("src/".length),
       importPath: path.posix.relative("src/.generated", f),
     }));

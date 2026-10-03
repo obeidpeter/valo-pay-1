@@ -16,7 +16,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 
-const logFile = join(tmpdir(), `valopay-background-offline-${process.pid}.log`);
+const logFile = join(tmpdir(), `valo-pay-1-background-offline-${process.pid}.log`);
 process.env["LOG_FILE"] = logFile;
 process.env["LOG_LEVEL"] = "info";
 process.env["DATABASE_URL"] ??= "postgres://unused:unused@127.0.0.1:1/unused";
@@ -25,7 +25,7 @@ const { schedulerStatus } = await import("../src/lib/close-scheduler");
 const { logger } = await import("../src/lib/logger");
 const { backgroundHealth, createBackgroundHealth, BACKGROUND_STALE_MS } = await import("../src/lib/background-health");
 const { startExportCleanupWorker } = await import("../src/lib/export-cleanup-worker");
-const { HealthCheckResponse } = await import("@workspace/api-zod");
+const { HealthCheckResponse } = await import("@workspace/valo-pay-1-api-zod");
 
 let checks = 0, since = 0;
 /** The log's lines since the last mark(): the logger keeps the file open, so it is read on from a mark, never removed midway. */
@@ -206,7 +206,7 @@ try {
   const thread = lines().filter((line) => line.thread === "background");
   assert.deepEqual(["scheduler.started", "close.tick_failed", "export.queue_error", "workspace.sweep_cleanup_unavailable"].map((event) => thread.some((line) => line.event === event)), [true, true, true, true], "the thread's events are its own lines, written by the main thread");
   assert.deepEqual(events("background.started").map((line) => line.cleanup), [true], "service cleanup is visible in the worker start record");
-  assert.ok(thread.every((line) => line.service === "valopay-api" && line.pid === process.pid), "with the logger's base fields");
+  assert.ok(thread.every((line) => line.service === "valo-pay-1-api" && line.pid === process.pid), "with the logger's base fields");
   assert.equal(schedulerStatus().state, "stopped", "the thread's scheduler reported its stop");
   assert.deepEqual(lines().filter((line) => line.event?.startsWith("background.")).map((line) => line.event), ["background.started", "background.stopped"], "it stopped when asked, without a crash");
   checks += 6;

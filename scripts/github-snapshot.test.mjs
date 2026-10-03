@@ -4,13 +4,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { allowedPath, assertSafeText, snapshot, SNAPSHOT_MAX_BYTES } from "./github-snapshot.mjs";
-import { target, assertDestination, selectSyncFiles, changedFiles } from "./github-sync-policy.mjs";
+import { target, repositoryId, assertDestination, selectSyncFiles, changedFiles } from "./github-sync-policy.mjs";
 assert.equal(allowedPath(".githooks/pre-push"), true);
 assert.equal(allowedPath(".githooks/unreviewed-hook"), false);
 
-const approvedRepo = { full_name: target, private: false, archived: false, permissions: { push: true } };
+const approvedRepo = { id: repositoryId, full_name: target, private: false, archived: false, permissions: { push: true } };
 assert.doesNotThrow(() => assertDestination(approvedRepo));
-for (const override of [{ full_name: "other/repo" }, { private: true }, { private: undefined }, { archived: true }, { permissions: { push: false } }]) {
+for (const override of [{ id: "future-product" }, { id: undefined }, { full_name: "other/repo" }, { private: true }, { private: undefined }, { archived: true }, { permissions: { push: false } }]) {
   assert.throws(() => assertDestination({ ...approvedRepo, ...override }), /approved public writable destination/);
 }
 const source = { path: "README.md", type: "blob", mode: "100644", sha: "source-new", content: "reviewed" };
@@ -35,11 +35,11 @@ for (const name of ['source-reading/Technical_Requirements.json', 'traceability-
   const path = `docs/refactor-2026-09-29/${name}`;
   assert.equal(allowedPath(path), false, `Unreviewed source material: ${path}`);
 }
-for (const path of [".agents/memory/MEMORY.md", ".conversation/file.md", "docs/source/business.txt", "docs/PUBLISHED_SANDBOX_VERIFICATION.md", ".deployment-runtime/node-v24.15.0-linux-x64/bin/node", "scripts/.deployment-runtime/install.sh", "artifacts/valo-pay/.env.local", "artifacts/api-server/dist/index.js", "lib/backups/records.json", "scripts/password.key", "lib/../private.json", ".github/workflows/deploy.yml", ".github/workflows/ci.yaml", ".github/actions/custom/action.yml", ".github/workflows/../private.yml"]) assert.equal(allowedPath(path), false, path);
+for (const path of [".agents/memory/MEMORY.md", ".conversation/file.md", "docs/source/business.txt", "docs/PUBLISHED_SANDBOX_VERIFICATION.md", ".deployment-runtime/node-v24.15.0-linux-x64/bin/node", "scripts/.deployment-runtime/install.sh", "artifacts/valo-pay-1/.env.local", "artifacts/api-server/dist/index.js", "lib/backups/records.json", "scripts/password.key", "lib/../private.json", ".github/workflows/deploy.yml", ".github/workflows/ci.yaml", ".github/actions/custom/action.yml", ".github/workflows/../private.yml"]) assert.equal(allowedPath(path), false, path);
 assert.throws(() => assertSafeText("fixture", "ghp_" + "a".repeat(36)), /Potential credential/);
 assert.throws(() => assertSafeText("fixture", ["postgres:", "//real:password", "@example.invalid/db"].join("")), /Potential credential/);
 assert.doesNotThrow(() => assertSafeText("fixture", 'process.env.CLERK_SECRET_KEY'));
-const root = mkdtempSync(join(tmpdir(), "valopay-github-test-"));
+const root = mkdtempSync(join(tmpdir(), "valo-pay-1-github-test-"));
 try {
   execFileSync("git", ["init", "-q", root]);
   execFileSync("git", ["config", "core.autocrlf", "false"], { cwd: root });

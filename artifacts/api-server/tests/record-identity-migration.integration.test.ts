@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { requireLoopback } from './throwaway-database';
-if (process.env.VALOPAY_RUN_INTEGRATION !== '1') { console.log('Record identity migration requires disposable local PostgreSQL.'); process.exit(0); }
+if (process.env.VALO_PAY_1_RUN_INTEGRATION !== '1') { console.log('Record identity migration requires disposable local PostgreSQL.'); process.exit(0); }
 requireLoopback('Record identity migration', new URL(process.env.DATABASE_URL || ''));
-const { pool } = await import('@workspace/db');
-const { closeDatabase, integrityGuards, pingDatabase } = await import('../src/lib/valopay-store');
+const { pool } = await import('@workspace/valo-pay-1-db');
+const { closeDatabase, integrityGuards, pingDatabase } = await import('../src/lib/valo-pay-1-store');
 const migration = await readFile(new URL('../../../lib/db/migrations/009_record_identity_guards.sql', import.meta.url), 'utf8');
 // A record table the checks change; an application schema as it was before 009; runtime schemas copied from that one.
 const suffix = randomBytes(8).toString('hex'), schema = `valopay_identity_${suffix}`, earlier = `valopay_identity_earlier_${suffix}`, runtime = `valopay_identity_runtime_${suffix}`, applied = `valopay_identity_applied_${suffix}`;

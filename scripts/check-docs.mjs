@@ -5,6 +5,7 @@
 // ones documented, and the prose must keep the spelling the console uses.
 // Pure, run by `test:pure`.
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
@@ -12,10 +13,46 @@ import ts from "typescript";
 import { allowedPath } from "./github-snapshot.mjs";
 
 const root = resolve(import.meta.dirname, "..");
-const read = (path) => readFileSync(join(root, path), "utf8");
+// Git's canonical text uses LF; a Windows CRLF checkout does not change historical evidence.
+const read = (path) => readFileSync(join(root, path), "utf8").replaceAll("\r\n", "\n");
 const problems = [];
 let checks = 0;
 const check = (condition, message) => { checks += 1; if (!condition) problems.push(message); };
+
+// Historical documents retain the exact source paths and commands observed at their recorded revision.
+// Only verified bytes may use the reviewed rename map. New prose, even in an append-only release log,
+// must name today's files and packages; a directory-prefix mapping never excuses a missing child file.
+const identityFiles = JSON.parse(read("docs/product-identity/historical-files.json"));
+const identityMap = JSON.parse(read("docs/product-identity/path-map.json"));
+const safePath = (path) => typeof path === "string" && path.length > 0 && !path.startsWith("/") && !path.includes("\\") && !path.split("/").some(part => !part || part === "." || part === "..") && !path.includes(":");
+const pathMappings = Object.entries(identityMap.paths).sort(([a], [b]) => b.length - a.length);
+for (const [before, after] of pathMappings) {
+  assert(safePath(before) && safePath(after) && before !== after, "Identity path mappings must contain distinct safe repository paths");
+  check(existsSync(join(root, after)), `Identity path mapping target does not exist: ${after}`);
+}
+for (const [before, after] of Object.entries(identityMap.packages)) assert(/^@workspace\/[\w-]+$/.test(before) && /^@workspace\/[\w-]+$/.test(after) && before !== after, "Identity package mappings must contain distinct workspace package names");
+const mappedPath = (path) => {
+  const entry = pathMappings.find(([before]) => path === before || path.startsWith(`${before}/`));
+  return entry ? entry[1] + path.slice(entry[0].length) : path;
+};
+const historicalStarts = new Map();
+for (const entry of [...identityFiles.files, ...(identityFiles.appliedMigrationFiles ?? [])]) {
+  assert(safePath(entry.path) && /^[a-f0-9]{64}$/.test(entry.sha256), "Historical evidence must name a safe file and SHA-256 digest");
+  const file = join(root, entry.path), exists = existsSync(file);
+  check(exists, `Historical evidence file is missing: ${entry.path}`);
+  if (!exists) continue;
+  const matches = createHash("sha256").update(read(entry.path)).digest("hex") === entry.sha256;
+  check(matches, `Historical evidence bytes changed: ${entry.path}`);
+  if (matches) historicalStarts.set(entry.path, 0);
+}
+for (const entry of identityFiles.appendOnlyDocuments ?? []) {
+  assert(safePath(entry.path) && /^[a-f0-9]{64}$/.test(entry.sha256) && Number.isSafeInteger(entry.byteLength) && entry.byteLength > 0, "Append-only evidence needs its preserved suffix's byteLength and SHA-256 digest");
+  const bytes = Buffer.from(read(entry.path), "utf8"), start = bytes.length - entry.byteLength;
+  const matches = start >= 0 && createHash("sha256").update(bytes.subarray(start)).digest("hex") === entry.sha256;
+  check(matches, `Append-only historical suffix changed: ${entry.path}`);
+  if (matches) historicalStarts.set(entry.path, bytes.subarray(0, start).toString("utf8").length);
+}
+const historicalAt = (doc, offset) => historicalStarts.has(doc) && offset >= historicalStarts.get(doc);
 
 function walk(dir, keep) {
   const out = [];
@@ -47,13 +84,18 @@ for (const doc of documents) {
   for (const match of text.matchAll(/`([^`\n]+)`/g)) {
     const token = match[1].replace(/[.,;:]$/, "");
     if (!/^(?:artifacts|lib|scripts|docs|\.github|\.githooks)\/[\w./\[\]*-]+$/.test(token) || token.includes("*") || buildOutput.test(token)) continue;
-    const shorthand = ["artifacts/valo-pay/src", "artifacts/api-server/src"].some((base) => existsSync(join(root, base, token)));
-    check(existsSync(join(root, token)) || shorthand, `${doc} names a path that does not exist: ${token}`);
+    const current = historicalAt(doc, match.index) ? mappedPath(token) : token;
+    const shorthand = ["artifacts/valo-pay-1/src", "artifacts/api-server/src"].some((base) => {
+      const candidate = `${base}/${token}`;
+      return existsSync(join(root, historicalAt(doc, match.index) ? mappedPath(candidate) : candidate));
+    });
+    check(existsSync(join(root, current)) || shorthand, `${doc} names a path that does not exist: ${token}`);
   }
   for (const match of text.matchAll(/\]\(([^)\s]+)\)/g)) {
     const target = match[1].split("#")[0];
     if (!target || /^(https?:|mailto:)/.test(target)) continue;
-    check(existsSync(resolve(root, dirname(doc), target)), `${doc} links to a file that does not exist: ${target}`);
+    const current = relative(root, resolve(root, dirname(doc), target)).replaceAll("\\", "/");
+    check(existsSync(resolve(root, historicalAt(doc, match.index) ? mappedPath(current) : current)), `${doc} links to a file that does not exist: ${target}`);
   }
 }
 
@@ -64,6 +106,7 @@ for (const file of ["artifacts", "lib", "scripts"].flatMap((d) => walk(d, (p) =>
   const pkg = JSON.parse(read(file));
   if (pkg.name) packageScripts.set(pkg.name, new Set(Object.keys(pkg.scripts ?? {})));
 }
+for (const name of Object.values(identityMap.packages)) check(packageScripts.has(name), `Identity package mapping target does not exist: ${name}`);
 for (const doc of documents) {
   const text = read(doc);
   for (const match of text.matchAll(/pnpm run ([a-z][\w:-]*)|pnpm (test)\b/g)) {
@@ -71,7 +114,8 @@ for (const doc of documents) {
     check(rootScripts.has(name), `${doc} names a root script that does not exist: pnpm run ${name}`);
   }
   for (const match of text.matchAll(/pnpm --filter (@workspace\/[\w-]+) run ([\w:-]+)/g)) {
-    check(packageScripts.get(match[1])?.has(match[2]), `${doc} names a package script that does not exist: pnpm --filter ${match[1]} run ${match[2]}`);
+    const name = historicalAt(doc, match.index) ? identityMap.packages[match[1]] ?? match[1] : match[1];
+    check(packageScripts.get(name)?.has(match[2]), `${doc} names a package script that does not exist: pnpm --filter ${match[1]} run ${match[2]}`);
   }
 }
 
@@ -97,7 +141,7 @@ for (const [path, methods] of Object.entries(spec.paths)) for (const [method, op
 for (const [name, schema] of Object.entries(spec.components.schemas)) check(schema.description, `schema ${name} is not described`);
 
 // ---- 5. The shared schema's exports carry a doc comment ----
-for (const file of walk("lib/valopay-schema/src", (p) => p.endsWith(".ts"))) {
+for (const file of walk("lib/valo-pay-1-schema/src", (p) => p.endsWith(".ts"))) {
   const text = read(file);
   const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
   for (const node of source.statements) {
@@ -113,7 +157,7 @@ for (const doc of documents) check(allowedPath(doc), `${doc} is not in the snaps
 
 // ---- 7. The console's routes and the actions are in the contract ----
 const contract = read("docs/frontend-contract.md");
-for (const match of read("artifacts/valo-pay/src/App.tsx").matchAll(/path: '(\/[^']+)'/g)) check(contract.includes(`\`${match[1]}\``), `docs/frontend-contract.md does not list the route ${match[1]}`);
+for (const match of read("artifacts/valo-pay-1/src/App.tsx").matchAll(/path: '(\/[^']+)'/g)) check(contract.includes(`\`${match[1]}\``), `docs/frontend-contract.md does not list the route ${match[1]}`);
 const actionsSource = read("artifacts/api-server/src/domain/actions.ts");
 const reasoned = actionsSource.match(/const requiresReason = new Set\(\[([\s\S]*?)\]\);/)[1].match(/"([a-z_]+)"/g).map((s) => s.slice(1, -1));
 const mutations = contract.slice(contract.indexOf("## Mutations"), contract.indexOf("## Imports & exports"));

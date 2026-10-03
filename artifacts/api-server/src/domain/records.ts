@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { notFoundText, recordTypeLabel, recordTypeTitle } from "@workspace/valopay-schema";
+import { notFoundText, recordTypeLabel, recordTypeTitle } from "@workspace/valo-pay-1-schema";
 import type { DomainState, RecordInput, RecordOf, ValopayRecord } from "./types";
 
 /** Keys that name a raw financial identifier, matched on snake_case word boundaries so "accountableUser" is not an account number. */

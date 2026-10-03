@@ -1,15 +1,16 @@
+import { SANDBOX_COOKIE } from "../src/lib/sandbox-cookie";
 import assert from "node:assert/strict";
 import { randomBytes, randomUUID } from "node:crypto";
 import type { DomainState, ValopayRecord } from "../src/domain/types";
 
-if (process.env.VALOPAY_RUN_INTEGRATION !== "1") {
+if (process.env.VALO_PAY_1_RUN_INTEGRATION !== "1") {
   console.log(
-    "Set VALOPAY_RUN_INTEGRATION=1 to run connected workflows against a disposable PostgreSQL database.",
+    "Set VALO_PAY_1_RUN_INTEGRATION=1 to run connected workflows against a disposable PostgreSQL database.",
   );
   process.exit(0);
 }
 
-const { pool } = await import("@workspace/db");
+const { pool } = await import("@workspace/valo-pay-1-db");
 const {
   inWorkspace,
   listMerchants,
@@ -21,7 +22,7 @@ const {
   findIdempotency,
   digest,
   fail,
-} = await import("../src/lib/valopay-store");
+} = await import("../src/lib/valo-pay-1-store");
 const { requestFingerprint, verifyAuditChain } = await import("../src/lib/digests");
 const {
   connectedRevision,
@@ -36,7 +37,7 @@ const principals = [
 ];
 const request = (token: string) =>
   ({
-    headers: { cookie: `valopay_sandbox=${token}` },
+    headers: { cookie: `${SANDBOX_COOKIE}=${token}` },
     secure: false,
     auth: Object.assign(() => ({ userId: null }), {
       [Symbol.for("@clerk/express.auth")]: true,

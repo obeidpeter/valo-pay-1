@@ -4,7 +4,7 @@ import {
   multiplyDivideMoney,
   sameJson,
   WAT_OFFSET_MS,
-} from "@workspace/valopay-schema";
+} from "@workspace/valo-pay-1-schema";
 import { canonicalDigest } from "../lib/digests";
 
 /**

@@ -4,8 +4,8 @@ import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { expectedRuntimeDefinition, normaliseRuntimeDefinition, reviewedRuntimeHelpers, reviewedRuntimePolicies, reviewedRuntimeTrigger } from "../src/lib/runtime-isolation-policy";
 
-if (process.env.VALOPAY_RUN_INTEGRATION !== "1") { console.log("Opt in on disposable PostgreSQL to run restricted runtime isolation checks."); process.exit(0); }
-const { Pool } = createRequire(new URL("../../../lib/db/package.json", import.meta.url))("pg") as Pick<typeof import("@workspace/db"), "Pool">;
+if (process.env.VALO_PAY_1_RUN_INTEGRATION !== "1") { console.log("Opt in on disposable PostgreSQL to run restricted runtime isolation checks."); process.exit(0); }
+const { Pool } = createRequire(new URL("../../../lib/db/package.json", import.meta.url))("pg") as Pick<typeof import("@workspace/valo-pay-1-db"), "Pool">;
 const original = { ...process.env }, admin = new Pool({ connectionString: process.env.DATABASE_URL });
 const suffix = randomBytes(6).toString("hex"), schema = `valopay_runtime_test_${suffix}`, appRole = `runtime_app_${suffix}`, helperRole = `runtime_helper_${suffix}`, password = randomBytes(24).toString("hex");
 const tables = ["valopay_workspaces", "valopay_merchants", "valopay_records", "valopay_idempotency", "valopay_operations", "valopay_teams", "valopay_staff_memberships", "valopay_staff_invitations", "valopay_staff_events", "valopay_staff_lender_access"];
@@ -64,9 +64,9 @@ try {
   } finally { owner.release(); }
   const url = new URL(original.DATABASE_URL!); url.username = appRole; url.password = password;
   process.env.DATABASE_URL = url.toString();
-  Object.assign(process.env, { VALOPAY_RUNTIME_ISOLATION: "staging", VALOPAY_RUNTIME_SCHEMA: schema, VALOPAY_RUNTIME_ROLE: appRole, VALOPAY_STAFF_ACCESS: "staging", VALOPAY_STAFF_ISSUER: "https://identity.example", VALOPAY_STAFF_ORIGINS: "https://pilot.example", VALOPAY_PAYLOAD_ENCRYPTION: "kms", VALOPAY_KMS_KEY: "projects/synthetic-test/locations/global/keyRings/test/cryptoKeys/test", VALOPAY_RUNTIME_SERVICE_ORG: "org_runtimeA", VALOPAY_RUNTIME_SERVICE_USER: "user_serviceA", CLERK_SECRET_KEY: "sk_test_placeholder" });
-  const { pool } = await import("@workspace/db"); runtimePool = pool;
-  const isolation = await import("../src/lib/runtime-isolation"), store = await import("../src/lib/valopay-store");
+  Object.assign(process.env, { VALO_PAY_1_RUNTIME_ISOLATION: "staging", VALO_PAY_1_RUNTIME_SCHEMA: schema, VALO_PAY_1_RUNTIME_ROLE: appRole, VALO_PAY_1_STAFF_ACCESS: "staging", VALO_PAY_1_STAFF_ISSUER: "https://identity.example", VALO_PAY_1_STAFF_ORIGINS: "https://pilot.example", VALO_PAY_1_PAYLOAD_ENCRYPTION: "kms", VALO_PAY_1_KMS_KEY: "projects/synthetic-test/locations/global/keyRings/test/cryptoKeys/test", VALO_PAY_1_RUNTIME_SERVICE_ORG: "org_runtimeA", VALO_PAY_1_RUNTIME_SERVICE_USER: "user_serviceA", CLERK_SECRET_KEY: "sk_test_placeholder" });
+  const { pool } = await import("@workspace/valo-pay-1-db"); runtimePool = pool;
+  const isolation = await import("../src/lib/runtime-isolation"), store = await import("../src/lib/valo-pay-1-store");
   // With 005 alone every lender check runs per row; the application refuses that schema.
   const early = await pool.connect();
   try {
@@ -295,7 +295,7 @@ try {
   // a system transaction records none, so with isolation still set to staging its
   // database check is not configured.
   const { readinessChecks } = await import("../src/routes/access-readiness");
-  assert.equal(process.env.VALOPAY_RUNTIME_ISOLATION, "staging");
+  assert.equal(process.env.VALO_PAY_1_RUNTIME_ISOLATION, "staging");
   const unrecorded = await store.inMerchantAsSystem("lender-a", `${store.SYSTEM_ACTOR_PREFIX}readiness probe`, readinessChecks);
   assert.equal(unrecorded?.checks.find(check => check.id === "database")?.state, "not_configured", "Readiness follows the transaction's own check, not the environment.");
   // The Paystack ingress's read without the lock runs as the service member too, so it finds only what the lock could take.
@@ -396,7 +396,7 @@ try {
   await admin.query(`DELETE FROM "${schema}".valopay_staff_lender_access WHERE membership_id='finance-a'`);
   await assert.rejects(() => store.inWorkspace(req, { cookie() {} } as any, ctx => store.loadState(ctx, "lender-a", "share"), "read"), /not found/);
   const elevated = await admin.connect(); try { await elevated.query("BEGIN"); await assert.rejects(() => isolation.bindRuntimeIdentity(elevated, { organizationId: "org_runtimeA", userId: "user_adminA" }), /elevated/); await elevated.query("ROLLBACK"); } finally { elevated.release(); }
-  const configured = process.env.VALOPAY_RUNTIME_SCHEMA; process.env.VALOPAY_RUNTIME_SCHEMA = "public"; assert.throws(() => isolation.runtimeIsolationConfiguration(), /public/); process.env.VALOPAY_RUNTIME_SCHEMA = configured;
+  const configured = process.env.VALO_PAY_1_RUNTIME_SCHEMA; process.env.VALO_PAY_1_RUNTIME_SCHEMA = "public"; assert.throws(() => isolation.runtimeIsolationConfiguration(), /public/); process.env.VALO_PAY_1_RUNTIME_SCHEMA = configured;
   // /api/readyz reads the isolated schema, as the restricted login: its copied tables carry every column and, under generated names, every index this build needs.
   const ready = await store.pingDatabase();
   assert.deepEqual([ready.status, ready.schema], ["ok", { status: "ok", missing: [] }], "readiness checks the isolated runtime schema");

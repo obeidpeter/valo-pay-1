@@ -3,7 +3,7 @@ import {
   editableKinds, exceptionCatalogue, exceptionTransitions, executionOwners, experimentRules, isActionOnlyStatus, mandateTransitions, normaliseFailureCode, observationEventKey,
   normaliseOwner, policyGuardrails, recordDataSchemas, recordStatuses, recordTextLimits, resolveExceptionType, roles, isKnownFailureCode, isRealDate, templateTextProblems, discountTermsStatus,
   dayText, listText, nairaText, notFoundText, recordTypeLabel, recordTypeTitle, rolesText, valueLabel, valueWords,
-} from "@workspace/valopay-schema";
+} from "@workspace/valo-pay-1-schema";
 import { isDeepStrictEqual } from "node:util";
 import type { ZodIssue } from "zod";
 import { assertNoRealBankDetails, findRecord, masked, recordsOf } from "./records";
@@ -17,8 +17,8 @@ const roleSet = new Set<string>(roles);
 const editable = new Set<string>(editableKinds);
 const statuses: Record<string, readonly string[]> = recordStatuses;
 
-/** The refusal for a role Valo Pay does not know: a demo role is chosen in Settings, a staff role by an Admin. */
-const UNKNOWN_ROLE = "Valo Pay does not recognise your role. Choose a demo role in Settings, or ask an Admin to check your access.";
+/** The refusal for a role Valo Pay 1 does not know: a demo role is chosen in Settings, a staff role by an Admin. */
+const UNKNOWN_ROLE = "Valo Pay 1 does not recognise your role. Choose a demo role in Settings, or ask an Admin to check your access.";
 /**
  * The standard's role refusal: who can, the specific reason when there is one, your role, and in the sandbox where
  * to change it. "Only Admin or Finance can record a refund. Your role is Operations. Change your demo role in Settings."
@@ -100,7 +100,7 @@ export function lastHandBackAt(state: DomainState): string | null {
 }
 
 /**
- * DEB-11 and DEB-12: Valo Pay may hold collection ownership only under a
+ * DEB-11 and DEB-12: Valo Pay 1 may hold collection ownership only under a
  * complete contract.  A hand-back ends every contract recorded before it,
  * because the incumbent schedules were re-enabled, so only one recorded
  * after the last hand-back counts.
@@ -131,7 +131,7 @@ function assertTransition(kind: string, from: string, to: string): void {
     throw new Error("Use this record’s own buttons, such as Submit for review, to change its status.");
   }
   if (["due-items", "attempts", "observations", "settlement-batches", "payments", "allocations"].includes(kind)) {
-    throw new Error(`Valo Pay sets the status of ${recordTypeLabel(kind, 2)} itself. You cannot set it here.`);
+    throw new Error(`Valo Pay 1 sets the status of ${recordTypeLabel(kind, 2)} itself. You cannot set it here.`);
   }
   if (isActionOnlyStatus(kind, to)) throw new Error("Use this record’s own buttons to set this status.");
 }
@@ -168,7 +168,7 @@ export function validateRecord(
   // A data field named like an object's own machinery is refused before anything else looks at the
   // object: JSON can carry such a key, and code that copies fields would otherwise inherit from it.
   for (const key of Object.keys(input.data ?? {})) {
-    if (key === "__proto__" || key === "constructor" || key === "prototype") throw new Error("This request has a field Valo Pay does not accept. Reload the page and try again.");
+    if (key === "__proto__" || key === "constructor" || key === "prototype") throw new Error("This request has a field Valo Pay 1 does not accept. Reload the page and try again.");
   }
   // A record is named: an empty name used to be saved as the kind's name ("customers").
   if (typeof input.name === "string" && !input.name.trim()) refuse("name", "Enter a name for this record.", { type: "required" });
@@ -216,7 +216,7 @@ export function validateRecord(
   }
   if (existing && input.status && input.status !== existing.status) assertTransition(kind, existing.status, input.status);
   if (!isUpdate && input.status && isActionOnlyStatus(kind, input.status)) {
-    refuse("status", `A new ${recordTypeLabel(kind)} cannot start as ${valueWords(input.status)}. Valo Pay sets that status later.`, { type: "starting-status", value: input.status });
+    refuse("status", `A new ${recordTypeLabel(kind)} cannot start as ${valueWords(input.status)}. Valo Pay 1 sets that status later.`, { type: "starting-status", value: input.status });
   }
   if (kind === "due-items" && data.owner !== undefined) data.owner = normaliseOwner(data.owner) ?? data.owner;
   if (kind === "settlement-batches") {
@@ -291,7 +291,7 @@ export function validateRecord(
       if (!override || (!preserved && ctx.role !== "Admin")) refuse("amountKobo", `This amount is below the lender’s minimum of ${nairaText(minimum)}. An Admin must record a reason to allow it.`);
     }
     if (!isUpdate && input.status !== "scheduled") refuse("status", "A new instalment must start as Scheduled. Its status changes as payments are allocated to it.");
-    if (!normaliseOwner(data.owner)) refuse("owner", "Choose who is responsible for collecting this instalment: Valo Pay, the loan management system, the lender team or the provider.", { type: "choice", options: executionOwners, value: data.owner });
+    if (!normaliseOwner(data.owner)) refuse("owner", "Choose who is responsible for collecting this instalment: Valo Pay 1, the loan management system, the lender team or the provider.", { type: "choice", options: executionOwners, value: data.owner });
     if (data.mandateId) {
       const mandate = link("mandateId", data.mandateId, "mandates");
       if (mandate && mandate.customerId !== input.customerId) refuse("mandateId", "Choose a mandate that belongs to the customer on this instalment.");
@@ -299,8 +299,8 @@ export function validateRecord(
     if (data.owner === PLATFORM_OWNER && !cutoverInForce(state)) {
       const handedBack = lastHandBackAt(state);
       refuse("owner", handedBack
-        ? `Valo Pay cannot collect these instalments again yet. Record a new collection transfer agreement after collection was returned on ${dayText(handedBack)}, complete its parallel-run day, and have a named person confirm it in writing.`
-        : "Valo Pay cannot collect these instalments until a collection transfer agreement and its parallel-run day are complete, and a named person has confirmed it in writing.");
+        ? `Valo Pay 1 cannot collect these instalments again yet. Record a new collection transfer agreement after collection was returned on ${dayText(handedBack)}, complete its parallel-run day, and have a named person confirm it in writing.`
+        : "Valo Pay 1 cannot collect these instalments until a collection transfer agreement and its parallel-run day are complete, and a named person has confirmed it in writing.");
     }
     if (data.outstandingKobo !== undefined && (!Number.isInteger(data.outstandingKobo) || data.outstandingKobo < 0 || data.outstandingKobo > input.amountKobo!)) {
       refuse("outstandingKobo", "Enter an outstanding amount between ₦0 and the instalment’s amount.");
@@ -313,7 +313,7 @@ export function validateRecord(
     if (due && due.customerId !== input.customerId) refuse("customerId", "The collection attempt and its instalment must belong to the same customer.");
     if (due && input.amountKobo !== due.amountKobo) refuse("amountKobo", "The collection attempt’s amount must match the instalment’s amount.");
     if (data.source !== "external" || data.simulated !== true) {
-      refuse(undefined, "Only sample records of collection attempts made by another system can be imported. They cannot be edited later, and Valo Pay sends no debit instruction.");
+      refuse(undefined, "Only sample records of collection attempts made by another system can be imported. They cannot be edited later, and Valo Pay 1 sends no debit instruction.");
     }
     if (input.status === "failed") {
       if (data.failureCode !== undefined && !isKnownFailureCode(data.failureCode)) data.rawFailureCode = String(data.failureCode);
@@ -335,7 +335,7 @@ export function validateRecord(
     // A gross is what was collected before fees came off, so it is never less than what was received.
     if (data.grossAmountKobo !== undefined && Number(data.grossAmountKobo) < Number(input.amountKobo)) refuse("grossAmountKobo", "The amount before fees cannot be less than the amount received. Enter the amount collected before fees, or leave it blank.");
     if (data.paymentId !== undefined || data.resolutionKey !== undefined || input.status === "resolved") {
-      refuse(undefined, "Leave the matching details blank. Valo Pay matches payment evidence itself.");
+      refuse(undefined, "Leave the matching details blank. Valo Pay 1 matches payment evidence itself.");
     }
     // Reconciliation alone links evidence to a settlement batch, or marks where a line is counted: evidence naming a batch
     // by these could make a batch Finance confirmed ambiguous again, or claim another batch's count.
@@ -351,12 +351,12 @@ export function validateRecord(
     if (!isUpdate && input.status && input.status !== "draft") throw new Error("A new retry policy starts as a draft. Leave the status blank or choose Draft.");
     // RET-01: the reviewer approves the rules that were submitted, so they are frozen until a reviewer rejects them.
     if (existing?.status === "submitted") throw new Error("This retry policy has been submitted for review, so it cannot be edited. A reviewer must reject it before its author can change it.");
-    if (data.reviewer !== undefined && data.reviewer !== existing?.data.reviewer) throw new Error("Valo Pay records the reviewer when the policy is approved. Leave the reviewer as it is.");
+    if (data.reviewer !== undefined && data.reviewer !== existing?.data.reviewer) throw new Error("Valo Pay 1 records the reviewer when the policy is approved. Leave the reviewer as it is.");
     for (const key of ["previousVersionId", "approvedAt", "submittedAt", "rejectedAt"]) {
-      if (JSON.stringify(data[key]) !== JSON.stringify(existing?.data[key])) throw new Error("Valo Pay records a policy’s review dates and version links. You cannot change them here.");
+      if (JSON.stringify(data[key]) !== JSON.stringify(existing?.data[key])) throw new Error("Valo Pay 1 records a policy’s review dates and version links. You cannot change them here.");
     }
     // The API numbers versions: 1 on create, and new_policy_version after the whole history.
-    if (existing && JSON.stringify(data.version) !== JSON.stringify(existing.data.version)) throw new Error("Leave the version number as it is. Valo Pay numbers each new draft version.");
+    if (existing && JSON.stringify(data.version) !== JSON.stringify(existing.data.version)) throw new Error("Leave the version number as it is. Valo Pay 1 numbers each new draft version.");
     const maxAttempts = data.maxAttempts ?? policyGuardrails.defaultMaxAttempts;
     const spacing = data.spacingHours ?? policyGuardrails.defaultSpacingHours;
     const firstNotice = data.firstNoticeHours ?? policyGuardrails.defaultFirstNoticeHours;
@@ -374,10 +374,10 @@ export function validateRecord(
     if (!isUpdate && input.status && input.status !== "draft") throw new Error("A new message template starts as a draft. Leave the status blank or choose Draft.");
     if (existing?.status === "submitted") throw new Error("This message template has been submitted for review, so it cannot be edited. A reviewer must reject it before its author can change it.");
     for (const key of ["reviewer", "approvedAt", "submittedAt", "rejectedAt", "rejectionReason", "reviewHistory", "previousVersionId", "templateRootId"]) {
-      if (JSON.stringify(data[key]) !== JSON.stringify(existing?.data[key])) throw new Error("Valo Pay records a template’s reviews, review dates and version links. You cannot change them here.");
+      if (JSON.stringify(data[key]) !== JSON.stringify(existing?.data[key])) throw new Error("Valo Pay 1 records a template’s reviews, review dates and version links. You cannot change them here.");
     }
-    if (existing && data.version !== existing.data.version) throw new Error("Leave the version number as it is. Valo Pay numbers each new draft version.");
-    if (existing && data.author !== existing.data.author) throw new Error("Valo Pay records a template’s author when its draft is created. Leave the author as it is.");
+    if (existing && data.version !== existing.data.version) throw new Error("Leave the version number as it is. Valo Pay 1 numbers each new draft version.");
+    if (existing && data.author !== existing.data.author) throw new Error("Valo Pay 1 records a template’s author when its draft is created. Leave the author as it is.");
     if (data.author !== ctx.actor) throw new Error("You can save a message template only as yourself. Leave the author as it is.");
     const problems = templateTextProblems(data.text);
     if (problems.length) throw new Error(problems.join(' '));
@@ -403,7 +403,7 @@ export function validateRecord(
     requireRole(ctx, ["Admin"], editing);
     const handedBack = lastHandBackAt(state);
     if (input.status === "ready" && existing && existing.status !== "ready" && handedBack !== null && existing.createdAt <= handedBack) {
-      throw new Error(`This collection transfer agreement ended when collection was returned on ${dayText(handedBack)}. Record a new agreement before Valo Pay collects again.`);
+      throw new Error(`This collection transfer agreement ended when collection was returned on ${dayText(handedBack)}. Record a new agreement before Valo Pay 1 collects again.`);
     }
     if (input.status === "ready" && existing?.status !== "ready") {
       const candidate = { ...(existing ?? { id: "", merchantId: "", kind, name: "", reference: "", amountKobo: 0, customerId: "", createdAt: "", updatedAt: "" }), status: "ready", data } as TypedRecord<"cutovers">;
@@ -414,7 +414,7 @@ export function validateRecord(
   if (["evidence", "experiments"].includes(kind)) requireRole(ctx, ["Admin"], editing);
   if (["commercial", "costs", "settlement-batches"].includes(kind)) requireRole(ctx, ["Admin", "Finance"], editing);
   if (kind === 'commercial') {
-    if (!isDeepStrictEqual(data.discountReview, existing?.data.discountReview)) throw new Error('Valo Pay records who proposed and who confirmed the discount dates. Leave those details out.');
+    if (!isDeepStrictEqual(data.discountReview, existing?.data.discountReview)) throw new Error('Valo Pay 1 records who proposed and who confirmed the discount dates. Leave those details out.');
     const problem = discountDateProblem(data);
     if (problem) throw new Error(problem);
     const proposal = reviewedDiscount(data, ctx);
@@ -429,8 +429,8 @@ export function validateRecord(
   if (kind === "calendar") requireRole(ctx, ["Admin", "Operations"], editing);
   // MEA-05: a fortnightly review is recorded by its reviewer at the service's time; neither is typed in.
   if (kind === "reviews" && !isUpdate) {
-    if (data.reviewer !== undefined && data.reviewer !== ctx.actor) throw new Error("Valo Pay records you as the reviewer. Leave the reviewer blank.");
-    if (data.reviewedAt !== undefined) throw new Error("Valo Pay records the review time when you save. Leave the review date blank.");
+    if (data.reviewer !== undefined && data.reviewer !== ctx.actor) throw new Error("Valo Pay 1 records you as the reviewer. Leave the reviewer blank.");
+    if (data.reviewedAt !== undefined) throw new Error("Valo Pay 1 records the review time when you save. Leave the review date blank.");
     data.reviewer = ctx.actor;
     data.reviewedAt = ctx.now;
   }

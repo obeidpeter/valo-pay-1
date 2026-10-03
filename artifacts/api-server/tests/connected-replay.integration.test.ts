@@ -1,3 +1,4 @@
+import { SANDBOX_COOKIE } from "../src/lib/sandbox-cookie";
 /** Real HTTP + PostgreSQL regression: a saved outcome is not reusable authority.
  * Declined replay retains its original completed journal/receipt and never reruns
  * the action. GET /v1/connected withholds a saved VAT schedule or forecast whose
@@ -13,19 +14,19 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { requireLoopback } from "./throwaway-database.js";
 
-if (process.env.VALOPAY_RUN_INTEGRATION !== "1") {
-  console.log("Set VALOPAY_RUN_INTEGRATION=1 to test connected receipt authority on disposable loopback PostgreSQL.");
+if (process.env.VALO_PAY_1_RUN_INTEGRATION !== "1") {
+  console.log("Set VALO_PAY_1_RUN_INTEGRATION=1 to test connected receipt authority on disposable loopback PostgreSQL.");
   process.exit(0);
 }
 requireLoopback("Connected receipt authority", new URL(process.env.DATABASE_URL!));
 process.env.CLERK_SECRET_KEY ??= "sk_test_placeholder";
 process.env.CLERK_TELEMETRY_DISABLED = "1";
-const staffSettings = { VALOPAY_STAFF_ACCESS: "staging", VALOPAY_STAFF_ISSUER: "https://identity.example", VALOPAY_STAFF_ORIGINS: "https://pilot.example" };
+const staffSettings = { VALO_PAY_1_STAFF_ACCESS: "staging", VALO_PAY_1_STAFF_ISSUER: "https://identity.example", VALO_PAY_1_STAFF_ORIGINS: "https://pilot.example" };
 const savedSettings = Object.fromEntries(Object.keys(staffSettings).map((name) => [name, process.env[name]]));
-const { pool } = await import("@workspace/db");
+const { pool } = await import("@workspace/valo-pay-1-db");
 const { default: router } = await import("../src/routes/index.js");
 const { errorHandler } = await import("../src/lib/error-handler.js");
-const store = await import("../src/lib/valopay-store.js");
+const store = await import("../src/lib/valo-pay-1-store.js");
 const { touch } = await import("../src/domain/records.js");
 const { connectedActionSchema, connectedRevision } = await import("../src/domain/connected.js");
 const { requestFingerprint } = await import("../src/lib/digests.js");
@@ -43,7 +44,7 @@ app.use(errorHandler);
 const server = app.listen(0, "127.0.0.1");
 await once(server, "listening");
 const base = `http://127.0.0.1:${(server.address() as any).port}/api`;
-const cookie = `valopay_sandbox=${randomBytes(32).toString("hex")}`;
+const cookie = `${SANDBOX_COOKIE}=${randomBytes(32).toString("hex")}`;
 let lender = "", workspaceId = "", staffWorkspace = "", checks = 0;
 type Answer = { status: number; data: any; operation: string | null };
 async function call(path: string, body?: unknown, key?: string, who?: string): Promise<Answer> {
@@ -190,7 +191,7 @@ try {
   const read = await call(sandbox.q("/v1/connected"));
   assert.equal(read.status, 422, JSON.stringify(read.data));
   assert.deepEqual([read.data.code, read.data.operation], ["MONEY_OUT_OF_RANGE", undefined], "a read has no journal entry to name");
-  assert.match(read.data.error, /^Valo Pay cannot complete this calculation because an amount or rate is outside the supported limits\./);
+  assert.match(read.data.error, /^Valo Pay 1 cannot complete this calculation because an amount or rate is outside the supported limits\./);
   assert.deepEqual(warnings.filter((entry) => entry.event === "money.calculation_refused"), [{ event: "money.calculation_refused", code: "MONEY_OUT_OF_RANGE" }], "logged once, with its code and no amount");
   const revision = await store.inWorkspace(request(), response(), async (ctx) => connectedRevision(await store.loadState(ctx, lender, "share")), "read");
   const forecasts = async () => Number((await pool.query("SELECT count(*)::int AS n FROM valopay_records WHERE merchant_id=$1 AND kind='connected-cash-forecasts'", [lender])).rows[0].n);
@@ -202,7 +203,7 @@ try {
   assert.equal((await pool.query("SELECT status FROM valopay_operations WHERE id=$1", [refused.operation])).rows[0].status, "cancelled");
   assert.equal(ok(await call(`/v1/operations/pending?merchantId=${lender}`)).pending, 0);
   const listed = ok(await call(`/v1/operations?merchantId=${lender}`)).items.find((item: { id: string }) => item.id === refused.operation);
-  assert.match(listed.message, /^Valo Pay refused this request: Valo Pay cannot complete this calculation/);
+  assert.match(listed.message, /^Valo Pay 1 refused this request: Valo Pay 1 cannot complete this calculation/);
   const again = await call(sandbox.q("/v1/connected/actions"), body, key);
   assert.deepEqual([again.status, again.data.operation], [409, "cancelled"]);
   assert.equal(await forecasts(), before);
@@ -215,7 +216,7 @@ try {
   const staffAuth = (userId: string) => {
     const now = Math.floor(Date.now() / 1000);
     return { userId, orgId: organisation, sessionId: `sess_${userId}`, tokenType: "session_token", sessionStatus: "active", factorVerificationAge: [0, 0],
-      sessionClaims: { sub: userId, sid: `sess_${userId}`, iss: staffSettings.VALOPAY_STAFF_ISSUER, azp: staffSettings.VALOPAY_STAFF_ORIGINS, iat: now - 1, exp: now + 3600 } };
+      sessionClaims: { sub: userId, sid: `sess_${userId}`, iss: staffSettings.VALO_PAY_1_STAFF_ISSUER, azp: staffSettings.VALO_PAY_1_STAFF_ORIGINS, iat: now - 1, exp: now + 3600 } };
   };
   const first = person(), second = person();
   identities.set("first", staffAuth(first));

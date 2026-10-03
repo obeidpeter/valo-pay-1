@@ -3,7 +3,7 @@ import {
   ABSOLUTE_TICKET_FLOOR_KOBO, DEFAULT_MINIMUM_TICKET_KOBO, PLATFORM_OWNER, WAT_OFFSET_MS,
   clampExecutionHour, counted as countedText, executionWindow, experimentRules, nairaText, normaliseFailureCode, optionText, policyGuardrails, retryRuleFor, valueWords,
   type ExperimentArm, type FailureCode, type RetryDecisionKind,
-} from "@workspace/valopay-schema";
+} from "@workspace/valo-pay-1-schema";
 import type { Context, DomainState, TypedRecord, ValopayRecord } from "./types";
 import { makeRecord, recordsOf } from "./records";
 import { indexedPass, recordsWhere } from "./record-index";
@@ -177,7 +177,7 @@ export function evaluateRetry(state: DomainState, ctx: Context, due: TypedRecord
   });
   const finalNotice: NoticeRequirement = { purpose: "final_attempt", leadHours: 0, requiredBy: null, noticeId: null, acceptedAt: null, evidenced: false };
   if (dueNeedsReversalReview(state, due)) return explain("blocked", "reversal_review", "Collection is on hold while Finance reviews an earlier reversal decision again. Resolve that review and run reconciliation before a retry is planned.");
-  if(recordsWhere(state,'connected-intents','data.dueItemId',due.id).some(r=>['authorised','pending','unknown'].includes(r.status))) return explain('blocked','in_flight','A Pay by Bank checkout for this instalment is pending, or its outcome is unknown. Valo Pay plans no other collection until its outcome is recorded.');
+  if(recordsWhere(state,'connected-intents','data.dueItemId',due.id).some(r=>['authorised','pending','unknown'].includes(r.status))) return explain('blocked','in_flight','A Pay by Bank checkout for this instalment is pending, or its outcome is unknown. Valo Pay 1 plans no other collection until its outcome is recorded.');
 
   // Row 1: settled by any channel, or the obligation is frozen or closed.
   const outstanding = Number.isInteger(due.data.outstandingKobo) ? Number(due.data.outstandingKobo) : due.amountKobo;
@@ -226,7 +226,7 @@ export function evaluateRetry(state: DomainState, ctx: Context, due: TypedRecord
   // Row 6: stable experiment assignment (RET-05).  A holdout item still receives the failed-debit notice.
   if (arm === "holdout") return explain("holdout", "holdout", "This instalment is in the comparison group. The lender’s documented manual process is responsible for collection; automated retries are not allowed.", null, { purpose: "failed_debit", leadHours: 0, requiredBy: null, noticeId: null, acceptedAt: null, evidenced: false });
   // SCH-08 and DEB-10: only owner-valo obligations of a merchant in instruction mode are instructed.
-  if (due.data.owner !== PLATFORM_OWNER) return explain("observation_only", "ownership", `Another collection system is responsible for this instalment (${valueWords(due.data.owner)}). Valo Pay cannot send its collection instructions.`);
+  if (due.data.owner !== PLATFORM_OWNER) return explain("observation_only", "ownership", `Another collection system is responsible for this instalment (${valueWords(due.data.owner)}). Valo Pay 1 cannot send its collection instructions.`);
   if (state.merchant.mode !== "instruction" || !state.merchant.preLiveReady) return explain("observation_only", "observation_mode", `${state.merchant.mode !== "instruction" ? "This lender is set to ‘Records payments only’, so no instruction can be sent." : "This lender is set to ‘Instructions after go-live’, but its go-live checks are not complete, so no instruction can be sent."} Sample data can never approve live collection instructions.`);
   // Row 8: plan the earliest slot that satisfies spacing, the calendar and the window; the required notice must be evidenced the lead time before it.
   const spacingHours = Math.max(policyGuardrails.minSpacingHours, Number(policy.data.spacingHours) || policyGuardrails.defaultSpacingHours);
@@ -351,7 +351,7 @@ export function assignArm(seed: string, merchantId: string, dueItemId: string, h
 
 /**
  * RET-10 eligibility: an enrolled lender's due item whose first counted attempt
- * failed with a retryable code, owned by Valo Pay, with an active mandate and no
+ * failed with a retryable code, owned by Valo Pay 1, with an active mandate and no
  * dispute, not amended after the failure, inside the enrolment window.
  */
 export function enrolEligibleFailures(state: DomainState, ctx: Context): void {

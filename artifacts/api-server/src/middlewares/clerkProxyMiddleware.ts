@@ -29,7 +29,7 @@
 import type { IncomingHttpHeaders, ClientRequest, IncomingMessage } from 'http';
 import { Readable } from 'node:stream';
 import type { Request, RequestHandler } from 'express';
-import { createProxyMiddleware } from 'http-proxy-middleware';
+import { createProxyServer } from 'httpxy';
 import { originFor } from '../lib/staff-access';
 import { withoutSandboxCookies } from '../lib/sandbox-cookie';
 import { clientNetwork, createWindowCounter } from '../lib/request-limits';
@@ -62,12 +62,12 @@ const SLICE_BYTES = 16 * 1024;
 
 /**
  * The limits with the rate and concurrency an operator set
- * (VALOPAY_CLERK_PROXY_RATE, VALOPAY_CLERK_PROXY_NETWORK_CONCURRENCY and
- * VALOPAY_CLERK_PROXY_CONCURRENCY), read by the start-up check's rule, which
+ * (VALO_PAY_1_CLERK_PROXY_RATE, VALO_PAY_1_CLERK_PROXY_NETWORK_CONCURRENCY and
+ * VALO_PAY_1_CLERK_PROXY_CONCURRENCY), read by the start-up check's rule, which
  * has already refused a value outside it (startup-config.ts).
  */
 export function clerkProxyLimits(): typeof CLERK_PROXY_LIMITS {
-  const tuned = clerkProxyTuning({ rate: process.env.VALOPAY_CLERK_PROXY_RATE, networkConcurrency: process.env.VALOPAY_CLERK_PROXY_NETWORK_CONCURRENCY, concurrency: process.env.VALOPAY_CLERK_PROXY_CONCURRENCY });
+  const tuned = clerkProxyTuning({ rate: process.env.VALO_PAY_1_CLERK_PROXY_RATE, networkConcurrency: process.env.VALO_PAY_1_CLERK_PROXY_NETWORK_CONCURRENCY, concurrency: process.env.VALO_PAY_1_CLERK_PROXY_CONCURRENCY });
   if (tuned.problems.length) throw new Error(tuned.problems.join(' '));
   return { ...CLERK_PROXY_LIMITS, ...tuned.limits };
 }
@@ -134,121 +134,119 @@ export function createBoundedClerkProxy(secretKey: string, options: { target?: s
   type Flight = { closed: boolean; upstream?: ClientRequest; response?: IncomingMessage; buffered?: Buffer[]; fail(status: number): void; progress(): void };
   const flights = new WeakMap<IncomingMessage, Flight>();
 
-  const proxy = createProxyMiddleware<Request>({
+  const proxy = createProxyServer({
     target: options.target ?? CLERK_FAPI,
     changeOrigin: true,
+    // Clerk redirects go back to the browser; never follow one carrying the instance credential to another host.
+    followRedirects: false,
     // No proxyTimeout: each flight's own timers bound every phase, and a socket timeout would cut a slow download off.
     // Take over the response so it can be re-sent with a Content-Length (see
     // proxyRes); the deployment edge rejects chunked proxied responses.
     selfHandleResponse: true,
-    pathRewrite: (path: string) =>
-      path.replace(new RegExp(`^${CLERK_PROXY_PATH}`), ''),
-    on: {
-      proxyReq: (proxyReq, req) => {
-        const flight = flights.get(req);
-        if (!flight || flight.closed) { proxyReq.destroy(); return; }
-        flight.upstream = proxyReq;
-        let received = 0;
-        req.on('data', (chunk: Buffer) => {
-          received += chunk.length;
-          if (received > limits.requestBytes) flight.fail(413);
-        });
-        // The configured origin the request's host names, else the first; checked to exist before proxying.
-        const origin = originFor(req)!;
-        proxyReq.setHeader('Clerk-Proxy-Url', `${origin.origin}${CLERK_PROXY_PATH}`);
-        proxyReq.setHeader('Clerk-Secret-Key', secretKey);
-        proxyReq.setHeader('X-Forwarded-Host', origin.host);
-        proxyReq.setHeader('X-Forwarded-Proto', origin.protocol.slice(0, -1));
+  });
+  proxy.on('proxyReq', (proxyReq, req) => {
+    const flight = flights.get(req);
+    if (!flight || flight.closed) { proxyReq.destroy(); return; }
+    flight.upstream = proxyReq;
+    let received = 0;
+    req.on('data', (chunk: Buffer) => {
+      received += chunk.length;
+      if (received > limits.requestBytes) flight.fail(413);
+    });
+    // The configured origin the request's host names, else the first; checked to exist before proxying.
+    const origin = originFor(req)!;
+    proxyReq.setHeader('Clerk-Proxy-Url', `${origin.origin}${CLERK_PROXY_PATH}`);
+    proxyReq.setHeader('Clerk-Secret-Key', secretKey);
+    proxyReq.setHeader('X-Forwarded-Host', origin.host);
+    proxyReq.setHeader('X-Forwarded-Proto', origin.protocol.slice(0, -1));
 
-        // The client address the host's edge saw (one trusted hop), not the
-        // leftmost forwarded-for entry, which the client writes itself.
-        const clientIp = (req as Request).ip || req.socket?.remoteAddress;
-        if (clientIp) proxyReq.setHeader('X-Forwarded-For', clientIp);
-        else proxyReq.removeHeader('X-Forwarded-For');
-        for (const header of ['forwarded', 'x-real-ip', 'cf-connecting-ip']) proxyReq.removeHeader(header);
+    // The client address the host's edge saw (one trusted hop), not the
+    // leftmost forwarded-for entry, which the client writes itself.
+    const clientIp = (req as Request).ip || req.socket?.remoteAddress;
+    if (clientIp) proxyReq.setHeader('X-Forwarded-For', clientIp);
+    else proxyReq.removeHeader('X-Forwarded-For');
+    for (const header of ['forwarded', 'x-real-ip', 'cf-connecting-ip']) proxyReq.removeHeader(header);
 
-        // The sandbox's token is this API's bearer credential: Clerk gets the other cookies, its own among them.
-        const cookie = proxyReq.getHeader('cookie');
-        if (cookie !== undefined) {
-          const kept = withoutSandboxCookies(Array.isArray(cookie) ? cookie.join('; ') : String(cookie));
-          if (kept) proxyReq.setHeader('Cookie', kept);
-          else proxyReq.removeHeader('Cookie');
-        }
-      },
-      // Clerk's dynamic Frontend API responses (/v1/environment, /v1/client,
-      // JWKS, ...) arrive without a Content-Length, so relaying them would use
-      // Transfer-Encoding: chunked — which the deployment edge (Cloud Run)
-      // rejects, turning the app's 200 into a 500. Buffer only those so they can
-      // be re-sent with a Content-Length; the body is forwarded untouched so
-      // Content-Encoding is preserved. Length-known responses (e.g. /npm/*
-      // assets) and body-less responses stream through without buffering.
-      proxyRes: (proxyRes, req, res) => {
-        const flight = flights.get(req);
-        if (!flight || flight.closed) { proxyRes.destroy(); return; }
-        flight.response = proxyRes;
-        // The headers arrived in time: from here the body is timed by its progress.
-        flight.progress();
-        const headers = { ...proxyRes.headers };
-        // Transfer-Encoding/Connection are hop-by-hop (RFC 7230 §6.1).
-        delete headers['transfer-encoding'];
-        delete headers['connection'];
-        delete headers['keep-alive'];
+    // The sandbox's token is this API's bearer credential: Clerk gets the other cookies, its own among them.
+    const cookie = proxyReq.getHeader('cookie');
+    if (cookie !== undefined) {
+      const kept = withoutSandboxCookies(Array.isArray(cookie) ? cookie.join('; ') : String(cookie));
+      if (kept) proxyReq.setHeader('Cookie', kept);
+      else proxyReq.removeHeader('Cookie');
+    }
+  });
+  // Clerk's dynamic Frontend API responses (/v1/environment, /v1/client,
+  // JWKS, ...) arrive without a Content-Length, so relaying them would use
+  // Transfer-Encoding: chunked — which the deployment edge (Cloud Run)
+  // rejects, turning the app's 200 into a 500. Buffer only those so they can
+  // be re-sent with a Content-Length; the body is forwarded untouched so
+  // Content-Encoding is preserved. Length-known responses (e.g. /npm/*
+  // assets) and body-less responses stream through without buffering.
+  proxy.on('proxyRes', (proxyRes, req, res) => {
+    const flight = flights.get(req);
+    if (!flight || flight.closed) { proxyRes.destroy(); return; }
+    flight.response = proxyRes;
+    // The headers arrived in time: from here the body is timed by its progress.
+    flight.progress();
+    const headers = { ...proxyRes.headers };
+    // Transfer-Encoding/Connection are hop-by-hop (RFC 7230 §6.1).
+    delete headers['transfer-encoding'];
+    delete headers['connection'];
+    delete headers['keep-alive'];
 
-        const status = proxyRes.statusCode ?? 502;
-        // Content-Length is forbidden on 1xx/204; HEAD/304 may keep theirs.
-        if (status < 200 || status === 204) {
-          delete headers['content-length'];
-        }
+    const status = proxyRes.statusCode ?? 502;
+    // Content-Length is forbidden on 1xx/204; HEAD/304 may keep theirs.
+    if (status < 200 || status === 204) {
+      delete headers['content-length'];
+    }
 
-        const bodyless =
-          req.method === 'HEAD' ||
-          status < 200 ||
-          status === 204 ||
-          status === 304;
-        const length = headers['content-length'];
-        if (!bodyless && length !== undefined && (!/^\d+$/.test(String(length)) || Number(length) > limits.responseBytes)) {
-          flight.fail(502); return;
-        }
-        proxyRes.on('error', () => flight.fail(502));
-        proxyRes.on('aborted', () => flight.fail(502));
-        if (headers['content-length'] !== undefined || bodyless) {
-          res.writeHead(status, headers);
-          // Headers are already sent, so abort the response if the upstream
-          // stream errors mid-pipe (e.g. ECONNRESET) rather than leaving an
-          // unhandled 'error' or a hung client. The pipe reads a chunk only once
-          // the client's connection has taken the last, so each one is progress.
-          proxyRes.pipe(res);
-          proxyRes.on('data', flight.progress);
-          return;
-        }
+    const bodyless =
+      req.method === 'HEAD' ||
+      status < 200 ||
+      status === 204 ||
+      status === 304;
+    const length = headers['content-length'];
+    if (!bodyless && length !== undefined && (!/^\d+$/.test(String(length)) || Number(length) > limits.responseBytes)) {
+      flight.fail(502); return;
+    }
+    proxyRes.on('error', () => flight.fail(502));
+    proxyRes.on('aborted', () => flight.fail(502));
+    if (headers['content-length'] !== undefined || bodyless) {
+      res.writeHead(status, headers);
+      // Headers are already sent, so abort the response if the upstream
+      // stream errors mid-pipe (e.g. ECONNRESET) rather than leaving an
+      // unhandled 'error' or a hung client. The pipe reads a chunk only once
+      // the client's connection has taken the last, so each one is progress.
+      proxyRes.pipe(res);
+      proxyRes.on('data', flight.progress);
+      return;
+    }
 
-        const chunks: Buffer[] = flight.buffered = [];
-        let bytes = 0;
-        proxyRes.on('data', (chunk: Buffer) => {
-          if (flight.closed) return;
-          flight.progress();
-          bytes += chunk.length;
-          if (bytes > limits.bufferedBytes) { flight.fail(502); return; }
-          chunks.push(chunk);
-        });
-        proxyRes.on('end', () => {
-          if (flight.closed) return;
-          headers['content-length'] = String(bytes);
-          res.writeHead(status, headers);
-          // Sent from the list itself, never joined into a second copy; the pipe takes each slice as the connection
-          // takes the last, so each one is progress.
-          const replay = Readable.from(sendOnce(chunks), { objectMode: false });
-          replay.pipe(res);
-          replay.on('data', flight.progress);
-        });
-      },
-      // Fixed error responses never disclose request URLs, cookies or upstream credentials.
-      error: (_error, req) => { flights.get(req)?.fail(502); },
-    },
-  }) as RequestHandler;
-  return (req, res, next) => {
+    const chunks: Buffer[] = flight.buffered = [];
+    let bytes = 0;
+    proxyRes.on('data', (chunk: Buffer) => {
+      if (flight.closed) return;
+      flight.progress();
+      bytes += chunk.length;
+      if (bytes > limits.bufferedBytes) { flight.fail(502); return; }
+      chunks.push(chunk);
+    });
+    proxyRes.on('end', () => {
+      if (flight.closed) return;
+      headers['content-length'] = String(bytes);
+      res.writeHead(status, headers);
+      // Sent from the list itself, never joined into a second copy; the pipe takes each slice as the connection
+      // takes the last, so each one is progress.
+      const replay = Readable.from(sendOnce(chunks), { objectMode: false });
+      replay.pipe(res);
+      replay.on('data', flight.progress);
+    });
+  });
+  // httpxy can either emit an error or reject web(); both use the same fixed, credential-free response.
+  proxy.on('error', (_error, req) => { if (req) flights.get(req)?.fail(502); });
+  return (req, res) => {
     if (!originFor(req)) {
-      res.status(503).json({ error: 'Sign-in is not available at this address. Contact the Valo Pay team.', requestId: req.id });
+      res.status(503).json({ error: 'Sign-in is not available at this address. Contact the Valo Pay 1 team.', requestId: req.id });
       return;
     }
     // httpxy skips its proxyReq event for Expect requests. That would bypass
@@ -304,7 +302,12 @@ export function createBoundedClerkProxy(secretKey: string, options: { target?: s
     flights.set(req, flight);
     req.once('aborted', cleanup);
     res.once('close', cleanup); res.once('finish', cleanup);
-    // Cancel the upstream even if the client disconnects before headers arrive.
-    return proxy(req, res, (error?: unknown) => { if (error) flight.fail(502); else { cleanup(); next(); } });
+    res.once('error', () => flight.fail(502));
+    // Express has removed the mount path; preserve the historical literal-prefix rewrite for direct use too.
+    if (req.url.startsWith(CLERK_PROXY_PATH)) req.url = req.url.slice(CLERK_PROXY_PATH.length);
+    // The transport owns no listening server or WebSocket upgrades. Every upstream belongs to a flight, which
+    // cancels it on response close/finish, request abort, server connection shutdown or any failed budget.
+    try { void proxy.web(req, res).catch(() => flight.fail(502)); }
+    catch { flight.fail(502); }
   };
 }

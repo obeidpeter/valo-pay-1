@@ -1,6 +1,6 @@
 /** Payment allocations, payer decisions, returned money and dispute releases. */
 import { type TypedRecord, type DomainState, type Context, type ValopayRecord } from "./types";
-import { normaliseReversalStatus, normaliseRefundStatus, isKobo, paymentUnappliedKobo, paymentMoneyReturned, paymentRefundedKobo, nairaText, allocationClosedStatuses, sumMoney, isOpenException, resolveExceptionType, optionText, REVIEW_SUPERSESSION } from "@workspace/valopay-schema";
+import { normaliseReversalStatus, normaliseRefundStatus, isKobo, paymentUnappliedKobo, paymentMoneyReturned, paymentRefundedKobo, nairaText, allocationClosedStatuses, sumMoney, isOpenException, resolveExceptionType, optionText, REVIEW_SUPERSESSION } from "@workspace/valo-pay-1-schema";
 import { outstanding, currencyOf, paymentReturned, paymentReversed } from "./reconciliation-values";
 import { makeRecord, touch, recordsOf, findRecord } from "./records";
 import { recordsWhere, recordById } from "./record-index";
@@ -363,7 +363,7 @@ export function settlePaymentStatus(state: DomainState, ctx: Context, payment: T
 }
 
 /**
- * Records a refund made outside Valo Pay: it returns what the payment has not
+ * Records a refund made outside Valo Pay 1: it returns what the payment has not
  * applied, and data.refundedKobo keeps that amount for billing and reports. A
  * caller that returns applied money, such as the pay-by-bank refund, takes the
  * allocations off their instalments first, so the whole receipt is recorded.

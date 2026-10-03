@@ -78,7 +78,7 @@ const described: Record<DatabaseLimit, { what: string; next: string; retryAfterS
   statement_timeout: { what: 'This request took too long and was stopped.', next: 'Try again in a moment, and quote this reference if it happens again.', retryAfterSeconds: 5 },
   idle_timeout: { what: 'This request took too long and was stopped.', next: 'Try again in a moment, and quote this reference if it happens again.', retryAfterSeconds: 5 },
   connection_lost: { what: 'The connection to the database was lost.', next: 'Try again in a moment.', retryAfterSeconds: 2 },
-  pool_timeout: { what: 'Valo Pay is busy.', next: 'Try again in a moment.', retryAfterSeconds: 2 },
+  pool_timeout: { what: 'Valo Pay 1 is busy.', next: 'Try again in a moment.', retryAfterSeconds: 2 },
   database_unavailable: { what: 'The database is not available.', next: 'Try again shortly.', retryAfterSeconds: 10 },
   operation_running: { what: 'This request is still running.', next: 'Wait a moment, then check the original request to see its result.', retryAfterSeconds: 2 },
 };

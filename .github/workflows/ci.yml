@@ -15,6 +15,10 @@ on:
 permissions:
   contents: read
 
+env:
+  VITE_VALO_PAY_1_ENVIRONMENT: test
+  VITE_VALO_PAY_1_AUTH_MODE: disabled
+
 # A newer push to a pull request cancels its running checks; a run for a push to main is never cancelled once started.
 concurrency:
   group: source-checks-${{ github.event.pull_request.number || github.ref }}
@@ -47,16 +51,8 @@ jobs:
       - name: Install locked dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Audit production dependencies for high or critical advisories
-        run: pnpm audit --prod --audit-level=high
-
       - name: Verify deployment runtime fails closed without downloading
         run: node scripts/deployment-node.test.mjs
-
-      # The console declares its runtime packages (React, Clerk, Vite and the rest) as development
-      # dependencies, which --prod leaves out: this covers what ships to browsers and the build tools.
-      - name: Audit every dependency, the console's included, for high or critical advisories
-        run: pnpm audit --audit-level=high
 
       - name: Check the committed contract and its generated packages match the generator
         run: pnpm run check:contract
@@ -74,7 +70,7 @@ jobs:
 
       - name: Rehearse operational incident and recovery delivery locally
         run: |
-          node scripts/monitor-valopay.test.mjs
+          node scripts/monitor-valo-pay-1.test.mjs
           scripts/node_modules/.bin/tsx artifacts/api-server/tests/edit-versions.test.ts
 
       - name: Run golden tests (shared schema, retry engine, reconciliation)
@@ -86,7 +82,7 @@ jobs:
           scripts/node_modules/.bin/tsx artifacts/api-server/tests/export-jobs.test.ts
 
       - name: Run console tests (pages in jsdom against the in-memory API)
-        run: pnpm --filter @workspace/valopay run test
+        run: pnpm --filter @workspace/valo-pay-1 run test
 
       # The API bundle (the server and the one-shot close pass), the console and the mockup sandbox.
       - name: Build every package
@@ -94,6 +90,18 @@ jobs:
         env:
           PORT: "5173"
           BASE_PATH: "/"
+
+      # Keep both audits mandatory, while allowing functional checks to produce evidence when
+      # an upstream advisory appears. A failed audit still fails this job and the release check.
+      - name: Audit production dependencies for high or critical advisories
+        if: ${{ !cancelled() }}
+        run: pnpm audit --prod --audit-level=high
+
+      # The console declares its runtime packages (React, Clerk, Vite and the rest) as development
+      # dependencies, which --prod leaves out: this covers what ships to browsers and the build tools.
+      - name: Audit every dependency, the console's included, for high or critical advisories
+        if: ${{ !cancelled() }}
+        run: pnpm audit --audit-level=high
 
   # The browser workflows, one Playwright project a job, so each job has room under its timeout and a
   # retry of a slow spec cannot push the source checks past theirs.
@@ -136,14 +144,14 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build console
-        run: pnpm --filter @workspace/valopay run build
+        run: pnpm --filter @workspace/valo-pay-1 run build
         env:
           PORT: "5173"
           BASE_PATH: "/"
 
       - name: Find the Playwright version
         id: playwright
-        run: echo "version=$(node -p "require('./artifacts/valo-pay/package.json').devDependencies['@playwright/test']")" >> "$GITHUB_OUTPUT"
+        run: echo "version=$(node -p "require('./artifacts/valo-pay-1/package.json').devDependencies['@playwright/test']")" >> "$GITHUB_OUTPUT"
 
       - name: Restore the test browser
         id: browser-cache
@@ -154,14 +162,14 @@ jobs:
 
       - name: Install the test browser
         if: steps.browser-cache.outputs.cache-hit != 'true'
-        run: pnpm --filter @workspace/valopay exec playwright install --with-deps ${{ matrix.browser }}
+        run: pnpm --filter @workspace/valo-pay-1 exec playwright install --with-deps ${{ matrix.browser }}
 
       - name: Install the test browser's system libraries
         if: steps.browser-cache.outputs.cache-hit == 'true'
-        run: pnpm --filter @workspace/valopay exec playwright install-deps ${{ matrix.browser }}
+        run: pnpm --filter @workspace/valo-pay-1 exec playwright install-deps ${{ matrix.browser }}
 
       - name: Browser workflows in ${{ matrix.project }}
-        run: pnpm --filter @workspace/valopay run test:browser --project=${{ matrix.project }}
+        run: pnpm --filter @workspace/valo-pay-1 run test:browser --project=${{ matrix.project }}
 
       - name: Preserve browser failure evidence
         if: failure()
@@ -169,8 +177,8 @@ jobs:
         with:
           name: browser-failure-evidence-${{ matrix.project }}
           path: |
-            artifacts/valo-pay/playwright-report
-            artifacts/valo-pay/test-results
+            artifacts/valo-pay-1/playwright-report
+            artifacts/valo-pay-1/test-results
           retention-days: 7
 
   # engines admits Node 22.22.2 and later 22 releases as well as 24: this job keeps that honest with the
@@ -222,20 +230,20 @@ jobs:
         image: postgres:16.15@sha256:a3b7f434b2dc57ce85a67e171163eb8ab1a1ebcb39d27484661f26b1dfbe30d6
         env:
           POSTGRES_USER: postgres
-          POSTGRES_DB: valopay
+          POSTGRES_DB: valo_pay_1_test
           POSTGRES_HOST_AUTH_METHOD: trust
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U postgres -d valopay"
+          --health-cmd "pg_isready -U postgres -d valo_pay_1_test"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 12
     env:
       CI: "true"
       NODE_ENV: development
-      VALOPAY_RUN_INTEGRATION: "1"
-      DATABASE_URL: postgres://postgres@127.0.0.1:5432/valopay
+      VALO_PAY_1_RUN_INTEGRATION: "1"
+      DATABASE_URL: postgres://postgres@127.0.0.1:5432/valo_pay_1_test
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -257,7 +265,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Create the schema in the job's throwaway database
-        run: pnpm --filter @workspace/db run push
+        run: pnpm --filter @workspace/valo-pay-1-db run push
 
       - name: Run the repository and scheduled-close suites
         run: pnpm run test:integration
@@ -268,15 +276,15 @@ jobs:
         if: ${{ !cancelled() }}
         run: pnpm run check:pilot-rehearsal
         env:
-          VALOPAY_RUN_PILOT_REHEARSAL: "1"
-          VALOPAY_PILOT_REHEARSAL_REPORT: ${{ runner.temp }}/valo-pay-pilot-rehearsal.json
+          VALO_PAY_1_RUN_PILOT_REHEARSAL: "1"
+          VALO_PAY_1_PILOT_REHEARSAL_REPORT: ${{ runner.temp }}/valo-pay-1-pilot-rehearsal.json
 
       - name: Preserve synthetic pilot acceptance evidence
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: synthetic-pilot-rehearsal-evidence
-          path: ${{ runner.temp }}/valo-pay-pilot-rehearsal.json
+          path: ${{ runner.temp }}/valo-pay-1-pilot-rehearsal.json
           if-no-files-found: error
           retention-days: 14
 
@@ -286,8 +294,8 @@ jobs:
         if: ${{ !cancelled() }}
         run: scripts/node_modules/.bin/tsx artifacts/api-server/tests/recovery-rehearsal.integration.test.ts
         env:
-          VALOPAY_RUN_RECOVERY: "1"
-          VALOPAY_REHEARSAL_REPORT: recovery-evidence.json
+          VALO_PAY_1_RUN_RECOVERY: "1"
+          VALO_PAY_1_REHEARSAL_REPORT: recovery-evidence.json
 
       - name: Preserve synthetic recovery measurements
         if: ${{ !cancelled() }}
@@ -308,17 +316,17 @@ jobs:
         image: postgres:16.15@sha256:a3b7f434b2dc57ce85a67e171163eb8ab1a1ebcb39d27484661f26b1dfbe30d6
         env:
           POSTGRES_USER: postgres
-          POSTGRES_DB: valopay_browser_test
+          POSTGRES_DB: valo_pay_1_browser_test
           POSTGRES_HOST_AUTH_METHOD: trust
         ports: ["5432:5432"]
         options: >-
-          --health-cmd "pg_isready -U postgres -d valopay_browser_test"
+          --health-cmd "pg_isready -U postgres -d valo_pay_1_browser_test"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 12
     env:
       CI: "true"
-      DATABASE_URL: postgres://postgres@127.0.0.1:5432/valopay_browser_test
+      DATABASE_URL: postgres://postgres@127.0.0.1:5432/valo_pay_1_browser_test
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -333,15 +341,15 @@ jobs:
       - name: Install locked dependencies
         run: pnpm install --frozen-lockfile
       - name: Create disposable browser database schema
-        run: pnpm --filter @workspace/db run push
+        run: pnpm --filter @workspace/valo-pay-1-db run push
       - name: Build console
-        run: pnpm --filter @workspace/valopay run build
+        run: pnpm --filter @workspace/valo-pay-1 run build
         env:
           PORT: "5173"
           BASE_PATH: "/"
       - name: Find the Playwright version
         id: playwright
-        run: echo "version=$(node -p "require('./artifacts/valo-pay/package.json').devDependencies['@playwright/test']")" >> "$GITHUB_OUTPUT"
+        run: echo "version=$(node -p "require('./artifacts/valo-pay-1/package.json').devDependencies['@playwright/test']")" >> "$GITHUB_OUTPUT"
       - name: Restore Chromium
         id: browser-cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -350,18 +358,18 @@ jobs:
           key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}-chromium
       - name: Install Chromium
         if: steps.browser-cache.outputs.cache-hit != 'true'
-        run: pnpm --filter @workspace/valopay exec playwright install --with-deps chromium
+        run: pnpm --filter @workspace/valo-pay-1 exec playwright install --with-deps chromium
       - name: Install Chromium's system libraries
         if: steps.browser-cache.outputs.cache-hit == 'true'
-        run: pnpm --filter @workspace/valopay exec playwright install-deps chromium
+        run: pnpm --filter @workspace/valo-pay-1 exec playwright install-deps chromium
       - name: Exercise real middleware, repositories and database persistence in a browser
-        run: pnpm --filter @workspace/valopay run test:browser:database
+        run: pnpm --filter @workspace/valo-pay-1 run test:browser:database
       - name: Preserve browser database failure evidence
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: browser-database-failure-evidence
           path: |
-            artifacts/valo-pay/playwright-database-report
-            artifacts/valo-pay/test-results-database
+            artifacts/valo-pay-1/playwright-database-report
+            artifacts/valo-pay-1/test-results-database
           retention-days: 7

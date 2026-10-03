@@ -4,13 +4,13 @@ import { once } from "node:events";
 import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 
-if (process.env.VALOPAY_RUN_INTEGRATION !== "1") { console.log("Opt in on a disposable PostgreSQL database to test staff lender access."); process.exit(0); }
+if (process.env.VALO_PAY_1_RUN_INTEGRATION !== "1") { console.log("Opt in on a disposable PostgreSQL database to test staff lender access."); process.exit(0); }
 // Only Clerk's verified-email lookup is replaced below; no external call is made.
 const savedClerkKey = process.env.CLERK_SECRET_KEY; process.env.CLERK_SECRET_KEY = "sk_test_placeholder";
-const { pool } = await import("@workspace/db"), store = await import("../src/lib/valopay-store"), { default: router } = await import("../src/routes/index"), { errorHandler } = await import("../src/lib/error-handler");
+const { pool } = await import("@workspace/valo-pay-1-db"), store = await import("../src/lib/valo-pay-1-store"), { default: router } = await import("../src/routes/index"), { errorHandler } = await import("../src/lib/error-handler");
 const { clerkClient } = await import("@clerk/express"), savedGetUser = clerkClient.users.getUser;
-const saved = { VALOPAY_STAFF_ACCESS: process.env.VALOPAY_STAFF_ACCESS, VALOPAY_STAFF_ISSUER: process.env.VALOPAY_STAFF_ISSUER, VALOPAY_STAFF_ORIGINS: process.env.VALOPAY_STAFF_ORIGINS };
-Object.assign(process.env, { VALOPAY_STAFF_ACCESS: "staging", VALOPAY_STAFF_ISSUER: "https://identity.example", VALOPAY_STAFF_ORIGINS: "https://pilot.example" });
+const saved = { VALO_PAY_1_STAFF_ACCESS: process.env.VALO_PAY_1_STAFF_ACCESS, VALO_PAY_1_STAFF_ISSUER: process.env.VALO_PAY_1_STAFF_ISSUER, VALO_PAY_1_STAFF_ORIGINS: process.env.VALO_PAY_1_STAFF_ORIGINS };
+Object.assign(process.env, { VALO_PAY_1_STAFF_ACCESS: "staging", VALO_PAY_1_STAFF_ISSUER: "https://identity.example", VALO_PAY_1_STAFF_ORIGINS: "https://pilot.example" });
 const identities = new Map<string, any>(), app = express();
 app.use(express.json());
 app.use((req, _res, next) => { (req as any).auth = Object.assign(() => identities.get(String(req.header("X-Test-Identity"))) || { userId: null }, { [Symbol.for("@clerk/express.auth")]: true }); (req as any).log = { info() {}, error() {}, warn() {} }; next(); });

@@ -1,7 +1,7 @@
 // Offline tests for the API shell helpers: list paging with an updatedSince
 // watermark, and the sandbox creation limiter.
 import assert from "node:assert/strict";
-import { allocatableOnly, allocationChoices, pageRecords, LIST_PAGE_CEILING } from "../src/lib/valopay-list.js";
+import { allocatableOnly, allocationChoices, pageRecords, LIST_PAGE_CEILING } from "../src/lib/valo-pay-1-list.js";
 import { createCreationLimiter } from "../src/lib/creation-limit.js";
 import type { ValopayRecord } from "../src/domain/types.js";
 

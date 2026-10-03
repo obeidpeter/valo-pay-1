@@ -9,8 +9,8 @@ import { connectedRevision, runConnectedAction } from "../src/domain/connected.j
 import { makeRecord, recordsOf } from "../src/domain/records.js";
 import { validateRecord } from "../src/domain/validation.js";
 import type { DomainState, TypedRecord } from "../src/domain/types.js";
-import { resolutionCodesForException } from "@workspace/valopay-schema";
-const { assertFinalState } = await import("../src/lib/valopay-store.js");
+import { resolutionCodesForException } from "@workspace/valo-pay-1-schema";
+const { assertFinalState } = await import("../src/lib/valo-pay-1-store.js");
 const now = wat("2027-07-03T10:00:00"), finance = ctxAt(now, "Finance");
 function transaction<T>(state: DomainState, run: () => T): T {
   const before = structuredClone(state);

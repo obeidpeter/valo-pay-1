@@ -1,4 +1,4 @@
-import { counted, sumMoney } from "@workspace/valopay-schema";
+import { counted, sumMoney } from "@workspace/valo-pay-1-schema";
 import { canonicalDigest } from "../lib/digests";
 
 /** Synthetic/import planning domain. These functions never connect to a bank, post to an ERP,

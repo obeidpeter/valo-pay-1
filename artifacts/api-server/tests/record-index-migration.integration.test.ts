@@ -3,14 +3,14 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { requireCreateDatabase, requireLoopback, throwawayDatabaseName } from './throwaway-database';
 
-if (process.env.VALOPAY_RUN_INTEGRATION !== '1') {
+if (process.env.VALO_PAY_1_RUN_INTEGRATION !== '1') {
   console.log('Record index migration tests require a disposable local PostgreSQL instance.'); process.exit(0);
 }
 // Any loopback database whose login can create databases: the rehearsal builds its own throwaway one beside it.
 const suite = 'Record index migration rehearsal';
 const connection = new URL(process.env.DATABASE_URL || '');
 requireLoopback(suite, connection);
-const { pool, Pool } = await import('@workspace/db');
+const { pool, Pool } = await import('@workspace/valo-pay-1-db');
 await requireCreateDatabase(suite, pool);
 const database = throwawayDatabaseName(connection, 'index_rehearsal');
 const targetUrl = new URL(connection); targetUrl.pathname = `/${database}`;

@@ -1,3 +1,4 @@
+import { SANDBOX_COOKIE } from "../src/lib/sandbox-cookie";
 // Database-backed test for the scheduled daily close runner (REC-01): it closes
 // only due lenders, each in its own system transaction through the scoped
 // repository; skips a lender locked by a request in flight; isolates one
@@ -16,19 +17,19 @@
 import assert from "node:assert/strict";
 import { randomBytes, randomUUID } from "node:crypto";
 
-if (process.env.VALOPAY_RUN_INTEGRATION !== "1") {
-  console.log("Set VALOPAY_RUN_INTEGRATION=1 to run the scheduler integration test.");
+if (process.env.VALO_PAY_1_RUN_INTEGRATION !== "1") {
+  console.log("Set VALO_PAY_1_RUN_INTEGRATION=1 to run the scheduler integration test.");
   process.exit(0);
 }
 
-const { pool } = await import("@workspace/db");
-const { nextCloseInstant } = await import("@workspace/valopay-schema");
-const { SYSTEM_ACTOR_PREFIX, appendAudit, createPilotLender, dueScheduledCloses, inWorkspace, listMerchants, loadState, provisionStaffWorkspace, recordScheduledCloseFailure, saveState, scheduledCloseBacklog } = await import("../src/lib/valopay-store.js");
+const { pool } = await import("@workspace/valo-pay-1-db");
+const { nextCloseInstant } = await import("@workspace/valo-pay-1-schema");
+const { SYSTEM_ACTOR_PREFIX, appendAudit, createPilotLender, dueScheduledCloses, inWorkspace, listMerchants, loadState, provisionStaffWorkspace, recordScheduledCloseFailure, saveState, scheduledCloseBacklog } = await import("../src/lib/valo-pay-1-store.js");
 const { SCHEDULED_CLOSE_ACTOR, markSchedulerOff, runClosePassOnce, runDueCloses, startCloseScheduler, schedulerStatus } = await import("../src/lib/close-scheduler.js");
 const { followingCloseInstant, scheduledCloseBusinessDate } = await import("../src/domain/close.js");
 const { makeRecord } = await import("../src/domain/records.js");
 
-const requestFor = (token: string) => ({ headers: { cookie: `valopay_sandbox=${token}` }, secure: false, auth: Object.assign(() => ({ userId: null }), { [Symbol.for("@clerk/express.auth")]: true }) }) as any;
+const requestFor = (token: string) => ({ headers: { cookie: `${SANDBOX_COOKIE}=${token}` }, secure: false, auth: Object.assign(() => ({ userId: null }), { [Symbol.for("@clerk/express.auth")]: true }) }) as any;
 const response = () => ({ cookie() { /* a valid test cookie is already supplied */ } }) as any;
 const token = () => randomBytes(32).toString("hex");
 const setCursor = (merchantId: string, at: string) => pool.query("UPDATE valopay_merchants SET settings = settings || jsonb_build_object('nextCloseAt', $2::text) WHERE id=$1", [merchantId, at]);
@@ -428,8 +429,8 @@ try {
   // A lender whose close fails stays visible until its own close succeeds, whatever other lenders' passes do and
   // across a restart (K): each pass reads what is still owed from the database, the health answer carries it without
   // naming a lender, and the monitor raises it. A close more than 30 minutes past its time is overdue, whoever holds it.
-  const { probeService } = await import(new URL("../../../scripts/monitor-valopay.mjs", import.meta.url).href);
-  const { HealthCheckResponse } = await import("@workspace/api-zod");
+  const { probeService } = await import(new URL("../../../scripts/monitor-valo-pay-1.mjs", import.meta.url).href);
+  const { HealthCheckResponse } = await import("@workspace/valo-pay-1-api-zod");
   const { contractAnswer } = await import("../src/lib/contract.js");
   /** The health answer /api/healthz gives with this scheduler status, from a process up for ten minutes unless said, and the monitor's probe of it, or its codes alone. */
   const healthAnswer = (scheduler: unknown, uptimeSeconds = 600) => contractAnswer(HealthCheckResponse, { status: "ok", build: "test", startedAt: new Date().toISOString(), uptimeSeconds, scheduler });
@@ -557,10 +558,10 @@ try {
   const createLender = async (request: any, name: string) => (await inWorkspace(request, response(), (context) => createPilotLender(context, { name, segment: "Consumer lending" }, randomUUID()), "team")).lender.id;
   const visitorCreated = await createLender(requestFor(visitor), "Visitor's own lender");
   const signedInCreated = await createLender(signedInRequest(`user_synthetic_${randomBytes(8).toString("hex")}`), "Signed-in person's lender");
-  const staffSettings = { VALOPAY_STAFF_ACCESS: process.env.VALOPAY_STAFF_ACCESS, VALOPAY_STAFF_ISSUER: process.env.VALOPAY_STAFF_ISSUER, VALOPAY_STAFF_ORIGINS: process.env.VALOPAY_STAFF_ORIGINS };
+  const staffSettings = { VALO_PAY_1_STAFF_ACCESS: process.env.VALO_PAY_1_STAFF_ACCESS, VALO_PAY_1_STAFF_ISSUER: process.env.VALO_PAY_1_STAFF_ISSUER, VALO_PAY_1_STAFF_ORIGINS: process.env.VALO_PAY_1_STAFF_ORIGINS };
   let staffCreated = "";
   try {
-    Object.assign(process.env, { VALOPAY_STAFF_ACCESS: "staging", VALOPAY_STAFF_ISSUER: "https://identity.example", VALOPAY_STAFF_ORIGINS: "https://pilot.example" });
+    Object.assign(process.env, { VALO_PAY_1_STAFF_ACCESS: "staging", VALO_PAY_1_STAFF_ISSUER: "https://identity.example", VALO_PAY_1_STAFF_ORIGINS: "https://pilot.example" });
     const organisation = `org_${randomBytes(8).toString("hex")}`, administrator = `user_${randomBytes(8).toString("hex")}`, issued = Math.floor(Date.now() / 1000);
     await provisionStaffWorkspace(organisation, administrator, "Scheduled close rehearsal");
     const session = { userId: administrator, orgId: organisation, sessionId: `sess_${administrator}`, tokenType: "session_token", sessionStatus: "active", factorVerificationAge: [0, 0], sessionClaims: { sub: administrator, sid: `sess_${administrator}`, iss: "https://identity.example", azp: "https://pilot.example", iat: issued - 1, exp: issued + 3600 } };
@@ -575,7 +576,7 @@ try {
   assert.deepEqual(await scheduledCloseBacklog(30, { only: created }), { overdue: 2, failing: 0, publicSandboxes: { overdue: 1, failing: 0 } }, "an hour past their times, the visitor's is counted as a public sandbox, the others as lenders");
   for (const id of created) await pool.query(`UPDATE valopay_merchants SET settings = settings || '{"scheduledCloseEnabled": false}' WHERE id=$1`, [id]);
 
-  // With VALOPAY_CLOSE_SCHEDULER=external a scheduled job runs the closes and the web instances run no pass, so each
+  // With VALO_PAY_1_CLOSE_SCHEDULER=external a scheduled job runs the closes and the web instances run no pass, so each
   // reads what is still owed itself, on its background worker thread at the scheduler's interval, as index.ts starts it,
   // and its health answer carries the read: the monitor raises the same codes, so a job that has stopped running shows
   // as overdue closes, and a read that stops ages past three intervals into scheduler_stale. The reads take the close's
@@ -659,13 +660,13 @@ try {
   assert.ok((await pool.query("SELECT 1 FROM valopay_records r JOIN valopay_merchants m ON m.id=r.merchant_id WHERE m.workspace_id=$1 AND r.kind='audit' AND r.created_at >= now() - interval '1 day'", [workspace])).rowCount! >= 2, "recent system audit entries exist");
   for (let attempt = 0; attempt < 10; attempt += 1) {
     // The sweep is opt-in; the scheduled close's own entries must not count as activity once it runs.
-    process.env.VALOPAY_EXPIRED_WORKSPACE_CLEANUP = "on";
+    process.env.VALO_PAY_1_EXPIRED_WORKSPACE_CLEANUP = "on";
     await inWorkspace(requestFor(token()), response(), async (context) => { await listMerchants(context); });
     if ((await pool.query("SELECT 1 FROM valopay_workspaces WHERE id=$1", [workspace])).rowCount === 0) break;
   }
   assert.equal((await pool.query("SELECT 1 FROM valopay_workspaces WHERE id=$1", [workspace])).rowCount, 0, "a sandbox touched only by the seed and the scheduled close expires");
   console.log("scheduled close integration tests passed");
 } finally {
-  delete process.env.VALOPAY_EXPIRED_WORKSPACE_CLEANUP;
+  delete process.env.VALO_PAY_1_EXPIRED_WORKSPACE_CLEANUP;
   await pool.end();
 }

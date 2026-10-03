@@ -4,7 +4,7 @@ This is an explicit operator workflow for synthetic workspaces. It is not a live
 
 ## Prerequisites
 
-Use the existing operator-provisioned `VALOPAY_PAYSTACK_INGRESS=test` configuration, a valid `PAYSTACK_TEST_SECRET_KEY` in secret storage, and the existing `VALOPAY_PAYSTACK_CONNECTIONS` mapping. The opaque connection ID must identify the intended workspace and lender. Never supply a credential on the command line.
+Use the existing operator-provisioned `VALO_PAY_1_PAYSTACK_INGRESS=test` configuration, a valid `PAYSTACK_TEST_SECRET_KEY` in secret storage, and the existing `VALO_PAY_1_PAYSTACK_CONNECTIONS` mapping. The opaque connection ID must identify the intended workspace and lender. Never supply a credential on the command line.
 
 The lender must have `settings.environment=sandbox`, mode `observation` or `sandbox`, and its emergency stop **on**. If restricted runtime isolation is enabled, the configured service identity must also retain the appropriate membership and lender grant; the ordinary repository checks still apply.
 
@@ -13,7 +13,7 @@ The inbox must contain an authenticated `test`-mode payment event in `awaiting_v
 ## Run after access is available
 
 ```sh
-pnpm --filter @workspace/scripts exec tsx ./src/verify-paystack-event.ts --connection-id <opaque-test-connection> --event-id <saved-test-event>
+pnpm --filter @workspace/valo-pay-1-scripts exec tsx ./src/verify-paystack-event.ts --connection-id <opaque-test-connection> --event-id <saved-test-event>
 ```
 
 `--help` reads no provider or database. A configured run makes a fixed-origin `GET https://api.paystack.co/transaction/verify/<saved-reference>` only. Redirects are refused and the existing bounded response/timeout controls apply. There is no initialise, transfer, debit or retry-payment endpoint in this adapter.
@@ -50,7 +50,7 @@ The command prints one JSON report, on standard output when the event is verifie
 | `check_limit_reached` | 1 | The event has 100 recorded checks. |
 | `duplicate_observation` | 1 | Another observation already holds this transaction identity. |
 | `observation_missing` | 1 | A verified event lost its observation, for example in an incomplete restore. It is held for recovery review and never recreated. |
-| `connection_not_mapped` | 1 | `VALOPAY_PAYSTACK_CONNECTIONS` does not map the connection ID. |
+| `connection_not_mapped` | 1 | `VALO_PAY_1_PAYSTACK_CONNECTIONS` does not map the connection ID. |
 | `connection_unavailable` | 1 | The mapping names a lender outside the mapped workspace. |
 | `lender_not_found` | 1 | The mapped lender does not exist in the mapped workspace. Correct the mapping; checking the same event again will not help. |
 | `not_configured` | 1 | The ingress is off, the key is missing or not an `sk_test_` key, the connection map is not valid, or the database settings are missing or refused: the database they name does not exist (SQLSTATE 3D000), or the database refuses the login (class 28) or its rights (42501). Nothing was recorded. |

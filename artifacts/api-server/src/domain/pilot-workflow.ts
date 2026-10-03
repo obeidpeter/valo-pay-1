@@ -6,12 +6,12 @@ import {
   notFoundText,
   type BatchInput,
   type CaseInput,
-} from "@workspace/valopay-schema";
+} from "@workspace/valo-pay-1-schema";
 import { roleRefusal } from "./validation";
 import type { Context, DomainState, ValopayRecord } from "./types";
 import { makeRecord, assertNoRealBankDetails, assertSourceOpened, isSealedPayload } from "./records";
 import { assertRecordVersion } from "../lib/edit-versions";
-import { importCsv, sourceRowIds } from "../lib/valopay-import";
+import { importCsv, sourceRowIds } from "../lib/valo-pay-1-import";
 import { batchSourceQuality, assertSourceBatchReady } from './source-quality';
 import { assertSourceExpectation } from './source-completeness';
 
@@ -77,14 +77,14 @@ function rowIdentities(input: BatchInput): string[] {
       max_record_size: 20000,
     });
   } catch {
-    refuse("Valo Pay could not read this CSV file. Use a header row, the same number of columns on every row, and quotes around values that contain commas.");
+    refuse("Valo Pay 1 could not read this CSV file. Use a header row, the same number of columns on every row, and quotes around values that contain commas.");
   }
   // The rows are screened here, where every batch is saved, not only where a
   // recoverable request carries a key.
   try {
     assertNoRealBankDetails(rows);
   } catch (error) {
-    refuse(error instanceof Error ? error.message : "Valo Pay could not check the rows in this file.");
+    refuse(error instanceof Error ? error.message : "Valo Pay 1 could not check the rows in this file.");
   }
   if (
     !rows.length ||

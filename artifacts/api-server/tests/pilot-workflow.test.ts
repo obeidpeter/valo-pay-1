@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { seedMerchant } from "../src/lib/valopay-seed";
+import { seedMerchant } from "../src/lib/valo-pay-1-seed";
 import {
   saveImportBatch,
   commitImportBatch,
@@ -9,10 +9,10 @@ import {
 import { advanceRecordVersions } from "../src/lib/edit-versions";
 import { validateRecord } from "../src/domain/validation";
 import { executeAction } from "../src/domain/actions";
-import type { BatchInput } from "@workspace/valopay-schema";
+import type { BatchInput } from "@workspace/valo-pay-1-schema";
 import { ZodError } from "zod";
 process.env.DATABASE_URL ||= "postgres://unused:unused@127.0.0.1:1/unused";
-const { assertFinalState } = await import("../src/lib/valopay-store");
+const { assertFinalState } = await import("../src/lib/valo-pay-1-store");
 const { recoverableRequest } = await import("../src/lib/operation-recovery");
 
 const ctx = {

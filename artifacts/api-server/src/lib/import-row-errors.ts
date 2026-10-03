@@ -1,5 +1,5 @@
 import type { ZodIssue } from "zod";
-import { defaultStatus, importFieldLabel, recordTypeLabel, valueLabel } from "@workspace/valopay-schema";
+import { defaultStatus, importFieldLabel, recordTypeLabel, valueLabel } from "@workspace/valo-pay-1-schema";
 import type { ProblemRule, ValidationProblem } from "../domain/validation";
 
 /*
@@ -24,7 +24,7 @@ const DATE = "Use YYYY-MM-DD or a UTC timestamp such as 2026-09-18T07:00:00Z, an
 /** zod's own texts, which a row error never shows; a schema's own words for an issue are plain already. */
 const zodText = /^(Required|Expected |Invalid|Unrecognized key|String must|Number must|Array must|Set must|Date must|BigInt must|Intersection results)/;
 /**
- * An issue no rule below words: a list or an object, which no CSV cell can be (Valo Pay sets such fields), the
+ * An issue no rule below words: a list or an object, which no CSV cell can be (Valo Pay 1 sets such fields), the
  * schema's own words, or a plain request to check the value. zod's text stays in the detail.
  */
 function otherIssue(issue: ZodIssue): string {
@@ -69,7 +69,7 @@ function ruleWords(rule: ProblemRule | undefined, field: string, kind: string, u
       return `No ${recordTypeLabel(rule.kind)} has the ${rule.kind === "policies" ? "ID" : "reference or ID"} “${rule.value}” in this lender.`;
     case "starting-status": {
       const start = defaultStatus[kind as keyof typeof defaultStatus];
-      return `${valueLabel(rule.value)} (${rule.value}) is set by Valo Pay later, so a new ${recordTypeLabel(kind)} cannot start with it. Leave the column blank${start ? ` or use ${choices([start])}` : ""}.`;
+      return `${valueLabel(rule.value)} (${rule.value}) is set by Valo Pay 1 later, so a new ${recordTypeLabel(kind)} cannot start with it. Leave the column blank${start ? ` or use ${choices([start])}` : ""}.`;
     }
     case "issue": return issueWords(rule.issue, field);
     default: return undefined;

@@ -1,12 +1,12 @@
 // Run only against the intended synthetic staging database. No HTTP bootstrap.
-// Needs that database's DATABASE_URL and VALOPAY_STAFF_ACCESS=staging. The
+// Needs that database's DATABASE_URL and VALO_PAY_1_STAFF_ACCESS=staging. The
 // arguments and the staff setting are checked before the store, and with it
 // the database pool, is loaded, so a mistake here never opens a connection.
 // Three modes (docs/pilot-workflow-release.md, "Pilot administrators"):
 // provision an organisation with its first administrator, add another
 // administrator, or renew an administrator's 90 days. Each can be run again:
 // it says where things stand instead of failing on a duplicate.
-const command = "VALOPAY_STAFF_ACCESS=staging pnpm --filter @workspace/scripts exec tsx ./provision-pilot.ts --synthetic-staging";
+const command = "VALO_PAY_1_STAFF_ACCESS=staging pnpm --filter @workspace/valo-pay-1-scripts exec tsx ./provision-pilot.ts --synthetic-staging";
 const usage = [
   `Usage: ${command} org_ID user_ID "Workspace name"`,
   `       ${command} --add-administrator org_ID user_ID "Display name"`,
@@ -27,17 +27,18 @@ if (
   console.error(usage);
   process.exit(1);
 }
-if (process.env.VALOPAY_STAFF_ACCESS !== "staging") {
+if (process.env.VALO_PAY_1_STAFF_ACCESS !== "staging") {
   console.error(
-    "Set VALOPAY_STAFF_ACCESS=staging: a pilot workspace is provisioned only for staging staff access.",
+    "Set VALO_PAY_1_STAFF_ACCESS=staging: a pilot workspace is provisioned only for staging staff access.",
   );
   process.exit(1);
 }
-// The store's own pool; the scripts package does not depend on @workspace/db.
-const { provisionStaffWorkspace, addStaffAdministrator, renewStaffAdministrator, closeDatabase } = await import(
-  "../artifacts/api-server/src/lib/valopay-store"
+// The store's own pool; the scripts package does not depend on @workspace/valo-pay-1-db.
+const { provisionStaffWorkspace, addStaffAdministrator, renewStaffAdministrator, closeDatabase, verifyProductDatabaseBinding } = await import(
+  "../artifacts/api-server/src/lib/valo-pay-1-store"
 );
 try {
+  await verifyProductDatabaseBinding();
   const result =
     mode === "add" ? await addStaffAdministrator(organisation!, administrator!, name!)
     : mode === "renew" ? await renewStaffAdministrator(organisation!, administrator!)

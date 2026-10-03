@@ -18,7 +18,7 @@ This conservative first version permanently reserves an economic unit in the ind
 
 ## Run the isolated rehearsal
 
-Use a disposable local PostgreSQL server and a login allowed to create databases. Set `DATABASE_URL` to its disposable application-test database, and `VALOPAY_RUN_INTEGRATION=1`. Then run:
+Use a disposable local PostgreSQL server and a login allowed to create databases. Set `DATABASE_URL` to its disposable application-test database, and `VALO_PAY_1_RUN_INTEGRATION=1`. Then run:
 
 ```sh
 pnpm run rehearse:instructions

@@ -1,4 +1,4 @@
-/** Internal repository journal. Import through valopay-store; external access is rejected by the boundary check. */
+/** Internal repository journal. Import through valo-pay-1-store; external access is rejected by the boundary check. */
 import { requestLabel, summariseRequest } from "../operation-summary";
 import { storedRequestLabel } from "../action-names";
 import { LENDER_NOT_FOUND, onlyRoles, sentWithAnotherRole } from "../refusal-words";
@@ -16,9 +16,9 @@ import {
   databaseLimits,
   DatabaseLimitError,
 } from "../database-limits";
-import { definitiveRefusalStatuses } from "@workspace/valopay-schema";
+import { definitiveRefusalStatuses } from "@workspace/valo-pay-1-schema";
 import type { Request } from "express";
-import { pool, type PoolClient } from "@workspace/db";
+import { pool, type PoolClient } from "@workspace/valo-pay-1-db";
 import {
   bindRuntimeIdentity,
   runtimeIsolationEnabled,
@@ -156,12 +156,12 @@ export function createJournalRepository(dependencies: Dependencies) {
       updatedAt: row.updated_at.toISOString(),
       message:
         row.status === "completed"
-          ? "Valo Pay saved this request."
+          ? "Valo Pay 1 saved this request."
           : row.status === "cancelled"
             ? row.rejected
-              ? `Valo Pay refused this request: ${objectField(row.rejected, "message")} Correct it and send it again.`
+              ? `Valo Pay 1 refused this request: ${objectField(row.rejected, "message")} Correct it and send it again.`
               : "Cancelled before it completed. This request cannot run again."
-            : "Valo Pay has not confirmed this request yet. Check the original request.",
+            : "Valo Pay 1 has not confirmed this request yet. Check the original request.",
       // Only a compact result reference. Original payloads and export locations stay private. The saved record's kind is
       // the lender's record's, else the answer's own, else its route's: an export's answer named the kind it exports
       // before the journal recorded the export itself, a sealed request names no route, and some answers name no kind.
@@ -260,7 +260,7 @@ export function createJournalRepository(dependencies: Dependencies) {
     );
     if (count >= 100)
       fail(
-        "You have 100 requests that Valo Pay has not confirmed. Check them in Request history before you send more.",
+        "You have 100 requests that Valo Pay 1 has not confirmed. Check them in Request history before you send more.",
         409,
       );
     // What Request history calls the request once it can no longer be read: its route or action in words.
@@ -330,7 +330,7 @@ export function createJournalRepository(dependencies: Dependencies) {
       }
     }
     return typeof reason === "string" && reason.trim()
-      ? `Valo Pay refused this request and saved nothing: ${reason.trim()} It cannot run again. Check the latest records, then send a new request.`
+      ? `Valo Pay 1 refused this request and saved nothing: ${reason.trim()} It cannot run again. Check the latest records, then send a new request.`
       : "This request was cancelled before it completed, and nothing was saved. It cannot run again. Check the latest records, then send a new request.";
   }
   // The journal is read without the lender's lock: a busy lender never holds up Operations, a retry or a cancel's checks.
@@ -504,7 +504,7 @@ export function createJournalRepository(dependencies: Dependencies) {
     );
     return {
       message:
-        "Valo Pay confirmed this request had not completed, and cancelled it. It cannot run again.",
+        "Valo Pay 1 confirmed this request had not completed, and cancelled it. It cannot run again.",
     };
   }
   /** Resolve only this person's exact key and original role, without returning its private request body. */
@@ -590,7 +590,7 @@ export function createJournalRepository(dependencies: Dependencies) {
     );
     return {
       message:
-        "Valo Pay cancelled this request. Even if the original arrives later, it will not run. You can now send the change again.",
+        "Valo Pay 1 cancelled this request. Even if the original arrives later, it will not run. You can now send the change again.",
     };
   }
   /**

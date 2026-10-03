@@ -1,6 +1,6 @@
 /** Shared reconciliation constants and record values; no workflow dependencies. */
 import { type TypedRecord, type DomainState, type ValopayRecord } from "./types";
-import { normaliseRefundStatus, paymentMoneyReturned, providerConnectionKey, type ExceptionType, type PaymentChannel, normaliseReversalStatus } from "@workspace/valopay-schema";
+import { normaliseRefundStatus, paymentMoneyReturned, providerConnectionKey, type ExceptionType, type PaymentChannel, normaliseReversalStatus } from "@workspace/valo-pay-1-schema";
 
 export const DAY_MS = 24 * 60 * 60 * 1000;
 

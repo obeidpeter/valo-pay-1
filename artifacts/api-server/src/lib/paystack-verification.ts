@@ -13,10 +13,10 @@ import {
 } from "../providers/paystack-verification";
 
 /** The repository, loaded once a check has its configuration: a refusal before then opens no database. */
-let store: typeof import("./valopay-store") | undefined;
+let store: typeof import("./valo-pay-1-store") | undefined;
 // Loading connects to nothing, so it fails only for missing settings, such as the database address.
 const loadStore = async () =>
-  (store ??= await import("./valopay-store").catch(() =>
+  (store ??= await import("./valo-pay-1-store").catch(() =>
     refuseVerification(
       "The database is not configured. Run the command with the API's database settings; nothing was checked.",
       503,
@@ -51,6 +51,8 @@ export async function verifyStoredPaystackTestEvent(
     refuseVerification("The test connection is not configured.", 404, "connection_not_mapped");
   const { appendAudit, inMerchantAsSystem, loadState, merchantInWorkspace, saveState, systemWorkspaceMatches } =
     await loadStore();
+  try { await store!.verifyProductDatabaseBinding(); }
+  catch { return refuseVerification("Valo Pay 1 resource identity is not verified. Review the environment and resource bindings; nothing was checked.", 503, "not_configured"); }
   const transact: PaystackVerificationTransaction = async (
     id,
     write,
@@ -93,7 +95,7 @@ export async function verifyStoredPaystackTestEvent(
             ctx,
             "paystack.test_verification",
             eventId,
-            `The Valo Pay team checked a saved Paystack test event${typeof found === "string" ? ` (${found.replaceAll("_", " ")})` : ""}. No money moved.`,
+            `The Valo Pay 1 team checked a saved Paystack test event${typeof found === "string" ? ` (${found.replaceAll("_", " ")})` : ""}. No money moved.`,
           );
           await saveState(ctx, state);
         }

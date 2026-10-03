@@ -2,7 +2,7 @@
 import { type DomainState, type Context, type TypedRecord } from "./types";
 import { MatchIndex, intendedDueItem, eligibleForAutomaticMatching, narrationInstalments } from "./reconciliation-matching-index";
 import { paymentReturned, connectionOf, currencyOf, identityCondition, outstanding, paymentObservedAt, DUPLICATE_WINDOW_MS, connectionKey, DAY_MS } from "./reconciliation-values";
-import { paymentUnappliedKobo, paymentRefundedKobo, nairaText, valueWords } from "@workspace/valopay-schema";
+import { paymentUnappliedKobo, paymentRefundedKobo, nairaText, valueWords } from "@workspace/valo-pay-1-schema";
 import { rejectedMatches, allocatePayment } from "./reconciliation-payments";
 import { touch } from "./records";
 import { raiseException } from "./reconciliation-exceptions";

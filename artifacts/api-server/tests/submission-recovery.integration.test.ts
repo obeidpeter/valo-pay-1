@@ -1,24 +1,25 @@
+import { SANDBOX_COOKIE } from "../src/lib/sandbox-cookie";
 // Reload recovery identifies a caller's original operation without exposing its body. A missing row is not proof
 // of failure: cancellation fences the original key under the same lock used to receive its delayed request.
 import assert from 'node:assert/strict';
 import express from 'express';
 import { once } from 'node:events';
 import { randomBytes, randomUUID } from 'node:crypto';
-if (process.env.VALOPAY_RUN_INTEGRATION !== '1') { console.log('Submission recovery requires a disposable local PostgreSQL database.'); process.exit(0); }
+if (process.env.VALO_PAY_1_RUN_INTEGRATION !== '1') { console.log('Submission recovery requires a disposable local PostgreSQL database.'); process.exit(0); }
 assert.ok(['localhost', '127.0.0.1', '[::1]'].includes(new URL(process.env.DATABASE_URL || '').hostname));
-for (const setting of ['VALOPAY_STAFF_ACCESS', 'VALOPAY_RUNTIME_ISOLATION', 'VALOPAY_PAYLOAD_ENCRYPTION']) process.env[setting] = 'off';
-const { pool } = await import('@workspace/db');
+for (const setting of ['VALO_PAY_1_STAFF_ACCESS', 'VALO_PAY_1_RUNTIME_ISOLATION', 'VALO_PAY_1_PAYLOAD_ENCRYPTION']) process.env[setting] = 'off';
+const { pool } = await import('@workspace/valo-pay-1-db');
 const { default: router } = await import('../src/routes/index');
 const { errorHandler } = await import('../src/lib/error-handler');
-const store = await import('../src/lib/valopay-store');
+const store = await import('../src/lib/valo-pay-1-store');
 const { requestFingerprint } = await import('../src/lib/digests');
 const app = express(), quiet = { info() {}, warn() {}, error() {} };
 const anonymous = () => Object.assign(() => ({ userId: null }), { [Symbol.for('@clerk/express.auth')]: true });
 app.use(express.json()); app.use((req, _res, next) => { (req as any).auth = anonymous(); (req as any).log = quiet; next(); });
 app.use('/api', router); app.use(errorHandler);
 const server = app.listen(0, '127.0.0.1'); await once(server, 'listening');
-const base = `http://127.0.0.1:${(server.address() as { port: number }).port}/api`, cookie = `valopay_sandbox=${randomBytes(32).toString('hex')}`;
-const otherCookie = `valopay_sandbox=${randomBytes(32).toString('hex')}`;
+const base = `http://127.0.0.1:${(server.address() as { port: number }).port}/api`, cookie = `${SANDBOX_COOKIE}=${randomBytes(32).toString('hex')}`;
+const otherCookie = `${SANDBOX_COOKIE}=${randomBytes(32).toString('hex')}`;
 const workspaceIds: string[] = [];
 async function call(path: string, method = 'GET', body?: unknown, key?: string, as = cookie) {
   const response = await fetch(base + path, { method, headers: { 'Content-Type': 'application/json', Cookie: as, ...(key ? { 'Idempotency-Key': key } : {}) }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });

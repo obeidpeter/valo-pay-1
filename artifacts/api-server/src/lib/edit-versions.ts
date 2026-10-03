@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { canonicalJson } from "@workspace/valopay-schema";
+import { canonicalJson } from "@workspace/valo-pay-1-schema";
 import type { DomainState, ValopayRecord } from "../domain/types";
 
 // Only editable preferences participate. A scheduler heartbeat/cursor must not

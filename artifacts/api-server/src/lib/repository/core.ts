@@ -11,7 +11,7 @@ import {
 import type { Context, DomainState, ValopayRecord } from "../../domain/types";
 import { recordChanged, nextRecordVersion } from "../edit-versions";
 import type { Request, Response } from "express";
-import { pool, poolSize, type PoolClient } from "@workspace/db";
+import { pool, poolSize, type PoolClient } from "@workspace/valo-pay-1-db";
 import { createLenderGate } from "../lender-gate";
 import { LENDER_NOT_FOUND, UNKNOWN_DEMO_ROLE } from "../refusal-words";
 import {
@@ -33,6 +33,7 @@ import {
   readSandboxCookie,
   sandboxPrincipal,
   secureRequest,
+  sandboxRequestOrigin,
   writeSandboxCookie,
 } from "../sandbox-cookie";
 import { randomBytes, randomUUID } from "node:crypto";
@@ -50,7 +51,7 @@ import {
   closeTimeOf,
   nextCloseInstant,
   sameJson,
-} from "@workspace/valopay-schema";
+} from "@workspace/valo-pay-1-schema";
 import { databaseMoney } from "../database-money";
 import { markRolledBack } from "../transaction-outcome";
 import type { VerifiedClerkSession } from "../pilot-access";
@@ -68,7 +69,7 @@ import {
   financialProjectionSchema,
   syncFinancialProjection,
 } from "../financial-projection";
-import { seedMerchant } from "../valopay-seed";
+import { seedMerchant } from "../valo-pay-1-seed";
 import { nextCloseRetry, type CloseRetry } from "../../domain/close";
 import { recordsOf } from "../../domain/records";
 import type {
@@ -264,7 +265,7 @@ function principalFor(req: Request, res: Response) {
     };
   // A request with two different sandbox tokens is refused here, before anything is read (sandbox-cookie.ts).
   const secure = secureRequest(req),
-    cookie = readSandboxCookie(req.headers.cookie, secure);
+    cookie = readSandboxCookie(req.headers.cookie, secure, sandboxRequestOrigin(req));
   const token = cookie.token ?? randomBytes(32).toString("hex");
   // The cookie slides: an active sandbox keeps its 30 days from the last visit, matching the expiry sweep below.
   writeSandboxCookie(
@@ -304,7 +305,7 @@ export async function verifyWorkspaceEncryption(context: StoreContext) {
   const session = teamAdmin(context);
   if (!payloadEncryptionKey())
     fail(
-      "Data encryption is not set up yet. Contact the Valo Pay team.",
+      "Data encryption is not set up yet. Contact the Valo Pay 1 team.",
       503,
     );
   const scope = {
@@ -316,7 +317,7 @@ export async function verifyWorkspaceEncryption(context: StoreContext) {
   const sealed = await protectStored(value, scope),
     opened = await revealStored(sealed, scope);
   if (!sameJson(value, opened))
-    fail("The encryption check failed. Contact the Valo Pay team.", 503);
+    fail("The encryption check failed. Contact the Valo Pay 1 team.", 503);
   await staffEvent(
     session.client,
     session.workspace.id,
@@ -337,7 +338,7 @@ export async function verifyWorkspaceEncryption(context: StoreContext) {
 export async function protectWorkspacePayloads(context: StoreContext) {
   const session = teamAdmin(context);
   if (!payloadEncryptionKey())
-    fail("Data encryption is not set up yet. Contact the Valo Pay team.", 503);
+    fail("Data encryption is not set up yet. Contact the Valo Pay 1 team.", 503);
   // One record per request bounds managed-key calls and keeps progress restartable.
   const batch = 1;
   let protectedCount = 0;
@@ -576,7 +577,7 @@ export async function inWorkspace<T>(
         ).rows[0];
         if (!found)
           fail(
-            "Your organisation is not set up for a pilot yet. Contact the Valo Pay team.",
+            "Your organisation is not set up for a pilot yet. Contact the Valo Pay 1 team.",
             403,
           );
         await lockWorkspace(client, found.id, lockMode, write);
@@ -588,7 +589,7 @@ export async function inWorkspace<T>(
         ).rows[0];
         if (!workspace)
           fail(
-            "Your organisation is not set up for a pilot yet. Contact the Valo Pay team.",
+            "Your organisation is not set up for a pilot yet. Contact the Valo Pay 1 team.",
             403,
           );
         try {
@@ -678,7 +679,7 @@ export async function inWorkspace<T>(
       if (inserted) await lockWorkspace(client, inserted.id, lockMode, write);
       workspace = inserted || (await lockedSandbox());
       if (!workspace)
-        throw new Error("Valo Pay could not open your sandbox. Reload the page and try again.");
+        throw new Error("Valo Pay 1 could not open your sandbox. Reload the page and try again.");
       if (inserted) {
         await seedWorkspace(
           client,
@@ -693,7 +694,7 @@ export async function inWorkspace<T>(
         if (
           !identity.authenticated &&
           expiredWorkspaceCleanupEnabled(
-            process.env["VALOPAY_EXPIRED_WORKSPACE_CLEANUP"],
+            process.env["VALO_PAY_1_EXPIRED_WORKSPACE_CLEANUP"],
           )
         ) {
           await client.query("SAVEPOINT expired_workspace_sweep");
@@ -1617,14 +1618,14 @@ export async function saveState(
   if (!owned.rows[0]) fail(LENDER_NOT_FOUND, 404);
   // Explicit synthetic staging dual-write only. A typed failure rolls back the
   // same transaction as the v1 write; no migration runs here or on startup.
-  const projectionMode = process.env.VALOPAY_FINANCIAL_PROJECTION || "off";
+  const projectionMode = process.env.VALO_PAY_1_FINANCIAL_PROJECTION || "off";
   if (!["off", "staging"].includes(projectionMode))
-    throw new Error("VALOPAY_FINANCIAL_PROJECTION must be off or staging.");
+    throw new Error("VALO_PAY_1_FINANCIAL_PROJECTION must be off or staging.");
   if (projectionMode === "staging") {
     await syncFinancialProjection(
       session.client,
       financialProjectionSchema(
-        process.env.VALOPAY_FINANCIAL_PROJECTION_SCHEMA || "",
+        process.env.VALO_PAY_1_FINANCIAL_PROJECTION_SCHEMA || "",
       ),
       session.workspace.id,
       state,

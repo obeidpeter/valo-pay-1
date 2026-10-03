@@ -9,22 +9,22 @@ import type { DomainState } from '../src/domain/types';
 import { recoveryBytes, recoveryManifestSchema, verifyRecoveryManifest, type RecoveryConfiguration, type RecoveryObject } from '../src/lib/recovery-manifest';
 import type { WrappingKeyProvider } from '../src/lib/protected-payloads';
 
-if (process.env.VALOPAY_RUN_INTEGRATION !== '1' || process.env.VALOPAY_RUN_RECOVERY !== '1') {
+if (process.env.VALO_PAY_1_RUN_INTEGRATION !== '1' || process.env.VALO_PAY_1_RUN_RECOVERY !== '1') {
   // CI runs this to measure a recovery and keep its evidence: there, a missing opt-in fails instead of passing with no evidence.
-  if (process.env.CI) { console.error('Recovery rehearsal cannot run: CI needs VALOPAY_RUN_INTEGRATION=1 and VALOPAY_RUN_RECOVERY=1, and a skipped rehearsal leaves no evidence.'); process.exit(1); }
+  if (process.env.CI) { console.error('Recovery rehearsal cannot run: CI needs VALO_PAY_1_RUN_INTEGRATION=1 and VALO_PAY_1_RUN_RECOVERY=1, and a skipped rehearsal leaves no evidence.'); process.exit(1); }
   console.log('Recovery rehearsal requires two opt-ins and a disposable local PostgreSQL instance.'); process.exit(0);
 }
 const connection = new URL(process.env.DATABASE_URL || '');
 assert.ok(['127.0.0.1', 'localhost', '[::1]'].includes(connection.hostname), 'recovery automation refuses remote database hosts');
-assert.equal(connection.pathname, '/valopay', 'use the disposable CI database named valopay');
-const { pool, Pool } = await import('@workspace/db');
-const { seedMerchant } = await import('../src/lib/valopay-seed');
-const { appendAudit, verifyAudit } = await import('../src/lib/valopay-store');
-const { canonicalJson } = await import('@workspace/valopay-schema');
+assert.equal(connection.pathname, '/valo_pay_1_test', 'use the disposable CI database named valo_pay_1_test');
+const { pool, Pool } = await import('@workspace/valo-pay-1-db');
+const { seedMerchant } = await import('../src/lib/valo-pay-1-seed');
+const { appendAudit, verifyAudit } = await import('../src/lib/valo-pay-1-store');
+const { canonicalJson } = await import('@workspace/valo-pay-1-schema');
 const { encryptField, decryptField, rotateField } = await import('../src/lib/field-encryption');
 const { runDailyClose } = await import('../src/domain/actions');
 const { makeRecord } = await import('../src/domain/records');
-const { buildExportBytes } = await import('../src/lib/valopay-exports');
+const { buildExportBytes } = await import('../src/lib/valo-pay-1-exports');
 const { sealPayload, openPayload } = await import('../src/lib/protected-payloads');
 const suffix = randomUUID().replaceAll('-', '');
 const sourceName = `valopay_source_rehearsal_${suffix}`;
@@ -39,7 +39,7 @@ const runPg = (command: string, args: string[], database: string) => {
 const tables = ['valopay_workspaces', 'valopay_merchants', 'valopay_records', 'valopay_idempotency', 'valopay_operations', 'valopay_teams', 'valopay_staff_memberships', 'valopay_staff_invitations', 'valopay_staff_events', 'valopay_staff_lender_access', 'valopay_export_cleanup'];
 let source: InstanceType<typeof Pool> | undefined, target: InstanceType<typeof Pool> | undefined;
 let sourceCreated = false, targetCreated = false;
-const directory = await mkdtemp(join(tmpdir(), 'valopay-recovery-'));
+const directory = await mkdtemp(join(tmpdir(), 'valo-pay-1-recovery-'));
 const started = performance.now();
 const oldKey = randomBytes(32), newKey = randomBytes(32);
 const wrappingKeyId = 'projects/synthetic-rehearsal/locations/global/keyRings/recovery/cryptoKeys/fixture-v1';
@@ -65,7 +65,7 @@ try {
   source = new Pool({ connectionString: forDatabase(sourceName) });
   target = new Pool({ connectionString: forDatabase(targetName) });
   const schemaDump = join(directory, 'schema.dump');
-  runPg('pg_dump', ['--format=custom', '--schema-only', '--no-owner', ...tables.map(table => `--table=public.${table}`), `--file=${schemaDump}`], 'valopay');
+  runPg('pg_dump', ['--format=custom', '--schema-only', '--no-owner', ...tables.map(table => `--table=public.${table}`), `--file=${schemaDump}`], 'valo_pay_1_test');
   runPg('pg_restore', ['--no-owner', '--no-acl', '--exit-on-error', '--single-transaction', `--dbname=${sourceName}`, schemaDump], sourceName);
   const snapshotAt = new Date().toISOString();
   const expectedStates: DomainState[] = [];
@@ -209,12 +209,12 @@ try {
   assert.equal(Number((await target.query('SELECT count(*) AS n FROM valopay_idempotency WHERE id=$1',['post-snapshot-write'])).rows[0].n),0);
   const finalVerification=verifyRecoveryManifest(restoredManifest,restoredDatabaseBytes,await measuredObjects(),configuration);
   const evidence = { version: 2, outcome: 'passed', scope: 'disposable synthetic PostgreSQL, private local object backups and an independently restored fixture wrapping-key provider', snapshotAt, databaseBackupMs:backupMs, completeBackupMs, databaseRestoreMs:restoreMs, completeRestoreMs:Math.round(performance.now()-restoreStart), recoverableSnapshotAgeMs:Date.now()-Date.parse(snapshotAt), simulatedWritesAfterSnapshot:1, observedDataLossRecords:1, totalMs: Math.round(performance.now() - started), counts, privateObjectsRestored:finalVerification.objects, checks: ['all eleven application/service tables and settings', 'orphan export cleanup tombstones, retry history, backoff and lease state', 'outstanding amounts and allocations', 'close snapshots', 'encrypted idempotency and recovery payloads', 'audit chains', 'lender-specific access grants and revocations', 'restored encrypted source files', 'retained wrapping-key access and missing-key refusal', 'wrong-lender envelope refusal', 'private export ownership and checksum inventory', 'missing/corrupt file refusal', 'reviewed issuer/origin/runtime-role/key manifest', 'post-snapshot data-loss measurement'], externalObjectStorageVerified: false, externalKeyCustodyVerified:false, productionRestoreVerified: false };
-  if (process.env.VALOPAY_REHEARSAL_REPORT) await writeFile(resolve(process.env.VALOPAY_REHEARSAL_REPORT), JSON.stringify(evidence, null, 2));
+  if (process.env.VALO_PAY_1_REHEARSAL_REPORT) await writeFile(resolve(process.env.VALO_PAY_1_REHEARSAL_REPORT), JSON.stringify(evidence, null, 2));
   console.log(JSON.stringify(evidence));
 } catch (error) {
   // A failed rehearsal leaves its report too, so CI keeps evidence either way: that it failed and after how long,
   // never the error itself, which could quote a synthetic record.
-  if (process.env.VALOPAY_REHEARSAL_REPORT) await writeFile(resolve(process.env.VALOPAY_REHEARSAL_REPORT), JSON.stringify({ version: 2, outcome: 'failed', failedAfterMs: Math.round(performance.now() - started), productionRestoreVerified: false }, null, 2));
+  if (process.env.VALO_PAY_1_REHEARSAL_REPORT) await writeFile(resolve(process.env.VALO_PAY_1_REHEARSAL_REPORT), JSON.stringify({ version: 2, outcome: 'failed', failedAfterMs: Math.round(performance.now() - started), productionRestoreVerified: false }, null, 2));
   throw error;
 } finally {
   oldKey.fill(0); newKey.fill(0); wrappingKey.fill(0); restoredWrappingKey?.fill(0);
@@ -223,6 +223,6 @@ try {
   if (sourceCreated) await pool.query(`DROP DATABASE ${identifier(sourceName)}`);
   await pool.end();
   assert.equal(resolve(dirname(directory)), resolve(tmpdir()));
-  assert.ok(basename(directory).startsWith('valopay-recovery-'));
+  assert.ok(basename(directory).startsWith('valo-pay-1-recovery-'));
   await rm(directory, { recursive: true, force: true });
 }

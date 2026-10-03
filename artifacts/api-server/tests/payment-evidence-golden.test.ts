@@ -24,21 +24,21 @@ import { makeRecord, recordsOf } from "../src/domain/records.js";
 import { validateRecord } from "../src/domain/validation.js";
 import { positionFor, positionMismatches } from "../src/domain/close.js";
 import { connectedRevision, runConnectedAction } from "../src/domain/connected.js";
-import { importCsv } from "../src/lib/valopay-import.js";
+import { importCsv } from "../src/lib/valo-pay-1-import.js";
 import { pageReconciliation } from "../src/lib/console-read-models.js";
-import { allocatableOnly, allocationChoices, pageRecords } from "../src/lib/valopay-list.js";
+import { allocatableOnly, allocationChoices, pageRecords } from "../src/lib/valo-pay-1-list.js";
 import { billableCollection } from "../src/domain/billing.js";
 import { buildReports } from "../src/domain/reports.js";
 import { buildAlerts } from "../src/domain/alerts.js";
 import { customerTimeline } from "../src/domain/timeline.js";
-import { buildDisputePack } from "../src/lib/valopay-packs.js";
-import { pageQueue } from "../src/lib/valopay-queues.js";
+import { buildDisputePack } from "../src/lib/valo-pay-1-packs.js";
+import { pageQueue } from "../src/lib/valo-pay-1-queues.js";
 import { pageCustomerHistory } from "../src/lib/customer-history.js";
 import { bindCloseReviewBasis } from "../src/domain/close-review.js";
-import { canTakeAllocation, paymentAwaitsAllocation, paymentRefundedKobo, paymentUnappliedKobo, resolutionCodesForException } from "@workspace/valopay-schema";
+import { canTakeAllocation, paymentAwaitsAllocation, paymentRefundedKobo, paymentUnappliedKobo, resolutionCodesForException } from "@workspace/valo-pay-1-schema";
 import type { DomainState, TypedRecord, ValopayRecord } from "../src/domain/types.js";
 
-const { assertFinalState } = await import("../src/lib/valopay-store.js");
+const { assertFinalState } = await import("../src/lib/valo-pay-1-store.js");
 const finance = (now: string) => ctxAt(now, "Finance");
 let checks = 0;
 const failures: string[] = [];
@@ -863,12 +863,12 @@ section("a waiting reversal Finance resolved before its payment arrived", () => 
   equal([adoptedElsewhere.reversal, adoptedElsewhere.debit, adoptedElsewhere.raised], [["resolved", "adopted_after_review", true], ["Sandbox Rail Settlements", "returned", "reversed"], []], "and reverses it through another spelling of the connection too, with no new exception");
   // Escalated to the provider is not offered: the exception stays open while it is checked, and the payment then applies it.
   const escalated = run("escalated", "escalated_to_provider", true);
-  check(!escalated.answer.ok && /^This resolution is not available for this exception now\. Choose one of these: ‘Provider status accepted’ or ‘Valo Pay status kept’\.$/.test(escalated.answer.message), `escalated_to_provider is refused (${!escalated.answer.ok && escalated.answer.message})`);
+  check(!escalated.answer.ok && /^This resolution is not available for this exception now\. Choose one of these: ‘Provider status accepted’ or ‘Valo Pay 1 status kept’\.$/.test(escalated.answer.message), `escalated_to_provider is refused (${!escalated.answer.ok && escalated.answer.message})`);
   equal([escalated.unseen.status, escalated.unseen.data.resolutionCode, escalated.reversal, escalated.debit], ["closed", "condition_cleared", ["resolved", "canonical_provider_reference", true], reversed.debit], "the open exception closes when the payment arrives, which the reversal reverses");
   equal(resolutionCodesForException(adopted.unseen), ["provider_state_adopted", "platform_state_confirmed"], "the waiting reversal's exception offers only the two codes that decide it");
   // A resolution replaces the notes with its reason: the text the exception was raised with is read on the one left open.
   const notes = String(escalated.unseen.data.notes);
-  check(/‘Valo Pay status kept’: the provider says it reverses nothing of this lender’s\. It is set aside and reverses nothing, even if its payment arrives later\./.test(notes) && /‘Provider status accepted’: the provider confirms the reversal\. It keeps waiting for its payment, with no new exception, and reverses the payment when it arrives/.test(notes) && /leave this exception open while you check/.test(notes), `the exception says what each resolution does (${notes})`);
+  check(/‘Valo Pay 1 status kept’: the provider says it reverses nothing of this lender’s\. It is set aside and reverses nothing, even if its payment arrives later\./.test(notes) && /‘Provider status accepted’: the provider confirms the reversal\. It keeps waiting for its payment, with no new exception, and reverses the payment when it arrives/.test(notes) && /leave this exception open while you check/.test(notes), `the exception says what each resolution does (${notes})`);
 });
 
 // ---------- FIN-02: several releases omitted rule versions while assigning different meanings ----------
@@ -1148,8 +1148,8 @@ section("amounts written in the payment's own currency", () => {
   addObservation(state, { reference: "PSK-USD-9", amountKobo: 99_500, grossAmountKobo: 100_000, feeKobo: 500, batchReference: "B-U2", source: "settlement", customerId: due.customerId, eventId: "usd-line-2", occurredAt: wat("2027-07-02T09:00:00"), currency: "USD" } as any);
   close(state, "2027-07-02T10:00:00");
   const [card] = payment(state, "CARD-USD-9");
-  const refund = accepted(request(state, () => executeAction(state, finance(wat("2027-07-02T11:00:00")), { action: "record_refund", recordId: card!.id, reason: "Card refund made outside Valo Pay.", data: { reference: "RF-***9" } })), "the USD refund");
-  equal([refund.message, refund.data.refundedKobo], ["External refund of USD 1,000.00 recorded: the money this payment had not allocated. The refund was paid outside Valo Pay. Valo Pay moved no money.", 100_000], "the refund's answer writes its amount in dollars");
+  const refund = accepted(request(state, () => executeAction(state, finance(wat("2027-07-02T11:00:00")), { action: "record_refund", recordId: card!.id, reason: "Card refund made outside Valo Pay 1.", data: { reference: "RF-***9" } })), "the USD refund");
+  equal([refund.message, refund.data.refundedKobo], ["External refund of USD 1,000.00 recorded: the money this payment had not allocated. The refund was paid outside Valo Pay 1. Valo Pay 1 moved no money.", 100_000], "the refund's answer writes its amount in dollars");
   const two = recordsOf(state, "settlement-batches").find((item) => item.reference === "B-U2")!;
   check(exceptionsFor(state, two.id, "settlement_variance").some((item) => String(item.data.notes).includes("Settlement line PSK-USD-9 (USD 1,000.00) is already counted in settlement batch B-U1")), "a USD line counted in two batches is reported in dollars");
 });
@@ -1368,7 +1368,7 @@ function propertyRun(seeds: number, steps: number) {
       confirm: () => { const p = pick(payments().filter((item) => item.status === "proposed")); if (p) executeAction(state, finance(at()), { action: "confirm_allocation", recordId: p.id, reason: "Checked the evidence.", data: reviewed(p) }); },
       reject: () => { const p = pick(payments().filter((item) => item.status === "proposed")); if (p) executeAction(state, finance(at()), { action: "reject_allocation", recordId: p.id, reason: "Not this instalment.", data: reviewed(p) }); },
       manual: () => { const p = pick(payments()); if (!p) return; const due = pick(dues().filter((item) => !p.customerId || rand() < 0.1 || item.customerId === p.customerId)); if (!due) return; const left = paymentUnappliedKobo(p), owed = outstandingOf(due); executeAction(state, finance(at()), { action: "manual_allocate", recordId: p.id, reason: "Finance identified it.", data: { dueItemId: due.id, amountKobo: rand() < 0.8 ? Math.max(1, Math.floor(Math.min(left, owed) * (rand() < 0.5 ? 1 : rand()))) : left + 1 } }); },
-      refund: () => { const p = pick(payments()); if (p) executeAction(state, finance(at()), { action: "record_refund", recordId: p.id, reason: "Refunded outside Valo Pay.", data: { reference: "RF-***1" } }); },
+      refund: () => { const p = pick(payments()); if (p) executeAction(state, finance(at()), { action: "record_refund", recordId: p.id, reason: "Refunded outside Valo Pay 1.", data: { reference: "RF-***1" } }); },
       review: () => { const a = pick(recordsOf(state, "allocations").filter((item) => item.status !== "proposed")); if (a) executeAction(state, finance(at()), { action: "review_allocation", recordId: a.id, reason: "Precision review.", data: { correct: rand() < 0.5 } }); },
       amend: () => { const due = pick(dues())!; const input = structuredClone(due); input.amountKobo = Math.max(1_000_000, Math.floor(due.amountKobo * (0.5 + rand()))); input.data.overrideReason ||= "Amended by the lender."; amendDueItem(state, ctxAt(at(), "Admin"), due, input); },
       resolve: () => { const e = pick(recordsOf(state, "exceptions").filter((item) => ["open", "assigned", "in_progress"].includes(item.status))); if (!e) return; const codes = ({ suspected_duplicate: ["distinct_payments", "confirmed_duplicate_refund", "applied_to_next"], unallocated_payment: ["held_credit", "allocated_manual"], overpayment: ["held_credit"], settlement_variance: ["accepted_variance"], unknown_outcome: ["resolved_failed"] } as Record<string, string[]>)[String(e.data.type)] ?? ["no_action_required"]; executeAction(state, ctxAt(at(), "Admin"), { action: "resolve_exception", recordId: e.id, reason: "Reviewed.", data: { resolutionCode: pick(codes) } }); },

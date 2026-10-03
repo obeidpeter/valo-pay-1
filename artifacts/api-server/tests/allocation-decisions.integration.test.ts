@@ -1,3 +1,4 @@
+import { SANDBOX_COOKIE } from "../src/lib/sandbox-cookie";
 // Allocation decisions against a real database (UX-B01 and UX-B01-PG): a
 // decision names the proposal it was made on, by proposalId and
 // proposalUpdatedAt. Two decisions for one payment sent at the same time, with
@@ -15,18 +16,18 @@ import express from "express";
 import { once } from "node:events";
 import { randomBytes, randomUUID } from "node:crypto";
 
-if (process.env.VALOPAY_RUN_INTEGRATION !== "1") {
-  console.log("Set VALOPAY_RUN_INTEGRATION=1 to check allocation decisions against a disposable PostgreSQL database.");
+if (process.env.VALO_PAY_1_RUN_INTEGRATION !== "1") {
+  console.log("Set VALO_PAY_1_RUN_INTEGRATION=1 to check allocation decisions against a disposable PostgreSQL database.");
   process.exit(0);
 }
 // A placeholder identity key: nothing here reaches the identity provider.
 process.env.CLERK_SECRET_KEY ??= "sk_test_placeholder";
-const { pool } = await import("@workspace/db");
+const { pool } = await import("@workspace/valo-pay-1-db");
 const { default: router } = await import("../src/routes/index");
 const { errorHandler } = await import("../src/lib/error-handler");
-const store = await import("../src/lib/valopay-store");
+const store = await import("../src/lib/valo-pay-1-store");
 const { requestFingerprint } = await import("../src/lib/digests");
-const { buildConsoleSettings } = await import("../src/lib/valopay-close-views");
+const { buildConsoleSettings } = await import("../src/lib/valo-pay-1-close-views");
 const { schedulerStatus } = await import("../src/lib/close-scheduler");
 
 const quiet = { info() {}, warn() {}, error() {} };
@@ -43,7 +44,7 @@ app.use(errorHandler);
 const server = app.listen(0, "127.0.0.1");
 await once(server, "listening");
 const base = `http://127.0.0.1:${(server.address() as any).port}/api`;
-const cookie = `valopay_sandbox=${randomBytes(32).toString("hex")}`;
+const cookie = `${SANDBOX_COOKIE}=${randomBytes(32).toString("hex")}`;
 type Answer = { status: number; data: any; operation: string | null };
 /** A request as the console sends a write: with its own Idempotency-Key, so the journal records it. */
 async function call(path: string, method = "GET", body?: unknown, key = method === "GET" ? undefined : randomUUID()): Promise<Answer> {

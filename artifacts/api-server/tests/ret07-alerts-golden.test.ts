@@ -7,15 +7,15 @@ import { executeAction, runDailyClose } from "../src/domain/actions.js";
 import { evaluateRetry, policySummary, samePolicyLineage } from "../src/domain/policy-engine.js";
 import { validateRecord } from "../src/domain/validation.js";
 import { buildAlerts } from "../src/domain/alerts.js";
-import { counted } from "@workspace/valopay-schema";
+import { counted } from "@workspace/valo-pay-1-schema";
 import { buildOverview } from "../src/domain/reports.js";
 import { findRecord, makeRecord, recordsOf } from "../src/domain/records.js";
-import { seedMerchant } from "../src/lib/valopay-seed.js";
+import { seedMerchant } from "../src/lib/valo-pay-1-seed.js";
 
 let checks = 0;
 // The audit_chain_broken detail for entry 4: once the lender has recorded the break, and while only a check has found it.
-const keptBreak = "Entry 4 of the audit log is missing, out of order or changed. Contact the Valo Pay team. This alert stays until a full check finds every entry intact: select Check audit log on the Audit log page, or wait for the daily check after the daily close.";
-const foundBreak = "Entry 4 of the audit log is missing, out of order or changed. Contact the Valo Pay team. The next change, Check audit log or the daily check after the daily close will record this break. After that, the alert stays until a full check finds every entry intact. Until then, it clears if the log is repaired.";
+const keptBreak = "Entry 4 of the audit log is missing, out of order or changed. Contact the Valo Pay 1 team. This alert stays until a full check finds every entry intact: select Check audit log on the Audit log page, or wait for the daily check after the daily close.";
+const foundBreak = "Entry 4 of the audit log is missing, out of order or changed. Contact the Valo Pay 1 team. The next change, Check audit log or the daily check after the daily close will record this break. After that, the alert stays until a full check finds every entry intact. Until then, it clears if the log is repaired.";
 const admin = (now: string) => ctxAt(now, "Admin");
 const reviewer = (now: string) => ctxAt(now, "Compliance reviewer");
 
@@ -116,12 +116,12 @@ const reviewer = (now: string) => ctxAt(now, "Compliance reviewer");
   // The record API cannot renumber or relink a version, or set its review times; other draft fields stay editable.
   const editable = draft(policy.id, wat("2027-06-05T09:00:00"));
   const patch = (data: Record<string, unknown>) => () => validateRecord(state, admin(wat("2027-06-05T10:00:00")), "policies", { ...editable, data: { ...editable.data, ...data } }, true);
-  assert.throws(patch({ version: 2 }), /Leave the version number as it is\. Valo Pay numbers each new draft version\./, "the version number");
-  assert.throws(patch({ previousVersionId: undefined }), /Valo Pay records a policy’s review dates and version links\. You cannot change them here\./, "the link to the previous version");
-  assert.throws(patch({ approvedAt: wat("2027-06-05T10:00:00") }), /Valo Pay records a policy’s review dates and version links\./, "an approval time");
+  assert.throws(patch({ version: 2 }), /Leave the version number as it is\. Valo Pay 1 numbers each new draft version\./, "the version number");
+  assert.throws(patch({ previousVersionId: undefined }), /Valo Pay 1 records a policy’s review dates and version links\. You cannot change them here\./, "the link to the previous version");
+  assert.throws(patch({ approvedAt: wat("2027-06-05T10:00:00") }), /Valo Pay 1 records a policy’s review dates and version links\./, "an approval time");
   assert.doesNotThrow(patch({ spacingHours: 72 }), "a rule");
   assert.throws(() => validateRecord(state, admin(wat("2027-06-05T10:00:00")), "policies", { name: "Copied policy", status: "draft", amountKobo: 0, data: { version: 1, author: "Sandbox Admin", previousVersionId: policy.id } }),
-    /Valo Pay records a policy’s review dates and version links\./, "a new policy cannot claim to follow another");
+    /Valo Pay 1 records a policy’s review dates and version links\./, "a new policy cannot claim to follow another");
   checks += 5;
 }
 {

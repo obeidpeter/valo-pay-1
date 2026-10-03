@@ -159,7 +159,7 @@ app.disable("x-powered-by");
 
 /**
  * Every request has an id: a short random one, or, on a host whose edge sets
- * X-Request-Id on every request (VALOPAY_EDGE_REQUEST_ID=on), the edge's own
+ * X-Request-Id on every request (VALO_PAY_1_EDGE_REQUEST_ID=on), the edge's own
  * when it is a plain token, so the two logs line up. A client's header is
  * never trusted otherwise: it could reuse the reference someone else quoted.
  * The id is on every log line of the request, on the answer as X-Request-Id,
@@ -167,7 +167,7 @@ app.disable("x-powered-by");
  * the lines.
  */
 const REQUEST_ID = /^[A-Za-z0-9._-]{8,64}$/;
-export function requestIdFor(req: { headers: IncomingHttpHeaders }, edgeSetsId = process.env.VALOPAY_EDGE_REQUEST_ID === "on"): string {
+export function requestIdFor(req: { headers: IncomingHttpHeaders }, edgeSetsId = process.env.VALO_PAY_1_EDGE_REQUEST_ID === "on"): string {
   const given = edgeSetsId ? req.headers["x-request-id"] : undefined;
   const first = Array.isArray(given) ? given[0] : given;
   return first && REQUEST_ID.test(first) ? first : randomBytes(8).toString("hex");
@@ -228,7 +228,7 @@ app.use("/api/v1",(req,res,next)=>{
   res.setHeader("X-Frame-Options","DENY");
   res.setHeader("Cross-Origin-Resource-Policy","same-origin");
   const origin=req.get("Origin"),host=getClerkProxyHost(req);
-  if (staffMode() && !['GET','HEAD','OPTIONS'].includes(req.method) && (!origin || !staffPolicy().authorisedParties.includes(origin))) { res.status(403).json({error:'Open Valo Pay from your pilot’s usual address to make changes.',requestId:req.id}); return; }
+  if (staffMode() && !['GET','HEAD','OPTIONS'].includes(req.method) && (!origin || !staffPolicy().authorisedParties.includes(origin))) { res.status(403).json({error:'Open Valo Pay 1 from your pilot’s usual address to make changes.',requestId:req.id}); return; }
   if(origin){
     try{if(new URL(origin).host!==host){req.log.warn({event:"request.refused",reason:"origin"},"Cross-origin request refused");res.status(403).json({error:"Cross-origin requests are not permitted.",requestId:req.id});return;}}
     catch{req.log.warn({event:"request.refused",reason:"origin_malformed"},"Malformed request origin refused");res.status(403).json({error:"Invalid request origin.",requestId:req.id});return;}
@@ -240,7 +240,7 @@ app.use("/api/v1",(req,res,next)=>{
 // A staff host refuses anonymous requests, and does not start without Clerk (index.ts).
 app.use("/api/v1",(req,res,next)=>{
   if(signInEnabled())return clerk(req,res,next);
-  if(staffMode())return next(Object.assign(new Error("Team member sign-in is not set up at this address. Contact the Valo Pay team."),{status:503}));
+  if(staffMode())return next(Object.assign(new Error("Team member sign-in is not set up at this address. Contact the Valo Pay 1 team."),{status:503}));
   return next();
 });
 // Each principal's own quota: a signed-in person, a sandbox this process has served, otherwise the network.

@@ -43,15 +43,15 @@ assert.equal(await openPayload(rotated,scope,provider),value,'new wrapping key s
   }
   assert.equal(unwraps,0,'a malformed envelope is refused before any key-service call');
 }
-const mode=process.env.VALOPAY_PAYLOAD_ENCRYPTION,configured=process.env.VALOPAY_KMS_KEY;
-try {process.env.VALOPAY_PAYLOAD_ENCRYPTION='kms';delete process.env.VALOPAY_KMS_KEY;assert.throws(payloadEncryptionKey,/Protected data/);process.env.VALOPAY_KMS_KEY='https://attacker.invalid/key';assert.throws(payloadEncryptionKey,/Protected data/);process.env.VALOPAY_PAYLOAD_ENCRYPTION='off';assert.equal(payloadEncryptionKey(),undefined);}finally{if(mode===undefined)delete process.env.VALOPAY_PAYLOAD_ENCRYPTION;else process.env.VALOPAY_PAYLOAD_ENCRYPTION=mode;if(configured===undefined)delete process.env.VALOPAY_KMS_KEY;else process.env.VALOPAY_KMS_KEY=configured;}
+const mode=process.env.VALO_PAY_1_PAYLOAD_ENCRYPTION,configured=process.env.VALO_PAY_1_KMS_KEY;
+try {process.env.VALO_PAY_1_PAYLOAD_ENCRYPTION='kms';delete process.env.VALO_PAY_1_KMS_KEY;assert.throws(payloadEncryptionKey,/Protected data/);process.env.VALO_PAY_1_KMS_KEY='https://attacker.invalid/key';assert.throws(payloadEncryptionKey,/Protected data/);process.env.VALO_PAY_1_PAYLOAD_ENCRYPTION='off';assert.equal(payloadEncryptionKey(),undefined);}finally{if(mode===undefined)delete process.env.VALO_PAY_1_PAYLOAD_ENCRYPTION;else process.env.VALO_PAY_1_PAYLOAD_ENCRYPTION=mode;if(configured===undefined)delete process.env.VALO_PAY_1_KMS_KEY;else process.env.VALO_PAY_1_KMS_KEY=configured;}
 // Stored batches: a field already sealed is kept as stored, and many batches are
 // opened with at most four key-service calls at once, only the fields asked for.
 {
-  const savedMode=process.env.VALOPAY_PAYLOAD_ENCRYPTION,savedKey=process.env.VALOPAY_KMS_KEY,{wrap,unwrap}=managedWrappingKeys;
+  const savedMode=process.env.VALO_PAY_1_PAYLOAD_ENCRYPTION,savedKey=process.env.VALO_PAY_1_KMS_KEY,{wrap,unwrap}=managedWrappingKeys;
   let wraps=0,unwraps=0,inFlight=0,maxInFlight=0,failOn=0,atFailure=-1;
   try{
-    process.env.VALOPAY_PAYLOAD_ENCRYPTION='kms';process.env.VALOPAY_KMS_KEY=key2;
+    process.env.VALO_PAY_1_PAYLOAD_ENCRYPTION='kms';process.env.VALO_PAY_1_KMS_KEY=key2;
     managedWrappingKeys.wrap=async(id,data,aad)=>{wraps++;return provider.wrap(id,data,aad);};
     managedWrappingKeys.unwrap=async(id,data,aad)=>{
       const call=++unwraps;inFlight++;maxInFlight=Math.max(maxInFlight,inFlight);
@@ -78,8 +78,8 @@ try {process.env.VALOPAY_PAYLOAD_ENCRYPTION='kms';delete process.env.VALOPAY_KMS
     assert.ok(atFailure>0);assert.equal(unwraps,atFailure,'no key-service call starts after one has failed');
   }finally{
     managedWrappingKeys.wrap=wrap;managedWrappingKeys.unwrap=unwrap;
-    if(savedMode===undefined)delete process.env.VALOPAY_PAYLOAD_ENCRYPTION;else process.env.VALOPAY_PAYLOAD_ENCRYPTION=savedMode;
-    if(savedKey===undefined)delete process.env.VALOPAY_KMS_KEY;else process.env.VALOPAY_KMS_KEY=savedKey;
+    if(savedMode===undefined)delete process.env.VALO_PAY_1_PAYLOAD_ENCRYPTION;else process.env.VALO_PAY_1_PAYLOAD_ENCRYPTION=savedMode;
+    if(savedKey===undefined)delete process.env.VALO_PAY_1_KMS_KEY;else process.env.VALO_PAY_1_KMS_KEY=savedKey;
   }
 }
 console.log('Protected payload tests passed: large imports, scoped authenticated encryption, corruption, exact IV and tag framing, key loss and rotation, sealed fields kept, bounded and selective opening.');

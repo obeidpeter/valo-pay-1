@@ -1,22 +1,23 @@
+import { SANDBOX_COOKIE } from "../src/lib/sandbox-cookie";
 // Disposable PostgreSQL only; no object-storage credentials or external calls.
 import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import type { Server } from 'node:http';
 import type { ExportArtifact, ExportJobStorage } from '../src/lib/export-jobs';
-if(process.env.VALOPAY_RUN_INTEGRATION!=='1'){console.log('Set VALOPAY_RUN_INTEGRATION=1 to run durable export database checks.');process.exit(0);}
-const {pool}=await import('@workspace/db');
-const {inWorkspace,listMerchants,loadState,saveState,appendAudit,verifyAudit}=await import('../src/lib/valopay-store');
+if(process.env.VALO_PAY_1_RUN_INTEGRATION!=='1'){console.log('Set VALO_PAY_1_RUN_INTEGRATION=1 to run durable export database checks.');process.exit(0);}
+const {pool}=await import('@workspace/valo-pay-1-db');
+const {inWorkspace,listMerchants,loadState,saveState,appendAudit,verifyAudit}=await import('../src/lib/valo-pay-1-store');
 const {exportJobRepository:repository}=await import('../src/lib/export-job-store');
 const {processExportJob}=await import('../src/lib/export-jobs');
 const {overrideDatabaseLimits}=await import('../src/lib/database-limits');
 const {auditEntryData}=await import('../src/lib/digests');
-const {generateExportArtifact}=await import('../src/lib/valopay-exports');
+const {generateExportArtifact}=await import('../src/lib/valo-pay-1-exports');
 const {default:express}=await import('express');
-const {default:router}=await import('../src/routes/valopay');
+const {default:router}=await import('../src/routes/valo-pay-1');
 const token=randomBytes(32).toString('hex'),foreignToken=randomBytes(32).toString('hex');
 const auth=()=>Object.assign(()=>({userId:null}),{[Symbol.for('@clerk/express.auth')]:true});
-const request=()=>({headers:{cookie:`valopay_sandbox=${token}`},secure:false,auth:auth()}) as any;
+const request=()=>({headers:{cookie:`${SANDBOX_COOKIE}=${token}`},secure:false,auth:auth()}) as any;
 const response=()=>({cookie(){}}) as any;
 const oldDirectory=process.env.PRIVATE_OBJECT_DIR;
 process.env.PRIVATE_OBJECT_DIR='/private/synthetic-export-tests';
@@ -36,7 +37,7 @@ try{
  server=await new Promise<Server>(resolve=>{const running=app.listen(0,'127.0.0.1',()=>resolve(running));});
  const address=server.address();assert.ok(address&&typeof address!=='string');
  const api=async(path:string,options:{method?:string;body?:unknown;key?:string;merchant?:string;principal?:string}={})=>{
-  const result=await fetch(`http://127.0.0.1:${address.port}/api/v1${path}?merchantId=${options.merchant||merchantId}`,{method:options.method||'GET',headers:{Cookie:`valopay_sandbox=${options.principal||token}`,'Content-Type':'application/json',...(options.key?{'Idempotency-Key':options.key}:{})},...(options.body===undefined?{}:{body:JSON.stringify(options.body)})});
+  const result=await fetch(`http://127.0.0.1:${address.port}/api/v1${path}?merchantId=${options.merchant||merchantId}`,{method:options.method||'GET',headers:{Cookie:`${SANDBOX_COOKIE}=${options.principal||token}`,'Content-Type':'application/json',...(options.key?{'Idempotency-Key':options.key}:{})},...(options.body===undefined?{}:{body:JSON.stringify(options.body)})});
   return {status:result.status,body:await result.json() as any};
  };
  const input={kind:'dispute-pack',customerId:customer.id,format:'json'};
@@ -285,7 +286,7 @@ try{
  // busy lenders cannot starve a later free lender. Microsecond cursor order
  // matters: the later job is only one microsecond newer than the first page.
  {
-  const foreign = await inWorkspace({...request(),headers:{cookie:`valopay_sandbox=${foreignToken}`}},response(),listMerchants);
+  const foreign = await inWorkspace({...request(),headers:{cookie:`${SANDBOX_COOKIE}=${foreignToken}`}},response(),listMerchants);
   const freeLender = foreign[0]!.id, prefix=`fair-${randomUUID()}-`;
   const fairIds = Array.from({length:21},(_,i)=>`${prefix}${String(i).padStart(2,'0')}`);
   for(let i=0;i<fairIds.length;i++)await pool.query(`INSERT INTO valopay_records(id,merchant_id,kind,name,status,data,created_at)

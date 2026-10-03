@@ -11,11 +11,11 @@ import { positionFor } from "../src/domain/close.js";
 import { countedAttempts, evaluateRetry } from "../src/domain/policy-engine.js";
 import { precisionAudit } from "../src/domain/reports.js";
 import { makeRecord, recordsOf } from "../src/domain/records.js";
-import { seedMerchant } from "../src/lib/valopay-seed.js";
+import { seedMerchant } from "../src/lib/valo-pay-1-seed.js";
 import type { DomainState, TypedRecord } from "../src/domain/types.js";
-import { paymentMoneyReturned, paymentUnappliedKobo } from "@workspace/valopay-schema";
+import { paymentMoneyReturned, paymentUnappliedKobo } from "@workspace/valo-pay-1-schema";
 
-const { assertFinalState } = await import("../src/lib/valopay-store.js");
+const { assertFinalState } = await import("../src/lib/valo-pay-1-store.js");
 let checks = 0;
 const check = (condition: unknown, message: string) => { assert.ok(condition, message); checks += 1; };
 const equal = (actual: unknown, expected: unknown, message: string) => { assert.deepEqual(actual, expected, message); checks += 1; };
@@ -99,7 +99,7 @@ function secondInstalment(state: DomainState, due: TypedRecord<"due-items">, amo
   executeAction(state, finance(wat("2027-07-03T10:00:00")), { action: "manual_allocate", recordId: over.id, reason: "Customer paid instalment 5 with extra", data: { dueItemId: due.id, amountKobo: GROSS } });
   equal([over.status, due.status, positionFor(state, due.customerId).unallocatedKobo], ["overpaid", "paid", 500_000], "the excess is the customer's credit until it is refunded");
   const refundedExcess = executeAction(state, finance(wat("2027-07-03T11:00:00")), { action: "record_refund", recordId: over.id, reason: "Excess returned to the payer", data: { reference: "RF-OVER" } });
-  equal(refundedExcess.message, "External refund of ₦5,000.00 recorded: the money this payment had not allocated. The refund was paid outside Valo Pay. Valo Pay moved no money.", "the amount reads like the other money in the API");
+  equal(refundedExcess.message, "External refund of ₦5,000.00 recorded: the money this payment had not allocated. The refund was paid outside Valo Pay 1. Valo Pay 1 moved no money.", "the amount reads like the other money in the API");
   equal([over.status, over.data.refundStatus, over.data.allocatedKobo], ["allocated", "refunded", GROSS], "the refund returns the excess; what was applied stays applied");
   equal(over.data.refundedKobo, 500_000, "only the excess is recorded as refunded");
   equal([due.status, allocationsFor(state, over).map((item) => item.status)], ["paid", ["confirmed"]], "the instalment stays paid by the money that stayed");

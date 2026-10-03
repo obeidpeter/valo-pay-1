@@ -31,40 +31,40 @@ const problems = (env: Record<string, string | undefined>, purpose: "server" | "
 // ---- The defaults, and the switch that used to fail open ----
 const defaults = readStartupConfig(base, "server");
 assert.deepEqual(defaults, { port: 8080, closeScheduler: "on", logLevel: "info", logFormat: null, nodeEnv: null, databasePoolSize: 10, expiredWorkspaceCleanup: "off", staffAccess: "off", runtimeIsolation: "off", payloadEncryption: "off" });
-for (const value of ["off", "OFF", "Off"]) assert.equal(readStartupConfig({ ...base, VALOPAY_CLOSE_SCHEDULER: value }, "server").closeScheduler, "off", value);
-for (const value of ["on", "ON", ""]) assert.equal(readStartupConfig({ ...base, VALOPAY_CLOSE_SCHEDULER: value }, "server").closeScheduler, "on", value);
+for (const value of ["off", "OFF", "Off"]) assert.equal(readStartupConfig({ ...base, VALO_PAY_1_CLOSE_SCHEDULER: value }, "server").closeScheduler, "off", value);
+for (const value of ["on", "ON", ""]) assert.equal(readStartupConfig({ ...base, VALO_PAY_1_CLOSE_SCHEDULER: value }, "server").closeScheduler, "on", value);
 // external: closes run from a separate scheduled job (the one-shot close pass), so this process schedules none either.
-for (const value of ["external", "EXTERNAL", "External"]) assert.equal(readStartupConfig({ ...base, VALOPAY_CLOSE_SCHEDULER: value }, "server").closeScheduler, "external", value);
-assert.equal(readStartupConfig({ DATABASE_URL: database, VALOPAY_CLOSE_SCHEDULER: "external" }, "close-pass").closeScheduler, "external", "the close pass checks the switch as the server does");
-for (const value of ["false", "0", "no", "disabled", "of", "extern", "job"]) assert.deepEqual(problems({ ...base, VALOPAY_CLOSE_SCHEDULER: value }), ["VALOPAY_CLOSE_SCHEDULER must be on, off or external (in any case)."], value);
-assert.deepEqual(problems({ DATABASE_URL: database, VALOPAY_CLOSE_SCHEDULER: "false" }, "close-pass"), ["VALOPAY_CLOSE_SCHEDULER must be on, off or external (in any case)."], "and refuses what the server refuses");
+for (const value of ["external", "EXTERNAL", "External"]) assert.equal(readStartupConfig({ ...base, VALO_PAY_1_CLOSE_SCHEDULER: value }, "server").closeScheduler, "external", value);
+assert.equal(readStartupConfig({ DATABASE_URL: database, VALO_PAY_1_CLOSE_SCHEDULER: "external" }, "close-pass").closeScheduler, "external", "the close pass checks the switch as the server does");
+for (const value of ["false", "0", "no", "disabled", "of", "extern", "job"]) assert.deepEqual(problems({ ...base, VALO_PAY_1_CLOSE_SCHEDULER: value }), ["VALO_PAY_1_CLOSE_SCHEDULER must be on, off or external (in any case)."], value);
+assert.deepEqual(problems({ DATABASE_URL: database, VALO_PAY_1_CLOSE_SCHEDULER: "false" }, "close-pass"), ["VALO_PAY_1_CLOSE_SCHEDULER must be on, off or external (in any case)."], "and refuses what the server refuses");
 checks += 17;
 
 // Financial dual writes are opt-in. Default/empty/off must preserve the existing
 // startup result and must not require (or validate) an inactive schema setting.
-const financialSchemaProblem = 'VALOPAY_FINANCIAL_PROJECTION_SCHEMA must name an isolated valopay_finance_staging_<suffix> schema when VALOPAY_FINANCIAL_PROJECTION is staging.';
+const financialSchemaProblem = 'VALO_PAY_1_FINANCIAL_PROJECTION_SCHEMA must name an isolated valopay_finance_staging_<suffix> schema when VALO_PAY_1_FINANCIAL_PROJECTION is staging.';
 for (const mode of [undefined, '', 'off']) {
   for (const schema of [undefined, '', 'public', 'synthetic-secret']) {
-    assert.deepEqual(readStartupConfig({...base,VALOPAY_FINANCIAL_PROJECTION:mode,VALOPAY_FINANCIAL_PROJECTION_SCHEMA:schema},'server'),defaults);
+    assert.deepEqual(readStartupConfig({...base,VALO_PAY_1_FINANCIAL_PROJECTION:mode,VALO_PAY_1_FINANCIAL_PROJECTION_SCHEMA:schema},'server'),defaults);
     checks++;
   }
 }
 for (const mode of ['on','true','false','STAGING','OFF',' staging','staging ','synthetic-secret']) {
-  const found=problems({...base,VALOPAY_FINANCIAL_PROJECTION:mode});
-  assert.deepEqual(found,['VALOPAY_FINANCIAL_PROJECTION must be off or staging.']);
+  const found=problems({...base,VALO_PAY_1_FINANCIAL_PROJECTION:mode});
+  assert.deepEqual(found,['VALO_PAY_1_FINANCIAL_PROJECTION must be off or staging.']);
   assert.ok(!found.join(' ').includes('synthetic-secret'),'invalid financial mode values are not echoed');checks+=2;
 }
 for (const schema of [undefined,'','public','valopay_finance_staging_','valopay_runtime_staging_pilot','valopay_finance_staging_UPPER',`valopay_finance_staging_${'a'.repeat(33)}`,'valopay_finance_staging_pilot;DROP SCHEMA public','synthetic-secret']) {
   assert.throws(()=>financialProjectionSchema(schema || ''),/isolated/);
   for (const purpose of ['server','close-pass'] as const) {
-    const found=problems({...base,VALOPAY_FINANCIAL_PROJECTION:'staging',VALOPAY_FINANCIAL_PROJECTION_SCHEMA:schema},purpose);
+    const found=problems({...base,VALO_PAY_1_FINANCIAL_PROJECTION:'staging',VALO_PAY_1_FINANCIAL_PROJECTION_SCHEMA:schema},purpose);
     assert.deepEqual(found,[financialSchemaProblem]);assert.ok(!found.join(' ').includes('synthetic-secret'));checks+=2;
   }
   checks++;
 }
 for (const schema of ['valopay_finance_staging_a','valopay_finance_staging_pilot_2026',`valopay_finance_staging_${'a'.repeat(32)}`]) {
   assert.equal(financialProjectionSchema(schema),schema);
-  for (const purpose of ['server','close-pass'] as const) assert.deepEqual(problems({...base,VALOPAY_FINANCIAL_PROJECTION:'staging',VALOPAY_FINANCIAL_PROJECTION_SCHEMA:schema},purpose),[]);
+  for (const purpose of ['server','close-pass'] as const) assert.deepEqual(problems({...base,VALO_PAY_1_FINANCIAL_PROJECTION:'staging',VALO_PAY_1_FINANCIAL_PROJECTION_SCHEMA:schema},purpose),[]);
   checks+=3;
 }
 
@@ -77,18 +77,18 @@ const rules: Array<[Record<string, string>, string]> = [
   [{ DATABASE_URL: "" }, "DATABASE_URL is required: the PostgreSQL connection URL."],
   [{ DATABASE_URL: "mysql://synthetic-secret@db/x" }, "DATABASE_URL must be a postgres:// or postgresql:// connection URL."],
   [{ DATABASE_URL: "synthetic-secret" }, "DATABASE_URL must be a postgres:// or postgresql:// connection URL."],
-  [{ VALOPAY_DATABASE_POOL_SIZE: "1" }, "VALOPAY_DATABASE_POOL_SIZE must be a whole number from 2 to 100."],
-  [{ VALOPAY_DATABASE_POOL_SIZE: "101" }, "VALOPAY_DATABASE_POOL_SIZE must be a whole number from 2 to 100."],
+  [{ VALO_PAY_1_DATABASE_POOL_SIZE: "1" }, "VALO_PAY_1_DATABASE_POOL_SIZE must be a whole number from 2 to 100."],
+  [{ VALO_PAY_1_DATABASE_POOL_SIZE: "101" }, "VALO_PAY_1_DATABASE_POOL_SIZE must be a whole number from 2 to 100."],
   [{ LOG_LEVEL: "verbose" }, "LOG_LEVEL must be fatal, error, warn, info, debug, trace or silent."],
   [{ LOG_FORMAT: "text" }, "LOG_FORMAT must be pretty or json."],
   [{ NODE_ENV: "staging" }, "NODE_ENV must be development, production or test."],
-  [{ VALOPAY_EXPIRED_WORKSPACE_CLEANUP: "ON" }, "VALOPAY_EXPIRED_WORKSPACE_CLEANUP must be on or off."],
-  [{ VALOPAY_STAFF_ACCESS: "on" }, "VALOPAY_STAFF_ACCESS must be off or staging."],
-  [{ VALOPAY_APP_ORIGINS: "https://valopay.example.test, valopay.example.test" }, "VALOPAY_APP_ORIGINS must list HTTPS origins, separated by commas, such as https://valopay.example."],
-  [{ VALOPAY_PAYLOAD_ENCRYPTION: "yes" }, "VALOPAY_PAYLOAD_ENCRYPTION must be off or kms."],
-  [{ VALOPAY_PAYLOAD_ENCRYPTION: "kms", VALOPAY_KMS_KEY: "synthetic-secret" }, "VALOPAY_KMS_KEY must be a Cloud KMS CryptoKey name (projects/…/locations/…/keyRings/…/cryptoKeys/…) when VALOPAY_PAYLOAD_ENCRYPTION is kms."],
-  [{ VALOPAY_KMS_PREVIOUS_KEYS: "projects/p/locations/l/keyRings/r/cryptoKeys/k, synthetic-secret" }, "VALOPAY_KMS_PREVIOUS_KEYS must list Cloud KMS CryptoKey names, separated by commas."],
-  [{ VALOPAY_RUNTIME_ISOLATION: "true" }, "VALOPAY_RUNTIME_ISOLATION must be off or staging."],
+  [{ VALO_PAY_1_EXPIRED_WORKSPACE_CLEANUP: "ON" }, "VALO_PAY_1_EXPIRED_WORKSPACE_CLEANUP must be on or off."],
+  [{ VALO_PAY_1_STAFF_ACCESS: "on" }, "VALO_PAY_1_STAFF_ACCESS must be off or staging."],
+  [{ VALO_PAY_1_APP_ORIGINS: "https://valo-pay-1.example.test, valo-pay-1.example.test" }, "VALO_PAY_1_APP_ORIGINS must list HTTPS origins, separated by commas, such as https://valo-pay-1.example."],
+  [{ VALO_PAY_1_PAYLOAD_ENCRYPTION: "yes" }, "VALO_PAY_1_PAYLOAD_ENCRYPTION must be off or kms."],
+  [{ VALO_PAY_1_PAYLOAD_ENCRYPTION: "kms", VALO_PAY_1_KMS_KEY: "synthetic-secret" }, "VALO_PAY_1_KMS_KEY must be a Cloud KMS CryptoKey name (projects/…/locations/…/keyRings/…/cryptoKeys/…) when VALO_PAY_1_PAYLOAD_ENCRYPTION is kms."],
+  [{ VALO_PAY_1_KMS_PREVIOUS_KEYS: "projects/p/locations/l/keyRings/r/cryptoKeys/k, synthetic-secret" }, "VALO_PAY_1_KMS_PREVIOUS_KEYS must list Cloud KMS CryptoKey names, separated by commas."],
+  [{ VALO_PAY_1_RUNTIME_ISOLATION: "true" }, "VALO_PAY_1_RUNTIME_ISOLATION must be off or staging."],
 ];
 for (const [change, problem] of rules) {
   const found = problems({ ...base, ...change });
@@ -100,55 +100,55 @@ for (const [change, problem] of rules) {
 // the same rule (clerkProxyTuning): the process always has room for eight networks at their limit, eight times the
 // network's limit when unset. The close pass has no proxy, so it leaves them alone.
 const proxyRules: Array<[Record<string, string>, string]> = [
-  [{ VALOPAY_CLERK_PROXY_RATE: "59" }, "VALOPAY_CLERK_PROXY_RATE must be a whole number from 60 to 6000."],
-  [{ VALOPAY_CLERK_PROXY_RATE: "6001" }, "VALOPAY_CLERK_PROXY_RATE must be a whole number from 60 to 6000."],
-  [{ VALOPAY_CLERK_PROXY_RATE: "synthetic-secret" }, "VALOPAY_CLERK_PROXY_RATE must be a whole number from 60 to 6000."],
-  [{ VALOPAY_CLERK_PROXY_NETWORK_CONCURRENCY: "1" }, "VALOPAY_CLERK_PROXY_NETWORK_CONCURRENCY must be a whole number from 2 to 64."],
-  [{ VALOPAY_CLERK_PROXY_NETWORK_CONCURRENCY: "8.5" }, "VALOPAY_CLERK_PROXY_NETWORK_CONCURRENCY must be a whole number from 2 to 64."],
-  [{ VALOPAY_CLERK_PROXY_CONCURRENCY: "32" }, "VALOPAY_CLERK_PROXY_CONCURRENCY must be a whole number from 64 to 512, room for eight networks at VALOPAY_CLERK_PROXY_NETWORK_CONCURRENCY."],
-  [{ VALOPAY_CLERK_PROXY_CONCURRENCY: "513" }, "VALOPAY_CLERK_PROXY_CONCURRENCY must be a whole number from 64 to 512, room for eight networks at VALOPAY_CLERK_PROXY_NETWORK_CONCURRENCY."],
-  [{ VALOPAY_CLERK_PROXY_NETWORK_CONCURRENCY: "16", VALOPAY_CLERK_PROXY_CONCURRENCY: "100" }, "VALOPAY_CLERK_PROXY_CONCURRENCY must be a whole number from 128 to 512, room for eight networks at VALOPAY_CLERK_PROXY_NETWORK_CONCURRENCY."],
+  [{ VALO_PAY_1_CLERK_PROXY_RATE: "59" }, "VALO_PAY_1_CLERK_PROXY_RATE must be a whole number from 60 to 6000."],
+  [{ VALO_PAY_1_CLERK_PROXY_RATE: "6001" }, "VALO_PAY_1_CLERK_PROXY_RATE must be a whole number from 60 to 6000."],
+  [{ VALO_PAY_1_CLERK_PROXY_RATE: "synthetic-secret" }, "VALO_PAY_1_CLERK_PROXY_RATE must be a whole number from 60 to 6000."],
+  [{ VALO_PAY_1_CLERK_PROXY_NETWORK_CONCURRENCY: "1" }, "VALO_PAY_1_CLERK_PROXY_NETWORK_CONCURRENCY must be a whole number from 2 to 64."],
+  [{ VALO_PAY_1_CLERK_PROXY_NETWORK_CONCURRENCY: "8.5" }, "VALO_PAY_1_CLERK_PROXY_NETWORK_CONCURRENCY must be a whole number from 2 to 64."],
+  [{ VALO_PAY_1_CLERK_PROXY_CONCURRENCY: "32" }, "VALO_PAY_1_CLERK_PROXY_CONCURRENCY must be a whole number from 64 to 512, room for eight networks at VALO_PAY_1_CLERK_PROXY_NETWORK_CONCURRENCY."],
+  [{ VALO_PAY_1_CLERK_PROXY_CONCURRENCY: "513" }, "VALO_PAY_1_CLERK_PROXY_CONCURRENCY must be a whole number from 64 to 512, room for eight networks at VALO_PAY_1_CLERK_PROXY_NETWORK_CONCURRENCY."],
+  [{ VALO_PAY_1_CLERK_PROXY_NETWORK_CONCURRENCY: "16", VALO_PAY_1_CLERK_PROXY_CONCURRENCY: "100" }, "VALO_PAY_1_CLERK_PROXY_CONCURRENCY must be a whole number from 128 to 512, room for eight networks at VALO_PAY_1_CLERK_PROXY_NETWORK_CONCURRENCY."],
 ];
 for (const [change, problem] of proxyRules) {
   const found = problems({ ...base, ...change });
   assert.deepEqual(found, [problem], JSON.stringify(change));
   assert.ok(!found.join(" ").includes("synthetic-secret"), "a value is never repeated");
-  assert.deepEqual(clerkProxyTuning({ rate: change.VALOPAY_CLERK_PROXY_RATE, networkConcurrency: change.VALOPAY_CLERK_PROXY_NETWORK_CONCURRENCY, concurrency: change.VALOPAY_CLERK_PROXY_CONCURRENCY }).problems, [problem], "the proxy reads it with the same rule");
+  assert.deepEqual(clerkProxyTuning({ rate: change.VALO_PAY_1_CLERK_PROXY_RATE, networkConcurrency: change.VALO_PAY_1_CLERK_PROXY_NETWORK_CONCURRENCY, concurrency: change.VALO_PAY_1_CLERK_PROXY_CONCURRENCY }).problems, [problem], "the proxy reads it with the same rule");
   assert.deepEqual(problems({ DATABASE_URL: database, ...change }, "close-pass"), [], "the close pass has no proxy");
   checks += 4;
 }
 assert.deepEqual(clerkProxyTuning({}).limits, { requestsPerMinute: 240, networkConcurrency: 8, concurrency: 64 });
 assert.deepEqual(clerkProxyTuning({ networkConcurrency: "16" }).limits, { requestsPerMinute: 240, networkConcurrency: 16, concurrency: 128 }, "unset, the process's limit is eight networks' worth");
-assert.deepEqual(problems({ ...base, VALOPAY_CLERK_PROXY_RATE: "1200", VALOPAY_CLERK_PROXY_NETWORK_CONCURRENCY: "4", VALOPAY_CLERK_PROXY_CONCURRENCY: "32" }), []);
-assert.deepEqual(readStartupConfig({ ...base, VALOPAY_CLERK_PROXY_RATE: "", VALOPAY_CLERK_PROXY_CONCURRENCY: "" }, "server"), defaults, "an empty value counts as unset");
+assert.deepEqual(problems({ ...base, VALO_PAY_1_CLERK_PROXY_RATE: "1200", VALO_PAY_1_CLERK_PROXY_NETWORK_CONCURRENCY: "4", VALO_PAY_1_CLERK_PROXY_CONCURRENCY: "32" }), []);
+assert.deepEqual(readStartupConfig({ ...base, VALO_PAY_1_CLERK_PROXY_RATE: "", VALO_PAY_1_CLERK_PROXY_CONCURRENCY: "" }, "server"), defaults, "an empty value counts as unset");
 checks += 4;
 // lib/db reads the pool size again when it loads: the check accepts exactly what it does (up to three digits, 2 to
 // 100), so a value the check passes never ends the process with lib/db's bare stack instead of the fatal line.
 const databaseModule = new URL("../../../lib/db/src/index.ts", import.meta.url).href;
 for (const size of ["2", "10", "010", "002", "100", "0010", "0002", "0100", "1", "0", "101", "999", "1000", "1e1", "+10", " 10", "10.0", "0x10"]) {
-  process.env["VALOPAY_DATABASE_POOL_SIZE"] = size;
+  process.env["VALO_PAY_1_DATABASE_POOL_SIZE"] = size;
   const loaded = await import(`${databaseModule}?poolSize=${encodeURIComponent(size)}`).then(async (db) => { await db.pool.end(); return db.poolSize as number; }, () => undefined);
-  const checked = problems({ ...base, VALOPAY_DATABASE_POOL_SIZE: size }).length ? undefined : readStartupConfig({ ...base, VALOPAY_DATABASE_POOL_SIZE: size }, "server").databasePoolSize;
-  assert.equal(checked, loaded, `VALOPAY_DATABASE_POOL_SIZE=${JSON.stringify(size)}: the start-up check and lib/db read it alike`);
+  const checked = problems({ ...base, VALO_PAY_1_DATABASE_POOL_SIZE: size }).length ? undefined : readStartupConfig({ ...base, VALO_PAY_1_DATABASE_POOL_SIZE: size }, "server").databasePoolSize;
+  assert.equal(checked, loaded, `VALO_PAY_1_DATABASE_POOL_SIZE=${JSON.stringify(size)}: the start-up check and lib/db read it alike`);
   checks += 1;
 }
-delete process.env["VALOPAY_DATABASE_POOL_SIZE"];
+delete process.env["VALO_PAY_1_DATABASE_POOL_SIZE"];
 // The close pass listens on no port, so it needs none.
 assert.equal(readStartupConfig({ DATABASE_URL: database }, "close-pass").port, null);
 assert.deepEqual(problems({ DATABASE_URL: database, PORT: "not a port" }, "close-pass"), []);
 checks += 2;
 
 // Staff access and the restricted runtime need their companions, checked here instead of on every request.
-const jwtKeyRequired = "CLERK_JWT_KEY is required when VALOPAY_STAFF_ACCESS is staging: the Clerk instance's JWT public key, with which staff sessions are verified without a call to Clerk's Backend API.";
-assert.deepEqual(problems({ ...base, VALOPAY_STAFF_ACCESS: "staging" }), [
-  "VALOPAY_STAFF_ISSUER must be the Clerk issuer's HTTPS origin when VALOPAY_STAFF_ACCESS is staging.",
-  "VALOPAY_STAFF_ORIGINS must list one or more HTTPS origins, separated by commas, when VALOPAY_STAFF_ACCESS is staging.",
-  "CLERK_SECRET_KEY is required when VALOPAY_STAFF_ACCESS is staging: without it no one can sign in.",
+const jwtKeyRequired = "CLERK_JWT_KEY is required when VALO_PAY_1_STAFF_ACCESS is staging: the Clerk instance's JWT public key, with which staff sessions are verified without a call to Clerk's Backend API.";
+assert.deepEqual(problems({ ...base, VALO_PAY_1_STAFF_ACCESS: "staging" }), [
+  "VALO_PAY_1_STAFF_ISSUER must be the Clerk issuer's HTTPS origin when VALO_PAY_1_STAFF_ACCESS is staging.",
+  "VALO_PAY_1_STAFF_ORIGINS must list one or more HTTPS origins, separated by commas, when VALO_PAY_1_STAFF_ACCESS is staging.",
+  "CLERK_SECRET_KEY is required when VALO_PAY_1_STAFF_ACCESS is staging: without it no one can sign in.",
   jwtKeyRequired,
 ]);
 const { publicKey: instanceKey, privateKey: instancePrivateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
 const jwtKey = instanceKey.export({ type: "spki", format: "pem" }).toString();
-const staff = { ...base, VALOPAY_STAFF_ACCESS: "staging", VALOPAY_STAFF_ISSUER: "https://clerk.example.test", VALOPAY_STAFF_ORIGINS: "https://valopay.example.test, https://staff.example.test", CLERK_SECRET_KEY: "sk_test_synthetic", CLERK_JWT_KEY: jwtKey };
+const staff = { ...base, VALO_PAY_1_STAFF_ACCESS: "staging", VALO_PAY_1_STAFF_ISSUER: "https://clerk.example.test", VALO_PAY_1_STAFF_ORIGINS: "https://valo-pay-1.example.test, https://staff.example.test", CLERK_SECRET_KEY: "sk_test_synthetic", CLERK_JWT_KEY: jwtKey };
 assert.equal(readStartupConfig(staff, "server").staffAccess, "staging");
 const { CLERK_JWT_KEY: _jwtKey, ...staffWithoutJwtKey } = staff;
 assert.deepEqual(problems(staffWithoutJwtKey), [jwtKeyRequired], "a staff host needs Clerk's JWT key beside its secret key");
@@ -263,21 +263,21 @@ assert.ok(signedIn > 1000 && agreed - signedIn > 100, `both outcomes are exercis
 checks += agreed + 1;
 assert.deepEqual(problems({ DATABASE_URL: database, CLERK_JWT_KEY: "synthetic-secret" }, "close-pass"), [], "the close pass signs no one in and leaves the key alone");
 checks += 1;
-assert.deepEqual(problems({ ...staff, VALOPAY_STAFF_ORIGINS: "http://valopay.example.test" }), ["VALOPAY_STAFF_ORIGINS must list one or more HTTPS origins, separated by commas, when VALOPAY_STAFF_ACCESS is staging."]);
-assert.deepEqual(problems({ ...base, VALOPAY_RUNTIME_ISOLATION: "staging" }).length, 6, "every missing companion of the restricted runtime is named at once");
-const isolated = { ...staff, VALOPAY_RUNTIME_ISOLATION: "staging", VALOPAY_RUNTIME_SCHEMA: "valopay_runtime_staging_pilot", VALOPAY_RUNTIME_ROLE: "valopay_runtime_login", VALOPAY_PAYLOAD_ENCRYPTION: "kms", VALOPAY_KMS_KEY: "projects/p/locations/l/keyRings/r/cryptoKeys/k", VALOPAY_RUNTIME_SERVICE_ORG: "org_Synthetic", VALOPAY_RUNTIME_SERVICE_USER: "user_Synthetic" };
+assert.deepEqual(problems({ ...staff, VALO_PAY_1_STAFF_ORIGINS: "http://valo-pay-1.example.test" }), ["VALO_PAY_1_STAFF_ORIGINS must list one or more HTTPS origins, separated by commas, when VALO_PAY_1_STAFF_ACCESS is staging."]);
+assert.deepEqual(problems({ ...base, VALO_PAY_1_RUNTIME_ISOLATION: "staging" }).length, 6, "every missing companion of the restricted runtime is named at once");
+const isolated = { ...staff, VALO_PAY_1_RUNTIME_ISOLATION: "staging", VALO_PAY_1_RUNTIME_SCHEMA: "valopay_runtime_staging_pilot", VALO_PAY_1_RUNTIME_ROLE: "valopay_runtime_login", VALO_PAY_1_PAYLOAD_ENCRYPTION: "kms", VALO_PAY_1_KMS_KEY: "projects/p/locations/l/keyRings/r/cryptoKeys/k", VALO_PAY_1_RUNTIME_SERVICE_ORG: "org_Synthetic", VALO_PAY_1_RUNTIME_SERVICE_USER: "user_Synthetic" };
 assert.equal(readStartupConfig(isolated, "server").runtimeIsolation, "staging");
-assert.deepEqual(problems({ ...isolated, VALOPAY_RUNTIME_SCHEMA: "valopay_runtime_staging" }), ["VALOPAY_RUNTIME_SCHEMA must name a valopay_runtime_staging_<suffix> schema when VALOPAY_RUNTIME_ISOLATION is staging."]);
+assert.deepEqual(problems({ ...isolated, VALO_PAY_1_RUNTIME_SCHEMA: "valopay_runtime_staging" }), ["VALO_PAY_1_RUNTIME_SCHEMA must name a valopay_runtime_staging_<suffix> schema when VALO_PAY_1_RUNTIME_ISOLATION is staging."]);
 // Several problems are one line, all of them named.
-assert.equal(problems({ PORT: "70000", DATABASE_URL: database, LOG_LEVEL: "verbose", VALOPAY_CLOSE_SCHEDULER: "false" }).length, 3);
+assert.equal(problems({ PORT: "70000", DATABASE_URL: database, LOG_LEVEL: "verbose", VALO_PAY_1_CLOSE_SCHEDULER: "false" }).length, 3);
 const line = JSON.parse(invalidConfigurationLine(["PORT must be a whole number from 1 to 65535."], "server", 0));
-assert.deepEqual([line.level, line.event, line.service, line.purpose, line.problems], [60, "config.invalid", "valopay-api", "server", ["PORT must be a whole number from 1 to 65535."]]);
+assert.deepEqual([line.level, line.event, line.service, line.purpose, line.problems], [60, "config.invalid", "valo-pay-1-api", "server", ["PORT must be a whole number from 1 to 65535."]]);
 checks += 8;
 
 // ---- The processes: one fatal line before anything loads, and the switch as the health answer reports it ----
 const root = path.resolve(import.meta.dirname, "..", "..", "..");
 const tsx = path.join(root, "scripts", "node_modules", "tsx", "dist", "cli.mjs");
-const clean = Object.fromEntries(Object.entries(process.env).filter(([name]) => !/^(?:VALOPAY_|LOG_|PORT$|DATABASE_URL$|NODE_ENV$|CLERK_)/.test(name)));
+const clean = Object.fromEntries(Object.entries(process.env).filter(([name]) => !/^(?:VALO_PAY_1_|LOG_|PORT$|DATABASE_URL$|NODE_ENV$|CLERK_)/.test(name)));
 function start(entry: string, env: Record<string, string>) {
   const child = spawn(process.execPath, [tsx, path.join(root, "artifacts", "api-server", "src", entry)], { cwd: root, env: { ...clean, ...env } });
   let stdout = "", stderr = "";
@@ -289,15 +289,15 @@ function start(entry: string, env: Record<string, string>) {
 const refusals: Array<[string, Record<string, string>, string]> = [
   ["index.ts", { PORT: "70000", DATABASE_URL: database }, "PORT must be a whole number from 1 to 65535."],
   ["index.ts", { PORT: "18093", DATABASE_URL: database, LOG_LEVEL: "verbose" }, "LOG_LEVEL must be fatal, error, warn, info, debug, trace or silent."],
-  ["index.ts", { PORT: "18093", DATABASE_URL: database, VALOPAY_DATABASE_POOL_SIZE: "1" }, "VALOPAY_DATABASE_POOL_SIZE must be a whole number from 2 to 100."],
-  ["index.ts", { PORT: "18093", DATABASE_URL: database, VALOPAY_DATABASE_POOL_SIZE: "0010" }, "VALOPAY_DATABASE_POOL_SIZE must be a whole number from 2 to 100."],
-  ["index.ts", { PORT: "18093", DATABASE_URL: database, VALOPAY_CLOSE_SCHEDULER: "false" }, "VALOPAY_CLOSE_SCHEDULER must be on, off or external (in any case)."],
+  ["index.ts", { PORT: "18093", DATABASE_URL: database, VALO_PAY_1_DATABASE_POOL_SIZE: "1" }, "VALO_PAY_1_DATABASE_POOL_SIZE must be a whole number from 2 to 100."],
+  ["index.ts", { PORT: "18093", DATABASE_URL: database, VALO_PAY_1_DATABASE_POOL_SIZE: "0010" }, "VALO_PAY_1_DATABASE_POOL_SIZE must be a whole number from 2 to 100."],
+  ["index.ts", { PORT: "18093", DATABASE_URL: database, VALO_PAY_1_CLOSE_SCHEDULER: "false" }, "VALO_PAY_1_CLOSE_SCHEDULER must be on, off or external (in any case)."],
   ["index.ts", { PORT: "18093" }, "DATABASE_URL is required: the PostgreSQL connection URL."],
   ["index.ts", { PORT: "18093", DATABASE_URL: database, CLERK_JWT_KEY: jwtKey.trim().replaceAll("\n", "\\n") }, escaped],
-  ["close-pass.ts", { DATABASE_URL: database, VALOPAY_RUNTIME_ISOLATION: "on" }, "VALOPAY_RUNTIME_ISOLATION must be off or staging."],
-  ["index.ts", { PORT: "18093", DATABASE_URL: database, VALOPAY_FINANCIAL_PROJECTION: "synthetic-secret" }, "VALOPAY_FINANCIAL_PROJECTION must be off or staging."],
-  ["index.ts", { PORT: "18093", DATABASE_URL: database, VALOPAY_FINANCIAL_PROJECTION: "staging" }, financialSchemaProblem],
-  ["close-pass.ts", { DATABASE_URL: database, VALOPAY_FINANCIAL_PROJECTION: "staging", VALOPAY_FINANCIAL_PROJECTION_SCHEMA: "public" }, financialSchemaProblem],
+  ["close-pass.ts", { DATABASE_URL: database, VALO_PAY_1_RUNTIME_ISOLATION: "on" }, "VALO_PAY_1_RUNTIME_ISOLATION must be off or staging."],
+  ["index.ts", { PORT: "18093", DATABASE_URL: database, VALO_PAY_1_FINANCIAL_PROJECTION: "synthetic-secret" }, "VALO_PAY_1_FINANCIAL_PROJECTION must be off or staging."],
+  ["index.ts", { PORT: "18093", DATABASE_URL: database, VALO_PAY_1_FINANCIAL_PROJECTION: "staging" }, financialSchemaProblem],
+  ["close-pass.ts", { DATABASE_URL: database, VALO_PAY_1_FINANCIAL_PROJECTION: "staging", VALO_PAY_1_FINANCIAL_PROJECTION_SCHEMA: "public" }, financialSchemaProblem],
 ];
 for (const [entry, env, problem] of refusals) {
   const refused = start(entry, env);
@@ -320,7 +320,7 @@ for (const [value, state, event, reads] of [["OFF", "off", "scheduler.off", fals
   await once(free, "listening");
   const port = (free.address() as { port: number }).port;
   free.close();
-  const server = start("index.ts", { PORT: String(port), DATABASE_URL: database, VALOPAY_CLOSE_SCHEDULER: value, LOG_FORMAT: "json", CLERK_SECRET_KEY: "sk_test_placeholder", CLERK_PUBLISHABLE_KEY: `pk_test_${Buffer.from("clerk.example.test$").toString("base64")}`, CLERK_TELEMETRY_DISABLED: "1" });
+  const server = start("index.ts", { PORT: String(port), DATABASE_URL: database, VALO_PAY_1_CLOSE_SCHEDULER: value, LOG_FORMAT: "json", CLERK_SECRET_KEY: "sk_test_placeholder", CLERK_PUBLISHABLE_KEY: `pk_test_${Buffer.from("clerk.example.test$").toString("base64")}`, CLERK_TELEMETRY_DISABLED: "1" });
   try {
     let health: { scheduler?: { state?: string; intervalMs?: number | null } } | undefined;
     for (let attempt = 0; attempt < 100 && !health; attempt++) {

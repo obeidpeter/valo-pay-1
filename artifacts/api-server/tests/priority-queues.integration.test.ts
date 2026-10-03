@@ -1,12 +1,13 @@
+import { SANDBOX_COOKIE } from "../src/lib/sandbox-cookie";
 // Only a disposable database. Validate SQL paging against the reference queue semantics.
 import assert from 'node:assert/strict';
 import { createHash, randomBytes } from 'node:crypto';
-import { pageQueue, queueViews, type QueueName, type QueueQuery } from '../src/lib/valopay-queues';
-if (process.env.VALOPAY_RUN_INTEGRATION !== '1') process.exit(0);
-const { pool } = await import('@workspace/db');
-const { inWorkspace, listMerchants, listQueue, loadState } = await import('../src/lib/valopay-store');
+import { pageQueue, queueViews, type QueueName, type QueueQuery } from '../src/lib/valo-pay-1-queues';
+if (process.env.VALO_PAY_1_RUN_INTEGRATION !== '1') process.exit(0);
+const { pool } = await import('@workspace/valo-pay-1-db');
+const { inWorkspace, listMerchants, listQueue, loadState } = await import('../src/lib/valo-pay-1-store');
 const tokens = [randomBytes(32).toString('hex'), randomBytes(32).toString('hex')];
-const request = (token = tokens[0]) => ({ headers: { cookie: `valopay_sandbox=${token}` }, secure: false, auth: Object.assign(() => ({ userId: null }), { [Symbol.for('@clerk/express.auth')]: true }) }) as any;
+const request = (token = tokens[0]) => ({ headers: { cookie: `${SANDBOX_COOKIE}=${token}` }, secure: false, auth: Object.assign(() => ({ userId: null }), { [Symbol.for('@clerk/express.auth')]: true }) }) as any;
 const response = () => ({ cookie() {} }) as any;
 try {
   const merchants = await inWorkspace(request(), response(), listMerchants);

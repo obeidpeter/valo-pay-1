@@ -1,4 +1,4 @@
-import { staffLenderAccessInputSchema, type StaffLenderAccessInput } from "@workspace/valopay-schema";
+import { staffLenderAccessInputSchema, type StaffLenderAccessInput } from "@workspace/valo-pay-1-schema";
 
 function refuse(message: string, status: number): never { throw Object.assign(new Error(message), { status }); }
 /** Pure policy shared by the transactional repository and focused tests. */

@@ -1,9 +1,9 @@
 import { Router, type IRouter, type RequestHandler } from "express";
-import { HealthCheckResponse, ReadinessCheckResponse } from "@workspace/api-zod";
+import { HealthCheckResponse, ReadinessCheckResponse } from "@workspace/valo-pay-1-api-zod";
 import { BUILD, STARTED_AT } from "../lib/build-info";
 import { schedulerStatus } from "../lib/close-scheduler";
 import { backgroundHealth } from "../lib/background-health";
-import { pingDatabase, type DatabaseReadiness } from "../lib/valopay-store";
+import { pingDatabase, type DatabaseReadiness } from "../lib/valo-pay-1-store";
 import { contractAnswer } from "../lib/contract";
 import { clientNetwork, createWindowCounter, refuseRequest } from "../lib/request-limits";
 import { routerOptions } from "./router-options";

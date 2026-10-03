@@ -6,7 +6,7 @@ const keyName = /^projects\/[a-zA-Z0-9_-]+\/locations\/[a-zA-Z0-9_-]+\/keyRings\
 const envelopeSchema = z.object({ protectedPayload: z.literal(1), key: z.string().regex(keyName), wrappedKey: z.string().min(1).max(20000), iv: z.string().length(16), tag: z.string().length(24), ciphertext: z.string().max(12000000) }).strict();
 export interface WrappingKeyProvider { wrap(key: string, dataKey: Buffer, aad: Buffer): Promise<Buffer>; unwrap(key: string, wrappedKey: Buffer, aad: Buffer): Promise<Buffer>; }
 export interface PayloadScope { lender: string; record: string; field: string; }
-const unavailable = (): never => { throw Object.assign(new Error('Protected data cannot be opened. Contact the Valo Pay team.'), { status: 503 }); };
+const unavailable = (): never => { throw Object.assign(new Error('Protected data cannot be opened. Contact the Valo Pay 1 team.'), { status: 503 }); };
 const aadFor = (scope: PayloadScope) => Buffer.from(JSON.stringify(['valopay', 1, scope.lender, scope.record, scope.field]));
 /** The bytes of canonical base64 text of exactly `bytes` bytes, else undefined: Node's decoder skips stray characters and stops at padding, so the text's length proves nothing. */
 const exactBase64 = (text: string, bytes: number): Buffer | undefined => {
@@ -44,10 +44,10 @@ export async function openPayload(value: unknown, scope: PayloadScope, provider:
   } catch { return unavailable(); } finally { dataKey?.fill(0); plaintext?.fill(0); }
 }
 export function payloadEncryptionKey(): string | undefined {
-  const mode = process.env.VALOPAY_PAYLOAD_ENCRYPTION;
+  const mode = process.env.VALO_PAY_1_PAYLOAD_ENCRYPTION;
   if (!mode || mode === 'off') return undefined;
-  if (mode !== 'kms' || !keyName.test(process.env.VALOPAY_KMS_KEY || '')) return unavailable();
-  return process.env.VALOPAY_KMS_KEY!;
+  if (mode !== 'kms' || !keyName.test(process.env.VALO_PAY_1_KMS_KEY || '')) return unavailable();
+  return process.env.VALO_PAY_1_KMS_KEY!;
 }
 let auth: GoogleAuth | undefined;
 export const managedWrappingKeys: WrappingKeyProvider = {
@@ -58,7 +58,7 @@ async function kms(action: 'encrypt' | 'decrypt', key: string, data: Record<stri
   if (!keyName.test(key)) return unavailable();
   // Historical envelopes can name a prior wrapping key only when explicitly
   // retained in the operator's allowlist. Arbitrary URLs/keys are never fetched.
-  const allowed = [payloadEncryptionKey(), ...(process.env.VALOPAY_KMS_PREVIOUS_KEYS || '').split(',').map(v => v.trim())];
+  const allowed = [payloadEncryptionKey(), ...(process.env.VALO_PAY_1_KMS_PREVIOUS_KEYS || '').split(',').map(v => v.trim())];
   if (!allowed.includes(key)) return unavailable();
   try {
     auth ||= new GoogleAuth({ scopes: ['https://www.googleapis.com/auth/cloudkms'] });

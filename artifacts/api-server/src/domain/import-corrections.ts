@@ -16,7 +16,7 @@ import {
   demoRolesNote,
   importFieldLabel,
   notFoundText,
-} from "@workspace/valopay-schema";
+} from "@workspace/valo-pay-1-schema";
 import type { Context, DomainState, ValopayRecord } from "./types";
 import { makeRecord, assertNoRealBankDetails } from "./records";
 import { roleRefusal, validateRecord } from "./validation";

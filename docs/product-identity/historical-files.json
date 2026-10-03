@@ -1,0 +1,311 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "5acfb5b1743afc9a30c6b5294de7c1b23088e79f",
+  "files": [
+    {
+      "path": "docs/architecture-safety-release.md",
+      "sha256": "22ceb1160ff3e375b63009393765253cd8003f01520330aea686d515ff3ff460",
+      "classification": "retain-with-justification",
+      "reason": "Historical architecture and refactoring release verification, including earlier source paths.",
+      "retention": "canonical-lf-identical",
+      "removalCondition": null
+    },
+    {
+      "path": "docs/audit-remediation-2026-09-26.md",
+      "sha256": "ec6f6ae53b27e86ea5b56e1c4b04185d1e1d7f76b630b2f48fe405f1a0399aa3",
+      "classification": "retain-with-justification",
+      "reason": "Dated audit remediation and verification evidence, not a current product label.",
+      "retention": "canonical-lf-identical",
+      "removalCondition": null
+    },
+    {
+      "path": "docs/documentation-review.md",
+      "sha256": "c577d697be5b8d7e76e650e2e27bb1ccde9c43eb4b9f12b24dd5d349b7f2616f",
+      "classification": "retain-with-justification",
+      "reason": "Dated documentation currency review preserves what was checked and concluded.",
+      "retention": "canonical-lf-identical",
+      "removalCondition": null
+    },
+    {
+      "path": "docs/refactor-2026-09-29/README.md",
+      "sha256": "b2492fb76546bbdf1248a12337d0a545daba59e8832d44a08f6604d2b14d9405",
+      "classification": "retain-with-justification",
+      "reason": "Dated refactoring programme evidence and source interpretation; keep original naming and source locators.",
+      "retention": "canonical-lf-identical",
+      "removalCondition": null
+    },
+    {
+      "path": "docs/refactor-2026-09-29/backend-package.md",
+      "sha256": "1dc8c3e2c97e9d828e330655abd5c0b1ac72d042a0276e92e180579f04d7738a",
+      "classification": "retain-with-justification",
+      "reason": "Dated refactoring programme evidence and source interpretation; keep original naming and source locators.",
+      "retention": "canonical-lf-identical",
+      "removalCondition": null
+    },
+    {
+      "path": "docs/refactor-2026-09-29/repository-assessment.md",
+      "sha256": "0783312ec5dc8054cb4b41375745893f2aab8255de9ca73088135fbddf682441",
+      "classification": "retain-with-justification",
+      "reason": "Dated refactoring programme evidence and source interpretation; keep original naming and source locators.",
+      "retention": "canonical-lf-identical",
+      "removalCondition": null
+    },
+    {
+      "path": "docs/refactor-2026-09-29/source-status-notes.md",
+      "sha256": "a5b015b249c9174acc42e937c948283723925f4c5aa926080a58d72d45b9f29f",
+      "classification": "retain-with-justification",
+      "reason": "Dated refactoring programme evidence and source interpretation; keep original naming and source locators.",
+      "retention": "canonical-lf-identical",
+      "removalCondition": null
+    },
+    {
+      "path": "docs/refactor-2026-09-29/traceability.json",
+      "sha256": "18808197e8c135ad711383146f81d60ff8c112cab1800b5b44e9ac3e074a2609",
+      "classification": "retain-with-justification",
+      "reason": "Controlled requirement and evidence matrix tied to historical revisions and source document titles; do not rewrite requirements or historical code locators.",
+      "retention": "canonical-lf-identical",
+      "removalCondition": null
+    },
+    {
+      "path": "docs/security-review.md",
+      "sha256": "a0637a45c49800ae890acbe99f27087d3f3571422fa2a76bc539333ed4276876",
+      "classification": "retain-with-justification",
+      "reason": "Completed security source review records the original runtime names and observations.",
+      "retention": "canonical-lf-identical",
+      "removalCondition": null
+    },
+    {
+      "path": "docs/usability-2026-09-29/README.md",
+      "sha256": "fece34b48126834bd78df06d5b528715d93acb39f67cc6026217ade4a50abd94",
+      "classification": "retain-with-justification",
+      "reason": "Dated usability programme evidence, findings and release disposition; historical screenshots, claims and source paths must remain attributable.",
+      "retention": "canonical-lf-identical",
+      "removalCondition": null
+    },
+    {
+      "path": "docs/usability-2026-09-29/cash-findings.md",
+      "sha256": "37c6c89bb04ccea27a8eff2f9090f07b0654fe4fdec14af3998afe7df6be3d9a",
+      "classification": "retain-with-justification",
+      "reason": "Dated usability programme evidence, findings and release disposition; historical screenshots, claims and source paths must remain attributable.",
+      "retention": "canonical-lf-identical",
+      "removalCondition": null
+    },
+    {
+      "path": "docs/usability-2026-09-29/help-findings.md",
+      "sha256": "533b2ed54b8d6a7e8c68ab59000e47b5e8936eacaf1729648c4188759265656f",
+      "classification": "retain-with-justification",
+      "reason": "Dated usability programme evidence, findings and release disposition; historical screenshots, claims and source paths must remain attributable.",
+      "retention": "canonical-lf-identical",
+      "removalCondition": null
+    },
+    {
+      "path": "docs/usability-2026-09-29/journeys.md",
+      "sha256": "eee02cf76cfa89ca6a63d8aa11ed9d4b32ff3013ce1ed56bc2fc172228125190",
+      "classification": "retain-with-justification",
+      "reason": "Dated usability programme evidence, findings and release disposition; historical screenshots, claims and source paths must remain attributable.",
+      "retention": "canonical-lf-identical",
+      "removalCondition": null
+    },
+    {
+      "path": "docs/usability-2026-09-29/sources.md",
+      "sha256": "4948c98f805a0862fbc73aa1420b0cb7a52004a1fbd89b64a4b89e3b0acb9640",
+      "classification": "retain-with-justification",
+      "reason": "Dated usability programme evidence, findings and release disposition; historical screenshots, claims and source paths must remain attributable.",
+      "retention": "canonical-lf-identical",
+      "removalCondition": null
+    },
+    {
+      "path": "docs/usability-2026-09-29/start-findings.md",
+      "sha256": "a19b237b28ff737a9bb6402f4b19a69c58cb7bb6d47dfd5e8f9055eb3dbff6e3",
+      "classification": "retain-with-justification",
+      "reason": "Dated usability programme evidence, findings and release disposition; historical screenshots, claims and source paths must remain attributable.",
+      "retention": "canonical-lf-identical",
+      "removalCondition": null
+    },
+    {
+      "path": "docs/usability-2026-09-29/validation.md",
+      "sha256": "6ee52b731e6fbe42712c152e26499b5049caa1942fc75fc635d0bf80c17aad2e",
+      "classification": "retain-with-justification",
+      "reason": "Dated usability programme evidence, findings and release disposition; historical screenshots, claims and source paths must remain attributable.",
+      "retention": "canonical-lf-identical",
+      "removalCondition": null
+    },
+    {
+      "path": "docs/usability/README.md",
+      "sha256": "02724ee14c82fc7714492a7f8386b030edb16ba0787e71dc39e66b5126c1e94a",
+      "classification": "retain-with-justification",
+      "reason": "Dated usability programme evidence, findings and release disposition; historical screenshots, claims and source paths must remain attributable.",
+      "retention": "canonical-lf-identical",
+      "removalCondition": null
+    },
+    {
+      "path": "docs/usability/audit.md",
+      "sha256": "ba88dee09c5089b5ab8c63e8f07a68b1f83f69ddeccb83d0b10b094049bac024",
+      "classification": "retain-with-justification",
+      "reason": "Dated usability programme evidence, findings and release disposition; historical screenshots, claims and source paths must remain attributable.",
+      "retention": "canonical-lf-identical",
+      "removalCondition": null
+    },
+    {
+      "path": "docs/usability/connected-findings.md",
+      "sha256": "8a256c89d47a8050053bf814c878efddee4e0e9d6322456a91aee3e4dbf9be93",
+      "classification": "retain-with-justification",
+      "reason": "Dated usability programme evidence, findings and release disposition; historical screenshots, claims and source paths must remain attributable.",
+      "retention": "canonical-lf-identical",
+      "removalCondition": null
+    },
+    {
+      "path": "docs/usability/core-findings.md",
+      "sha256": "e5be297324c03e62af614d8a19061257e62f9384505467da01397a000a9087a8",
+      "classification": "retain-with-justification",
+      "reason": "Dated usability programme evidence, findings and release disposition; historical screenshots, claims and source paths must remain attributable.",
+      "retention": "canonical-lf-identical",
+      "removalCondition": null
+    },
+    {
+      "path": "docs/usability/import-findings.md",
+      "sha256": "2ae3043c3c68e76cf0c91b21919dc2bca7d15aa26c1b840e89fcf5dd47852396",
+      "classification": "retain-with-justification",
+      "reason": "Dated usability programme evidence, findings and release disposition; historical screenshots, claims and source paths must remain attributable.",
+      "retention": "canonical-lf-identical",
+      "removalCondition": null
+    },
+    {
+      "path": "docs/usability/release.md",
+      "sha256": "e839081c54e0d40ef772883168691459b218c43dc79281516e5ced4e8b83e9b3",
+      "classification": "retain-with-justification",
+      "reason": "Dated usability programme evidence, findings and release disposition; historical screenshots, claims and source paths must remain attributable.",
+      "retention": "canonical-lf-identical",
+      "removalCondition": null
+    },
+    {
+      "path": "docs/usability/role-task-map.md",
+      "sha256": "77dc8b36bc424b1ba71f0e44b8e8e68ecfbd8744020ba8c18483d0173cb079e3",
+      "classification": "retain-with-justification",
+      "reason": "Dated usability programme evidence, findings and release disposition; historical screenshots, claims and source paths must remain attributable.",
+      "retention": "canonical-lf-identical",
+      "removalCondition": null
+    }
+  ],
+  "appendOnlyDocuments": [
+    {
+      "path": "docs/BUILD_STATUS.md",
+      "reason": "Add a dated current migration entry above the existing release chronology; preserve historical release names and tested commands in that chronology.",
+      "sha256": "53988883393b90b1798632e725339c4d15873c797fed46443c1c4e128d77ff6c",
+      "byteLength": 348739
+    }
+  ],
+  "otherRetainedEvidence": [
+    {
+      "location": "docs/document-register.md",
+      "rule": "Update maintained status and links deliberately, while retaining exact source-document filenames, quoted titles, digests and dated release statements."
+    }
+  ],
+  "appliedMigrationFiles": [
+    {
+      "path": "lib/db/migrations/001_pilot_rls.sql",
+      "sha256": "61ab7c5139a868ca5dd1719e7adf294463d73b950b80b777369383f9b76e67bc",
+      "classification": "retain-with-justification",
+      "reason": "Published numbered migration; preserve the applied historical contract and use a new reviewed forward migration for any later schema change.",
+      "retention": "canonical-lf-identical",
+      "removalCondition": null
+    },
+    {
+      "path": "lib/db/migrations/002_record_list_indexes.sql",
+      "sha256": "540569978c5f2d2ca84b5f4a22f5dd7dd5d8fc918b2afd07b7c2a2b0144b0668",
+      "classification": "retain-with-justification",
+      "reason": "Published numbered migration; preserve the applied historical contract and use a new reviewed forward migration for any later schema change.",
+      "retention": "canonical-lf-identical",
+      "removalCondition": null
+    },
+    {
+      "path": "lib/db/migrations/003_pilot_workflow.sql",
+      "sha256": "462c5a2e0b416a1047f915185a9960251e28d1ec8941eb63fecf83e0f5d51d68",
+      "classification": "retain-with-justification",
+      "reason": "Published numbered migration; preserve the applied historical contract and use a new reviewed forward migration for any later schema change.",
+      "retention": "canonical-lf-identical",
+      "removalCondition": null
+    },
+    {
+      "path": "lib/db/migrations/004_staff_lender_access.sql",
+      "sha256": "6a39d99ac36f3c849b9372b382b823ccf1950ab7a2f017e842e445a7bfc46bde",
+      "classification": "retain-with-justification",
+      "reason": "Published numbered migration; preserve the applied historical contract and use a new reviewed forward migration for any later schema change.",
+      "retention": "canonical-lf-identical",
+      "removalCondition": null
+    },
+    {
+      "path": "lib/db/migrations/005_runtime_isolation.sql",
+      "sha256": "73134db44166917563db2fbc724b9ade055f69a73aa1f14ac3e8f619cd9ec3b0",
+      "classification": "retain-with-justification",
+      "reason": "Published numbered migration; preserve the applied historical contract and use a new reviewed forward migration for any later schema change.",
+      "retention": "canonical-lf-identical",
+      "removalCondition": null
+    },
+    {
+      "path": "lib/db/migrations/006_runtime_isolation_scope.sql",
+      "sha256": "0d4502447dda3845aaf6a1d40bd01bb97db3253b2ea4e15aaafe403febcc6ebd",
+      "classification": "retain-with-justification",
+      "reason": "Published numbered migration; preserve the applied historical contract and use a new reviewed forward migration for any later schema change.",
+      "retention": "canonical-lf-identical",
+      "removalCondition": null
+    },
+    {
+      "path": "lib/db/migrations/007_journal_and_lender_indexes.sql",
+      "sha256": "7e6b1b3e4907a154380e1d2253ea9cc94561bbf201f59079edf5cd301dac4b15",
+      "classification": "retain-with-justification",
+      "reason": "Published numbered migration; preserve the applied historical contract and use a new reviewed forward migration for any later schema change.",
+      "retention": "canonical-lf-identical",
+      "removalCondition": null
+    },
+    {
+      "path": "lib/db/migrations/008_export_queue_index_and_foreign_key_names.sql",
+      "sha256": "dc95907c2d7757c90bd8ece33899afcb12188338ef0600df7c32f8f811c3c48a",
+      "classification": "retain-with-justification",
+      "reason": "Published numbered migration; preserve the applied historical contract and use a new reviewed forward migration for any later schema change.",
+      "retention": "canonical-lf-identical",
+      "removalCondition": null
+    },
+    {
+      "path": "lib/db/migrations/009_record_identity_guards.sql",
+      "sha256": "8223c712858e49261530a163e9bd886e5d785c4df68f5eac42c028287dc5564e",
+      "classification": "retain-with-justification",
+      "reason": "Published numbered migration; preserve the applied historical contract and use a new reviewed forward migration for any later schema change.",
+      "retention": "canonical-lf-identical",
+      "removalCondition": null
+    },
+    {
+      "path": "lib/db/migrations/010_financial_projection_staging.sql",
+      "sha256": "05224bd565f54129b0f99757b6e6ceb37436b296b5d29bbf4d5a1f68e6d93dca",
+      "classification": "retain-with-justification",
+      "reason": "Published numbered migration; preserve the applied historical contract and use a new reviewed forward migration for any later schema change.",
+      "retention": "canonical-lf-identical",
+      "removalCondition": null
+    },
+    {
+      "path": "lib/db/migrations/011_synthetic_instruction_recovery.sql",
+      "sha256": "a30eded8320029afa45440182a11314eda3300f0fbdf71399ffd78586e63a34e",
+      "classification": "retain-with-justification",
+      "reason": "Published numbered migration; preserve the applied historical contract and use a new reviewed forward migration for any later schema change.",
+      "retention": "canonical-lf-identical",
+      "removalCondition": null
+    },
+    {
+      "path": "lib/db/migrations/012_synthetic_independent_journal.sql",
+      "sha256": "a70169b1d7213b46b1257454feb8d29462192b3e0958586b6706a8c870bbc464",
+      "classification": "retain-with-justification",
+      "reason": "Published numbered migration; preserve the applied historical contract and use a new reviewed forward migration for any later schema change.",
+      "retention": "canonical-lf-identical",
+      "removalCondition": null
+    },
+    {
+      "path": "lib/db/migrations/013_export_cleanup.sql",
+      "sha256": "ea31b980b4776ab03263776f01c93de4f4bc33574c11881a4b0832212de91344",
+      "classification": "retain-with-justification",
+      "reason": "Published numbered migration; preserve the applied historical contract and use a new reviewed forward migration for any later schema change.",
+      "retention": "canonical-lf-identical",
+      "removalCondition": null
+    }
+  ],
+  "hashEncoding": "UTF-8 with CRLF normalised to LF, matching the baseline Git object; no other whitespace or content is normalised."
+}

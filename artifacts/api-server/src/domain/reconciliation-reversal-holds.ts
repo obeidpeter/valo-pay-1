@@ -1,7 +1,7 @@
 /** Renewed reversal-review holds and restoration of the instalment status each hold paused. */
 import { type TypedRecord, type DomainState, type Context } from "./types";
 import { recordsWhere } from "./record-index";
-import { resolveExceptionType, isOpenException, counted } from "@workspace/valopay-schema";
+import { resolveExceptionType, isOpenException, counted } from "@workspace/valo-pay-1-schema";
 import { outstanding } from "./reconciliation-values";
 import { balanceStatus, cancelUnsentAttempts, dueStatusText } from "./reconciliation-instalments";
 import { intendedDueItem } from "./reconciliation-matching-index";

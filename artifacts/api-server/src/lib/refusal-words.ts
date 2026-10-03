@@ -1,5 +1,5 @@
 /**
- * Refusals in the words the writing standard sets (docs/design/writing.md, "Messages from Valo Pay"). A role refusal
+ * Refusals in the words the writing standard sets (docs/design/writing.md, "Messages from Valo Pay 1"). A role refusal
  * has one shape, "Only {roles} can {action}.", with the specific reason where there is one. A person in the sandbox is
  * told where to change their demo role; a team member never reads sandbox or demo wording.
  */
@@ -49,4 +49,4 @@ export function notFound(thing: string): string {
 export const UNKNOWN_DEMO_ROLE = "Choose one of the demo roles.";
 
 /** How a pilot with one Admin gets the second one that a second-person approval needs. */
-export const ONE_ADMIN = "If your pilot has only one Admin, ask the Valo Pay team to add a second.";
+export const ONE_ADMIN = "If your pilot has only one Admin, ask the Valo Pay 1 team to add a second.";

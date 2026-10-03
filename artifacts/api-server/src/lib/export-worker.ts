@@ -1,7 +1,7 @@
 import type { Logger } from 'pino';
 import { exportJobRepository } from './export-job-store';
 import { EXPORT_CONCURRENCY, processExportJob, type ExportAttemptResult, type ExportJobRepository, type ExportJobStorage, type ClaimedExport, type ExportArtifact, type ExportQueueCursor } from './export-jobs';
-import { exportJobStorage, generateExportArtifact } from './valopay-exports';
+import { exportJobStorage, generateExportArtifact } from './valo-pay-1-exports';
 
 export interface ExportQueueScan { after?: ExportQueueCursor; through?: ExportQueueCursor }
 type Dependencies = { repository?: ExportJobRepository; storage?: ExportJobStorage; generate?: (claim: ClaimedExport, signal?: AbortSignal) => Promise<{ bytes: Buffer; artifact: ExportArtifact }>; log?: Logger; signal?: AbortSignal; scan?: ExportQueueScan };

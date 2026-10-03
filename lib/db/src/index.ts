@@ -12,12 +12,12 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-/** How many connections one API process may hold (VALOPAY_DATABASE_POOL_SIZE, 2 to 100, default 10). One tenant may use at most a third of them for its lenders (the connection gate in the API's lib/repository/core.ts). */
+/** How many connections one API process may hold (VALO_PAY_1_DATABASE_POOL_SIZE, 2 to 100, default 10). One tenant may use at most a third of them for its lenders (the connection gate in the API's lib/repository/core.ts). */
 export const poolSize = (() => {
-  const configured = process.env.VALOPAY_DATABASE_POOL_SIZE;
+  const configured = process.env.VALO_PAY_1_DATABASE_POOL_SIZE;
   if (configured === undefined || configured === "") return 10;
   const size = /^[0-9]{1,3}$/.test(configured) ? Number(configured) : Number.NaN;
-  if (!(size >= 2 && size <= 100)) throw new Error("VALOPAY_DATABASE_POOL_SIZE must be a whole number from 2 to 100.");
+  if (!(size >= 2 && size <= 100)) throw new Error("VALO_PAY_1_DATABASE_POOL_SIZE must be a whole number from 2 to 100.");
   return size;
 })();
 /** How long a transaction waits for a free connection, or for a new one to open, before it is turned away. */

@@ -32,14 +32,14 @@
  * other lenders' passes do and across a restart.  Public anonymous sandboxes,
  * whose visitors' own synthetic data can make a close fail, are counted apart
  * there and in the pass's failures, and never fail a one-shot run.  Where a
- * scheduled job runs the closes instead (VALOPAY_CLOSE_SCHEDULER=external),
+ * scheduled job runs the closes instead (VALO_PAY_1_CLOSE_SCHEDULER=external),
  * the process runs no pass but makes the same read at the same interval
  * (startBacklogWatch), so /api/healthz still reports what is owed.
  */
 import { randomUUID } from "node:crypto";
 import type { Logger } from "pino";
-import { closeRules } from "@workspace/valopay-schema";
-import { SYSTEM_ACTOR_PREFIX, appendAudit, checkAuditChainDaily, dailyAuditCheckDue, dueScheduledCloses, inMerchantAsSystem, initialiseCloseCursors, loadState, recordScheduledCloseFailure, sandboxInactiveFor, saveState, scheduledCloseBacklog, settleChanges, writeAuditCheck, type OwedCloses } from "./valopay-store";
+import { closeRules } from "@workspace/valo-pay-1-schema";
+import { SYSTEM_ACTOR_PREFIX, appendAudit, checkAuditChainDaily, dailyAuditCheckDue, dueScheduledCloses, inMerchantAsSystem, initialiseCloseCursors, loadState, recordScheduledCloseFailure, sandboxInactiveFor, saveState, scheduledCloseBacklog, settleChanges, writeAuditCheck, type OwedCloses } from "./valo-pay-1-store";
 import { runDailyClose } from "../domain/actions";
 import { pauseIdleSandboxClose, scheduledCloseDue } from "../domain/close";
 import { enrolEligibleFailures } from "../domain/policy-engine";
@@ -131,7 +131,7 @@ export function observeScheduler(observer: (event: SchedulerEvent) => void): () 
   observers.add(observer);
   return () => { observers.delete(observer); };
 }
-/** Recorded when the process is told not to schedule closes (VALOPAY_CLOSE_SCHEDULER=off, or external where a scheduled job runs them), so the health answer says so. */
+/** Recorded when the process is told not to schedule closes (VALO_PAY_1_CLOSE_SCHEDULER=off, or external where a scheduled job runs them), so the health answer says so. */
 export function markSchedulerOff(state: "off" | "external" = "off"): void { applySchedulerEvent({ type: state }); }
 /** What one scheduler pass did. */
 export interface CloseRun {
@@ -337,7 +337,7 @@ export interface OneShotCloseRun {
 
 /**
  * The scheduled daily close run once, for a host that runs no in-process
- * scheduler (VALOPAY_CLOSE_SCHEDULER=external), such as a Replit Scheduled
+ * scheduler (VALO_PAY_1_CLOSE_SCHEDULER=external), such as a Replit Scheduled
  * Deployment next to an Autoscale deployment: the same pass the tick loop
  * runs (runDueCloses), through the same repository, locks and audit, with a
  * longer budget, ending with one close.one_shot line that carries its exit
@@ -436,7 +436,7 @@ export interface BacklogWatch {
 }
 
 /**
- * Where a scheduled job runs the closes (VALOPAY_CLOSE_SCHEDULER=external),
+ * Where a scheduled job runs the closes (VALO_PAY_1_CLOSE_SCHEDULER=external),
  * this process runs no pass, so it reads what is still owed itself: the read
  * a pass ends with (scheduledCloseBacklog), every intervalMs (the scheduler's
  * tick), on the background worker thread as the scheduler would be, and

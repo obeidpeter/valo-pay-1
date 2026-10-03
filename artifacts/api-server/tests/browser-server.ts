@@ -1,3 +1,4 @@
+import { SANDBOX_COOKIE } from "../src/lib/sandbox-cookie";
 /** Test-only HTTP host. Production imports neither this file nor its fixture route. */
 import express from "express";
 import { randomBytes, randomUUID } from "node:crypto";
@@ -7,29 +8,29 @@ import type { ValopayRecord } from "../src/domain/types";
 
 const database = new URL(process.env.DATABASE_URL || "http://invalid");
 if (
-  process.env.VALOPAY_RUN_INTEGRATION !== "1" ||
-  process.env.VALOPAY_BROWSER_DATABASE_TEST !== "1" ||
+  process.env.VALO_PAY_1_RUN_INTEGRATION !== "1" ||
+  process.env.VALO_PAY_1_BROWSER_DATABASE_TEST !== "1" ||
   process.env.NODE_ENV === "production" ||
   database.hostname !== "127.0.0.1" ||
-  database.pathname !== "/valopay_browser_test"
+  database.pathname !== "/valo_pay_1_browser_test"
 ) {
   throw new Error(
-    "Browser database tests require an explicitly enabled, disposable loopback valopay_browser_test database.",
+    "Browser database tests require an explicitly enabled, disposable loopback valo_pay_1_browser_test database.",
   );
 }
 // Real Clerk middleware computes a signed-out session locally; no authentication bypass in runtime code.
 process.env.CLERK_SECRET_KEY = "sk_test_placeholder";
 process.env.CLERK_PUBLISHABLE_KEY = `pk_test_${Buffer.from("clerk.example.test$").toString("base64")}`;
 process.env.LOG_LEVEL = "silent";
-const { pool } = await import("@workspace/db");
+const { pool } = await import("@workspace/valo-pay-1-db");
 const { inWorkspace, listMerchants, loadState } =
-  await import("../src/lib/valopay-store");
+  await import("../src/lib/valo-pay-1-store");
 const { default: app } = await import("../src/app");
 
 app.post("/__test/session", async (req, res) => {
   try {
     const token = randomBytes(32).toString("hex");
-    req.headers.cookie = `valopay_sandbox=${token}`;
+    req.headers.cookie = `${SANDBOX_COOKIE}=${token}`;
     const merchants = await inWorkspace(req, res, listMerchants);
     const merchantId = merchants[0]!.id;
     const state = await inWorkspace(
@@ -97,7 +98,7 @@ app.post("/__test/session", async (req, res) => {
     );
     state.records.push(...rows);
     const history = customerTimeline(state, customerId);
-    res.cookie("valopay_sandbox", token, {
+    res.cookie(SANDBOX_COOKIE, token, {
       httpOnly: true,
       sameSite: "lax",
       path: "/",
@@ -118,7 +119,7 @@ app.post("/__test/session", async (req, res) => {
     res.status(500).json({ error: "Synthetic browser fixture failed." });
   }
 });
-const root = path.resolve(import.meta.dirname, "../../valo-pay/dist/public");
+const root = path.resolve(import.meta.dirname, "../../valo-pay-1/dist/public");
 // Replit serves console documents separately from the API. Keep real API
 // middleware intact, without sending static documents into Clerk's handshake.
 const host = express();
@@ -128,7 +129,7 @@ host.use((req, res, next) => {
 });
 host.use(express.static(root));
 host.get("/{*path}", (_req, res) => res.sendFile(path.join(root, "index.html")));
-const server = host.listen(4174, "127.0.0.1");
+const server = host.listen(4175, "127.0.0.1");
 const stop = () =>
   server.close(() => {
     void pool.end().then(() => process.exit(0));

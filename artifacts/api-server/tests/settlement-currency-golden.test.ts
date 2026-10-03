@@ -20,7 +20,7 @@ import { closeReviewIssues } from "../src/domain/close-review.js";
 import { pageReconciliation } from "../src/lib/console-read-models.js";
 import type { DomainState, TypedRecord, ValopayRecord } from "../src/domain/types.js";
 
-const { assertFinalState } = await import("../src/lib/valopay-store.js");
+const { assertFinalState } = await import("../src/lib/valo-pay-1-store.js");
 const finance = (now: string) => ctxAt(now, "Finance");
 let checks = 0;
 const failures: string[] = [];

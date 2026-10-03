@@ -1,5 +1,5 @@
 import { parse } from "csv-parse/sync";
-import { counted, csvAmountToKobo, importFieldsOf, nairaText, notFoundText, otherCurrenciesText, sourceProfileInputSchema, type SourceProfileInput, type SourceBatchQuality } from "@workspace/valopay-schema";
+import { counted, csvAmountToKobo, importFieldsOf, nairaText, notFoundText, otherCurrenciesText, sourceProfileInputSchema, type SourceProfileInput, type SourceBatchQuality } from "@workspace/valo-pay-1-schema";
 import { roleRefusal } from "./validation";
 import type { Context, DomainState, ValopayRecord } from "./types";
 import { makeRecord, assertSourceOpened, recordsOf } from "./records";
@@ -11,7 +11,7 @@ const writer = (ctx: Context) => { if (!["Admin", "Operations", "Finance"].inclu
 const safeSum = (values: number[]) => {
   let result = 0n;
   for (const value of values) { if (!Number.isSafeInteger(value) || value < 0) throw new Error("An amount in this file is not valid. Correct the file and save it again."); result += BigInt(value); }
-  if (result > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error("The file’s total is larger than Valo Pay supports. Split the file into smaller batches.");
+  if (result > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error("The file’s total is larger than Valo Pay 1 supports. Split the file into smaller batches.");
   return Number(result);
 };
 /**

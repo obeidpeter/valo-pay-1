@@ -1,4 +1,4 @@
-import { moneyText, normaliseRefundStatus, normaliseReversalStatus } from "@workspace/valopay-schema";
+import { moneyText, normaliseRefundStatus, normaliseReversalStatus } from "@workspace/valo-pay-1-schema";
 import type { TypedRecord, ValopayRecord } from "./types";
 
 /*

@@ -1,4 +1,4 @@
-import { integerMoney, moneyFromBigInt, MoneyArithmeticError } from '@workspace/valopay-schema';
+import { integerMoney, moneyFromBigInt, MoneyArithmeticError } from '@workspace/valo-pay-1-schema';
 
 /** pg returns bigint/numeric aggregates as decimal strings. Do not round them
  * through Number before deciding whether the v1 minor-unit range is supported. */

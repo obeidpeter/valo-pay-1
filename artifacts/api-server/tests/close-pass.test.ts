@@ -91,7 +91,7 @@ checks += 1;
 
 // The command itself, as a scheduled deployment runs it: the database is unreachable, so it exits 1 with its line, not a stack.
 const root = path.resolve(import.meta.dirname, "..", "..", "..");
-const clean = Object.fromEntries(Object.entries(process.env).filter(([name]) => !/^(?:VALOPAY_|LOG_|PORT$|DATABASE_URL$|NODE_ENV$)/.test(name)));
+const clean = Object.fromEntries(Object.entries(process.env).filter(([name]) => !/^(?:VALO_PAY_1_|LOG_|PORT$|DATABASE_URL$|NODE_ENV$)/.test(name)));
 const child = spawn(process.execPath, [path.join(root, "scripts", "node_modules", "tsx", "dist", "cli.mjs"), path.join(root, "artifacts", "api-server", "src", "close-pass.ts")],
   { cwd: root, env: { ...clean, DATABASE_URL: "postgres://unused:unused@127.0.0.1:1/unused", LOG_FORMAT: "json" } });
 let stdout = "", stderr = "";

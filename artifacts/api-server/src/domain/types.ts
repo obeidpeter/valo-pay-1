@@ -1,4 +1,4 @@
-import type { RecordDataOf, RecordKind } from "@workspace/valopay-schema";
+import type { RecordDataOf, RecordKind } from "@workspace/valo-pay-1-schema";
 
 /** A stored record; `data` is untyped here, and typed through TypedRecord once the kind is known. */
 export interface ValopayRecord {

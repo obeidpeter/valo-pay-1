@@ -6,7 +6,7 @@ import { executeAction } from "../src/domain/actions.js";
 import { makeRecord, recordsOf } from "../src/domain/records.js";
 import { validateRecord } from "../src/domain/validation.js";
 
-const { assertFinalState } = await import("../src/lib/valopay-store.js");
+const { assertFinalState } = await import("../src/lib/valo-pay-1-store.js");
 let checks = 0;
 const check = (condition: unknown, message: string) => { assert.ok(condition, message); checks += 1; };
 

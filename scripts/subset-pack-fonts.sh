@@ -25,10 +25,10 @@ with tempfile.TemporaryDirectory() as work:
         for record in font["name"].names:
             if record.nameID in (1, 16): record.string = FAMILY
             elif record.nameID in (2, 17): record.string = weight
-            elif record.nameID == 3: record.string = f"ValoPay;{postscript};2.1.5-subset"
+            elif record.nameID == 3: record.string = f"ValoPay1;{postscript};2.1.5-subset"
             elif record.nameID == 4: record.string = f"{FAMILY} {weight}"
             elif record.nameID == 6: record.string = postscript
-            elif record.nameID == 10: record.string = "A Latin subset of Liberation Sans 2.1.5, renamed as the SIL Open Font License's Reserved Font Name clause requires. Embedded in Valo Pay's PDF exports."
+            elif record.nameID == 10: record.string = "A Latin subset of Liberation Sans 2.1.5, renamed as the SIL Open Font License's Reserved Font Name clause requires. Embedded in Valo Pay 1's PDF exports."
         font.save(subset)
         data = subset.read_bytes()
         blocks[weight] = ("\n".join(textwrap.wrap(base64.b64encode(data).decode(), 120)), len(data), len(font.getGlyphOrder()))

@@ -1,10 +1,11 @@
+import { SANDBOX_COOKIE } from "../src/lib/sandbox-cookie";
 // The operator's re-wrap step on PostgreSQL (scripts/rewrap-payloads.ts, rewrapProtectedPayloads): after the
 // payload wrapping key changes name, bounded runs re-seal every protected payload (an import batch's source rows
 // and check, a journal entry's request and refusal receipt, a replay copy's answer) under the new key, each in
 // its own scope, report how many still name an earlier key, and can be run again at any point; a payload a
 // request rewrote while the run worked is left to it and checked again; a payload whose key the key service no
 // longer opens stops the run with the key named. Once none remain, the earlier key is retired and every view,
-// replay and recovery still opens its payloads. A restricted runtime's schema is scanned when VALOPAY_RUNTIME_SCHEMA
+// replay and recovery still opens its payloads. A restricted runtime's schema is scanned when VALO_PAY_1_RUNTIME_SCHEMA
 // names it, every run names the schema it scanned and the others it did not, and a connection that could miss a
 // payload (the restricted runtime login, or a login that neither owns the tables nor bypasses row security) is
 // refused before it reads one. The key service is a local fixture that knows each key by name.
@@ -17,17 +18,17 @@ import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { createCipheriv, createDecipheriv, randomBytes, randomUUID } from "node:crypto";
 
-if (process.env.VALOPAY_RUN_INTEGRATION !== "1") { console.log("Opt in on a disposable PostgreSQL database to test the payload re-wrap."); process.exit(0); }
+if (process.env.VALO_PAY_1_RUN_INTEGRATION !== "1") { console.log("Opt in on a disposable PostgreSQL database to test the payload re-wrap."); process.exit(0); }
 assert.ok(["localhost", "127.0.0.1", "[::1]"].includes(new URL(process.env.DATABASE_URL || "").hostname), "Refuse a non-local integration database.");
-const names = ["VALOPAY_STAFF_ACCESS", "VALOPAY_RUNTIME_ISOLATION", "VALOPAY_RUNTIME_SCHEMA", "VALOPAY_PAYLOAD_ENCRYPTION", "VALOPAY_KMS_KEY", "VALOPAY_KMS_PREVIOUS_KEYS"] as const;
+const names = ["VALO_PAY_1_STAFF_ACCESS", "VALO_PAY_1_RUNTIME_ISOLATION", "VALO_PAY_1_RUNTIME_SCHEMA", "VALO_PAY_1_PAYLOAD_ENCRYPTION", "VALO_PAY_1_KMS_KEY", "VALO_PAY_1_KMS_PREVIOUS_KEYS"] as const;
 const previous = Object.fromEntries(names.map(name => [name, process.env[name]]));
 const key = (name: string) => `projects/synthetic-rewrap/locations/global/keyRings/fixture/cryptoKeys/${name}`;
 const [first, second, third] = [key("first"), key("second"), key("third")];
-Object.assign(process.env, { VALOPAY_STAFF_ACCESS: "off", VALOPAY_RUNTIME_ISOLATION: "off", VALOPAY_PAYLOAD_ENCRYPTION: "kms", VALOPAY_KMS_KEY: first });
-delete process.env.VALOPAY_KMS_PREVIOUS_KEYS; delete process.env.VALOPAY_RUNTIME_SCHEMA;
-const { pool } = await import("@workspace/db");
+Object.assign(process.env, { VALO_PAY_1_STAFF_ACCESS: "off", VALO_PAY_1_RUNTIME_ISOLATION: "off", VALO_PAY_1_PAYLOAD_ENCRYPTION: "kms", VALO_PAY_1_KMS_KEY: first });
+delete process.env.VALO_PAY_1_KMS_PREVIOUS_KEYS; delete process.env.VALO_PAY_1_RUNTIME_SCHEMA;
+const { pool } = await import("@workspace/valo-pay-1-db");
 // The owner's own pool for the runtime schema's commissioning, whose session settings never reach the store's pool.
-const { Pool } = createRequire(new URL("../../../lib/db/package.json", import.meta.url))("pg") as Pick<typeof import("@workspace/db"), "Pool">;
+const { Pool } = createRequire(new URL("../../../lib/db/package.json", import.meta.url))("pg") as Pick<typeof import("@workspace/valo-pay-1-db"), "Pool">;
 const admin = new Pool({ connectionString: process.env.DATABASE_URL, max: 1 });
 const { runtimeIsolationTables } = await import("../src/lib/runtime-isolation");
 const { managedWrappingKeys, openPayload, sealPayload } = await import("../src/lib/protected-payloads");
@@ -37,12 +38,12 @@ const { wrap: realWrap, unwrap: realUnwrap } = managedWrappingKeys;
 let beforeUnwrap: (() => Promise<void>) | undefined;
 managedWrappingKeys.wrap = async (name, data, aad) => { const master = masters.get(name); if (!master) throw new Error("key unavailable"); const iv = randomBytes(12), cipher = createCipheriv("aes-256-gcm", master, iv); cipher.setAAD(aad); const sealed = Buffer.concat([cipher.update(data), cipher.final()]); return Buffer.concat([iv, cipher.getAuthTag(), sealed]); };
 managedWrappingKeys.unwrap = async (name, data, aad) => { const hook = beforeUnwrap; beforeUnwrap = undefined; await hook?.(); const master = masters.get(name); if (!master) throw new Error("key unavailable"); const decipher = createDecipheriv("aes-256-gcm", master, data.subarray(0, 12)); decipher.setAAD(aad); decipher.setAuthTag(data.subarray(12, 28)); return Buffer.concat([decipher.update(data.subarray(28)), decipher.final()]); };
-const { default: router } = await import("../src/routes/index"), { errorHandler } = await import("../src/lib/error-handler"), store = await import("../src/lib/valopay-store");
+const { default: router } = await import("../src/routes/index"), { errorHandler } = await import("../src/lib/error-handler"), store = await import("../src/lib/valo-pay-1-store");
 const app = express(); app.use(express.json({ limit: "2mb" }));
 app.use((req, _res, next) => { (req as any).auth = Object.assign(() => ({ userId: null }), { [Symbol.for("@clerk/express.auth")]: true }); (req as any).log = { info() {}, warn() {}, error() {} }; next(); });
 app.use("/api", router); app.use(errorHandler);
 const server = app.listen(0, "127.0.0.1"); await once(server, "listening");
-const base = `http://127.0.0.1:${(server.address() as any).port}/api`, cookie = `valopay_sandbox=${randomBytes(32).toString("hex")}`;
+const base = `http://127.0.0.1:${(server.address() as any).port}/api`, cookie = `${SANDBOX_COOKIE}=${randomBytes(32).toString("hex")}`;
 async function call(path: string, method = "GET", body?: unknown, idempotencyKey?: string) { const response = await fetch(base + path, { method, headers: { "Content-Type": "application/json", Cookie: cookie, ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}) }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) }); return { status: response.status, data: await response.json() as any }; }
 const ok = (result: { status: number; data: any }) => { assert.equal(result.status, 200, JSON.stringify(result.data)); return result.data; };
 let workspaceId = "", checks = 0, runtime: { schema: string; app: string; helper: string; reader: string } | undefined;
@@ -67,7 +68,7 @@ try {
 
   // The key changes name: new payloads are sealed under the second key, and the first stays listed to open the older ones.
   masters.set(second, randomBytes(32));
-  Object.assign(process.env, { VALOPAY_KMS_KEY: second, VALOPAY_KMS_PREVIOUS_KEYS: first });
+  Object.assign(process.env, { VALO_PAY_1_KMS_KEY: second, VALO_PAY_1_KMS_PREVIOUS_KEYS: first });
   const rewrap = (limit: number) => store.rewrapProtectedPayloads({ limit, workspaces: [workspaceId] });
   // A payload a request rewrote while the run worked is left to it: the first one opened is sealed afresh behind the run's back.
   beforeUnwrap = async () => {
@@ -87,28 +88,28 @@ try {
   assert.deepEqual([again.rewrapped, again.changed, again.remaining], [0, 0, 0], "running it again changes nothing"); checks += 1;
 
   // The first key is retired: the views, a replay and a recovery still open every payload under the second.
-  masters.delete(first); delete process.env.VALOPAY_KMS_PREVIOUS_KEYS;
+  masters.delete(first); delete process.env.VALO_PAY_1_KMS_PREVIOUS_KEYS;
   assert.match(ok(await call(`/v1/pilot/batches/${batch.id}${q}`)).batch.data.csv, /Re-wrap row/); checks += 1;
   assert.equal(ok(await call(`/v1/records/customers${q}`, "POST", customerBody, customerKey)).id, customer.id, "the replay copy opens"); checks += 1;
   const journal = ok(await call(`/v1/operations${q}`)).items.find((item: any) => item.recordId === customer.id);
   assert.equal(ok(await call(`/v1/operations/${journal.id}/retry${q}`, "POST", {})).id, customer.id, "the journal request opens"); checks += 1;
 
   // A payload whose key the key service no longer opens stops the run, naming the key; with the key back, the run finishes.
-  masters.set(third, randomBytes(32)); process.env.VALOPAY_KMS_KEY = third;
+  masters.set(third, randomBytes(32)); process.env.VALO_PAY_1_KMS_KEY = third;
   ok(await call(`/v1/records/customers${q}`, "POST", { name: "Third key customer", reference: `REWRAP-${randomUUID()}`, data: { consentProvenance: "Synthetic consent" } }, randomUUID()));
-  const thirdMaster = masters.get(third)!; masters.delete(third); process.env.VALOPAY_KMS_KEY = second;
-  await assert.rejects(() => rewrap(10), (error: any) => error.status === 503 && /sealed under .*cryptoKeys\/third could not be opened, so the run stopped after re-sealing 0\. Keep that key in VALOPAY_KMS_PREVIOUS_KEYS/.test(error.message)); checks += 1;
+  const thirdMaster = masters.get(third)!; masters.delete(third); process.env.VALO_PAY_1_KMS_KEY = second;
+  await assert.rejects(() => rewrap(10), (error: any) => error.status === 503 && /sealed under .*cryptoKeys\/third could not be opened, so the run stopped after re-sealing 0\. Keep that key in VALO_PAY_1_KMS_PREVIOUS_KEYS/.test(error.message)); checks += 1;
   masters.set(third, thirdMaster);
   assert.equal((await rewrap(10)).remaining, 0); checks += 1;
   // Without a configured key, with too large a batch or with a schema that is not a restricted runtime's, the step refuses before it reads anything.
-  process.env.VALOPAY_PAYLOAD_ENCRYPTION = "off";
-  await assert.rejects(() => rewrap(1), /Set VALOPAY_PAYLOAD_ENCRYPTION=kms/); checks += 1;
-  process.env.VALOPAY_PAYLOAD_ENCRYPTION = "kms";
+  process.env.VALO_PAY_1_PAYLOAD_ENCRYPTION = "off";
+  await assert.rejects(() => rewrap(1), /Set VALO_PAY_1_PAYLOAD_ENCRYPTION=kms/); checks += 1;
+  process.env.VALO_PAY_1_PAYLOAD_ENCRYPTION = "kms";
   await assert.rejects(() => store.rewrapProtectedPayloads({ limit: 1001, workspaces: [workspaceId] }), /between 1 and 1000/); checks += 1;
 
   // ---- A restricted runtime's schema, and the connection that reads it (the review of b9b10ef, finding 3) ----
   // A restricted runtime keeps the staff pilot's payloads in a schema of its own, whose ten tables force row security.
-  // With VALOPAY_RUNTIME_SCHEMA set the step scans that schema's tables, qualified; every run names the schema it
+  // With VALO_PAY_1_RUNTIME_SCHEMA set the step scans that schema's tables, qualified; every run names the schema it
   // scanned and the other schemas that hold the application's tables. A connection that row security filters, or that
   // neither owns the tables nor bypasses row security, is refused before it reads anything: it would count none left
   // and say an earlier key may be retired. The runtime schema is commissioned as docs/database-migrations.md does it.
@@ -133,36 +134,36 @@ try {
     await owner.query(`GRANT SELECT, UPDATE ON public.valopay_records, public.valopay_operations, public.valopay_idempotency, public.valopay_merchants TO "${runtime.reader}"`);
   } finally { owner.release(true); } // closed, not pooled: its search path and settings go with it
   const runtimeRewrap = () => store.rewrapProtectedPayloads({ limit: 10, workspaces: ["rewrap-runtime"] });
-  process.env.VALOPAY_RUNTIME_SCHEMA = runtime.schema;
+  process.env.VALO_PAY_1_RUNTIME_SCHEMA = runtime.schema;
   const isolated = await runtimeRewrap();
   assert.deepEqual([isolated.schema, isolated.rewrapped, isolated.remaining, isolated.otherSchemas.includes("public")], [runtime.schema, 1, 0, true], "the runtime schema's own tables are scanned and named, and public is named as not scanned"); checks += 1;
   assert.match(isolated.message, new RegExp(`^Re-sealed 1 protected payload in ${runtime.schema} under .*cryptoKeys/second\\. No protected payload in ${runtime.schema} names an earlier key, but .*public.* the application's tables: re-wrap`)); checks += 1;
   assert.equal((await admin.query(`SELECT request->>'key' AS key FROM "${runtime.schema}".valopay_operations`)).rows[0].key, second, "the runtime journal request is sealed under the current key"); checks += 1;
-  delete process.env.VALOPAY_RUNTIME_SCHEMA;
+  delete process.env.VALO_PAY_1_RUNTIME_SCHEMA;
   const shared = await rewrap(10);
   assert.deepEqual([shared.schema, shared.otherSchemas.includes(runtime.schema)], ["public", true], "unset, the search path's tables are scanned, and the runtime schema is named as not scanned"); checks += 1;
   assert.match(shared.message, new RegExp(`No protected payload in public names an earlier key, but .*${runtime.schema}.* the application's tables: re-wrap .* retire an earlier key only once every schema reports none`)); checks += 1;
-  for (const [setting, refusal] of [["public", /^VALOPAY_RUNTIME_SCHEMA must name a restricted runtime's schema/], [`valopay_runtime_test_missing${suffix}`, /^VALOPAY_RUNTIME_SCHEMA names valopay_runtime_test_missing\w+, which does not hold the application's tables/]] as const) {
-    process.env.VALOPAY_RUNTIME_SCHEMA = setting;
+  for (const [setting, refusal] of [["public", /^VALO_PAY_1_RUNTIME_SCHEMA must name a restricted runtime's schema/], [`valopay_runtime_test_missing${suffix}`, /^VALO_PAY_1_RUNTIME_SCHEMA names valopay_runtime_test_missing\w+, which does not hold the application's tables/]] as const) {
+    process.env.VALO_PAY_1_RUNTIME_SCHEMA = setting;
     await assert.rejects(runtimeRewrap, (error: any) => error.status === 503 && refusal.test(error.message)); checks += 1;
   }
-  delete process.env.VALOPAY_RUNTIME_SCHEMA;
+  delete process.env.VALO_PAY_1_RUNTIME_SCHEMA;
   // The operator's command itself, in its own process (whose key service is Cloud KMS, never reached here): the
-  // restricted login as the review ran it, with the runtime schema on its search path and VALOPAY_RUNTIME_SCHEMA
+  // restricted login as the review ran it, with the runtime schema on its search path and VALO_PAY_1_RUNTIME_SCHEMA
   // unset, then with it set, and a login that neither owns the tables nor bypasses row security, are each refused
   // before a payload is read; the migration owner with the runtime schema first on its search path, as
   // docs/pilot-security.md gives the step, scans that schema.
   const root = path.resolve(import.meta.dirname, "..", "..", ".."), tsx = path.join(root, "scripts", "node_modules", "tsx", "dist", "cli.mjs");
-  const clean = Object.fromEntries(Object.entries(process.env).filter(([name]) => !/^(?:VALOPAY_|DATABASE_URL$|PGOPTIONS$)/.test(name)));
+  const clean = Object.fromEntries(Object.entries(process.env).filter(([name]) => !/^(?:VALO_PAY_1_|DATABASE_URL$|PGOPTIONS$)/.test(name)));
   const command = (login: string | undefined, env: Record<string, string>) => {
     const url = new URL(process.env.DATABASE_URL!);
     if (login) { url.username = login; url.password = password; }
-    const run = spawnSync(process.execPath, [tsx, "scripts/rewrap-payloads.ts", "--limit", "10"], { cwd: root, encoding: "utf8", timeout: 60_000, env: { ...clean, DATABASE_URL: url.toString(), VALOPAY_PAYLOAD_ENCRYPTION: "kms", VALOPAY_KMS_KEY: second, ...env } });
+    const run = spawnSync(process.execPath, [tsx, "scripts/rewrap-payloads.ts", "--limit", "10"], { cwd: root, encoding: "utf8", timeout: 60_000, env: { ...clean, DATABASE_URL: url.toString(), VALO_PAY_1_PAYLOAD_ENCRYPTION: "kms", VALO_PAY_1_KMS_KEY: second, ...env } });
     return { status: run.status, stdout: run.stdout, stderr: run.stderr.split("\n").filter((line) => line && !/DEP0040|trace-deprecation/.test(line)).join("\n") };
   };
   for (const [login, env, refusal] of [
     [runtime.app, { PGOPTIONS: `-c search_path=${runtime.schema}` }, new RegExp(`^Row security filters what this connection reads in ${runtime.schema}, so the re-wrap could miss payloads there`)],
-    [runtime.app, { VALOPAY_RUNTIME_SCHEMA: runtime.schema }, new RegExp(`^Row security filters what this connection reads in ${runtime.schema}`)],
+    [runtime.app, { VALO_PAY_1_RUNTIME_SCHEMA: runtime.schema }, new RegExp(`^Row security filters what this connection reads in ${runtime.schema}`)],
     [runtime.reader, {}, /^This connection neither owns the application's tables in public nor bypasses row security/],
   ] as const) {
     const refused = command(login, env);

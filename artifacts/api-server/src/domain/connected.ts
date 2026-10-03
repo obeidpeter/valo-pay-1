@@ -1,5 +1,5 @@
 /** Connected workspace orchestration. Financial transitions belong to their capability modules. */
-import { connectedActionInputSchema, type ConnectedActionInput } from "@workspace/valopay-schema";
+import { connectedActionInputSchema, type ConnectedActionInput } from "@workspace/valo-pay-1-schema";
 import type { Context, DomainState, RecordOf } from "./types";
 import { recordsOf } from "./records";
 import { clearedExceptionsNote } from "./reconciliation";

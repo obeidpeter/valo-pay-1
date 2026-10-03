@@ -1,3 +1,4 @@
+import { SANDBOX_COOKIE } from "../src/lib/sandbox-cookie";
 // Disposable PostgreSQL only. Private storage is a fake this suite installs: no object-storage credentials or external calls.
 // Saved exports whose file an approved retention run removed are listed as expired, never as completed or needing a retry;
 // and an idle anonymous sandbox the sweep deletes loses its export files too, once the deletion has committed.
@@ -8,23 +9,23 @@ import type { Server } from "node:http";
 import path from "node:path";
 import type { ValopayRecord } from "../src/domain/types.js";
 
-if (process.env.VALOPAY_RUN_INTEGRATION !== "1") {
-  console.log("Set VALOPAY_RUN_INTEGRATION=1 to run the export expiry integration tests.");
+if (process.env.VALO_PAY_1_RUN_INTEGRATION !== "1") {
+  console.log("Set VALO_PAY_1_RUN_INTEGRATION=1 to run the export expiry integration tests.");
   process.exit(0);
 }
-const { pool } = await import("@workspace/db");
-const { inWorkspace, listMerchants, listRecords, closeDatabase, overrideSweptExportRemoval, runExportCleanupPass, exportCleanupStatus, parkedExportFiles, requeueParkedExportFile, releaseParkedExportFile } = await import("../src/lib/valopay-store.js");
+const { pool } = await import("@workspace/valo-pay-1-db");
+const { inWorkspace, listMerchants, listRecords, closeDatabase, overrideSweptExportRemoval, runExportCleanupPass, exportCleanupStatus, parkedExportFiles, requeueParkedExportFile, releaseParkedExportFile } = await import("../src/lib/valo-pay-1-store.js");
 const { deleteRetainedExport } = await import("../src/lib/export-download.js");
-const { pageRecords } = await import("../src/lib/valopay-list.js");
+const { pageRecords } = await import("../src/lib/valo-pay-1-list.js");
 const { startExportCleanupWorker } = await import("../src/lib/export-cleanup-worker.js");
 const { createBackgroundHealth } = await import("../src/lib/background-health.js");
 const { default: express } = await import("express");
-const { default: router } = await import("../src/routes/valopay.js");
+const { default: router } = await import("../src/routes/valo-pay-1.js");
 type SweptExportFile = Parameters<Parameters<typeof overrideSweptExportRemoval>[0]>[0];
 
 const auth = () => Object.assign(() => ({ userId: null }), { [Symbol.for("@clerk/express.auth")]: true });
 const token = () => randomBytes(32).toString("hex");
-const request = (value: string, log?: object) => ({ headers: { cookie: `valopay_sandbox=${value}` }, secure: false, auth: auth(), ...(log ? { log } : {}) }) as any;
+const request = (value: string, log?: object) => ({ headers: { cookie: `${SANDBOX_COOKIE}=${value}` }, secure: false, auth: auth(), ...(log ? { log } : {}) }) as any;
 const response = () => ({ cookie() {} }) as any;
 const bucket = "synthetic-private-bucket";
 /** Saves synthetic export jobs straight to the lender's records, as the worker and a retention run would have left them. */
@@ -86,14 +87,14 @@ try {
   app.use("/api", router);
   server = await new Promise<Server>((resolve) => { const running = app.listen(0, "127.0.0.1", () => resolve(running)); });
   const address = server.address(); assert.ok(address && typeof address !== "string");
-  const answer = await fetch(`http://127.0.0.1:${address.port}/api/v1/records/exports?merchantId=${merchantId}&status=expired`, { headers: { cookie: `valopay_sandbox=${listToken}` } });
+  const answer = await fetch(`http://127.0.0.1:${address.port}/api/v1/records/exports?merchantId=${merchantId}&status=expired`, { headers: { cookie: `${SANDBOX_COOKIE}=${listToken}` } });
   assert.equal(answer.status, 200);
   const page = await answer.json() as { items: ValopayRecord[]; total: number };
   assert.deepEqual([ids(page), page.total], [expected.expired, 2], "the route lists the expired exports");
   assert.ok(page.items.every((item) => item.data.fileDeletedAt && !("bucket" in item.data) && !("objectName" in item.data)), "with their removal time and without their storage location");
 
   // ---- The sweep removes a swept sandbox's export files from private storage, after its deletion commits ----
-  process.env.VALOPAY_EXPIRED_WORKSPACE_CLEANUP = "on";
+  process.env.VALO_PAY_1_EXPIRED_WORKSPACE_CLEANUP = "on";
   const removals: Array<SweptExportFile & { committed: boolean }> = [];
   let outage = "";
   const restore = overrideSweptExportRemoval(async (file) => {
@@ -322,7 +323,7 @@ try {
   } finally { restore(); }
   console.log('Export expiry integration checks passed: expiry filtering, running-upload sweep exclusion, interrupted-upload grace period, transactional tombstones, outage retry, crash recovery, concurrent claims, absent files, identity mismatches parked for review apart from storage failures and the generation race, which are retried, the operator command\'s list of parked files cut short and saying so, and parked files re-queued or released after review, never deleted by force.');
 } finally {
-  delete process.env.VALOPAY_EXPIRED_WORKSPACE_CLEANUP;
+  delete process.env.VALO_PAY_1_EXPIRED_WORKSPACE_CLEANUP;
   if (server) await new Promise<void>((resolve, reject) => server!.close((error) => error ? reject(error) : resolve()));
   await closeDatabase();
 }

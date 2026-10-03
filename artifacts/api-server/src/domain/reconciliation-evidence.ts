@@ -2,7 +2,7 @@
 import { type TypedRecord, type DomainState, type Context } from "./types";
 import { evidenceConflict as conflictOf, statedGross } from "./evidence-agreement";
 import { connectionOf, currencyOf, UNSEEN_REVERSAL_AGE_MS, channelFor, connectionKey } from "./reconciliation-values";
-import { moneyText, heldEvidenceCondition, isOpenException, resolveExceptionType, heldEvidenceOf, unseenReversalCondition, unseenReversalCodes, heldEvidenceCodes, evidenceSourceText, instantText, optionText } from "@workspace/valopay-schema";
+import { moneyText, heldEvidenceCondition, isOpenException, resolveExceptionType, heldEvidenceOf, unseenReversalCondition, unseenReversalCodes, heldEvidenceCodes, evidenceSourceText, instantText, optionText } from "@workspace/valo-pay-1-schema";
 import { datedUpdate, raiseException } from "./reconciliation-exceptions";
 import { addBusinessDays } from "./calendar";
 import { touch, recordsOf, makeRecord } from "./records";
@@ -205,7 +205,7 @@ export function reviewEarlierReversalDecisions(state: DomainState, ctx: Context)
     let review = recordsWhere(state, "exceptions", "data.linkedRecordId", observation.id).find((item) => item.data.condition === condition);
     if (review) continue;
     const notes = [
-      `An earlier decision on reversal ${observation.reference} (exception ${decision.exception.reference || decision.exception.id}) was recorded as ${optionText(decision.exception.data.resolutionCode)} without a rule version. Earlier releases gave that choice different meanings, so Valo Pay cannot tell whether to record the reversal against its payment or set it aside. The earlier decision, and what happened to the evidence, stay on record.`,
+      `An earlier decision on reversal ${observation.reference} (exception ${decision.exception.reference || decision.exception.id}) was recorded as ${optionText(decision.exception.data.resolutionCode)} without a rule version. Earlier releases gave that choice different meanings, so Valo Pay 1 cannot tell whether to record the reversal against its payment or set it aside. The earlier decision, and what happened to the evidence, stay on record.`,
       "Check the provider’s evidence, then resolve this review as one of these:",
       `${optionText(unseenReversalCodes.adopted)}: the reversal is recorded against its payment.`,
       `${optionText(unseenReversalCodes.setAside)}: reversal evidence not yet recorded against a payment is set aside.`,

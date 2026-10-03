@@ -1,4 +1,4 @@
-import { nairaText, observationEventKey, recordTypeLabel, sameJson, sumMoney } from '@workspace/valopay-schema';
+import { nairaText, observationEventKey, recordTypeLabel, sameJson, sumMoney } from '@workspace/valo-pay-1-schema';
 import type { DomainState, ValopayRecord } from './types';
 import { assertImportedCorrectionChange } from './import-corrections';
 import { exceptionCurrency } from './reconciliation-exceptions';

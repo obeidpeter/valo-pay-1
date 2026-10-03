@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
-import { seedMerchant } from "../src/lib/valopay-seed";
+import { seedMerchant } from "../src/lib/valo-pay-1-seed";
 import { makeRecord } from "../src/domain/records";
 import { reconcile } from "../src/domain/reconciliation";
 import {
@@ -21,7 +21,7 @@ import {
 import type { DomainState } from "../src/domain/types";
 
 process.env.DATABASE_URL ||= "postgres://unused:unused@127.0.0.1:1/unused";
-const { assertFinalState } = await import("../src/lib/valopay-store");
+const { assertFinalState } = await import("../src/lib/valo-pay-1-store");
 const key = ["sk", "test", "OFFLINE", "FIXTURE", "0".repeat(20)].join("_");
 const connectionId = "a".repeat(64);
 const ctx = {
@@ -516,7 +516,7 @@ await check(async () => {
   credentialErrorUrl.password = key;
   credentialErrorUrl.hostname = "db.invalid";
   credentialErrorUrl.port = "";
-  credentialErrorUrl.pathname = "/valopay";
+  credentialErrorUrl.pathname = "/valo-pay-1";
   const unexpected = paystackVerificationReport(new Error(credentialErrorUrl.toString()));
   assert.deepEqual([unexpected.result, unexpected.exitCode], ["failed", 1]);
   assert.ok(!unexpected.message.includes(key), "an unexpected error's own words are never printed");

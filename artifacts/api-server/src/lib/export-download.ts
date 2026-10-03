@@ -2,6 +2,7 @@ import type { File } from "@google-cloud/storage";
 import { Readable } from "node:stream";
 import { createHash, randomUUID } from 'node:crypto';
 import { objectStorageClient } from "./objectStorage";
+import { assertBoundStorageObject } from "./product-identity";
 
 /**
  * A storage answer other than success. The storage status stays as statusCode
@@ -14,7 +15,7 @@ export function storageFailure(statusCode: number | undefined, verb: "downloaded
   const status = statusCode === 429 || (statusCode ?? 0) >= 500 ? 503 : 502;
   const message = statusCode === 404 ? "The export file is missing. Create the export again, and quote this reference if it happens again."
     : status === 503 ? `Export storage is unavailable, so the file could not be ${verb}. Try again shortly.`
-    : `Export storage refused Valo Pay’s request, so the file could not be ${verb}. Contact the Valo Pay team.`;
+    : `Export storage refused Valo Pay 1’s request, so the file could not be ${verb}. Contact the Valo Pay 1 team.`;
   return Object.assign(new Error(message), { statusCode, status });
 }
 /** A storage request that did not finish: no answer in time is a 504; a broken answer is a 502. */
@@ -132,17 +133,23 @@ async function readStorageObject(file:File,media:boolean,signal?:AbortSignal,max
   return await collectExportBytes(stream,controller.signal,maxBytes,timeoutMs);
  }finally{clearTimeout(timer);signal?.removeEventListener('abort',abort);controller.abort();}
 }
-export function readExportBytes(file:File,signal?:AbortSignal,maxBytes?:number,timeoutMs?:number):Promise<Buffer>{
+export async function readExportBytes(file:File,signal?:AbortSignal,maxBytes?:number,timeoutMs?:number):Promise<Buffer>{
+ signal?.throwIfAborted();
+ assertBoundStorageObject(file.bucket.name,file.name);
  // The caller verifies SHA-256 before returning these immutable artifact bytes.
  return readStorageObject(file,true,signal,maxBytes,timeoutMs);
 }
 export async function readExportMetadata(file:File,signal?:AbortSignal,timeoutMs?:number):Promise<Record<string,any>>{
+ signal?.throwIfAborted();
+ assertBoundStorageObject(file.bucket.name,file.name);
  return JSON.parse((await readStorageObject(file,false,signal,256*1024,timeoutMs)).toString('utf8'));
 }
 /** A create-only upload with one cancellable native request. A late credential
  * refresh never starts a write; a lost acknowledgement is recovered by the
  * caller through the same key and verified artifact metadata. */
 export async function writeExportBytes(file:File,bytes:Buffer,metadata:Record<string,unknown>,signal?:AbortSignal,timeoutMs=EXPORT_STORAGE_TIMEOUT_MS):Promise<void>{
+ signal?.throwIfAborted();
+ assertBoundStorageObject(file.bucket.name,file.name);
  const contentType=String(metadata.contentType||'application/octet-stream');
  if(!/^(application\/(json|pdf|octet-stream)|text\/csv(?:; charset=utf-8)?)$/.test(contentType))throw new Error('Export content type is invalid.');
  const controller=new AbortController();
@@ -155,7 +162,7 @@ export async function writeExportBytes(file:File,bytes:Buffer,metadata:Record<st
   url.searchParams.set('uploadType','multipart');url.searchParams.set('name',file.name);url.searchParams.set('ifGenerationMatch','0');
   const headers=new Headers(await beforeAbort(file.storage.authClient.getRequestHeaders(url.toString()),controller.signal));
   controller.signal.throwIfAborted();
-  const boundary=`valopay-${randomUUID()}`;
+  const boundary=`valo-pay-1-${randomUUID()}`;
   const properties={...metadata,contentType,name:file.name,md5Hash:createHash('md5').update(bytes).digest('base64')};
   const body=Buffer.concat([Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(properties)}\r\n--${boundary}\r\nContent-Type: ${contentType}\r\n\r\n`),bytes,Buffer.from(`\r\n--${boundary}--\r\n`)]);
   headers.set('Content-Type',`multipart/related; boundary=${boundary}`);

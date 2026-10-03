@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import { personalWorkQuerySchema, workReceiptInputSchema, personalWorkViewSchema } from '@workspace/valopay-schema';
-import { seedMerchant } from '../src/lib/valopay-seed';
+import { personalWorkQuerySchema, workReceiptInputSchema, personalWorkViewSchema } from '@workspace/valo-pay-1-schema';
+import { seedMerchant } from '../src/lib/valo-pay-1-seed';
 import { makeRecord } from '../src/domain/records';
 import { derivePersonalWork, personalWorkItems, recordWorkReceipt } from '../src/domain/personal-work';
 import { bindCloseReviewBasis, closeReviewDetail, closeReviewIssues, decideCloseReview, prepareCloseReview } from '../src/domain/close-review';

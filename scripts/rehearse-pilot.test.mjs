@@ -8,15 +8,15 @@ import { rehearsalEnvironment, rehearsalSuites, runRehearsal, validateRehearsalE
 const root = path.resolve(import.meta.dirname, '..');
 // The unusable password is supplied through URL's setter to keep fixture text distinct from real connection strings.
 const privateUrl = (value, password = 'do-not-print') => { const url = new URL(value); url.password = password; return url.toString(); };
-const enabled = { VALOPAY_RUN_INTEGRATION: '1', VALOPAY_RUN_PILOT_REHEARSAL: '1', DATABASE_URL: privateUrl('postgresql://synthetic@127.0.0.1:1/valopay', 'private-fixture') };
+const enabled = { VALO_PAY_1_RUN_INTEGRATION: '1', VALO_PAY_1_RUN_PILOT_REHEARSAL: '1', DATABASE_URL: privateUrl('postgresql://synthetic@127.0.0.1:1/valo_pay_1_test', 'private-fixture') };
 let checks = 0;
 for (const overrides of [
-  { VALOPAY_RUN_INTEGRATION: '' }, { VALOPAY_RUN_PILOT_REHEARSAL: '' },
-  { DATABASE_URL: privateUrl('postgresql://synthetic@db.example.test/valopay') },
+  { VALO_PAY_1_RUN_INTEGRATION: '' }, { VALO_PAY_1_RUN_PILOT_REHEARSAL: '' },
+  { DATABASE_URL: privateUrl('postgresql://synthetic@db.example.test/valo_pay_1_test') },
   { DATABASE_URL: privateUrl('postgresql://synthetic@localhost/production') },
-  { DATABASE_URL: privateUrl('postgresql://synthetic@localhost/valopay?host=db.example.test') },
-  { DATABASE_URL: privateUrl('postgresql://synthetic@localhost/valopay#fragment') },
-  { DATABASE_URL: 'https://localhost/valopay' }, { DATABASE_URL: 'do-not-print' },
+  { DATABASE_URL: privateUrl('postgresql://synthetic@localhost/valo_pay_1_test?host=db.example.test') },
+  { DATABASE_URL: privateUrl('postgresql://synthetic@localhost/valo_pay_1_test#fragment') },
+  { DATABASE_URL: 'https://localhost/valo_pay_1_test' }, { DATABASE_URL: 'do-not-print' },
   { NODE_ENV: 'production' },
 ]) {
   assert.throws(() => validateRehearsalEnvironment({ ...enabled, ...overrides }), error => !/do-not-print|private-fixture/.test(error.message));
@@ -24,19 +24,19 @@ for (const overrides of [
 }
 assert.throws(() => validateRehearsalEnvironment(enabled, ['do-not-print']), /No command arguments/); checks++;
 for (const hostname of ['127.0.0.1', 'localhost', '[::1]']) {
-  validateRehearsalEnvironment({ ...enabled, DATABASE_URL: `postgresql://synthetic@${hostname}/valopay_pilot_rehearsal` }); checks++;
+  validateRehearsalEnvironment({ ...enabled, DATABASE_URL: `postgresql://synthetic@${hostname}/valo_pay_1_pilot_rehearsal` }); checks++;
 }
-const env = rehearsalEnvironment({ ...enabled, PATH: 'retained', PAYSTACK_TEST_SECRET_KEY: 'do-not-print', CLERK_SECRET_KEY: 'do-not-print', GOOGLE_APPLICATION_CREDENTIALS: 'do-not-print', PRIVATE_OBJECT_DIR: 'do-not-print', VALOPAY_CLOSE_SCHEDULER: 'on', VALOPAY_STAFF_ACCESS: 'staging', NODE_OPTIONS: 'do-not-print' });
+const env = rehearsalEnvironment({ ...enabled, PATH: 'retained', PAYSTACK_TEST_SECRET_KEY: 'do-not-print', CLERK_SECRET_KEY: 'do-not-print', GOOGLE_APPLICATION_CREDENTIALS: 'do-not-print', PRIVATE_OBJECT_DIR: 'do-not-print', VALO_PAY_1_CLOSE_SCHEDULER: 'on', VALO_PAY_1_STAFF_ACCESS: 'staging', NODE_OPTIONS: 'do-not-print' });
 assert.equal(env.DATABASE_URL, enabled.DATABASE_URL); assert.equal(env.PATH, 'retained');
 for (const key of ['PAYSTACK_TEST_SECRET_KEY', 'CLERK_SECRET_KEY', 'GOOGLE_APPLICATION_CREDENTIALS', 'PRIVATE_OBJECT_DIR', 'NODE_OPTIONS']) assert.equal(env[key], undefined);
-assert.deepEqual([env.VALOPAY_RUN_INTEGRATION, env.VALOPAY_CLOSE_SCHEDULER, env.VALOPAY_STAFF_ACCESS, env.CI], ['1', 'off', 'off', 'true']); checks += 8;
+assert.deepEqual([env.VALO_PAY_1_RUN_INTEGRATION, env.VALO_PAY_1_CLOSE_SCHEDULER, env.VALO_PAY_1_STAFF_ACCESS, env.CI], ['1', 'off', 'off', 'true']); checks += 8;
 
 const source = { commit: 'a'.repeat(40), tree: 'b'.repeat(40), dirty: false, fileCount: 1, sourceDigestSha256: 'c'.repeat(64) };
 const ran = [], said = [];
 let clock = 0;
 const report = runRehearsal({
   fingerprint: () => source, clock: () => clock++, now: () => new Date('2026-09-26T00:00:00Z'), say: { log: line => said.push(line) },
-  run: suite => { ran.push(suite.id); return { status: suite.id === 'allocation-decisions' ? 1 : 0, stdout: 'do-not-print', stderr: 'postgres://private-fixture@localhost/valopay' }; },
+  run: suite => { ran.push(suite.id); return { status: suite.id === 'allocation-decisions' ? 1 : 0, stdout: 'do-not-print', stderr: 'postgres://private-fixture@localhost/valo_pay_1_test' }; },
 });
 assert.deepEqual(ran, rehearsalSuites.map(suite => suite.id), 'a failure never hides later results');
 assert.equal(report.outcome, 'failed'); assert.equal(report.suites.filter(suite => suite.outcome === 'failed').length, 1);
@@ -50,30 +50,30 @@ assert.equal(runRehearsal({ fingerprint: () => reads++ ? { ...source, sourceDige
 assert.equal(runRehearsal({ fingerprint: () => source, run: () => ({ status: 0 }), say: { log() {} } }).outcome, 'passed'); checks++;
 
 // Exercise the actual executable's refusal path: no database modules or services are started.
-for (const overrides of [{ DATABASE_URL: 'postgres://do-not-print@remote.example/valopay' }, { VALOPAY_PILOT_REHEARSAL_REPORT: path.join(root, 'must-not-be-created.json') }]) {
+for (const overrides of [{ DATABASE_URL: 'postgres://do-not-print@remote.example/valo_pay_1_test' }, { VALO_PAY_1_PILOT_REHEARSAL_REPORT: path.join(root, 'must-not-be-created.json') }]) {
   const child = spawnSync(process.execPath, [path.join(root, 'scripts/rehearse-pilot.mjs')], { env: { ...process.env, ...enabled, ...overrides }, encoding: 'utf8', timeout: 10_000 });
   assert.equal(child.status, 1); assert.doesNotMatch(child.stdout + child.stderr, /do-not-print|private-fixture/); checks += 2;
 }
 // Started through a symlinked path the command still runs, here to its refusal without the opt-ins: Node gives the
 // module its real path, and a guard comparing that with the path it was started by once exited 0 without a word.
-const links = mkdtempSync(path.join(tmpdir(), 'valopay-linked-rehearsal-')), linked = path.join(links, 'scripts');
+const links = mkdtempSync(path.join(tmpdir(), 'valo-pay-1-linked-rehearsal-')), linked = path.join(links, 'scripts');
 symlinkSync(path.join(root, 'scripts'), linked, 'junction');
 try {
-  const unset = Object.fromEntries(Object.entries(process.env).filter(([name]) => !/^(?:VALOPAY_|DATABASE_URL$)/.test(name)));
+  const unset = Object.fromEntries(Object.entries(process.env).filter(([name]) => !/^(?:VALO_PAY_1_|DATABASE_URL$)/.test(name)));
   const child = spawnSync(process.execPath, [path.join(linked, 'rehearse-pilot.mjs')], { env: unset, encoding: 'utf8', timeout: 10_000 });
   assert.equal(child.status, 1, 'started through a symlinked path, the rehearsal still refuses without its opt-ins');
-  assert.match(child.stderr, /^Set VALOPAY_RUN_INTEGRATION=1 and VALOPAY_RUN_PILOT_REHEARSAL=1/m); checks += 2;
+  assert.match(child.stderr, /^Set VALO_PAY_1_RUN_INTEGRATION=1 and VALO_PAY_1_RUN_PILOT_REHEARSAL=1/m); checks += 2;
 } finally { unlinkSync(linked); rmSync(links, { recursive: true, force: true }); }
 // A report path that reaches the checkout through a link, in a directory above it or at the path itself, is refused as a
 // path inside it is, and one whose directory or links cannot be resolved is refused before any suite rather than after them.
 // PATH holds no git, so even a build that accepted the path stops at the source fingerprint, before any suite.
-const outside = mkdtempSync(path.join(tmpdir(), 'valopay-rehearsal-report-'));
+const outside = mkdtempSync(path.join(tmpdir(), 'valo-pay-1-rehearsal-report-'));
 const name = `rehearsal-report-${process.pid}.json`, made = [];
 const link = (target, at, type) => { const where = path.join(outside, at); symlinkSync(target, where, type); made.push(where); return where; };
 try {
   const gitless = { ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^path$/i.test(key))), ...enabled, PATH: outside };
   const refusedReport = (report, pattern, reason) => {
-    const child = spawnSync(process.execPath, [path.join(root, 'scripts/rehearse-pilot.mjs')], { env: { ...gitless, VALOPAY_PILOT_REHEARSAL_REPORT: report }, encoding: 'utf8', timeout: 10_000 });
+    const child = spawnSync(process.execPath, [path.join(root, 'scripts/rehearse-pilot.mjs')], { env: { ...gitless, VALO_PAY_1_PILOT_REHEARSAL_REPORT: report }, encoding: 'utf8', timeout: 10_000 });
     assert.equal(child.status, 1, reason);
     assert.match(child.stderr, pattern, `${reason}: ${report}`);
     assert.equal(existsSync(path.join(root, name)), false); checks += 3;

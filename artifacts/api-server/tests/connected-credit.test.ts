@@ -700,7 +700,7 @@ test("service binds customer to tenant and rejects unexpected request fields", (
         ...assessAction,
         data: { ...assessAction.data, score: 100 },
       }),
-    /This request has details Valo Pay does not use/,
+    /This request has details Valo Pay 1 does not use/,
   );
 });
 test("service requires actual consent records and preserves missing state", () => {

@@ -1,4 +1,4 @@
-import { pool, type PoolClient } from "@workspace/db";
+import { pool, type PoolClient } from "@workspace/valo-pay-1-db";
 import { createHash } from "node:crypto";
 import { reviewedRuntimeHelpers, reviewedRuntimeServerMajor, runtimeGrantDifferences, runtimeHelperDifferences, runtimePolicyDifferences, runtimeRoleDifferences, type RuntimeGrantRow, type RuntimeHelperRow, type RuntimeObjectRow, type RuntimePolicyRow, type RuntimeRoleRow, type RuntimeTriggerRow } from "./runtime-isolation-policy";
 import { beginStatement, checkOut, databaseLimits, failedTransaction } from "./database-limits";
@@ -44,16 +44,16 @@ type IsolationCatalogue = { server_major: number; tables: { relname: string; saf
 /** A refusal is a 503 in general words; what differs goes to the server log with the error, never to the client. */
 function unavailable(message: string, differences?: string[]): never { throw Object.assign(new Error(message), { status: 503 }, differences ? { differences } : {}); }
 export function runtimeIsolationEnabled() {
-  const mode = process.env.VALOPAY_RUNTIME_ISOLATION;
+  const mode = process.env.VALO_PAY_1_RUNTIME_ISOLATION;
   if (mode && mode !== "off" && mode !== "staging") unavailable("Runtime database isolation configuration is invalid.");
   return mode === "staging";
 }
 export function runtimeIsolationConfiguration() {
   if (!runtimeIsolationEnabled()) return null;
-  const schema = process.env.VALOPAY_RUNTIME_SCHEMA || "", role = process.env.VALOPAY_RUNTIME_ROLE || "";
+  const schema = process.env.VALO_PAY_1_RUNTIME_SCHEMA || "", role = process.env.VALO_PAY_1_RUNTIME_ROLE || "";
   if (!/^valopay_runtime_(staging|test)_[a-z0-9_]+$/.test(schema) || !/^[a-z][a-z0-9_]{2,62}$/.test(role)) unavailable("Runtime isolation needs a separate commissioning schema and a restricted database role. The public schema is refused.");
-  if (process.env.VALOPAY_STAFF_ACCESS !== "staging") unavailable("Runtime isolation requires verified staging staff access.");
-  if (process.env.VALOPAY_PAYLOAD_ENCRYPTION !== "kms" || !process.env.VALOPAY_KMS_KEY) unavailable("Runtime isolation requires the configured KMS payload-encryption boundary.");
+  if (process.env.VALO_PAY_1_STAFF_ACCESS !== "staging") unavailable("Runtime isolation requires verified staging staff access.");
+  if (process.env.VALO_PAY_1_PAYLOAD_ENCRYPTION !== "kms" || !process.env.VALO_PAY_1_KMS_KEY) unavailable("Runtime isolation requires the configured KMS payload-encryption boundary.");
   return { schema, role };
 }
 /** Must run inside every business transaction, before any table lookup. An
@@ -104,7 +104,7 @@ export async function clearRuntimeInviteeGrants(client: PoolClient) {
  * grants are checked by RLS. Missing service identity fails closed. */
 export async function bindRuntimeService(client: PoolClient) {
   if (!runtimeIsolationEnabled()) return;
-  await bindRuntimeIdentity(client, { organizationId: process.env.VALOPAY_RUNTIME_SERVICE_ORG || "", userId: process.env.VALOPAY_RUNTIME_SERVICE_USER || "" });
+  await bindRuntimeIdentity(client, { organizationId: process.env.VALO_PAY_1_RUNTIME_SERVICE_ORG || "", userId: process.env.VALO_PAY_1_RUNTIME_SERVICE_USER || "" });
   const member = (await client.query<{ role: string }>("SELECT role FROM valopay_staff_memberships WHERE user_id=current_setting('valopay.runtime_user',true) AND status='active' AND expires_at>clock_timestamp()")).rows[0];
   if (!member || !["Admin", "Operations"].includes(member.role)) unavailable("The isolated service worker needs an active Operations or administrator membership.");
 }

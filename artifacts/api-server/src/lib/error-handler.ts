@@ -1,6 +1,6 @@
 import type { ErrorRequestHandler } from "express";
 import { ZodError } from "zod";
-import { ERROR_DETAIL_LIMIT, MONEY_REFUSAL_MESSAGE, MoneyArithmeticError } from "@workspace/valopay-schema";
+import { ERROR_DETAIL_LIMIT, MONEY_REFUSAL_MESSAGE, MoneyArithmeticError } from "@workspace/valo-pay-1-schema";
 import { PilotAccessError } from './pilot-access';
 import { closeRefusedOperation, operationStateOf, requestKey, type OperationState } from './refused-operations';
 import { wasRolledBack } from './transaction-outcome';
@@ -73,12 +73,12 @@ const characterCodes = ["22021", "22P05"];
 const networkCodes = new Set(["ECONNREFUSED", "ECONNRESET", "ENOTFOUND", "EAI_AGAIN", "ETIMEDOUT", "ECONNABORTED", "EHOSTUNREACH", "ENETUNREACH", "EPIPE", "UND_ERR_CONNECT_TIMEOUT", "UND_ERR_HEADERS_TIMEOUT", "UND_ERR_BODY_TIMEOUT", "UND_ERR_SOCKET"]);
 // The console shows these as they are written: what happened, then what to do (docs/design/writing.md). A request
 // whose answer was lost is checked with "Check original request", on the notice or in Request history.
-const GENERAL_FAILURE = "We do not know yet whether Valo Pay saved this. Check the original request in Request history before you change anything.";
+const GENERAL_FAILURE = "We do not know yet whether Valo Pay 1 saved this. Check the original request in Request history before you change anything.";
 const NOT_SAVED = "This action failed and nothing was saved. Try again, and quote this reference if it happens again.";
-const READ_FAILURE = "Valo Pay could not load this. Try again, and quote this reference if it happens again.";
-const SAVED_FAILURE = "Valo Pay saved this request but could not send its answer. Check the original request in Request history to see the saved result.";
+const READ_FAILURE = "Valo Pay 1 could not load this. Try again, and quote this reference if it happens again.";
+const SAVED_FAILURE = "Valo Pay 1 saved this request but could not send its answer. Check the original request in Request history to see the saved result.";
 const RUNNING_FAILURE = "This request is still running. Wait a moment, then check the original request in Request history to see its result.";
-const UNREACHABLE = "Valo Pay could not reach a system this request needs. Try again shortly.";
+const UNREACHABLE = "Valo Pay 1 could not reach a system this request needs. Try again shortly.";
 const MALFORMED_PATH = "This address is not valid. Check the link and try again.";
 /** What became of a request whose key may have saved something, in one sentence. */
 const outcome = (state: OperationState | undefined) => state === "completed" ? "This request was saved." : state === "running" ? "This request is still running." : "We do not know yet whether it was saved.";
@@ -187,7 +187,7 @@ function describe(error: unknown, req: Parameters<ErrorRequestHandler>[1]): Answ
   }
   // A failure is logged with its stack, which is what locates it; the answer stays general.
   if (!(error instanceof Error) || programmingErrors.some((kind) => error instanceof kind)) {
-    req.log.error({ event: "request.failed", err: error instanceof Error ? error : new Error(String(error)) }, "Valopay operation failed");
+    req.log.error({ event: "request.failed", err: error instanceof Error ? error : new Error(String(error)) }, "Valo Pay 1 operation failed");
     return general();
   }
   const failure = error as Raised;
@@ -209,7 +209,7 @@ function describe(error: unknown, req: Parameters<ErrorRequestHandler>[1]): Answ
     return unavailable(status, failure.message, status === 503 && upstream >= 400 ? { "Retry-After": String(OUTAGE_RETRY_AFTER_SECONDS) } : undefined);
   }
   if (failure.code !== undefined || status >= 500) {
-    req.log.error({ event: "request.failed", code: failure.code, err: failure }, "Valopay operation failed");
+    req.log.error({ event: "request.failed", code: failure.code, err: failure }, "Valo Pay 1 operation failed");
     return general();
   }
   // An upstream status (storage, identity) with none of our own is never the request's fault.

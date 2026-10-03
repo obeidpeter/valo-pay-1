@@ -1,7 +1,7 @@
-import type { PoolClient } from '@workspace/db';
+import type { PoolClient } from '@workspace/valo-pay-1-db';
 import type { DomainState, ValopayRecord } from '../domain/types';
 import { canonicalDigest as digest } from './digests';
-import { canonicalJson as canonical } from '@workspace/valopay-schema';
+import { canonicalJson as canonical } from '@workspace/valo-pay-1-schema';
 
 /** Staging-only dual-write guard, not a second source of production financial truth. */
 export const FINANCIAL_PROJECTION_LIMIT = 5_000;

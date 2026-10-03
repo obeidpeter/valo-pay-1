@@ -1,3 +1,4 @@
+import { SANDBOX_COOKIE } from "../src/lib/sandbox-cookie";
 // What an operator can see: every request named on its answer and in its log
 // lines, refusals and failures as structured events with the stack where it
 // belongs, nothing secret in the log, a liveness answer that says what runs
@@ -8,10 +9,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 // The log goes to a file this test reads back; the store needs an address and Clerk a pair of placeholder keys, none of which is used.
-const logFile = join(tmpdir(), `valopay-observability-${process.pid}.log`);
+const logFile = join(tmpdir(), `valo-pay-1-observability-${process.pid}.log`);
 process.env["LOG_FILE"] = logFile;
 process.env["LOG_LEVEL"] = "info";
-process.env["DATABASE_URL"] ??= "postgres://postgres@127.0.0.1:1/valopay-unused";
+process.env["DATABASE_URL"] ??= "postgres://postgres@127.0.0.1:1/valo-pay-1-unused";
 process.env["CLERK_SECRET_KEY"] ??= "sk_test_placeholder";
 process.env["CLERK_PUBLISHABLE_KEY"] ??= `pk_test_${Buffer.from("clerk.example.test$").toString("base64")}`;
 const { default: app, requestIdFor } = await import("../src/app.js");
@@ -165,15 +166,15 @@ try {
 
   const quoted = await fetch(`${base}/api/healthz`, { headers: { "X-Request-Id": "support-ticket-4711" } });
   assert.match(quoted.headers.get("x-request-id") ?? "", /^[0-9a-f]{16}$/, "by default a client's id is never taken");
-  process.env["VALOPAY_EDGE_REQUEST_ID"] = "on";
+  process.env["VALO_PAY_1_EDGE_REQUEST_ID"] = "on";
   const kept = await fetch(`${base}/api/healthz`, { headers: { "X-Request-Id": "edge-0123456789" } });
-  assert.equal(kept.headers.get("x-request-id"), "edge-0123456789", "with VALOPAY_EDGE_REQUEST_ID=on the edge's id comes back on the answer");
+  assert.equal(kept.headers.get("x-request-id"), "edge-0123456789", "with VALO_PAY_1_EDGE_REQUEST_ID=on the edge's id comes back on the answer");
   const replaced = await fetch(`${base}/api/healthz`, { headers: { "X-Request-Id": "<not a token>" } });
   assert.match(replaced.headers.get("x-request-id") ?? "", /^[0-9a-f]{16}$/);
-  delete process.env["VALOPAY_EDGE_REQUEST_ID"];
+  delete process.env["VALO_PAY_1_EDGE_REQUEST_ID"];
   checks += 3;
 
-  const unknown = await fetch(`${base}/api/v1/no-such-resource`, { headers: { Cookie: "valopay_sandbox=SECRET-COOKIE-VALUE" } });
+  const unknown = await fetch(`${base}/api/v1/no-such-resource`, { headers: { Cookie: `${SANDBOX_COOKIE}=SECRET-COOKIE-VALUE` } });
   const unknownBody = await unknown.json() as { error: string; requestId: string };
   assert.equal(unknown.status, 404);
   assert.equal(unknownBody.error, "Unknown resource.");
@@ -189,7 +190,7 @@ try {
   const requestLines = written.filter((line) => typeof line["responseTime"] === "number");
   assert.ok(requestLines.length >= 6, `one line per request (${requestLines.length})`);
   for (const line of requestLines) {
-    assert.equal(line["service"], "valopay-api");
+    assert.equal(line["service"], "valo-pay-1-api");
     assert.equal(line["build"], BUILD);
     assert.ok(typeof line["req"]["id"] === "string" && line["req"]["id"].length >= 8, "the request line carries the id");
     assert.ok(typeof line["responseTime"] === "number", "and its time");

@@ -3,7 +3,7 @@
  * never a decoded-but-unverified token, browser role, request body or sandbox persona.
  * Signature, issuer and authorised-party verification still belong to that middleware.
  */
-import { sensitiveExportRoles, type PilotAccessFailureCode } from '@workspace/valopay-schema';
+import { sensitiveExportRoles, type PilotAccessFailureCode } from '@workspace/valo-pay-1-schema';
 import { onlyRoles } from './refusal-words';
 export interface VerifiedClerkSession {
   userId?: string | null;
@@ -51,7 +51,7 @@ export interface PilotAccessGrant {
   readonly liveOperationsAllowed: false;
 }
 
-/** Why staff access was refused; the codes the error body's `code` names (lib/valopay-schema api.ts). */
+/** Why staff access was refused; the codes the error body's `code` names (lib/valo-pay-1-schema api.ts). */
 export type PilotAccessFailure = PilotAccessFailureCode;
 export class PilotAccessError extends Error {
   readonly status: number;
@@ -96,8 +96,8 @@ function instant(value: string): number {
 
 /** Authorises only the requested staging action against a current, matching membership and both MFA factors. */
 export function authorizePilotAccess(auth: VerifiedClerkSession | null | undefined, membership: ProvisionedMembership | null | undefined, request: { tenantId: string; action: PilotAction }, policy: PilotAccessPolicy, nowMs = Date.now()): PilotAccessGrant {
-  if (policy?.enabled !== true || policy.environment !== 'staging') refuse('pilot_disabled', 'Team member sign-in is not switched on at this address. Contact the Valo Pay team if you need it.');
-  if (!Number.isFinite(nowMs) || !httpsOrigin(policy.issuer) || !Array.isArray(policy.authorisedParties) || policy.authorisedParties.length === 0 || !policy.authorisedParties.every(httpsOrigin) || !minutes(policy.maxFactorAgeMinutes, 1440) || !minutes(policy.maxSensitiveFactorAgeMinutes, 10) || policy.maxSensitiveFactorAgeMinutes > policy.maxFactorAgeMinutes) refuse('configuration_invalid', 'Team member sign-in is not set up correctly. Contact the Valo Pay team.');
+  if (policy?.enabled !== true || policy.environment !== 'staging') refuse('pilot_disabled', 'Team member sign-in is not switched on at this address. Contact the Valo Pay 1 team if you need it.');
+  if (!Number.isFinite(nowMs) || !httpsOrigin(policy.issuer) || !Array.isArray(policy.authorisedParties) || policy.authorisedParties.length === 0 || !policy.authorisedParties.every(httpsOrigin) || !minutes(policy.maxFactorAgeMinutes, 1440) || !minutes(policy.maxSensitiveFactorAgeMinutes, 10) || policy.maxSensitiveFactorAgeMinutes > policy.maxFactorAgeMinutes) refuse('configuration_invalid', 'Team member sign-in is not set up correctly. Contact the Valo Pay 1 team.');
   if (!auth || !nonempty(auth.userId) || !nonempty(auth.sessionId) || auth.tokenType !== 'session_token') refuse('authentication_required', 'Sign in, then try again.');
   const claims = auth.sessionClaims;
   if (!claims || auth.sessionStatus !== 'active' || auth.actor || claims.act || claims.sub !== auth.userId || claims.sid !== auth.sessionId || claims.iss !== policy.issuer || typeof claims.azp !== 'string' || !policy.authorisedParties.includes(claims.azp)) refuse('session_invalid', 'Your sign-in is not valid at this address. Sign out, sign in again here and try again.');

@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { lstatSync, readFileSync, realpathSync } from "node:fs";
 import { resolve, sep } from "node:path";
 
-const roots = new Set([".gitignore", ".githooks/pre-push", ".node-version", ".npmrc", ".replit", ".replitignore", "README.md", "package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", "tsconfig.base.json", "tsconfig.json", "replit.md"]);
+const roots = new Set(["product-identity.json", ".gitignore", ".githooks/pre-push", ".node-version", ".npmrc", ".replit", ".replitignore", "README.md", "package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", "tsconfig.base.json", "tsconfig.json", "replit.md"]);
 const docs = new Set(["docs/pilot-workflow-release.md", "docs/connected-banking.md", "docs/BUILD_STATUS.md", "docs/DATABASE_SECURITY.md", "docs/frontend-contract.md", "docs/security-review.md", "docs/observability.md", "docs/documentation-review.md", "docs/github-sync.md", "docs/design/console.md", "docs/design/writing.md", "docs/paystack.md", "docs/pilot-security.md", "docs/pilot-database.md", "docs/operational-rehearsals.md", "docs/record-list-index-deployment.md", "docs/operator-validation.md"]);
 // Reviewed usability guidance and an empty measurement plan; no participant data.
 for (const name of ['README.md', 'audit.md', 'role-task-map.md', 'core-findings.md', 'import-findings.md', 'connected-findings.md', 'research-kit.md', 'release.md', 'measurement-template.csv']) docs.add(`docs/usability/${name}`);
@@ -23,6 +23,7 @@ docs.add('docs/document-register.md');
 for (const name of ['README.md', 'backend-package.md', 'repository-assessment.md', 'source-status-notes.md', 'traceability.json', 'validate-traceability.mjs']) docs.add(`docs/refactor-2026-09-29/${name}`);
 // Reviewed beginner guidance and synthetic evidence only; source attachments and participant data stay private.
 for (const name of ['README.md', 'sources.md', 'start-findings.md', 'help-findings.md', 'cash-findings.md', 'journeys.md', 'validation.md', 'research-kit.md', 'measurement-template.csv']) docs.add(`docs/usability-2026-09-29/${name}`);
+for (const name of ['migration-report.md', 'naming-resource-map.md', 'cutover-recovery.md', 'future-valo-pay.md', 'historical-files.json', 'path-map.json', 'identity-exceptions.json']) docs.add(`docs/product-identity/${name}`);
 // Workflows execute code on GitHub. Review each file before approving its export.
 const workflows = new Set([".github/workflows/ci.yml"]);
 const sourceExtension = /\.(?:ts|tsx|js|jsx|mjs|cjs|json|yaml|yml|toml|css|html|svg|sh|md|sql)$/;
@@ -35,7 +36,7 @@ export function allowedPath(path) {
   if (path.split("/").some(p => excludedSegment.test(p) || p === ".." || p.startsWith(".env"))) return false;
   if (/\.(?:pem|key|p12|pfx|log|dump|sqlite3?|tsbuildinfo)$/i.test(path)) return false;
   return roots.has(path) || docs.has(path) || workflows.has(path) || (
-    /^(?:artifacts\/(?:api-server|valo-pay|mockup-sandbox)\/|lib\/|scripts\/)/.test(path) &&
+    /^(?:artifacts\/(?:api-server|valo-pay-1|mockup-sandbox)\/|lib\/|scripts\/)/.test(path) &&
     sourceExtension.test(path)
   );
 }

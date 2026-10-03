@@ -1,6 +1,6 @@
 import type { Request } from "express";
 import type { z, ZodError, ZodIssue } from "zod";
-import { IDEMPOTENCY_KEY_HEADER, idempotencyKeyHeaderSchema, lenderPageQuerySchema, lenderQuerySchema } from "@workspace/valopay-schema";
+import { IDEMPOTENCY_KEY_HEADER, idempotencyKeyHeaderSchema, lenderPageQuerySchema, lenderQuerySchema } from "@workspace/valo-pay-1-schema";
 import { markKeyed } from "./refused-operations";
 
 /**

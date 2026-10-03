@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Valo Pay 1"
+description = "Stage 1 collections operations for Nigerian lenders: mandate operations, controlled retries, reconciliation and exceptions, audit records and gate evidence. Observation-first; never holds money."
+version = "1.0.0"
+id = "artifacts/valo-pay-1"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 21601
+
+[services.development]
+run = "pnpm --filter @workspace/valo-pay-1 run dev"
+
+[services.production]
+build = [ "bash", "scripts/deployment-node.sh", "build", "pnpm", "--filter", "@workspace/valo-pay-1", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/valo-pay-1/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "21601"
+BASE_PATH = "/"

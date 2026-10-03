@@ -1,4 +1,4 @@
-import { conditionClearedCode, heldEvidenceOf, isOpenException, providerConnectionKey, resolveExceptionType, unseenReversalOf } from "@workspace/valopay-schema";
+import { conditionClearedCode, heldEvidenceOf, isOpenException, providerConnectionKey, resolveExceptionType, unseenReversalOf } from "@workspace/valo-pay-1-schema";
 import { evidenceConflict } from "./evidence-agreement";
 import { indexedPass, recordsWhere } from "./record-index";
 import type { DomainState, TypedRecord, ValopayRecord } from "./types";

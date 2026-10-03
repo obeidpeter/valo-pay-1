@@ -1,3 +1,4 @@
+import { SANDBOX_COOKIE } from "../src/lib/sandbox-cookie";
 /** PC02: actual PostgreSQL transactions, with 100 simultaneous contenders.
  * Uses the same workspace gate, lender lock, domain guards, save, audit and
  * idempotency APIs as the application. No financial/provider call is made.
@@ -5,17 +6,17 @@
  * SQL bypass or external exactly-once execution. */
 import assert from "node:assert/strict";
 import { randomBytes, randomUUID } from "node:crypto";
-import { MoneyArithmeticError } from "@workspace/valopay-schema";
+import { MoneyArithmeticError } from "@workspace/valo-pay-1-schema";
 import { requireLoopback } from "./throwaway-database.js";
 
-if (process.env.VALOPAY_RUN_INTEGRATION !== "1") {
-  console.log("Set VALOPAY_RUN_INTEGRATION=1 to run 100-way financial races against a disposable loopback PostgreSQL database.");
+if (process.env.VALO_PAY_1_RUN_INTEGRATION !== "1") {
+  console.log("Set VALO_PAY_1_RUN_INTEGRATION=1 to run 100-way financial races against a disposable loopback PostgreSQL database.");
   process.exit(0);
 }
 requireLoopback("Financial concurrency", new URL(process.env.DATABASE_URL!));
 
-const { pool } = await import("@workspace/db");
-const store = await import("../src/lib/valopay-store.js");
+const { pool } = await import("@workspace/valo-pay-1-db");
+const store = await import("../src/lib/valo-pay-1-store.js");
 const { DatabaseLimitError } = await import("../src/lib/database-limits.js");
 const { wasRolledBack } = await import("../src/lib/transaction-outcome.js");
 const { connectedRevision, runConnectedAction } = await import("../src/domain/connected.js");
@@ -27,7 +28,7 @@ type Context = Parameters<typeof store.saveState>[0];
 
 const token = randomBytes(32).toString("hex");
 const request = (merchantId?: string) => ({
-  headers: { cookie: `valopay_sandbox=${token}` }, query: merchantId ? { merchantId } : {}, secure: false,
+  headers: { cookie: `${SANDBOX_COOKIE}=${token}` }, query: merchantId ? { merchantId } : {}, secure: false,
   auth: Object.assign(() => ({ userId: null }), { [Symbol.for("@clerk/express.auth")]: true }),
 }) as any;
 const response = () => ({ cookie() {} }) as any;

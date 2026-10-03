@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { settingsRevision, assertRecordVersion, assertSettingsVersion, advanceRecordVersions, recordChanged, nextRecordVersion, mergeData } from "../src/lib/edit-versions.js";
-import { seedMerchant } from "../src/lib/valopay-seed.js";
+import { seedMerchant } from "../src/lib/valo-pay-1-seed.js";
 
 const state = seedMerchant("version-tests", false);
 const record = state.records.find(record => record.kind === "customers")!;

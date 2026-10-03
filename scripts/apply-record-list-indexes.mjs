@@ -4,6 +4,7 @@ import { realpathSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { tsImport } from 'tsx/esm/api';
 
 const requireDb = createRequire(new URL('../lib/db/package.json', import.meta.url));
 const { Client } = requireDb('pg');
@@ -58,13 +59,22 @@ export async function inspectRecordListIndexes(client, expectedDatabase) {
 export async function runIndexMigration({ connectionString, apply = false, expectedDatabase, log = value => console.log(JSON.stringify(value, null, 2)) }) {
   if (!connectionString) throw new Error('DATABASE_URL must be supplied by the deployment environment; do not paste it into logs or the command line.');
   if (apply && !expectedDatabase) throw new Error('Applying indexes requires --database with the database name verified during inspection.');
+  const identity = await tsImport('../artifacts/api-server/src/lib/product-identity.ts', import.meta.url);
+  const environment = { ...process.env, DATABASE_URL: connectionString };
+  identity.assertOperatorConfiguration(environment);
+  identity.assertPublicOperatorSchema(environment);
+  const binding = identity.readResourceBindings(environment);
   const statements = await migrationStatements();
-  const client = new Client({ connectionString, application_name: 'valopay-record-list-indexes' });
+  const client = new Client({ connectionString, application_name: 'valo-pay-1-record-list-indexes' });
   let locked = false;
   await client.connect();
   try {
     await client.query("SET lock_timeout='5s'");
     await client.query("SET statement_timeout='15min'");
+    if (binding) {
+      const observed = (await client.query('SELECT current_database() AS database,current_user AS "user",current_schema() AS schema,to_regnamespace($1) IS NOT NULL AS bound_schema_exists', [binding.database.schema])).rows[0];
+      identity.assertObservedDatabaseIdentity(binding, observed);
+    }
     if (apply) {
       // Session lock spans each concurrent build's own transactions. It affects
       // only another invocation of this migration, never application row locks.

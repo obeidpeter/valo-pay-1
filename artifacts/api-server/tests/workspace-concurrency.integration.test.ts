@@ -1,18 +1,19 @@
+import { SANDBOX_COOKIE } from "../src/lib/sandbox-cookie";
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 
-if (process.env.VALOPAY_RUN_INTEGRATION !== "1") {
-  console.log("Set VALOPAY_RUN_INTEGRATION=1 for the disposable-database concurrency tests.");
+if (process.env.VALO_PAY_1_RUN_INTEGRATION !== "1") {
+  console.log("Set VALO_PAY_1_RUN_INTEGRATION=1 for the disposable-database concurrency tests.");
   process.exit(0);
 }
-const { pool, Pool, poolSize, POOL_WAIT_MS } = await import("@workspace/db");
-const { inWorkspace, listMerchants, loadState, saveState, changeRole, appendAudit, auditOverview, saveIdempotency, findIdempotency, digest, pingDatabase, closeDatabase, lenderConnections, tenantConnections } = await import("../src/lib/valopay-store");
+const { pool, Pool, poolSize, POOL_WAIT_MS } = await import("@workspace/valo-pay-1-db");
+const { inWorkspace, listMerchants, loadState, saveState, changeRole, appendAudit, auditOverview, saveIdempotency, findIdempotency, digest, pingDatabase, closeDatabase, lenderConnections, tenantConnections } = await import("../src/lib/valo-pay-1-store");
 const { verifyAuditChain } = await import("../src/lib/digests");
 const { databaseLimitOf, DatabaseLimitError, overrideDatabaseLimits } = await import("../src/lib/database-limits");
 const { wasRolledBack } = await import("../src/lib/transaction-outcome");
 const token = randomBytes(32).toString("hex"), otherToken = randomBytes(32).toString("hex");
 /** A request as a route makes it; with a lender in the query string, the per-lender gate applies. */
-const reqFor = (merchantId?: string, sandbox = token) => ({ headers: { cookie: `valopay_sandbox=${sandbox}` }, query: merchantId ? { merchantId } : {}, secure: false, auth: Object.assign(() => ({ userId: null }), { [Symbol.for("@clerk/express.auth")]: true }) }) as any;
+const reqFor = (merchantId?: string, sandbox = token) => ({ headers: { cookie: `${SANDBOX_COOKIE}=${sandbox}` }, query: merchantId ? { merchantId } : {}, secure: false, auth: Object.assign(() => ({ userId: null }), { [Symbol.for("@clerk/express.auth")]: true }) }) as any;
 const req = () => reqFor();
 const res = () => ({ cookie() {} }) as any;
 const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));

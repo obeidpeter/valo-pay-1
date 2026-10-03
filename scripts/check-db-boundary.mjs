@@ -7,7 +7,7 @@ import ts from "typescript";
 import { fileURLToPath } from "node:url";
 
 const defaultRoot = path.resolve(import.meta.dirname, "..");
-const repository = "artifacts/api-server/src/lib/valopay-store.ts";
+const repository = "artifacts/api-server/src/lib/valo-pay-1-store.ts";
 // Durable export claims and completion use explicit lender-scoped worker transactions.
 const exportRepository = "artifacts/api-server/src/lib/export-job-store.ts";
 // Opt-in restricted runtime transactions verify and bind the forced-RLS scope.
@@ -18,6 +18,8 @@ const financialProjection =
 // The startup check reads DATABASE_URL only to refuse a missing or malformed value before anything starts;
 // like every other module, it may not import the database or query it.
 const startupCheck = "artifacts/api-server/src/lib/startup-config.ts";
+// Reads the configured target only to compare it with reviewed deployment bindings.
+const productIdentityCheck = "artifacts/api-server/src/lib/product-identity.ts";
 const internalDirectory = "artifacts/api-server/src/lib/repository/";
 // Explicitly reviewed modules, not a wildcard grant for a new module in this directory.
 const internalModules = new Set(
@@ -34,12 +36,12 @@ const internalModules = new Set(
   ].map((name) => internalDirectory + name + ".ts"),
 );
 const publicRepositoryNames = new Set(
-  `roles digest bindOperation boundOperation tenantConnections lenderConnections fail ANONYMOUS_WORKSPACE_DAYS SANDBOX_LENDER_LIMIT expiredWorkspaceCleanupEnabled SYSTEM_ACTOR_PREFIX runtimeIsolationVerified systemWorkspaceMatches verifyWorkspaceEncryption protectWorkspacePayloads inWorkspace listMerchants chainSequenceSql loadState auditOverview writeAuditCheck verifyAuditTrail dailyAuditCheckDue checkAuditChainDaily revealImportPayloads settleChanges addedRecords auditObject changeRole saveState inMerchantAsSystem merchantInWorkspace dueScheduledCloses scheduledCloseBacklog recordScheduledCloseFailure sandboxInactiveFor initialiseCloseCursors appendAudit verifyAudit DailyAuditCheck OwedCloses StoreContext StoredRequest MerchantLock WorkspaceAccess SweptExportFile prepareOperation listOperations countPendingOperations readOperation receiptOf cancelOperation lookupOwnOperation cancelOwnOperation rejectOperation journalReceipt completeOperation findIdempotency findStoredAnswer saveIdempotency caseAssignees staffDirectory viewerScope inviteStaff approveInvitation updateStaff approveStaffChange declineStaffChange updateStaffLenders revokeInvitation acceptStaffInvitation provisionStaffWorkspace addStaffAdministrator renewStaffAdministrator createPilotLender OperatorProvisioning rewrapProtectedPayloads PayloadRewrap listRecords listQueue listReconciliation listCloseHistory getCloseDetail loadReportsView getCustomerHistory loadCustomerView loadSettingsView lifecycleInventory executeLifecycleRun JournalNeed sweepExpiredWorkspaces overrideSweptExportRemoval removeSweptExportFiles runExportCleanupPass exportCleanupStatus parkedExportFiles requeueParkedExportFile releaseParkedExportFile integrityGuards guardMigrations supersededGuards pingDatabase watchDatabase closeDatabase DatabaseReadiness assertFinalState`.split(
+  `roles digest bindOperation boundOperation tenantConnections lenderConnections fail ANONYMOUS_WORKSPACE_DAYS SANDBOX_LENDER_LIMIT expiredWorkspaceCleanupEnabled SYSTEM_ACTOR_PREFIX runtimeIsolationVerified systemWorkspaceMatches verifyWorkspaceEncryption protectWorkspacePayloads inWorkspace listMerchants chainSequenceSql loadState auditOverview writeAuditCheck verifyAuditTrail dailyAuditCheckDue checkAuditChainDaily revealImportPayloads settleChanges addedRecords auditObject changeRole saveState inMerchantAsSystem merchantInWorkspace dueScheduledCloses scheduledCloseBacklog recordScheduledCloseFailure sandboxInactiveFor initialiseCloseCursors appendAudit verifyAudit DailyAuditCheck OwedCloses StoreContext StoredRequest MerchantLock WorkspaceAccess SweptExportFile prepareOperation listOperations countPendingOperations readOperation receiptOf cancelOperation lookupOwnOperation cancelOwnOperation rejectOperation journalReceipt completeOperation findIdempotency findStoredAnswer saveIdempotency caseAssignees staffDirectory viewerScope inviteStaff approveInvitation updateStaff approveStaffChange declineStaffChange updateStaffLenders revokeInvitation acceptStaffInvitation provisionStaffWorkspace addStaffAdministrator renewStaffAdministrator createPilotLender OperatorProvisioning rewrapProtectedPayloads PayloadRewrap listRecords listQueue listReconciliation listCloseHistory getCloseDetail loadReportsView getCustomerHistory loadCustomerView loadSettingsView lifecycleInventory executeLifecycleRun JournalNeed sweepExpiredWorkspaces overrideSweptExportRemoval removeSweptExportFiles runExportCleanupPass exportCleanupStatus parkedExportFiles requeueParkedExportFile releaseParkedExportFile integrityGuards guardMigrations supersededGuards pingDatabase watchDatabase closeDatabase DatabaseReadiness assertFinalState verifyProductDatabaseBinding`.split(
     /\s+/,
   ),
 );
 const databaseImport =
-  /(?:^@workspace\/db(?:\/|$)|^(?:pg|postgres|postgresql|drizzle-orm)(?:\/|$)|(?:^|\/)lib\/db(?:\/|$))/;
+  /(?:^@workspace\/valo-pay-1-db(?:\/|$)|^(?:pg|postgres|postgresql|drizzle-orm)(?:\/|$)|(?:^|\/)lib\/db(?:\/|$))/;
 const connectionKey =
   /^(?:DATABASE_URL|PGHOST|PGUSER|PGPASSWORD|PGDATABASE|PGPORT)$/;
 
@@ -122,7 +124,7 @@ export async function inspectDatabaseBoundaries(root = defaultRoot) {
       } else if (!internalModules.has(relative)) {
         reject(
           node,
-          "Repository internals are private; use the valopay-store facade.",
+          "Repository internals are private; use the valo-pay-1-store facade.",
         );
       }
       if (!internalModules.has(target))
@@ -227,7 +229,7 @@ export async function inspectDatabaseBoundaries(root = defaultRoot) {
         if (member === "query" && !allowed)
           reject(node, "Raw query calls belong only in the scoped repository.");
       }
-      const namesConnection = allowed || relative === startupCheck;
+      const namesConnection = allowed || relative === startupCheck || relative === productIdentityCheck;
       if (
         !namesConnection &&
         ts.isPropertyAccessExpression(node) &&

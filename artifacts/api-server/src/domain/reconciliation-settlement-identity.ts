@@ -1,6 +1,6 @@
 /** Provider-identity holds, Finance confirmations and release evidence for settlement batches. */
 import { type TypedRecord, type ValopayRecord, type DomainState, type Context } from "./types";
-import { resolveExceptionType, providerIdentityOf, isOpenException, providerIdentityConfirmedCode, providerIdentityParts, counted, sumMoney, exceptionCatalogue, providerIdentityCondition, conditionClearedCode, providerIdentityReviewOf, providerIdentityReviewCondition, dayText, listText, optionText } from "@workspace/valopay-schema";
+import { resolveExceptionType, providerIdentityOf, isOpenException, providerIdentityConfirmedCode, providerIdentityParts, counted, sumMoney, exceptionCatalogue, providerIdentityCondition, conditionClearedCode, providerIdentityReviewOf, providerIdentityReviewCondition, dayText, listText, optionText } from "@workspace/valo-pay-1-schema";
 import { recordsWhere } from "./record-index";
 import { identityHeld, connectionKey, namedConnection, connectionOf, currencyOf } from "./reconciliation-values";
 import { type PaymentOf, totalsFromLines, lineAdded } from "./reconciliation-settlement-totals";
@@ -450,7 +450,7 @@ export function identityReviewsNote(state: DomainState, reviews: readonly TypedR
     return `settlement batch ${batch?.reference ?? review.data.linkedRecordId} (exception ${earlier?.reference || earlier?.id} ${earlier?.data.resolutionCode ? `resolved as ${optionText(earlier.data.resolutionCode)}` : "closed"})`;
   });
   const more = reviews.length > 3 ? `; and ${counted(reviews.length - 3, "more", "more")}` : "";
-  return `Raised a renewed Finance review for ${counted(reviews.length, "settlement batch", "settlement batches")} still on hold for ${reviews.length === 1 ? "its" : "their"} provider identity. Valo Pay had closed ${reviews.length === 1 ? "its hold’s exception" : "their holds’ exceptions"} earlier without confirming whose payout the batch is, and that decision stands: ${named.join("; ")}${more}.`;
+  return `Raised a renewed Finance review for ${counted(reviews.length, "settlement batch", "settlement batches")} still on hold for ${reviews.length === 1 ? "its" : "their"} provider identity. Valo Pay 1 had closed ${reviews.length === 1 ? "its hold’s exception" : "their holds’ exceptions"} earlier without confirming whose payout the batch is, and that decision stands: ${named.join("; ")}${more}.`;
 }
 
 /** What the audit entry says of a batch released as the identity Finance confirmed (confirmIdentity): the batch, the connection, who confirmed it and when, and the evidence of other connections it moved out. */

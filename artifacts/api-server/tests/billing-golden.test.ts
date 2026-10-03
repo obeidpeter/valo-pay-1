@@ -6,15 +6,15 @@ import { ctxAt, wat } from "./helpers.js";
 import { executeAction } from "../src/domain/actions.js";
 import { buildOverview, buildReports } from "../src/domain/reports.js";
 import { billableCollection, compareIssuedInvoiceRates, issueInvoice, monthOf, pendingAdjustments, previousMonth, periodEnd, rateDiscrepancies } from "../src/domain/billing.js";
-import { GetReportsResponse } from '@workspace/api-zod';
+import { GetReportsResponse } from '@workspace/valo-pay-1-api-zod';
 import { supersedeAllocation } from "../src/domain/reconciliation.js";
 import { makeRecord, recordsOf } from "../src/domain/records.js";
-import { seedMerchant } from "../src/lib/valopay-seed.js";
+import { seedMerchant } from "../src/lib/valo-pay-1-seed.js";
 import type { Context, DomainState, TypedRecord, ValopayRecord } from "../src/domain/types.js";
 import { validateRecord } from '../src/domain/validation.js';
-import { termsReplaced } from "@workspace/valopay-schema";
+import { termsReplaced } from "@workspace/valo-pay-1-schema";
 
-const { assertFinalState } = await import("../src/lib/valopay-store.js");
+const { assertFinalState } = await import("../src/lib/valo-pay-1-store.js");
 let checks = 0;
 const finance = (now: string) => ctxAt(now, "Finance");
 const LICENCE = 60_000_000; // contracted Scale licence in the seed
@@ -156,7 +156,7 @@ checks += 5;
   Object.assign(terms.data, { discountTermsReference: 'SYN-CAUSES', discountStartDate: '2027-01-15' });
   assert.match(cause(), /The saved discount dates need correcting\. Each discount date must be the first day of a month, because a monthly invoice uses one price for the whole month\./);
   Object.assign(terms.data, { discountStartDate: 20270101 });
-  assert.match(cause(), /Valo Pay cannot read the saved discount start date\. Enter it again from the signed agreement\.$/);
+  assert.match(cause(), /Valo Pay 1 cannot read the saved discount start date\. Enter it again from the signed agreement\.$/);
   // Proposed, then changed outside the record API: the proposal no longer matches the dates.
   terms.data.discountStartDate = '2027-01-01';
   save({ fullPriceStartDate: '2028-01-01' });
@@ -165,7 +165,7 @@ checks += 5;
   assert.match(cause(), /The discount dates or agreement reference changed after they were proposed\. Save the commercial terms again/);
   // A proposal stored in a form the service cannot read.
   Object.assign(terms.data, { fullPriceStartDate: '2028-01-01', discountReview: { ...terms.data.discountReview, reviewedBy: 42 } });
-  assert.match(cause(), /Valo Pay cannot read the saved proposal or confirmation of these discount dates/);
+  assert.match(cause(), /Valo Pay 1 cannot read the saved proposal or confirmation of these discount dates/);
   checks += 9;
 }
 
@@ -236,7 +236,7 @@ checks += 5;
   // No client supplies who proposed or who confirmed.
   terms.data.fullPriceStartDate = '2027-12-01';
   for (const forged of [{ ...terms.data.discountReview, confirmedBy: 'Clerk:user_zed' }, { ...proposal, confirmedBy: 'Clerk:user_zed', confirmedPrincipal: 'principal-zed', confirmedAt: now }, undefined]) {
-    assert.throws(() => save(staff('ada', 'Finance'), { discountReview: forged }), /Valo Pay records who proposed and who confirmed the discount dates/);
+    assert.throws(() => save(staff('ada', 'Finance'), { discountReview: forged }), /Valo Pay 1 records who proposed and who confirmed the discount dates/);
   }
   // A review an earlier build recorded, by one person with no confirmation, is a proposal awaiting confirmation.
   const legacy = { reviewedBy: 'Clerk:user_ada', reviewedAt: '2026-09-29T10:00:00.000Z', discountStartDate: '2027-01-01', fullPriceStartDate: '2027-12-01', termsReference: 'SYN-TWO-PEOPLE' };
@@ -293,9 +293,9 @@ checks += 5;
   const listed = () => (statement().rateDiscrepancies as Array<Record<string, any>> | undefined)?.map((line) => [line.invoiceId, line.invoiceReference, line.period, line.chargedRate, line.agreedRate]);
   assert.deepEqual(listed(), [[issued[0]!.id, 'INV-2027-01-001', '2027-01', 0.5, 0], [issued[1]!.id, 'INV-2027-02-002', '2027-02', 0.5, 0]], 'each month charged at another rate than the confirmed agreement gives is listed; March agrees');
   assert.equal(statement().rateDiscrepancies[0].explanation, `INV-2027-01-001 for January 2027 charged the 50% design-partner discount. A month uses the terms in effect at its end: for January 2027 those are “${terms.name}”, design-partner terms in effect from 1 Jan 2027, whose confirmed agreement synthetic-agreement gives the full public price.`);
-  assert.match(statement().rateDiscrepancyGuidance, /An issued invoice never changes, and Valo Pay cannot correct an issued invoice’s discount/);
+  assert.match(statement().rateDiscrepancyGuidance, /An issued invoice never changes, and Valo Pay 1 cannot correct an issued invoice’s discount/);
   assert.match(statement().rateDiscrepancyGuidance, /Adjustment lines on later invoices for a listed invoice’s collections, such as a re-allocation charge or a reversal credit, carry that invoice’s rate too\. Include them in what you agree\./);
-  assert.match(statement().rateDiscrepancyGuidance, /Agree any difference with the lender outside Valo Pay/);
+  assert.match(statement().rateDiscrepancyGuidance, /Agree any difference with the lender outside Valo Pay 1/);
   assert.deepEqual(state.records, before, 'reporting a difference changes no invoice and creates no money');
   assert.equal(statement().pendingAdjustmentsKobo, 0, 'nothing is added to the next invoice automatically');
   // A new invoice can still be issued, priced from the confirmed dates, and agrees with them.
@@ -534,7 +534,7 @@ const firstHalf = ['2027-01', '2027-02', '2027-03', '2027-04', '2027-05', '2027-
   for (const patch of [{ fullPriceStartDate: '2027-01-01' }, { discountStartDate: '2027-02-30' }, { discountStartDate: '2027-06-15' }, { discountTermsReference: '' }]) {
     assert.throws(() => validateRecord(state, finance(wat('2027-06-02T09:00:00')), 'commercial', changed(patch), true));
   }
-  assert.throws(() => validateRecord(state, finance(wat('2027-06-02T09:00:00')), 'commercial', changed({ discountReview: { ...terms.data.discountReview, reviewedBy: 'Someone else' } }), true), /Valo Pay records who proposed and who confirmed the discount dates/);
+  assert.throws(() => validateRecord(state, finance(wat('2027-06-02T09:00:00')), 'commercial', changed({ discountReview: { ...terms.data.discountReview, reviewedBy: 'Someone else' } }), true), /Valo Pay 1 records who proposed and who confirmed the discount dates/);
   assert.throws(() => validateRecord(state, ctxAt(wat('2027-06-02T09:00:00'), 'Read-only'), 'commercial', changed({ fullPriceStartDate: '2028-02-01' }), true), /Your role is Read-only, so you can view records but not change them\./);
   const cleared = changed({ signedFullPriceTerms: false });
   validateRecord(state, finance(wat('2027-06-02T09:00:00')), 'commercial', cleared, true);
@@ -570,7 +570,7 @@ const firstHalf = ['2027-01', '2027-02', '2027-03', '2027-04', '2027-05', '2027-
     const billing = buildReports(state, wat('2027-07-02T09:00:00')).billing;
     assert.equal(billing.pricingReady, false, `${label}: malformed stored evidence needs review`);
     assert.equal(billing.totalKobo, null, `${label}: no assumed price`);
-    assert.throws(() => issueInvoice(state, finance(wat('2027-07-02T09:00:00')), { period: '2027-06' }), /These design-partner terms cannot be used on a new invoice yet\. Valo Pay cannot read the saved (proposal or confirmation of these discount dates|discount start date|signed agreement reference)/,
+    assert.throws(() => issueInvoice(state, finance(wat('2027-07-02T09:00:00')), { period: '2027-06' }), /These design-partner terms cannot be used on a new invoice yet\. Valo Pay 1 cannot read the saved (proposal or confirmation of these discount dates|discount start date|signed agreement reference)/,
       `${label}: a documented pricing refusal naming the unreadable evidence, not an incidental TypeError`);
     assert.deepEqual(state, before, `${label}: refusal and report preserve historical state`);
     checks += 4;

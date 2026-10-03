@@ -1,4 +1,4 @@
-import { valueLabel } from "@workspace/valopay-schema";
+import { valueLabel } from "@workspace/valo-pay-1-schema";
 import { connectedActionRequest, recordTypesName, workspaceActionRequest } from "./action-names";
 
 /**

@@ -19,7 +19,7 @@ const pretty = process.env.LOG_FORMAT === "pretty" || (process.env.LOG_FORMAT ==
 
 const options: pino.LoggerOptions = {
   level: process.env.LOG_LEVEL ?? "info",
-  base: { pid: process.pid, hostname: hostname(), service: "valopay-api", build: BUILD },
+  base: { pid: process.pid, hostname: hostname(), service: "valo-pay-1-api", build: BUILD },
   redact: [
     "req.headers.authorization",
     "req.headers.cookie",

@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { connectedActionResultFor, connectedViewSchema } from "@workspace/valopay-schema";
+import { connectedActionResultFor, connectedViewSchema } from "@workspace/valo-pay-1-schema";
 import {
   inWorkspace,
   loadState,
@@ -13,7 +13,7 @@ import {
   receiptOf,
   fail,
   completeOperation,
-} from "../lib/valopay-store";
+} from "../lib/valo-pay-1-store";
 import { requestFingerprint } from "../lib/digests";
 import { connectedActionDone } from "../lib/action-names";
 import { contractAnswer, lenderQuery, replayedAnswer, requiredKey } from "../lib/contract";

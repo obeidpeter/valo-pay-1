@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
-import { seedMerchant } from '../src/lib/valopay-seed';
+import { seedMerchant } from '../src/lib/valo-pay-1-seed';
 import { queueExport, retryExport, exportJobView, exportHealth, exportIsClaimable, processExportJob, retryExportWrite, EXPORT_WRITE_ATTEMPTS, EXPORT_LEASE_MS, EXPORT_STALL_MS, EXPORT_CONFIRM_LEASE_MS, MAX_EXPORT_BYTES, type ClaimedExport, type ExportArtifact, type ExportJobRepository, type ExportJobStorage, type ExportStage } from '../src/lib/export-jobs';
 import type { DomainState } from '../src/domain/types';
 import { makeRecord } from '../src/domain/records';
 import { bindCloseReviewBasis, closeReviewIssues, decideCloseReview, prepareCloseReview, summariseLoadedClose } from '../src/domain/close-review';
 // Imports initialize the shared pool, but this suite never connects to it.
 process.env.DATABASE_URL ||= 'postgres://unused:unused@127.0.0.1:1/unused';
-const {generateExportArtifact,exportDescriptor}=await import('../src/lib/valopay-exports');
+const {generateExportArtifact,exportDescriptor}=await import('../src/lib/valo-pay-1-exports');
 const {runExportPass,startExportWorker}=await import('../src/lib/export-worker');
 
 let checks = 0;
@@ -332,7 +332,7 @@ assert.equal(await processExportJob({...repository,progress:async()=>'busy',rele
 assert.equal(state.records.find(record=>record.id===stillBusy.id)!.status,'running');
 const supersededBusy=queueExport(state,ctx,{kind:'customers',format:'json'},'/private/test');
 assert.equal(await processExportJob({...repository,progress:async()=>'busy',release:async()=>'lost'},storage,generate,{...target,id:supersededBusy.id},{backoffMs:0}),'skipped');checks+=3;
-const {renderDisputePackPdf,buildDisputePack}=await import('../src/lib/valopay-packs');
+const {renderDisputePackPdf,buildDisputePack}=await import('../src/lib/valo-pay-1-packs');
 const renderState=seedMerchant('bounded-pack');
 const renderCustomer=renderState.records.find(record=>record.kind==='customers')!;
 await assert.rejects(renderDisputePackPdf(buildDisputePack(renderState,ctx,renderCustomer.id),{timeoutMs:0}),/time limit|timed out/);checks++;

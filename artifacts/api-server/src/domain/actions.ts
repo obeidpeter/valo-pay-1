@@ -4,7 +4,7 @@ import {
   heldEvidenceCodes, heldEvidenceOf, moneyText, nairaText, nextCloseInstant, normaliseFailureCode, otherCurrenciesText, passRuleText, paymentUnappliedKobo, providerIdentityConfirmedCode, providerIdentityOf, providerIdentityParts, resolutionCodesForException, resolutionRuleVersion, resolveExceptionType, unseenReversalCodes, unseenReversalOf, withinQuietHours, templateTextProblems,
   changedText, collectionOwnerText, dayText, durationText, instantText, listText, monthText, optionText as option, policyGuardrails, valueLabel, valueWords,
   type CloseTrigger,
-} from "@workspace/valopay-schema";
+} from "@workspace/valo-pay-1-schema";
 import { findRecord, makeRecord, recordsOf, touch } from "./records";
 import {
   REVIEW_SUPERSESSION, allocatePayment, applyConfirmedAllocation, clearSettledExceptions, clearedExceptionsNote, confirmAttemptOutcome, dueStatusText, forgetRejectedMatch,
@@ -239,7 +239,7 @@ function runAction(state: DomainState, ctx: Context, input: ActionInput, audit?:
     const request = state.settings.emergencyStopReleases?.[stopScope(policyId)];
     if (!request) throw Object.assign(new Error(`No request to turn off the ${policyId ? "retry policy" : "lender"} emergency stop is waiting. Reload the page to see its current state: one Admin asks, then a different Admin approves.`), { status: 409 });
     // A staff actor is the verified Clerk user the principal is derived from, so a different actor is a different person.
-    if (request.requestedBy === ctx.actor) throw Object.assign(new Error("A different Admin must approve turning off the emergency stop. If your pilot has only one Admin, ask the Valo Pay team to add a second."), { status: 403 });
+    if (request.requestedBy === ctx.actor) throw Object.assign(new Error("A different Admin must approve turning off the emergency stop. If your pilot has only one Admin, ask the Valo Pay 1 team to add a second."), { status: 403 });
     const lifted = switchStop(state, ctx, policyId, false);
     return { ...lifted, data: { ...lifted.data, requestedBy: request.requestedBy, requestedAt: request.requestedAt, auditNote: `Approved the request by ${request.requestedBy} at ${instantText(request.requestedAt)}: ${request.reason}` } };
   }
@@ -302,7 +302,7 @@ function runAction(state: DomainState, ctx: Context, input: ActionInput, audit?:
       name: "Activation reminder", status: "simulated", customerId: mandate.customerId, createdAt: now,
       data: { purpose: "activation_reminder", channel: "sms", class: "reminder", mandateId: mandate.id, sequence: count + 1, cap, submittedAt: now, acceptedAt: null, deliveredAt: null, renderedText: `${state.merchant.name}: please ${workflow === "hosted_consent" ? "use the consent link you were sent" : "make the activation transfer"} to set up your direct debit. This is reminder ${count + 1} of ${cap}.`, simulated: true },
     });
-    return result(`Activation reminder ${count + 1} of ${cap} recorded as a simulation. No message left Valo Pay.`, mandate, { notificationId: notification.id });
+    return result(`Activation reminder ${count + 1} of ${cap} recorded as a simulation. No message left Valo Pay 1.`, mandate, { notificationId: notification.id });
   }
   if (["submit_policy", "approve_policy", "reject_policy", "new_policy_version"].includes(input.action)) {
     const policy = findRecord(state, String(input.recordId), "policies");
@@ -331,9 +331,9 @@ function runAction(state: DomainState, ctx: Context, input: ActionInput, audit?:
       const { reviewer: _reviewer, approvedAt: _approvedAt, submittedAt: _submittedAt, rejectedAt: _rejectedAt, ...carried } = policy.data;
       // Numbered after every version of the policy, drafts and rejected ones included, so two drafts from one version never share a number.
       const versions = policyLineage(state, policy).map(policyVersionOf);
-      if (versions.some((version) => !Number.isSafeInteger(version) || version < 1)) throw new Error("This retry policy’s history has an invalid version number. Ask the Valo Pay team to check it.");
+      if (versions.some((version) => !Number.isSafeInteger(version) || version < 1)) throw new Error("This retry policy’s history has an invalid version number. Ask the Valo Pay 1 team to check it.");
       const latest = Math.max(...versions);
-      if (latest >= Number.MAX_SAFE_INTEGER) throw new Error("This retry policy has reached the highest version number Valo Pay supports.");
+      if (latest >= Number.MAX_SAFE_INTEGER) throw new Error("This retry policy has reached the highest version number Valo Pay 1 supports.");
       const copy = makeRecord(state, "policies", { name: policy.name, status: "draft", amountKobo: 0, createdAt: now, data: { ...carried, version: latest + 1, author: ctx.actor, previousVersionId: policy.id } });
       return result("Draft policy version created.", copy);
     }
@@ -350,10 +350,10 @@ function runAction(state: DomainState, ctx: Context, input: ActionInput, audit?:
         const visited = new Set<string>();
         let current = record;
         while (current.data.previousVersionId) {
-          if (visited.has(current.id)) throw new Error("This message template’s version history is broken, so a new draft cannot be created. Ask the Valo Pay team to check it.");
+          if (visited.has(current.id)) throw new Error("This message template’s version history is broken, so a new draft cannot be created. Ask the Valo Pay 1 team to check it.");
           visited.add(current.id);
           const previous = templates.find(item => item.id === current.data.previousVersionId);
-          if (!previous) throw new Error("An earlier version of this message template is missing, so a new draft cannot be created. Ask the Valo Pay team to restore it.");
+          if (!previous) throw new Error("An earlier version of this message template is missing, so a new draft cannot be created. Ask the Valo Pay 1 team to restore it.");
           current = previous;
         }
         return current.id;
@@ -368,8 +368,8 @@ function runAction(state: DomainState, ctx: Context, input: ActionInput, audit?:
         remaining = remaining.filter(item => !family.has(item.id));
       }
       const versions = templates.filter(item => family.has(item.id)).map(item => Number(item.data.version || 1));
-      if (versions.some(version => !Number.isSafeInteger(version) || version < 1)) throw new Error("This message template’s history has an invalid version number. Ask the Valo Pay team to check it.");
-      if (Math.max(...versions) >= Number.MAX_SAFE_INTEGER) throw new Error("This message template has reached the highest version number Valo Pay supports.");
+      if (versions.some(version => !Number.isSafeInteger(version) || version < 1)) throw new Error("This message template’s history has an invalid version number. Ask the Valo Pay 1 team to check it.");
+      if (Math.max(...versions) >= Number.MAX_SAFE_INTEGER) throw new Error("This message template has reached the highest version number Valo Pay 1 supports.");
       const { reviewer: _reviewer, approvedAt: _approved, submittedAt: _submitted, rejectedAt: _rejected, rejectionReason: _rejection, reviewHistory: _history, lastActionReason: _reason, ...carried } = template.data;
       const copy = makeRecord(state, "templates", { name: template.name, status: "draft", createdAt: now, data: { ...carried, version: Math.max(...versions) + 1, author: ctx.actor, previousVersionId: template.id, templateRootId: rootId } });
       return result("Draft template version created. The approved version is unchanged.", copy);
@@ -588,7 +588,7 @@ function runAction(state: DomainState, ctx: Context, input: ActionInput, audit?:
   }
   if (input.action === "record_refund") {
     assertActionRole(ctx, ["Admin", "Finance"], "record a refund");
-    if (!data.reference || /^\d{8,}$/.test(String(data.reference))) throw new Error("Enter a masked sample reference for the refund recorded outside Valo Pay.");
+    if (!data.reference || /^\d{8,}$/.test(String(data.reference))) throw new Error("Enter a masked sample reference for the refund recorded outside Valo Pay 1.");
     const payment = findRecord(state, String(input.recordId), "payments");
     // Reversed money already went back. A refund returns what the payment has not applied, such as an overpayment's
     // excess: money applied to an instalment stays applied, and nothing is left to allocate or hold as credit.
@@ -596,8 +596,8 @@ function runAction(state: DomainState, ctx: Context, input: ActionInput, audit?:
     if (paymentReversed(payment) || paymentRefunded(payment)) throw Object.assign(new Error(paymentReversed(payment) ? `Payment ${payment.reference} was reversed by the provider, so its money already went back. There is nothing to refund.` : `A refund is already recorded for payment ${payment.reference}. Reload the page to see it.`), { status: 409 });
     if (paymentUnappliedKobo(payment) <= 0) throw Object.assign(new Error(`Payment ${payment.reference} has all of its money allocated to instalments, so there is nothing unallocated to refund. A refund recorded here returns only money the payment has not allocated.`), { status: 409 });
     payment.data.refundReference = String(data.reference); payment.data.refundRecordedAt = now; payment.data.refundRecordedExternally = true;
-    const refundedKobo = recordPaymentRefund(state, ctx, payment, "No longer in use: the payment was refunded outside Valo Pay.");
-    return result(`External refund of ${moneyText(refundedKobo, currencyOf(payment))} recorded: the money this payment had not allocated. The refund was paid outside Valo Pay. Valo Pay moved no money.`, payment, { refundedKobo });
+    const refundedKobo = recordPaymentRefund(state, ctx, payment, "No longer in use: the payment was refunded outside Valo Pay 1.");
+    return result(`External refund of ${moneyText(refundedKobo, currencyOf(payment))} recorded: the money this payment had not allocated. The refund was paid outside Valo Pay 1. Valo Pay 1 moved no money.`, payment, { refundedKobo });
   }
   if (input.action === "simulate_failure") {
     assertActionRole(ctx, ["Admin", "Operations"], "record a sample failure");
@@ -664,7 +664,7 @@ function runAction(state: DomainState, ctx: Context, input: ActionInput, audit?:
       name: "Policy change notice", status: "simulated", customerId: mandate.customerId, createdAt: now,
       data: { purpose: "policy_change", channel: "sms", class: "required", mandateId: mandate.id, policyId: target.id, policyVersion: Number(target.data.version || 1), submittedAt: now, acceptedAt: null, deliveredAt: null, renderedText: policyChangeText(state, target), simulated: true },
     });
-    return result("Policy change notice recorded as a simulation. It is not evidence that the provider accepted it, and no message left Valo Pay.", notification, { notificationId: notification.id, policyId: target.id });
+    return result("Policy change notice recorded as a simulation. It is not evidence that the provider accepted it, and no message left Valo Pay 1.", notification, { notificationId: notification.id, policyId: target.id });
   }
   if (input.action === "apply_policy_version") {
     assertActionRole(ctx, ["Admin", "Operations"], "apply a retry policy version");

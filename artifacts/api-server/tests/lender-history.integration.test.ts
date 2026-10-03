@@ -1,3 +1,4 @@
+import { SANDBOX_COOKIE } from "../src/lib/sandbox-cookie";
 // A lender's history stays out of what each request loads (audit of 23
 // September 2026, item 32, decisions 6 and 8), against a real database. The
 // audit chain is kept in valopay_records but is not part of a loaded state: a
@@ -21,16 +22,16 @@ import express from "express";
 import { once } from "node:events";
 import { randomBytes, randomUUID } from "node:crypto";
 
-if (process.env.VALOPAY_RUN_INTEGRATION !== "1") {
-  console.log("Set VALOPAY_RUN_INTEGRATION=1 to check a lender's history against a disposable PostgreSQL database.");
+if (process.env.VALO_PAY_1_RUN_INTEGRATION !== "1") {
+  console.log("Set VALO_PAY_1_RUN_INTEGRATION=1 to check a lender's history against a disposable PostgreSQL database.");
   process.exit(0);
 }
 // A placeholder identity key: nothing here reaches the identity provider.
 process.env.CLERK_SECRET_KEY ??= "sk_test_placeholder";
-const { pool } = await import("@workspace/db");
+const { pool } = await import("@workspace/valo-pay-1-db");
 const { default: router } = await import("../src/routes/index");
 const { errorHandler } = await import("../src/lib/error-handler");
-const store = await import("../src/lib/valopay-store");
+const store = await import("../src/lib/valo-pay-1-store");
 const { auditEntryData, verifyAuditChain } = await import("../src/lib/digests");
 const { exportJobRepository } = await import("../src/lib/export-job-store");
 
@@ -47,7 +48,7 @@ app.use(errorHandler);
 const server = app.listen(0, "127.0.0.1");
 await once(server, "listening");
 const base = `http://127.0.0.1:${(server.address() as any).port}/api`;
-const cookie = `valopay_sandbox=${randomBytes(32).toString("hex")}`;
+const cookie = `${SANDBOX_COOKIE}=${randomBytes(32).toString("hex")}`;
 async function call(path: string, method = "GET", body?: unknown, key?: string) {
   const response = await fetch(base + path, { method, headers: { "Content-Type": "application/json", Cookie: cookie, ...(key ? { "Idempotency-Key": key } : {}) }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
   return { status: response.status, data: (await response.json()) as any };
@@ -64,7 +65,7 @@ const brokenAlert = (overview: any) => overview.alerts.some((alert: { key: strin
 const brokenEntry = (overview: any) => Number(/Entry (\d+) of the audit log/.exec(overview.alerts.find((alert: { key: string }) => alert.key === "audit_chain_broken")?.detail ?? "")?.[1]);
 /** A caller of another sandbox of this run, with a cookie of its own. */
 const sandboxCaller = () => {
-  const own = `valopay_sandbox=${randomBytes(32).toString("hex")}`;
+  const own = `${SANDBOX_COOKIE}=${randomBytes(32).toString("hex")}`;
   return async (path: string, method = "GET", body?: unknown, key?: string) => {
     const answer = await fetch(base + path, { method, headers: { "Content-Type": "application/json", Cookie: own, ...(key ? { "Idempotency-Key": key } : {}) }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
     return { status: answer.status, data: (await answer.json()) as any };
@@ -174,7 +175,7 @@ try {
 
   // ---- 6. A lender with no stored position (an earlier build's) is checked whole, and its first write records it ----
   {
-    const token = randomBytes(32).toString("hex"), legacyCookie = `valopay_sandbox=${token}`;
+    const token = randomBytes(32).toString("hex"), legacyCookie = `${SANDBOX_COOKIE}=${token}`;
     const legacyCall = async (path: string, method = "GET", body?: unknown, key?: string) => {
       const answer = await fetch(base + path, { method, headers: { "Content-Type": "application/json", Cookie: legacyCookie, ...(key ? { "Idempotency-Key": key } : {}) }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
       return { status: answer.status, data: (await answer.json()) as any };
@@ -235,7 +236,7 @@ try {
 
   // ---- 9. The export worker's entries follow the stored head as a request's do: a missing entry's sequence is never issued again ----
   {
-    const workerCookie = `valopay_sandbox=${randomBytes(32).toString("hex")}`, directory = process.env.PRIVATE_OBJECT_DIR;
+    const workerCookie = `${SANDBOX_COOKIE}=${randomBytes(32).toString("hex")}`, directory = process.env.PRIVATE_OBJECT_DIR;
     const workerCall = async (path: string, method = "GET", body?: unknown, key?: string) => {
       const answer = await fetch(base + path, { method, headers: { "Content-Type": "application/json", Cookie: workerCookie, ...(key ? { "Idempotency-Key": key } : {}) }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
       return { status: answer.status, data: (await answer.json()) as any };

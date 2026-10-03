@@ -1,13 +1,13 @@
 // Defensive regression coverage for generic-write and provider/customer identity boundaries.
 import assert from 'node:assert/strict';
-import { observationEventKey, providerConnectionKey } from '@workspace/valopay-schema';
-import { seedMerchant } from '../src/lib/valopay-seed';
+import { observationEventKey, providerConnectionKey } from '@workspace/valo-pay-1-schema';
+import { seedMerchant } from '../src/lib/valo-pay-1-seed';
 import { validateRecord } from '../src/domain/validation';
 import { mergeData } from '../src/lib/edit-versions';
-import { importCsv } from '../src/lib/valopay-import';
+import { importCsv } from '../src/lib/valo-pay-1-import';
 import { executeAction } from '../src/domain/actions';
 process.env.DATABASE_URL ||= 'postgres://unused:unused@127.0.0.1:1/unused';
-const { assertFinalState } = await import('../src/lib/valopay-store');
+const { assertFinalState } = await import('../src/lib/valo-pay-1-store');
 const now = '2026-09-26T10:00:00.000Z';
 const operations = { actor: 'Operations reviewer', role: 'Operations', now };
 const admin = { ...operations, actor: 'Administrator', role: 'Admin' };

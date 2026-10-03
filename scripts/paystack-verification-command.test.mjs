@@ -8,19 +8,19 @@ const command = path.join(root, "scripts/src/verify-paystack-event.ts");
 const tsx = path.join(root, "scripts/node_modules/tsx/dist/cli.mjs");
 const clean = Object.fromEntries(
   Object.entries(process.env).filter(
-    ([name]) => !/^(?:VALOPAY_|PAYSTACK_|DATABASE_URL$|LOG_)/.test(name),
+    ([name]) => !/^(?:VALO_PAY_1_|PAYSTACK_|DATABASE_URL$|LOG_)/.test(name),
   ),
 );
-const logs = mkdtempSync(path.join(tmpdir(), "valopay-paystack-command-"));
+const logs = mkdtempSync(path.join(tmpdir(), "valo-pay-1-paystack-command-"));
 const id = "a".repeat(64),
   eventId = "synthetic-event-do-not-echo",
   secret = "synthetic-secret-do-not-echo";
 const args = ["--", "--connection-id", id, "--event-id", eventId];
 const testKey = ["sk", "test", "OFFLINE", "0".repeat(30)].join("_");
 const mapped = {
-  VALOPAY_PAYSTACK_INGRESS: "test",
+  VALO_PAY_1_PAYSTACK_INGRESS: "test",
   PAYSTACK_TEST_SECRET_KEY: testKey,
-  VALOPAY_PAYSTACK_CONNECTIONS: JSON.stringify({
+  VALO_PAY_1_PAYSTACK_CONNECTIONS: JSON.stringify({
     [id]: { workspaceId: "synthetic-workspace", merchantId: "synthetic-lender" },
   }),
 };
@@ -55,8 +55,8 @@ for (const [input, extra, outcome, exitCode] of [
   [["--key", secret], {}, "usage", 1],
   [["--connection-id", "not-valid", "--event-id", eventId], {}, "usage", 1],
   [args, {}, "not_configured", 1],
-  [args, { VALOPAY_PAYSTACK_INGRESS: "test", PAYSTACK_TEST_SECRET_KEY: ["sk", "live", "0".repeat(30)].join("_") }, "not_configured", 1],
-  [args, { VALOPAY_PAYSTACK_INGRESS: "test", PAYSTACK_TEST_SECRET_KEY: testKey }, "connection_not_mapped", 1],
+  [args, { VALO_PAY_1_PAYSTACK_INGRESS: "test", PAYSTACK_TEST_SECRET_KEY: ["sk", "live", "0".repeat(30)].join("_") }, "not_configured", 1],
+  [args, { VALO_PAY_1_PAYSTACK_INGRESS: "test", PAYSTACK_TEST_SECRET_KEY: testKey }, "connection_not_mapped", 1],
   // Even a complete test mapping cannot call a provider without the database, which is read first.
   [args, mapped, "not_configured", 1],
   [args, { ...mapped, DATABASE_URL: "postgres://unused:unused@127.0.0.1:1/unused" }, "database_unavailable", 2],

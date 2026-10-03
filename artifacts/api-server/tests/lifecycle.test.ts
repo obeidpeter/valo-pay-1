@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { ZodError } from 'zod';
-import { retentionPolicySchema, lifecycleRunViewSchema, type LifecycleCandidate, type LifecycleExternalCandidate, type RetentionPolicy } from '@workspace/valopay-schema';
-import { seedMerchant } from '../src/lib/valopay-seed';
+import { retentionPolicySchema, lifecycleRunViewSchema, type LifecycleCandidate, type LifecycleExternalCandidate, type RetentionPolicy } from '@workspace/valo-pay-1-schema';
+import { seedMerchant } from '../src/lib/valo-pay-1-seed';
 import { makeRecord } from '../src/domain/records';
 import { ResponseContractError } from '../src/lib/contract';
 import { createHash } from 'node:crypto';

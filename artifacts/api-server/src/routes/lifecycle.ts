@@ -1,8 +1,8 @@
 import { Router, type IRouter } from 'express';
-import { lifecycleViewSchema, lifecycleRunViewSchema, retentionPolicyInputSchema, retentionHoldInputSchema, lifecyclePreviewInputSchema, lifecycleApproveInputSchema, lifecycleExecuteInputSchema, pathId } from '@workspace/valopay-schema';
+import { lifecycleViewSchema, lifecycleRunViewSchema, retentionPolicyInputSchema, retentionHoldInputSchema, lifecyclePreviewInputSchema, lifecycleApproveInputSchema, lifecycleExecuteInputSchema, pathId } from '@workspace/valo-pay-1-schema';
 import { contractAnswer, lenderPage, lenderQuery, requiredKey } from '../lib/contract';
-import { inWorkspace, loadState, lifecycleInventory, executeLifecycleRun, revealImportPayloads, fail, type StoreContext } from '../lib/valopay-store';
-import { withState } from './valopay';
+import { inWorkspace, loadState, lifecycleInventory, executeLifecycleRun, revealImportPayloads, fail, type StoreContext } from '../lib/valo-pay-1-store';
+import { withState } from './valo-pay-1';
 import { lifecycleView, lifecycleRunView, saveLifecyclePolicy, setLifecycleHold, lifecyclePreview, approveLifecycleRun } from '../domain/lifecycle';
 import type { DomainState } from '../domain/types';
 import { routerOptions } from './router-options';

@@ -1,4 +1,4 @@
-# Valo Pay usability research kit
+# Valo Pay 1 usability research kit
 
 Status: **prepared; participant recruitment, sessions and human results pending**. This protocol contains no simulated participants, invented quotations, participant success rates or satisfaction scores. Automated acceptance tests are separate engineering evidence. Use the release audit to identify the exact candidate build before each session.
 
@@ -6,7 +6,7 @@ Status: **prepared; participant recruitment, sessions and human results pending*
 
 Evaluate learnability, efficiency, memorability, errors and satisfaction separately for the priority journeys J01–J10. The linked [measurement template](measurement-template.csv) has one row for each component in each journey/cohort. J10 is split into credit, forecast, accounting/VAT and payroll; do not combine their results into a single task score.
 
-The five components are NN/G's framing; the proposed targets, task scenarios, cohorts and time limits below are Valo Pay study choices. They are not a weighted NN/G score, certification or demonstrated outcome. [NN/G: Usability 101](https://www.nngroup.com/articles/usability-101-introduction-to-usability/)
+The five components are NN/G's framing; the proposed targets, task scenarios, cohorts and time limits below are Valo Pay 1 study choices. They are not a weighted NN/G score, certification or demonstrated outcome. [NN/G: Usability 101](https://www.nngroup.com/articles/usability-101-introduction-to-usability/)
 
 Use only the existing authorised synthetic preview, with external instructions disabled. No real applicant, bank, payroll or customer data. No payments, live bank hand-offs, customer messages, accounting posts, tax filings or paid services. A missing real authentication/MFA environment means that part of J01 is **blocked**, not passed. Do not collect a participant's password, MFA code or identity document.
 
@@ -16,7 +16,7 @@ Start with small formative rounds of approximately five participants per materia
 
 | Cohort | Real work experience to recruit | Existing test persona | Tasks |
 | --- | --- | --- | --- |
-| Collections operators | Daily mandate/exception/import work; mix of first-time Valo Pay users and experienced operators | Operations | J01, J02, J04, J05 operator variant, J07, J08 |
+| Collections operators | Daily mandate/exception/import work; mix of first-time Valo Pay 1 users and experienced operators | Operations | J01, J02, J04, J05 operator variant, J07, J08 |
 | Lender finance | Receipt matching, instalment allocation, month-end and dispute evidence | Finance | J01, J03, J04, J06, J07, J09 review variant |
 | Compliance/risk reviewers | Independent policy/credit review and evidence assessment | Compliance reviewer | J01, J05 independent review, J08 revoke variant, J10a review |
 | Administrators | Workspace setup, integrations and operational controls | Admin | J01, J02, J05 author variant, J08; prepare J10 fixtures |
@@ -27,7 +27,7 @@ Start with small formative rounds of approximately five participants per materia
 
 Internal support, SME finance, payroll approver, payer and applicant are research cohorts, not newly granted application roles. The implementation currently uses Admin, Operations, Finance, Compliance reviewer and Read-only. Apply existing action and purpose-grant permissions; never switch everyone to Admin to complete the script. A correctly identified lack of authority can be the correct task outcome.
 
-Screen for domain familiarity separately from general software skill, tenure in the actual task, prior Valo Pay exposure, typical device/connection and accessibility needs. Recruit keyboard-only and assistive-technology users where practicable; do not assume one participant represents all disabilities. Offer breaks and accessible consent materials. Do not ask employers to observe identifiable individual performance.
+Screen for domain familiarity separately from general software skill, tenure in the actual task, prior Valo Pay 1 exposure, typical device/connection and accessibility needs. Recruit keyboard-only and assistive-technology users where practicable; do not assume one participant represents all disabilities. Offer breaks and accessible consent materials. Do not ask employers to observe identifiable individual performance.
 
 ## Session preparation and facilitator script
 
@@ -42,7 +42,7 @@ Screen for domain familiarity separately from general software skill, tenure in 
 9. Stop at the predeclared outcome, participant withdrawal, or safe limit. Suggested initial limit: 8 minutes for a routine task, 12 minutes for a comparison/maker-reviewer task; pilot and freeze these limits before benchmarking. A timeout is not success. Pause immediately if real data or external side effects appear.
 10. Record the observed server-confirmed result, not just the clicked button or a confident verbal answer. Ask SEQ immediately after the attempt, including failed attempts. Debrief after the response. Administer SUS once after a representative session, then close with neutral custom questions.
 
-NN/G describes usability testing as observing representative users doing realistic tasks with a facilitator; these specific neutral scripts, limits and fixture rules are Valo Pay's proposed application. [Usability Testing 101](https://www.nngroup.com/articles/usability-testing-101/)
+NN/G describes usability testing as observing representative users doing realistic tasks with a facilitator; these specific neutral scripts, limits and fixture rules are Valo Pay 1's proposed application. [Usability Testing 101](https://www.nngroup.com/articles/usability-testing-101/)
 
 ## Neutral task cards and objective outcomes
 
@@ -84,9 +84,9 @@ Severity uses NN/G's 0–4 convention, with frequency, impact and persistence co
 
 ## Comparable sessions and delayed retest
 
-- **First-use:** recruit fresh Valo Pay novices within each domain cohort. A participant cannot be a fresh novice for both baseline and candidate. Use comparable independent novice groups, balanced on domain experience and accessibility needs; report imbalance.
+- **First-use:** recruit fresh Valo Pay 1 novices within each domain cohort. A participant cannot be a fresh novice for both baseline and candidate. Use comparable independent novice groups, balanced on domain experience and accessibility needs; report imbalance.
 - **Learned efficiency:** give both versions the same practice opportunity and clear criterion for task familiarity. Use equivalent fixtures and counterbalance version/task order (for example AB/BA) when the same people compare versions. Analyse practice/order effects; do not compare first-use think-aloud baseline to practised silent candidate.
-- **Memorability:** provisionally invite the same participants back after 7–14 days without intervening Valo Pay practice. Record actual interval and any exposure. Use equivalent task data, same role/device when feasible and no refresher tour or coaching. Keep exposed participants as a labelled separate group. Do not call an immediate repeated browser script a memorability test.
+- **Memorability:** provisionally invite the same participants back after 7–14 days without intervening Valo Pay 1 practice. Record actual interval and any exposure. Use equivalent task data, same role/device when feasible and no refresher tour or coaching. Keep exposed participants as a labelled separate group. Do not call an immediate repeated browser script a memorability test.
 - **Connectivity:** label normal, throttled and interrupted sessions separately. Record start/end of browser/API wait. A waiting period must be observable in the UI or network log; do not subtract thinking time as “network wait”. Compare matching conditions.
 - **Accessibility/device:** include desktop/tablet operational comparisons and phone payer/approval tasks, both themes and relevant keyboard/assistive technology. Emulation and physical-device evidence remain separate. Failure criteria include loss of critical amounts, focus, labels or actions. Automated checks supplement manual observation; they do not certify WCAG 2.2 AA. [WCAG 2.2](https://www.w3.org/TR/WCAG22/)
 - Freeze tasks, targets, exclusions and analysis plan before the benchmark. Any later change gets a dated amendment and reason; do not silently loosen a target after an unfavourable result.
@@ -111,7 +111,7 @@ The SEQ and SUS serve different task/session purposes and should accompany obser
 
 ### Custom debrief, recorded separately
 
-Ask: “What did you expect would happen?” “What tells you the action finished?” “Was anything unclear about your authority or the evidence?” “What would you check before doing this in your own work?” “Which part took more effort than you expected?” These are original Valo Pay research questions. Do not label their responses SEQ or SUS, calculate a combined trust score or reinterpret confidence as correctness.
+Ask: “What did you expect would happen?” “What tells you the action finished?” “Was anything unclear about your authority or the evidence?” “What would you check before doing this in your own work?” “Which part took more effort than you expected?” These are original Valo Pay 1 research questions. Do not label their responses SEQ or SUS, calculate a combined trust score or reinterpret confidence as correctness.
 
 ## Minimal manual recording template
 
@@ -119,7 +119,7 @@ Keep raw participant records outside the public repository in an access-controll
 
 | Field | Allowed entry |
 | --- | --- |
-| Session | Random participant code; cohort; test persona; domain experience band; Valo Pay exposure band; consent status |
+| Session | Random participant code; cohort; test persona; domain experience band; Valo Pay 1 exposure band; consent status |
 | Build and setup | Exact source/build; synthetic fixture code; baseline/candidate; date/time; timezone; browser/version; viewport; emulated/physical; keyboard/assistive tech; theme; connection condition |
 | Attempt | Journey/subtask/variant; first-use/learned/delayed; order; start/end; elapsed seconds; observed system/provider wait seconds; active seconds; manual steps; re-entry count |
 | Outcome | Correct unassisted / correct assisted / safe stop / incorrect / unfinished / setup blocked / withdrew; authoritative synthetic outcome reference (no full payload) |

@@ -9,10 +9,10 @@ import {
   importCorrectionViewSchema,
   importCorrectionsResponseSchema,
   pathId,
-} from "@workspace/valopay-schema";
-import { withState } from "./valopay";
+} from "@workspace/valo-pay-1-schema";
+import { withState } from "./valo-pay-1";
 import { lenderQuery, requiredKey } from "../lib/contract";
-import { caseAssignees } from "../lib/valopay-store";
+import { caseAssignees } from "../lib/valo-pay-1-store";
 import {
   listImportCorrections,
   previewImportCorrection,

@@ -1,10 +1,11 @@
+import { SANDBOX_COOKIE } from "../src/lib/sandbox-cookie";
 import assert from "node:assert/strict";
 import express from "express";
 import { once } from "node:events";
 import { randomBytes, randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 
-if (process.env.VALOPAY_RUN_INTEGRATION !== "1") {
+if (process.env.VALO_PAY_1_RUN_INTEGRATION !== "1") {
   console.log(
     "Opt in on a disposable database to run the pilot workflow integration suite.",
   );
@@ -13,10 +14,10 @@ if (process.env.VALOPAY_RUN_INTEGRATION !== "1") {
 // Cache one SDK client so its test-only verified-email adapter is stable.
 // This deliberately unusable placeholder is never sent to an external service.
 process.env.CLERK_SECRET_KEY = "sk_test_placeholder";
-const { pool } = await import("@workspace/db");
+const { pool } = await import("@workspace/valo-pay-1-db");
 const { default: router } = await import("../src/routes/index");
 const { errorHandler } = await import("../src/lib/error-handler");
-const store = await import("../src/lib/valopay-store");
+const store = await import("../src/lib/valo-pay-1-store");
 const { clerkClient } = await import("@clerk/express");
 
 // Actual routes/repository/database, with a test-only verified identity adapter.
@@ -39,7 +40,7 @@ app.use(errorHandler);
 const server = app.listen(0, "127.0.0.1");
 await once(server, "listening");
 const base = `http://127.0.0.1:${(server.address() as any).port}/api`;
-const cookie = `valopay_sandbox=${randomBytes(32).toString("hex")}`;
+const cookie = `${SANDBOX_COOKIE}=${randomBytes(32).toString("hex")}`;
 async function call(
   path: string,
   method = "GET",
@@ -74,9 +75,9 @@ const reqFor = (id: string) =>
   }) as any;
 const response = { cookie() {} } as any;
 const savedEnv = {
-  mode: process.env.VALOPAY_STAFF_ACCESS,
-  issuer: process.env.VALOPAY_STAFF_ISSUER,
-  origins: process.env.VALOPAY_STAFF_ORIGINS,
+  mode: process.env.VALO_PAY_1_STAFF_ACCESS,
+  issuer: process.env.VALO_PAY_1_STAFF_ISSUER,
+  origins: process.env.VALO_PAY_1_STAFF_ORIGINS,
 };
 const oldGetUser = clerkClient.users.getUser;
 const cleanupWorkspaces = new Set<string>();
@@ -154,7 +155,7 @@ try {
         undefined,
         undefined,
         undefined,
-        `valopay_sandbox=${randomBytes(32).toString("hex")}`,
+        `${SANDBOX_COOKIE}=${randomBytes(32).toString("hex")}`,
       )
     ).status,
     404,
@@ -744,7 +745,7 @@ try {
   await act({ action: "daily_close" });
   const closes = ok(await call(`/v1/close-history?merchantId=${empty.id}`));
   assert.equal(closes.total, 1);
-  const { buildExportBytes } = await import("../src/lib/valopay-exports");
+  const { buildExportBytes } = await import("../src/lib/valo-pay-1-exports");
   const evidence = await store.inWorkspace(
     {
       headers: { cookie },
@@ -777,9 +778,9 @@ try {
   );
   await act({ action: "set_role", data: { role: "Admin" } });
 
-  process.env.VALOPAY_STAFF_ACCESS = "staging";
-  process.env.VALOPAY_STAFF_ISSUER = "https://identity.example";
-  process.env.VALOPAY_STAFF_ORIGINS = "https://pilot.example";
+  process.env.VALO_PAY_1_STAFF_ACCESS = "staging";
+  process.env.VALO_PAY_1_STAFF_ISSUER = "https://identity.example";
+  process.env.VALO_PAY_1_STAFF_ORIGINS = "https://pilot.example";
   const organisation = `org_${randomUUID().replaceAll("-", "")}`,
     admin = `user_${randomUUID().replaceAll("-", "")}`,
     finance = `user_${randomUUID().replaceAll("-", "")}`;
@@ -1071,9 +1072,9 @@ try {
 } finally {
   (clerkClient.users as any).getUser = oldGetUser;
   for (const [key, value] of Object.entries({
-    VALOPAY_STAFF_ACCESS: savedEnv.mode,
-    VALOPAY_STAFF_ISSUER: savedEnv.issuer,
-    VALOPAY_STAFF_ORIGINS: savedEnv.origins,
+    VALO_PAY_1_STAFF_ACCESS: savedEnv.mode,
+    VALO_PAY_1_STAFF_ISSUER: savedEnv.issuer,
+    VALO_PAY_1_STAFF_ORIGINS: savedEnv.origins,
   })) {
     if (value === undefined) delete process.env[key];
     else process.env[key] = value;

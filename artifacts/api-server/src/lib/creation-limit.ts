@@ -47,6 +47,6 @@ export function createSandboxCreationLimits(limits: { network: number; site: num
 /** The message a refused creation answers with (429). */
 export function creationRefusalMessage(refusal: CreationRefusal): string {
   return refusal === "instance"
-    ? "Too many new sandboxes were started on Valo Pay in the last hour. Try again in an hour."
+    ? "Too many new sandboxes were started on Valo Pay 1 in the last hour. Try again in an hour."
     : "Too many new sandboxes were started from your network in the last hour. Try again in an hour.";
 }

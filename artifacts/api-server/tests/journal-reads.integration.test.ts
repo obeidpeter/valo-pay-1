@@ -1,3 +1,4 @@
+import { SANDBOX_COOKIE } from "../src/lib/sandbox-cookie";
 // What reading the operations journal costs (the third review of the audit fixes, edge finding 1). A keyed write's
 // journal entry keeps its request as it was sent, fields no route reads included, up to the 2 MB body limit. The
 // Operations list, the retention screens and runs, a repeat of a key and a cancel read an entry's identity and
@@ -12,11 +13,11 @@ import assert from "node:assert/strict";
 import express from "express";
 import { once } from "node:events";
 import { randomBytes, randomUUID } from "node:crypto";
-if (process.env.VALOPAY_RUN_INTEGRATION !== "1") { console.log("Journal reads integration requires a disposable local PostgreSQL database."); process.exit(0); }
+if (process.env.VALO_PAY_1_RUN_INTEGRATION !== "1") { console.log("Journal reads integration requires a disposable local PostgreSQL database."); process.exit(0); }
 assert.ok(["localhost", "127.0.0.1", "[::1]"].includes(new URL(process.env.DATABASE_URL || "").hostname), "Refuse a non-local integration database.");
 // The anonymous sandbox's configuration: no staff access and no payload encryption, so a body is stored as JSON.
-for (const name of ["VALOPAY_STAFF_ACCESS", "VALOPAY_RUNTIME_ISOLATION", "VALOPAY_PAYLOAD_ENCRYPTION"]) process.env[name] = "off";
-const { pool } = await import("@workspace/db");
+for (const name of ["VALO_PAY_1_STAFF_ACCESS", "VALO_PAY_1_RUNTIME_ISOLATION", "VALO_PAY_1_PAYLOAD_ENCRYPTION"]) process.env[name] = "off";
+const { pool } = await import("@workspace/valo-pay-1-db");
 const marker = `journal-reads-${randomUUID()}`;
 let bodyReads = 0, textReads = 0, journalRows = 0;
 // Each connection counts the jsonb values it receives that hold the marker (a stored request is the only one), the
@@ -39,7 +40,7 @@ app.use(express.json({ limit: "3mb" }));
 app.use((req, _res, next) => { (req as any).auth = Object.assign(() => ({ userId: null }), { [Symbol.for("@clerk/express.auth")]: true }); next(); });
 app.use("/api", router); app.use(errorHandler);
 const server = app.listen(0, "127.0.0.1"); await once(server, "listening");
-const base = `http://127.0.0.1:${(server.address() as { port: number }).port}/api`, cookie = `valopay_sandbox=${randomBytes(32).toString("hex")}`;
+const base = `http://127.0.0.1:${(server.address() as { port: number }).port}/api`, cookie = `${SANDBOX_COOKIE}=${randomBytes(32).toString("hex")}`;
 /** A request's status, answer and how many stored bodies, text values with the marker and journal rows the API received while it ran. */
 async function call(path: string, method = "GET", body?: unknown, key?: string) {
   const before = bodyReads, textBefore = textReads, rowsBefore = journalRows;
@@ -83,11 +84,11 @@ try {
   for (const key of [...saved.map((write) => write.key), refusedKey, pendingKey]) listedIds.set(key, (await entry(key)).id);
   for (const write of saved) {
     const shown = item(write.key);
-    assert.deepEqual([shown.status, shown.recordId, shown.recordKind, shown.message], ["completed", write.record.id, "customers", "Valo Pay saved this request."]);
+    assert.deepEqual([shown.status, shown.recordId, shown.recordKind, shown.message], ["completed", write.record.id, "customers", "Valo Pay 1 saved this request."]);
   }
   assert.equal(item(refusedKey).status, "cancelled");
-  assert.match(item(refusedKey).message, /^Valo Pay refused this request: .+ Correct it and send it again\.$/, "a refused request shows the reason it was given");
-  assert.deepEqual([item(pendingKey).status, item(pendingKey).recordId, item(pendingKey).message], ["pending", null, "Valo Pay has not confirmed this request yet. Check the original request."]);
+  assert.match(item(refusedKey).message, /^Valo Pay 1 refused this request: .+ Correct it and send it again\.$/, "a refused request shows the reason it was given");
+  assert.deepEqual([item(pendingKey).status, item(pendingKey).recordId, item(pendingKey).message], ["pending", null, "Valo Pay 1 has not confirmed this request yet. Check the original request."]);
   // Each entry says what it asked, from its path: a new customer record. Its name, reference and consent are not read.
   for (const key of listedIds.keys()) assert.deepEqual(item(key).summary, { action: "Add a record", targetKind: "customers", targetId: null, details: [] });
   const paged = await call(`/v1/operations?merchantId=${lender}&offset=3`);

@@ -5,9 +5,9 @@ import { validateRecord } from "../src/domain/validation.js";
 import { executeAction } from "../src/domain/actions.js";
 import { assertNoRealBankDetails, makeRecord, recordsOf } from "../src/domain/records.js";
 import { reconcile } from "../src/domain/reconciliation.js";
-import { seedMerchant } from "../src/lib/valopay-seed.js";
-import { exceptionCatalogue, listText, recordStatuses, templateTextProblems, valueLabel } from "@workspace/valopay-schema";
-import { importCsv } from "../src/lib/valopay-import.js";
+import { seedMerchant } from "../src/lib/valo-pay-1-seed.js";
+import { exceptionCatalogue, listText, recordStatuses, templateTextProblems, valueLabel } from "@workspace/valo-pay-1-schema";
+import { importCsv } from "../src/lib/valo-pay-1-import.js";
 
 let checks = 0;
 const admin = ctxAt(wat("2027-07-01T09:00:00"), "Admin");
@@ -80,7 +80,7 @@ const patch = (record: any, changes: any) => ({ ...record, ...changes, data: { .
   executeAction(state, ops, { action: "hand_back", reason: "Lender exit" });
   assert.equal(due.data.owner, "lms");
   const nextDay = ctxAt(wat("2027-07-02T09:00:00"), "Operations");
-  assert.throws(() => validateRecord(state, nextDay, "due-items", patch(due, { data: { owner: "valopay" } }), true), /Record a new collection transfer agreement after collection was returned on/, "the contract the hand-back ended no longer lets Valo Pay collect");
+  assert.throws(() => validateRecord(state, nextDay, "due-items", patch(due, { data: { owner: "valopay" } }), true), /Record a new collection transfer agreement after collection was returned on/, "the contract the hand-back ended no longer lets Valo Pay 1 collect");
   const flags = { incumbentDisabled: true, externalAttemptsImported: true, dualRunComplete: true, accountableUser: "Ops lead", confirmation: "Signed again" };
   assert.throws(() => validateRecord(state, admin, "cutovers", patch(draft, { status: "ready", data: flags }), true), /ended when collection was returned on/, "a contract drafted before the hand-back cannot be completed afterwards");
   assert.doesNotThrow(() => validateRecord(state, admin, "cutovers", { name: "Cohort 2 cutover", status: "ready", data: { ...flags, fallbackOwner: "lms" } }), "a new contract can be recorded ready");
@@ -144,7 +144,7 @@ const patch = (record: any, changes: any) => ({ ...record, ...changes, data: { .
   validateRecord(state, finance, "settlement-batches", batch);
   assert.equal(batch.data.batchReference, "B-1", "the top-level reference is the batch reference");
   assert.throws(() => validateRecord(state, finance, "settlement-batches", { ...batch, status: "settled" }), /Choose a status from the list: Pending, Reconciled or Difference found\./);
-  assert.throws(() => validateRecord(state, finance, "settlement-batches", { ...batch, status: "reconciled" }), /A new settlement batch cannot start as reconciled\. Valo Pay sets that status later\.|A new settlement batch must start as Pending/);
+  assert.throws(() => validateRecord(state, finance, "settlement-batches", { ...batch, status: "reconciled" }), /A new settlement batch cannot start as reconciled\. Valo Pay 1 sets that status later\.|A new settlement batch must start as Pending/);
   assert.throws(() => validateRecord(state, finance, "settlement-batches", { ...batch, data: { ...batch.data, netKobo: 80 } }), /amount before fees minus the fee/);
   const customer: any = { name: "c", status: "inactive", data: { consentProvenance: "Imported" } };
   assert.doesNotThrow(() => validateRecord(state, ops, "customers", customer));
@@ -188,8 +188,8 @@ const patch = (record: any, changes: any) => ({ ...record, ...changes, data: { .
   assert.equal(template.data.rejectionReason, 'Explain the date more clearly.');
   assert.equal((template.data.reviewHistory as unknown[]).length, 1);
   assert.doesNotThrow(() => validateRecord(state, admin, 'templates', patch(template, { data: { text: originalText + ' Thank you.' } }), true));
-  assert.throws(() => validateRecord(state, admin, 'templates', patch(template, { data: { rejectionReason: 'No changes requested' } }), true), /Valo Pay records a template’s reviews, review dates and version links\. You cannot change them here\./);
-  assert.throws(() => validateRecord(state, admin, 'templates', patch(template, { data: { version: 99 } }), true), /Leave the version number as it is\. Valo Pay numbers each new draft version\./);
+  assert.throws(() => validateRecord(state, admin, 'templates', patch(template, { data: { rejectionReason: 'No changes requested' } }), true), /Valo Pay 1 records a template’s reviews, review dates and version links\. You cannot change them here\./);
+  assert.throws(() => validateRecord(state, admin, 'templates', patch(template, { data: { version: 99 } }), true), /Leave the version number as it is\. Valo Pay 1 numbers each new draft version\./);
   act('submit_template'); act('approve_template', reviewer);
   assert.equal(template.status, 'approved');
   assert.equal((template.data.reviewHistory as unknown[]).length, 2);
@@ -238,7 +238,7 @@ const patch = (record: any, changes: any) => ({ ...record, ...changes, data: { .
   assert.throws(() => importCsv(state, admin, { ...input, csv: '__proto__,name\nobject,Name' }), /Some names, such as ‘constructor’, cannot be used/);
   assert.throws(() => importCsv(state, admin, { ...input, csv: 'name\n' + 'é'.repeat(750001) }), /1.5 MB/);
   assert.throws(() => importCsv(state, admin, { ...input, csv: 'name\n' + Array.from({ length: 501 }, () => 'Sample').join('\n') }), /between 1 and 500/);
-  assert.throws(() => importCsv(state, admin, { ...input, csv: 'name\n"Unclosed' }), /Valo Pay could not read this CSV file/);
+  assert.throws(() => importCsv(state, admin, { ...input, csv: 'name\n"Unclosed' }), /Valo Pay 1 could not read this CSV file/);
   checks += 25;
 }
 

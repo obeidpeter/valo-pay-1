@@ -13,7 +13,7 @@
       "path": "./lib/api-zod"
     },
     {
-      "path": "./lib/valopay-schema"
+      "path": "./lib/valo-pay-1-schema"
     }
   ]
 }
